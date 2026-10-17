@@ -19,8 +19,8 @@ from common import add_block, add_stone, drop_faces_below, finish_obj, hexcol, j
 # European ruins); the pavers are a warm grey-tan stone rather than terracotta.
 # Round 11: warm, saturated sandstone again (the references: golden-orange blocks, a few pale and a
 # few red-brown ones for variety); the pavers a warm red-tan.
-SAND = [hexcol(h) for h in ("#c88a55", "#b8794a", "#d59a62", "#a96c44", "#c38558", "#be9064", "#d4a26c", "#9c6340", "#cfae84")]
-TERRA = [hexcol(h) for h in ("#b67f5e", "#a67156", "#c38d6a", "#986650", "#ae7e64", "#bd8a68")]
+SAND = [hexcol(h) for h in ("#c4905e", "#b58251", "#d0a06c", "#a5744d", "#bf8b5f", "#bc976d", "#cfa676", "#9d6c48", "#cdb08a")]
+TERRA = [hexcol(h) for h in ("#b48766", "#a3785d", "#c09472", "#966d56", "#ab866c", "#b99270")]
 WOOD = [hexcol(h) for h in ("#8a6547", "#7a5a40", "#96714f", "#6d4f38")]
 # Weathered boards: warm honey-brown, bleached where the sun takes them (round 5: never grey).
 BOARDS = [hexcol(h) for h in ("#b8895c", "#a87a4e", "#c4986a", "#9e754e", "#c09c72", "#b08458")]
@@ -557,6 +557,9 @@ def planks(name, seed, width=3.6, length=4.0):
                 (warp, rng.uniform(-0.02, 0.02), rng.uniform(-0.008, 0.008)), color=jitter_color(rng.choice(BOARDS), rng, 0.12, 0.04),
                 radius=0.55, erode=0.25, cuts=1, pillow=0.0, taper=0.0, uvshrink=hid)
         x += pw
+    # Round 11: a dark sub-deck under the boards, so the joints between them read as shadow, not as
+    # bright turquoise slits of water.
+    add_block(bm, (width - 0.1, length - 0.04, 0.03), (0, length / 2, -0.115), bevel=0.0, rng=rng, color=hexcol("#2a1d14"), jit=0.0)
     for yb in (0.45, 2.0, 3.55):
         blk(bm, rng, (width + 0.4, 0.22, 0.22), (rng.uniform(-0.05, 0.05), yb, -0.22), (0, 0, rng.uniform(-0.03, 0.03)),
             color=jitter_color(WOOD[3], rng), radius=0.5, erode=0.3, cuts=1, taper=0.0, uvshrink={"bottom": 0.8})

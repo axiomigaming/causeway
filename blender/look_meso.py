@@ -12,7 +12,7 @@ import materials as M
 import kit_geo as K
 import meso as X
 
-which = sys.argv[-1] if len(sys.argv) > 1 and sys.argv[-1] in ("gate", "pyramid", "mask", "wall", "door") else "gate"
+which = sys.argv[-1] if len(sys.argv) > 1 and sys.argv[-1] in ("gate", "pyramid", "mask", "wall", "door", "close") else "gate"
 reset()
 st, gd, sa, fl = M.stone("statue", moss=0.5, glyphs=False), M.gold(), M.stone("stoneB", moss=0.45, glyphs=False), M.floor()
 
@@ -49,6 +49,12 @@ elif which == "door":
     put(X.square_pier("pillar_1", 201, height=5.0, broken=True), sa, (-3.6, 9, 0))
     put(X.stele_glyph("stele_0", 240), sa, (2.2, 3, 0), 0.3)
     preview(f"{CACHE}/look_meso_door.png", (0.3, -3.0, 2.0), (0, 12, 3.0), lens=24, sun=(32, 0, 200), samples=12)
+elif which == "close":
+    for i in range(3):
+        put(K.wall(f"wl{i}", 100 + i, height=1.4, ruin=0.4), sa, (-2.6, 2 + i * 4, 0))
+        put(K.floor(f"fl{i}", 300 + i % 2), fl, (0, 2 + i * 4, 0))
+    put(K.planks("pk", 500), M.wood(), (1.2, -2.5, 0))
+    preview(f"{CACHE}/look_close.png", (0.6, -1.2, 1.3), (-1.6, 3.5, 0.4), lens=26, sun=(30, 0, 200), samples=12)
 elif which == "wall":
     gl = M.stone("glyph", moss=0.35, glyphs=True)
     for i in range(4):
