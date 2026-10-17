@@ -55,9 +55,9 @@ export const LOOKS: Look[] = [
   {
     // Storm light: a dim, grey-green sky, the sun breaking through weakly, the air heavy.
     name: 'storm',
-    sun: 0xffe6c4, sunI: 8.5, fillI: 1.0,
-    hemiSky: 0x8da9a6, hemiGround: 0x5e5446, hemiI: 0.52, envI: 0.22, skyI: 0.68,
-    fog: 0x71878a, fogDensity: 0.003, mist: 1.6,
+    sun: 0xffe2bc, sunI: 7, fillI: 0.9,
+    hemiSky: 0x8aa6a4, hemiGround: 0x5a5044, hemiI: 0.6, envI: 0.24, skyI: 0.6,
+    fog: 0x687c80, fogDensity: 0.0044, mist: 1.8,
     stoneTint: [0.93, 0.95, 0.96],
   },
 ];
