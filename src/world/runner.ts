@@ -194,6 +194,11 @@ export class Runner {
   private glanceT = -1;
   private glanceSide = 1;
   private stumbleT = -1;
+  private duckT = -1;
+  private hopT = -1;
+  /** Fading out an interrupted beat (see overlays). */
+  private beatOut = false;
+  private beatGain = 1;
   private eventT = 0;
   onFootstep: (foot: Foot, strength: number) => void = () => {};
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
@@ -349,8 +354,7 @@ export class Runner {
     this.current = name;
     this.fade = Math.max(0.001, fade);
     this.eventT = offset;
-    this.glanceT = -1;
-    this.stumbleT = -1;
+    if (name !== 'run' && (this.busy() || this.catchT >= 0)) this.beatOut = true;
     if (name === 'run') {
       for (const k of GAITS) this.actions.get(k)?.play();
     } else {
@@ -374,16 +378,42 @@ export class Runner {
 
   /** A look back over the shoulder (cosmetic; `side` +1 = over the right shoulder). */
   glance(side: number): void {
-    if (this.current !== 'run' || this.glanceT >= 0 || this.stumbleT >= 0) return;
+    if (this.current !== 'run' || this.busy()) return;
     this.glanceT = 0;
     this.glanceSide = side >= 0 ? 1 : -1;
   }
 
   /** A stumble and recover (cosmetic). Returns false if the runner is busy. */
   stumble(): boolean {
-    if (this.current !== 'run' || this.stumbleT >= 0 || this.glanceT >= 0) return false;
+    if (this.current !== 'run' || this.busy()) return false;
     this.stumbleT = 0;
     return true;
+  }
+
+  /**
+   * A duck under a low beam or hanging vines (cosmetic, ~0.7 s): the trunk folds over the hips, the
+   * knees give, the head stays up to see the way. Fire it ~0.25 s before the obstacle passes overhead.
+   * Returns false if the runner is busy (not running, or another beat is playing).
+   */
+  duck(): boolean {
+    if (this.current !== 'run' || this.busy()) return false;
+    this.duckT = 0;
+    return true;
+  }
+
+  /**
+   * A hop over rubble (cosmetic, ~0.45 s): a quick tucked bound on the run, arms out for balance, both
+   * feet landing together. Fire it ~0.2 s before the rubble reaches the runner. False if busy.
+   */
+  hop(): boolean {
+    if (this.current !== 'run' || this.busy()) return false;
+    this.hopT = 0;
+    return true;
+  }
+
+  /** A reactive beat is playing (glance, stumble, duck, hop): the next one waits. */
+  busy(): boolean {
+    return this.glanceT >= 0 || this.stumbleT >= 0 || this.duckT >= 0 || this.hopT >= 0;
   }
 
   get stumbling(): number {
@@ -535,6 +565,17 @@ export class Runner {
   /** Additive beats on top of the gait: a glance back, a stumble and recover, a catch step. */
   private overlays(dt: number): void {
     const b = this.bones;
+    let lift = 0;
+    // A reaction or a new state cut a beat short: it fades out over 0.15 s instead of snapping off.
+    if (this.beatOut) {
+      this.beatGain = Math.max(0, this.beatGain - dt / 0.15);
+      if (this.beatGain <= 0) {
+        this.glanceT = this.stumbleT = this.duckT = this.hopT = this.catchT = -1;
+        this.beatOut = false;
+        this.beatGain = 1;
+      }
+    }
+    const G = this.beatGain;
     if (this.current === 'run') {
       // No two strides alike: every stride eases toward fresh small offsets (head carriage, trunk
       // twist and side bend, one arm a touch wider or higher).
@@ -555,7 +596,7 @@ export class Runner {
     if (this.catchT >= 0) {
       this.catchT += dt;
       const t = this.catchT;
-      const e = t < 0.1 ? smoothstep(0, 0.1, t) : 1 - smoothstep(0.1, 0.55, t);
+      const e = (t < 0.1 ? smoothstep(0, 0.1, t) : 1 - smoothstep(0.1, 0.55, t)) * G;
       const up = this.catchDir;
       // Climbing: the chest pitches in and the knees come up; descending: sit back, arms out.
       this.rotate(b.spine, -0.1 * e * up, 0, 0);
@@ -563,16 +604,13 @@ export class Runner {
       this.rotate(b.head, -0.1 * e, 0, 0);
       this.rotate(b.upper_armL, 0, 0, 0.25 * e * (up < 0 ? 1.6 : 1));
       this.rotate(b.upper_armR, 0, 0, -0.25 * e * (up < 0 ? 1.6 : 1));
-      if (this.stumbleT < 0) this.body.position.y = -0.035 * e;
-      if (t > 0.6) {
-        this.catchT = -1;
-        if (this.stumbleT < 0) this.body.position.y = 0;
-      }
+      lift += -0.035 * e;
+      if (t > 0.6) this.catchT = -1;
     }
     if (this.glanceT >= 0) {
       this.glanceT += dt;
       const t = this.glanceT;
-      const g = smoothstep(0, 0.25, t) * (1 - smoothstep(0.6, 0.95, t));
+      const g = smoothstep(0, 0.25, t) * (1 - smoothstep(0.6, 0.95, t)) * G;
       const s = -this.glanceSide;
       // Up-pointing bones yaw about local Y; the shoulder drops a touch as the chest turns.
       this.rotate(b.spine, 0, s * 0.1 * g, 0);
@@ -583,7 +621,7 @@ export class Runner {
     }
     if (this.stumbleT >= 0) {
       this.stumbleT += dt;
-      const e = this.stumbleEnv(this.stumbleT);
+      const e = this.stumbleEnv(this.stumbleT) * G;
       // Pitch forward, head up to find the way, arms thrown wide for balance, a dip.
       this.rotate(b.spine, -0.22 * e, 0, 0.05 * e);
       this.rotate(b.chest, -0.15 * e, 0, 0);
@@ -591,12 +629,54 @@ export class Runner {
       this.rotate(b.head, 0.15 * e, 0, 0);
       this.rotate(b.upper_armL, -0.3 * e, 0, 0.7 * e);
       this.rotate(b.upper_armR, -0.3 * e, 0, -0.7 * e);
-      this.body.position.y = -0.07 * e;
-      if (this.stumbleT > 0.8) {
-        this.stumbleT = -1;
-        this.body.position.y = 0;
-      }
+      // The dip comes from the knees (no feet through the floor).
+      this.rotate(this.feet.L.thigh, -0.18 * e, 0, 0);
+      this.rotate(this.feet.R.thigh, -0.18 * e, 0, 0);
+      this.rotate(this.feet.L.shin, 0.36 * e, 0, 0);
+      this.rotate(this.feet.R.shin, 0.36 * e, 0, 0);
+      lift += -0.07 * e;
+      if (this.stumbleT > 0.8) this.stumbleT = -1;
     }
+    if (this.duckT >= 0) {
+      this.duckT += dt;
+      const t = this.duckT;
+      const e = (t < 0.16 ? smoothstep(0, 0.16, t) : 1 - smoothstep(0.42, 0.72, t)) * G;
+      // Fold at the hips and give at the knees; the head comes up so the eyes stay on the way.
+      this.rotate(b.spine, -0.34 * e, 0, 0);
+      this.rotate(b.chest, -0.22 * e, 0, 0);
+      this.rotate(b.neck, 0.3 * e, 0, 0);
+      this.rotate(b.head, 0.2 * e, 0, 0);
+      this.rotate(b.upper_armL, -0.15 * e, 0, 0.12 * e);
+      this.rotate(b.upper_armR, -0.15 * e, 0, -0.12 * e);
+      this.rotate(this.feet.L.thigh, -0.28 * e, 0, 0);
+      this.rotate(this.feet.R.thigh, -0.28 * e, 0, 0);
+      this.rotate(this.feet.L.shin, 0.55 * e, 0, 0);
+      this.rotate(this.feet.R.shin, 0.55 * e, 0, 0);
+      lift += -0.11 * e;
+      if (t > 0.72) this.duckT = -1;
+    }
+    if (this.hopT >= 0) {
+      const t0 = this.hopT;
+      this.hopT += dt;
+      const T = 0.44;
+      const u = Math.min(1, this.hopT / T);
+      // A ballistic bound (~20 cm), knees tucked at the top, arms out; both feet land together.
+      const e = Math.sin(Math.PI * u) * G;
+      this.rotate(this.feet.L.thigh, -0.6 * e, 0, 0);
+      this.rotate(this.feet.R.thigh, -0.45 * e, 0, 0);
+      this.rotate(this.feet.L.shin, 1.0 * e, 0, 0);
+      this.rotate(this.feet.R.shin, 0.85 * e, 0, 0);
+      this.rotate(b.spine, -0.1 * e, 0, 0);
+      this.rotate(b.upper_armL, -0.2 * e, 0, 0.45 * e);
+      this.rotate(b.upper_armR, -0.2 * e, 0, -0.45 * e);
+      lift += 0.8 * u * (1 - u) * (1 - smoothstep(0.85, 1, u) * 0.2);
+      if (t0 < T && this.hopT >= T) {
+        this.onFootstep('L', 0.85);
+        this.onFootstep('R', 0.85);
+      }
+      if (this.hopT > T + 0.05) this.hopT = -1;
+    }
+    this.body.position.y = lift;
   }
 
   /** Breathing: slow and shallow when fresh, quick and heaving when spent (visible at rest). */
@@ -831,6 +911,10 @@ export class Runner {
     this.hasPrev = false;
     this.glanceT = -1;
     this.stumbleT = -1;
+    this.duckT = -1;
+    this.hopT = -1;
+    this.beatOut = false;
+    this.beatGain = 1;
     this.pending = null;
     this.body.position.y = 0;
     this.driveS = this.drive = 0;
