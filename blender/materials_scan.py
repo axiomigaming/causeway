@@ -8,7 +8,7 @@ normalised to its mean and mostly desaturated so the material's own hues (red-or
 algae streaks, the wet band) survive, and its height is added to the bump chain.
 """
 import materials as M
-from common import L, N, math_node, mix
+from common import L, N, maprange, math_node, mix, ramp
 
 
 def _inject(m, asset, scales, amount, bump):
@@ -37,3 +37,45 @@ def rock(name="rock"):
 
 def cliff(name="cliff"):
     return _inject(M.cliff(name), "rock_face", (0.12, 0.45), 0.8, 0.8)
+
+
+def flora(name="flora"):
+    """The flora material, with the moss mounds (vertex alpha 0, see setpieces.moss_clump) given a
+    fuzzy cushion-moss surface: clumps of tiny tufts, yellow-green tips, dark hollows between them,
+    instead of smooth green clay. Lily pads and lotus keep the plain material."""
+    m = M.flora(name)
+    nt = m.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    vc = N(nt, "ShaderNodeVertexColor", _layer_name="Col")
+    mask = math_node(nt, "SUBTRACT", 1.0, vc.outputs["Alpha"])
+    vec, _ = M._coords(nt, 1.0)
+    cushions = M._noise(nt, vec, 9, 3, 0.55, 0.6)
+    tufts = M._noise(nt, vec, 140, 4, 0.6)
+    fine = M._noise(nt, vec, 45, 6, 0.7)
+    hollow = maprange(nt, cushions.outputs[0], 0.3, 0.7, 0.55, 1.0)
+    tint = ramp(nt, tufts.outputs[0], [(0.35, (0.55, 0.62, 0.42)), (0.55, (1.0, 1.0, 1.0)), (0.75, (1.35, 1.3, 0.75))])
+    moss_col = mix(nt, 1.0, vc.outputs[0], tint, "MULTIPLY")
+    moss_col = mix(nt, 1.0, moss_col, _grey(nt, hollow), "MULTIPLY")
+    base_in = bsdf.inputs["Base Color"]
+    L(nt, mix(nt, mask, base_in.links[0].from_socket, moss_col, "MIX"), base_in)
+    h = math_node(nt, "ADD", math_node(nt, "MULTIPLY", tufts.outputs[0], 0.6),
+                  math_node(nt, "ADD", math_node(nt, "MULTIPLY", fine.outputs[0], 0.4), hollow))
+    nin = bsdf.inputs["Normal"]
+    prev = nin.links[0].from_socket
+    fuzzy = M._bump(nt, h, 1.0, 0.025, prev)
+    sw = N(nt, "ShaderNodeMix")
+    sw.data_type = "VECTOR"
+    L(nt, mask, sw.inputs[0])
+    L(nt, prev, sw.inputs[4])
+    L(nt, fuzzy, sw.inputs[5])
+    L(nt, sw.outputs[1], nin)
+    rin = bsdf.inputs["Roughness"]
+    L(nt, math_node(nt, "MAXIMUM", rin.links[0].from_socket, math_node(nt, "MULTIPLY", mask, 0.95)), rin)
+    return m
+
+
+def _grey(nt, v):
+    c = N(nt, "ShaderNodeCombineColor")
+    for i in range(3):
+        L(nt, v, c.inputs[i])
+    return c.outputs[0]

@@ -202,7 +202,7 @@ mats = {
     "wood": (M.wood("wood"), 1024),
     "bark": (M.bark("bark"), 1024),
     "statue": (M.stone("statue", moss=0.5, glyphs=False), 2048),
-    "flora": (M.flora("flora"), 1024),
+    "flora": (MS.flora("flora"), 1024),
     "cliff": (MS.cliff("cliff"), 2048),
     "gold": (M.gold("gold"), 1024),
     "temple": (M.stone("temple", moss=0.5, glyphs=False), 512),  # far pieces; keeps the High set under budget
@@ -248,7 +248,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     for o in objs:
         me = o.data
