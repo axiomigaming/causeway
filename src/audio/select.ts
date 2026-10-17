@@ -180,6 +180,8 @@ export const SFX_NAMES: Record<string, (strength: number) => { sound: string; st
   debris: (s) => ({ sound: 'debris', strength: s }),
   clatter: (s) => ({ sound: 'debris', strength: s }),
   grit: (s) => ({ sound: 'dust', strength: s * 0.6 }),
+  dust_burst: (s) => ({ sound: 'dust', strength: 0.4 + 0.6 * s }),
+  stones_skitter: (s) => ({ sound: 'debris', strength: 0.25 + 0.55 * s }),
   dust: (s) => ({ sound: 'dust', strength: s }),
   splash: (s) => ({ sound: s >= 0.55 ? 'splash_big' : 'splash_small', strength: s }),
   splash_big: (s) => ({ sound: 'splash_big', strength: s }),

@@ -148,6 +148,16 @@ export class ScorePlayer {
     this.tier = t;
   }
 
+  private accentNext = 0;
+
+  /**
+   * A tier just arrived: on the next downbeat (where its layer fades in) the big drum and the boom
+   * land together, louder for higher tiers. One accent per bar at most.
+   */
+  accent(strength: number): void {
+    if (this.mode === 'run') this.accentNext = Math.max(this.accentNext, 0.4 + 0.6 * strength);
+  }
+
   private setLayers(at: number) {
     const want = this.mode === 'run' ? layersFor(this.tier) : this.mode === 'off' ? [] : [0];
     for (let i = 0; i < 4; i++) {
@@ -178,6 +188,13 @@ export class ScorePlayer {
           { inst: 'm_pulse', step: 8, vel: 0.85, layer: 0 },
           { inst: 'm_pulse', step: 11, vel: 0.5, layer: 0 },
         ] : idleHits(this.bar, this.rnd);
+        if (this.accentNext > 0 && this.mode === 'run') {
+          const a = this.accentNext;
+          this.accentNext = 0;
+          const at = Math.max(now, this.next);
+          this.player.play('m_taiko', { when: at, strength: a, priority: 3, dest: this.layerGain[0] });
+          this.player.play('m_boom', { when: at, strength: 0.4 + 0.5 * a, gain: 0.7, dest: this.layerGain[0] });
+        }
       }
       const sixteenth = 60 / this.bpm / 4;
       for (const h of this.hits) {

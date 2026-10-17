@@ -608,8 +608,23 @@ export class AudioEngine implements WorldSounds {
    */
   sfx(name: string, strength = 0.7): void {
     if (!this.ctx) return;
+    if (name === 'tier_up') {
+      // A run tier arrives (strength = tier / 4, from the multiplier on screen). Not a separate
+      // ding: the score lands an accent on its next downbeat, the bar where the new layer enters.
+      this.scorePlayer?.accent(Math.min(1, Math.max(0, strength)));
+      return;
+    }
     const r = resolveSfx(name, strength);
-    if (r) this.sample(r.sound, { strength: r.strength });
+    if (!r) return;
+    if (this.sample(r.sound, { strength: r.strength }) && name === 'dust_burst') {
+      // A wall blowing out: grit and a few stones come with the dust.
+      this.sample('debris', { strength: 0.3 + 0.4 * strength, when: this.ctx.currentTime + 0.05 });
+    }
+  }
+
+  /** WorldSounds.event: named world events from the game (dust_burst, stones_skitter, tier_up, …). */
+  event(name: string, strength: number): void {
+    this.sfx(name, strength);
   }
 
   /**

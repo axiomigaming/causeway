@@ -1,0 +1,262 @@
+CAUSEWAY: recorded sound credits
+
+Every recorded sound in this folder is cut from the recordings below (found through Openverse,
+https://openverse.org; hosted on Freesound or Jamendo). Each line is the attribution Openverse gives
+for the recording, copied verbatim, followed by its page. Files were trimmed, faded, filtered,
+loudness-normalised, looped and re-encoded; several sounds combine takes from more than one recording.
+See tools/audio-sources.json for which file each sound comes from.
+
+"[Boom] Reverbed Kick 09" by waveplaySFX is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/waveplaySFX/sounds/353391
+
+"120-Djembe-Mute.wav" by klemmy is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/klemmy/sounds/203347
+
+"121-Djembe-Slap.wav" by klemmy is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/klemmy/sounds/203350
+
+"123-Taiko-Open.wav" by klemmy is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/klemmy/sounds/203344
+
+"13th Whoosh Swing Sound" by qubodup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/qubodup/sounds/60000
+
+"20080928.coins.05.wav" by dobroide is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/dobroide/sounds/60769
+
+"African Djembe Drum - 1.wav" by SpaceJoe is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/SpaceJoe/sounds/505396
+
+"Braddons Lookout Wind Gusts #1.m4a" by guyburns is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/guyburns/sounds/474894
+
+"Braddons Lookout Wind Gusts #2.m4a" by guyburns is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/guyburns/sounds/474895
+
+"Breaking A Wall Down (With A Hammer)" by scampsie is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/scampsie/sounds/417091
+
+"Bukit_Dinding_rainforest_jungle_01.wav" by wanna73 is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/wanna73/sounds/20291
+
+"Cicadas euroblues.wav" by euroblues is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/euroblues/sounds/20064
+
+"cinematic boom 130730_06.wav" by klankbeeld is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/klankbeeld/sounds/195790
+
+"Coins Being Dropped-Assorted" by TheWoodlandNomad is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/TheWoodlandNomad/sounds/363090
+
+"concrete1.mp3" by Faceonmars is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Faceonmars/sounds/106258
+
+"Deep Whoosh #1" by Kinoton is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Kinoton/sounds/351256
+
+"detuned frame drum bass.WAV" by HarpDave is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/HarpDave/sounds/518943
+
+"Djembe Hit 2 Center.wav" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/carlmartin/sounds/158959
+
+"Djembe Hit 5 Center.wav" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/carlmartin/sounds/158962
+
+"Djembe Hit 6 Hi Rim.wav" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/carlmartin/sounds/158969
+
+"Djembe Hit 6 Rim.wav" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/carlmartin/sounds/158968
+
+"earthquake.aif" by dingus23 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/dingus23/sounds/275809
+
+"Egg Shaker 1" by kramsttop is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/kramsttop/sounds/170905
+
+"Egg SHaker 2" by kramsttop is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/kramsttop/sounds/170911
+
+"Fireplace Granite Drum.WAV" by RayGunV is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/RayGunV/sounds/628971
+
+"Footstep - wood - parquet - flooring - squeak - RUNNING.wav" by ValentinPetiteau is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/ValentinPetiteau/sounds/557200
+
+"Footstep gravel sneakers" by xkeril is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/xkeril/sounds/639085
+
+"footsteps - wood & stairs 02.wav" by Anthousai is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Anthousai/sounds/398781
+
+"Footsteps Gravel Running-Stop" by KikeVilaplana is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/KikeVilaplana/sounds/436525
+
+"Footsteps Stone (11).wav" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Wdomino/sounds/517124
+
+"Footsteps Stone (5).wav" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Wdomino/sounds/517125
+
+"Footsteps Stone (7).wav" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Wdomino/sounds/517136
+
+"Footsteps Stone (9).wav" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Wdomino/sounds/517134
+
+"Footsteps Stone sequence.wav" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Wdomino/sounds/517141
+
+"GLEAM-GLOW-SFX-CHIME.wav" by newagesoup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/newagesoup/sounds/351408
+
+"Glimmer.wav" by opticaillusions is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/opticaillusions/sounds/521873
+
+"Gravel Stone Dirt Debris Falling Small 1 12" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Sheyvan/sounds/569745
+
+"Gravel Stone Dirt Debris Falling Small 1 13" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Sheyvan/sounds/569746
+
+"Gravel Stone Dirt Debris Falling Small 1 3" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Sheyvan/sounds/569736
+
+"Gravel Stone Dirt Debris Falling Small 1 4" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Sheyvan/sounds/569737
+
+"Gravel Stone Dirt Debris Falling Small 1 6" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Sheyvan/sounds/569739
+
+"heavy breathing while running" by florianreichelt is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/florianreichelt/sounds/456037
+
+"impact-stone-heavy.wav" by kasparsj is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/kasparsj/sounds/513694
+
+"Impulse Response Church" by jmuehlhans is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/jmuehlhans/sounds/220752
+
+"Kicking Large Stones Down Shoreline on Stony Beach 5.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/F.M.Audio/sounds/574445
+
+"LandslideSeriousExtraCred.mp3" by tayingalive is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/tayingalive/sounds/442552
+
+"Large Earthquake" by LoafDV is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/LoafDV/sounds/148002
+
+"large stone rubs grinds on stone" by Garuda1982 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/Garuda1982/sounds/560304
+
+"Laying Down Large Stone on Pile of Large Stones 1.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/F.M.Audio/sounds/570534
+
+"Low cello bass note" by aarrnnoo is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/aarrnnoo/sounds/516188
+
+"low gong bash" by hiddenpersuader is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/hiddenpersuader/sounds/155460
+
+"Men Pant.wav" by nicklas3799 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/nicklas3799/sounds/467369
+
+"Movie Swell 2" by jordivburgel is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/jordivburgel/sounds/218524
+
+"MUDDY AND WET FOOTSTEPS.wav" by Alex_hears_things is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Alex_hears_things/sounds/376809
+
+"patting stone wall.wav" by vestibule-door is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/vestibule-door/sounds/669723
+
+"puddlewalk.wav" by j1987 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/j1987/sounds/106395
+
+"Pushing Large Stones Down Shoreline on Stony Beach 1.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/F.M.Audio/sounds/574450
+
+"River, stream, creek, sound of waves, moving water" by kentspublicdomain is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/kentspublicdomain/sounds/325182
+
+"rockfall 07.flac" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/tim.kahn/sounds/49622
+
+"Rockslide 2.wav" by juskiddink is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/juskiddink/sounds/79783
+
+"sand pour on sand FF662.aif" by martinimeniscus is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/martinimeniscus/sounds/199332
+
+"sand pour on slate FF670.aif" by martinimeniscus is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/martinimeniscus/sounds/199331
+
+"Shaker Riff.wav" by HUMANOISEMAKER is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/HUMANOISEMAKER/sounds/148935
+
+"Shaman Hand Frame Drum 03" by Jagadamba is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/Jagadamba/sounds/257158
+
+"Shaman Hand Frame Drum 04_02" by Jagadamba is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/Jagadamba/sounds/257160
+
+"Shaman Hand Frame Drum 04_03" by Jagadamba is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/Jagadamba/sounds/257159
+
+"Splash" by swordofkings128 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/swordofkings128/sounds/398032
+
+"Splash-eau-goudron1.wav" by rombart is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/rombart/sounds/186748
+
+"Splash, Jumping, C.wav" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/InspectorJ/sounds/352099
+
+"Splash, Jumping, D.wav" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/InspectorJ/sounds/352098
+
+"Splash, Jumping, H.wav" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/InspectorJ/sounds/352102
+
+"stone door close.wav" by patchytherat is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/patchytherat/sounds/530987
+
+"Stone dropping to ground_northern87" by northern87 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/northern87/sounds/369981
+
+"stone_on_stone.aif" by thanvannispen is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/thanvannispen/sounds/29986
+
+"Swipe Whoosh" by qubodup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/qubodup/sounds/60007
+
+"Switch click 4.wav" by deleted_user_2104797 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/deleted_user_2104797/sounds/164549
+
+"Swosh swoosh whoosh air sound, free, high quality" by qubodup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/qubodup/sounds/60026
+
+"TAIKO DRUM 001.wav" by sandyrb is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/sandyrb/sounds/82712
+
+"Taiko Drumloop 002 [With Ending] (120)" by Xinematix is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Xinematix/sounds/491278
+
+"Taiko Drumloop 003 [With Ending Variation] (120)" by Xinematix is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Xinematix/sounds/491279
+
+"two large cobblestone blocks" by jobel0092 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/jobel0092/sounds/268055
+
+"waterfall" by LXX.70 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/LXX.70/sounds/165108
+
+"Wind gust" by wintuh is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/wintuh/sounds/471854
+
+"Wooden Click" by BenjaminNelan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/BenjaminNelan/sounds/321083
+
+"Wooden hit short soft" by jorickhoofd is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/jorickhoofd/sounds/161595

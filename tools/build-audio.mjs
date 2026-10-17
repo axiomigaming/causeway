@@ -122,6 +122,30 @@ function loopify(x, ch, xf) {
   return out;
 }
 
+/**
+ * Look-ahead peak limiter to the -1 dBFS ceiling: 1.5 ms look-ahead (the gain is already down when
+ * the peak arrives), instant attack, 80 ms release. In place.
+ */
+function limiter(x, ch) {
+  const n = x.length / ch;
+  const la = Math.round(0.0015 * SR);
+  const rel = Math.exp(-1 / (0.08 * SR));
+  const need = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let p = 0;
+    for (let c = 0; c < ch; c++) p = Math.max(p, Math.abs(x[i * ch + c]));
+    need[i] = p > CEIL ? CEIL / p : 1;
+  }
+  // Minimum of the needed gain over the look-ahead window, then release smoothing.
+  let g = 1;
+  for (let i = 0; i < n; i++) {
+    let m = 1;
+    for (let k = i; k < Math.min(n, i + la); k++) if (need[k] < m) m = need[k];
+    g = m < g ? m : m - (m - g) * rel;
+    for (let c = 0; c < ch; c++) x[i * ch + c] *= g;
+  }
+}
+
 function wav(x, ch) {
   const n = x.length;
   const b = Buffer.alloc(44 + n * 2);
@@ -169,9 +193,14 @@ for (const [name, s] of Object.entries(cfg.sounds)) {
     const target = s.lufs ?? (s.loop ? -24 : -16);
     const now = s.loop || s.integrated ? integrated(x, ch) : momentaryMax(x, ch);
     let g = Math.pow(10, (target - now) / 20);
+    // Transients (footsteps, hits) reach the ceiling long before the loudness target. A look-ahead
+    // limiter may shave up to `limit` dB off their peaks (default 4 dB for one-shots, 0 for loops);
+    // whatever is still over the ceiling after that comes off the whole variant.
+    const limitDb = s.limit ?? (s.loop ? 0 : 4);
     const pk = peakOf(x) * g;
-    if (pk > CEIL) g *= CEIL / pk;
+    if (pk > CEIL) g *= Math.min(1, (CEIL / pk) * Math.pow(10, limitDb / 20));
     for (let i = 0; i < x.length; i++) x[i] *= g;
+    if (limitDb > 0) limiter(x, ch);
     parts.push({ x, lufs: s.loop || s.integrated ? integrated(x, ch) : momentaryMax(x, ch), peak: peakOf(x) });
   }
   // Lay variants end to end with silence between (a loop is one variant with no padding).
