@@ -190,7 +190,7 @@ def repair(mesh, J):
 ARM = ("upper_arm.", "forearm.", "hand.", "fingers.")
 
 
-def gear(mesh, J, leather):
+def gear(mesh, J, leather, rig=None):
     """The leather kit the source wears is part of its shell: the cross-harness, the two pouches under
     the arms and the thigh holster. Bone heat hands their outer edges to the nearest bone (the upper arm,
     for the under-arm pouches), so they swung out behind the shoulder blade with every arm swing. Here
@@ -290,12 +290,29 @@ def gear(mesh, J, leather):
         w["spine"] = w.get("spine", 0.0) + lost * (1 - k)
         w["chest"] = w.get("chest", 0.0) + lost * k
         flank += 1
-    # The thigh holster rides the pelvis with at most a third of the thigh.
+    # The thigh holster rides the pelvis with at most a third of the thigh; below its belt loop it
+    # swings on a spring bone ("pack", driven in src/world/runner.ts), so it jiggles with each landing.
     pieces = {i for i in pieces if co[i].z < 1.0}
+    big = [i for i in pieces if abs(co[i].x) > 0.15]
+    top = max(co[i].z for i in big) if big else 0.0
+    if rig is not None and big:
+        cx = sum(co[i].x for i in big) / len(big)
+        cy = sum(co[i].y for i in big) / len(big)
+        bot = min(co[i].z for i in big)
+        bpy.context.view_layer.objects.active = rig
+        bpy.ops.object.mode_set(mode="EDIT")
+        eb = rig.data.edit_bones
+        b = eb.new("pack")
+        b.head, b.tail = Vector((cx, cy, top)), Vector((cx, cy, bot))
+        b.parent = eb["hips"]
+        bpy.ops.object.mode_set(mode="OBJECT")
     for i in pieces:
         s = "L" if co[i].x > 0 else "R"
         th = min(0.33, W[i].get(f"thigh.{s}", 0.0))
-        W[i] = {"hips": 1 - th, f"thigh.{s}": th}
+        pk = 0.55 * smooth((top - co[i].z) / 0.12) if (rig is not None and big and abs(co[i].x) > 0.15) else 0.0
+        W[i] = {"hips": (1 - th) * (1 - pk), f"thigh.{s}": th * (1 - pk)}
+        if pk > 0:
+            W[i]["pack"] = pk
     done = set(pieces)
     front = set(pieces)
     for k in (2 / 3, 1 / 3):
