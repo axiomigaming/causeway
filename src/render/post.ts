@@ -40,6 +40,13 @@ const PROTECT = /* glsl */ `
  * bloom's mip chain spreads it over the whole image and the frame goes black. This zeroes such
  * pixels (and clamps runaway values) before anything blurs or blooms them.
  */
+/**
+ * Speed blur (camera reprojection and the edge zoom) is OFF on every tier: the owner prefers a crisp
+ * image and speed carried by the camera, parallax and particles. The code path stays: flip this to
+ * bring it back (it then builds only where the quality profile asks for it).
+ */
+const SPEED_BLUR = false;
+
 class NanGuardEffect extends Effect {
   constructor() {
     super(
@@ -62,6 +69,7 @@ class MotionBlurEffect extends Effect {
       ${IGN}
       ${PROTECT}
       uniform float radial;
+      uniform float edgeStart;
       uniform vec2 center;
       uniform float aspectRatio;
       uniform float fringe;
@@ -72,13 +80,18 @@ class MotionBlurEffect extends Effect {
       void mainImage(const in vec4 inputColor, const in vec2 uv, ${camera ? 'const in float depth, ' : ''}out vec4 outputColor) {
         vec2 d = uv - center;
         float r = length(vec2(d.x * aspectRatio, d.y));
-        vec2 v = d * radial * smoothstep(0.18, 0.8, r);
+        // Edge mask: 0 across the centre of the frame (the runner and the way ahead stay crisp),
+        // rising toward the edges and corners where the walls rush past the lens.
+        // The floor rushing under the lens (bottom of the frame) counts as an edge too.
+        float rn = max(r / length(vec2(0.5 * aspectRatio, 0.5)), max(0.0, -d.y) * 1.8);
+        float edge = smoothstep(edgeStart, 1.0, rn);
+        vec2 v = d * radial * edge;
         ${
           camera
             ? `vec4 wp = invViewProj * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
         wp /= wp.w;
         vec4 pc = prevViewProj * wp;
-        if (pc.w > 0.01) v += (uv - (pc.xy / pc.w * 0.5 + 0.5)) * shutterScale;`
+        if (pc.w > 0.01) v += (uv - (pc.xy / pc.w * 0.5 + 0.5)) * shutterScale * edge;`
             : ''
         }
         float m = protectMask(uv);
@@ -114,6 +127,7 @@ class MotionBlurEffect extends Effect {
         attributes: EffectAttribute.CONVOLUTION | (camera ? EffectAttribute.DEPTH : 0),
         uniforms: new Map<string, THREE.Uniform>([
           ['radial', new THREE.Uniform(0)],
+          ['edgeStart', new THREE.Uniform(0.42)],
           ['center', new THREE.Uniform(new THREE.Vector2(0.5, 0.58))],
           ['protectPos', new THREE.Uniform(new THREE.Vector2(0.5, 0.3))],
           ['protectSize', new THREE.Uniform(new THREE.Vector2(0.14, 0.3))],
@@ -631,7 +645,7 @@ export class Post {
     const lightFx = [this.ao, this.shafts].filter((e): e is DepthAOEffect | SunShaftsEffect => e !== null);
     if (lightFx.length) this.composer.addPass(new EffectPass(this.camera, ...lightFx));
     this.cameraBlur = q.motionBlur === 'camera';
-    this.blur = q.speedBlur ? new MotionBlurEffect(q.blurSamples, this.cameraBlur) : null;
+    this.blur = SPEED_BLUR && q.speedBlur ? new MotionBlurEffect(q.blurSamples, this.cameraBlur) : null;
     this.blurPass = this.blur ? new EffectPass(this.camera, this.blur) : null;
     if (this.blurPass) this.composer.addPass(this.blurPass);
     this.hasPrev = false;
@@ -680,28 +694,29 @@ export class Post {
     if (this.blur && this.blurPass) {
       const u = this.blur.uniforms;
       const motion = p.motion ?? 1;
-      // Clarity: blur is a speed accent for the top of the run only. `speed` is ~0.3 at 2× and
-      // ~0.57 at 7×, so the rush is exactly 0 through 1–7× (the pass is skipped outright), eases in
-      // from ~8× and peaks past 30×. It never runs in the setup or cinematic shots. Portrait screens
-      // put the walls right at the frame edges, so they get half of it.
-      const x = Math.min(1, Math.max(0, (p.speed - 0.6) / 0.3));
+      // Speed blur at the frame edges only (the edge mask in the shader keeps the centre, the runner
+      // and the way ahead crisp): nothing at rest or at a jog — `speed` is (m/s − 4) / 10, so the
+      // pass is skipped below ~6.5 m/s (about 1.6×) — then it eases in with real speed and peaks at
+      // the top tiers. Portrait screens put the walls right at the frame edges: a lighter touch.
+      const x = Math.min(1, Math.max(0, (p.speed - 0.25) / 0.6));
       const rush = x * x * (3 - 2 * x) * motion;
-      const portrait = cam.aspect < 1 ? 0.5 : 1;
+      const portrait = cam.aspect < 1 ? 0.55 : 1;
+      u.get('edgeStart')!.value = cam.aspect < 1 ? 0.5 : 0.4;
       this.blurPass.enabled = rush > 0.002;
       u.get('protectPos')!.value.copy(p.runnerScreen);
       if (p.runnerSize) u.get('protectSize')!.value.copy(p.runnerSize);
       u.get('fringe')!.value = 0.02 + rush * 0.04;
       if (this.cameraBlur) {
         // Shutter in seconds: up to ~1/40 s at full tilt (was 1/60 s even standing still).
-        const shutter = 0.025 * rush * portrait;
+        const shutter = 0.03 * rush * portrait;
         u.get('shutterScale')!.value = shutter / Math.max(1 / 240, p.dt ?? 1 / 60);
-        u.get('radial')!.value = rush * 0.035 * portrait;
-        u.get('maxLen')!.value = (0.01 + 0.04 * rush) * portrait;
+        u.get('radial')!.value = rush * 0.07 * portrait;
+        u.get('maxLen')!.value = (0.012 + 0.05 * rush) * portrait;
         u.get('invViewProj')!.value.copy(this.invVP);
         u.get('prevViewProj')!.value.copy(this.prevVP);
       } else {
-        u.get('radial')!.value = rush * 0.05 * portrait;
-        u.get('maxLen')!.value = 0.04 * portrait;
+        u.get('radial')!.value = rush * 0.08 * portrait;
+        u.get('maxLen')!.value = (0.012 + 0.045 * rush) * portrait;
       }
     }
     if (this.ssr) {
