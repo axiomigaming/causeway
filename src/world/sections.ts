@@ -24,7 +24,11 @@ export type SectionType =
   | 'gorge'
   | 'boardwalk'
   | 'tunnel'
-  | 'statues';
+  | 'statues'
+  | 'sunken'
+  | 'roots'
+  | 'colossi'
+  | 'ledge';
 
 export interface Placement {
   piece: string;
@@ -1039,6 +1043,118 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       return { hazards: ['gate', 'rockfall', 'chasm'], walls: 'low' };
     },
   },
+  // ---------------------------------------------------------------- round 11: new scenarios
+  sunken: {
+    // A flooded temple courtyard: the causeway runs across a sunken plaza, its walls half under water,
+    // pillars and steles standing in it, stepped pyramids drowned to their upper tiers on both sides.
+    lengths: [24, 28],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.22, 0.12);
+      lowWalls(b, 0, n, [-1, 1], { gaps: 0.55 });
+      for (const side of [-1, 1]) {
+        // The drowned courtyard: a grid of pillars and steles standing in the water.
+        for (let z = -3; z > -len + 2; z -= b.rng.range(5, 7.5)) {
+          const x = side * b.rng.range(5.2, 6.4);
+          const p = b.rng.pick(['pillar_0', 'pillar_1', 'pillar_2', 'stele_0']);
+          if (p === 'stele_0') b.place(p, x, WL - 0.4, z, faceIn(side, 1), 1.1);
+          else b.pillar(p, x, WL - 1.0, z, b.rng.range(0, 0.3));
+          b.foamRing(x, z, 1.2);
+          b.lilies(x + side * b.rng.range(1, 2.5), z - 2, b.rng.range(0.9, 1.3));
+          if (b.rng.chance(0.4)) b.place('steps_water_0', side * b.rng.range(8, 11), WL, z - 3, b.rng.range(0, 6.28), 1.1);
+        }
+        // A drowned pyramid, only its upper tiers and shrine above the water.
+        const px = side * b.rng.range(13, 17);
+        const pz = -len * b.rng.range(0.3, 0.7);
+        b.place(b.rng.chance(0.6) ? 'temple_0' : 'temple_1', px, WL - 4.2, pz, faceIn(side, 1.2), b.rng.range(0.85, 1.05));
+        b.foamRing(px, pz, 6.5);
+        b.place(`wall_mid_${b.rng.int(0, 1)}`, side * b.rng.range(8, 10), WL - 1.4, -len * b.rng.range(0.1, 0.9), b.rng.range(0, 6.28), 1);
+      }
+      scenery(b, len, { minX: 18, big: true, cliffs: false });
+      vista(b, len, ['arch', 'guardians', 'temple'], 0.6);
+      return { hazards: ['chasm', 'rockfall'], walls: 'low' };
+    },
+  },
+  roots: {
+    // The jungle takes the causeway back: giant roots heaved over the parapets, trees crowding both
+    // banks, limbs arching overhead and green everywhere.
+    lengths: [20, 24],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.25, 0.04);
+      lowWalls(b, 0, n, [-1, 1], { gaps: 0.4 });
+      for (const side of [-1, 1]) {
+        for (let z = -7; z > -len - 4; z -= 14) jungleBank(b, side, PATH_HALF + 2.0, z);
+        for (let z = -b.rng.range(2, 4); z > -len + 1; z -= b.rng.range(4, 6.5)) {
+          // Giant roots spilling over the parapet and down to the water, both faces.
+          b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.45), b.rng.range(1.8, 2.6), z, -side * Math.PI / 2, [b.rng.range(1.3, 1.8), b.rng.range(1.6, 2.2), 1]);
+          if (b.foliage(0.5)) bananas(b, side * b.rng.range(3.2, 4.2), -0.6, z - 1.5);
+        }
+        const t = b.rng.int(0, 1);
+        const tz = -len * b.rng.range(0.25, 0.75);
+        b.place(`tree_big_${t}_trunk`, side * b.rng.range(6, 7), WL, tz, b.rng.range(0, 6.28), b.rng.range(1.0, 1.15));
+        b.place(`tree_big_${t}_crown`, side * b.rng.range(6, 7), WL, tz, b.rng.range(0, 6.28), b.rng.range(1.0, 1.15));
+      }
+      canopy(b, -1, -len * b.rng.range(0.15, 0.4), 0, 0.9);
+      canopy(b, 1, -len * b.rng.range(0.55, 0.85), 0, 0.9);
+      scenery(b, len, { minX: 12, big: false });
+      return { hazards: ['chasm', 'rockfall'], walls: 'low' };
+    },
+  },
+  colossi: {
+    // An avenue of colossi: twice-life-size guardians stand in the water close beside the way on both
+    // sides (ref18), ruined temple fronts tower behind them, an arch at the end.
+    lengths: [28, 32],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.08, 0.18);
+      lowWalls(b, 0, n, [-1, 1], { gaps: 0.35 });
+      let k = 0;
+      for (let z = -4; z > -len + 3; z -= b.rng.range(7.5, 9.5), k++) {
+        for (const side of [-1, 1]) colossus(b, side, z + (side > 0 ? 0 : -2.5), 0.92);
+      }
+      for (const side of [-1, 1]) ruinFront(b, side, -len * b.rng.range(0.3, 0.8), 0.75);
+      scenery(b, len, { minX: 16, big: true });
+      vista(b, len, ['arch', 'temple', 'towers'], 0.85);
+      return { hazards: ['gate', 'chasm', 'rockfall'], walls: 'low' };
+    },
+  },
+  ledge: {
+    // A ledge path along a cliff above the gorge: the rock face rises sheer beside the way, a fall pours
+    // off a wall onto the path's edge, and on the other side open water and far cliffs drop away.
+    lengths: [24, 28],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.12);
+      const side = b.rng.chance(0.5) ? -1 : 1;
+      lowWalls(b, 0, n, [-side], { gaps: 0.5 });
+      const fallTile = b.rng.int(1, n - 2);
+      for (let i = 0; i < n; i++) {
+        const z = -TILE * i;
+        b.wall('foundation_1', side, PATH_HALF + 0.42, 0, z);
+        if (i === fallTile) {
+          b.wall(`wall_tall_${b.rng.int(0, 1)}`, side, PATH_HALF + 0.6, 0, z);
+          pathFall(b, side, z - 2, 5.1);
+        } else {
+          b.wall(b.rng.pick(LOW_WALLS), side, PATH_HALF + 0.36, 0, z);
+          spill(b, side, z, b.rng.range(1.05, 1.3), PATH_HALF + 0.02, 0.4);
+        }
+        b.edgeRubble(side, z);
+      }
+      // The cliff, close and very tall, waterfalls down it.
+      let z = 3;
+      while (z > -len - 3) {
+        const i = b.rng.int(0, 2);
+        const L = CLIFFS[i]![1];
+        const h = cliffWall(b, side, 7.6 + b.rng.range(0, 0.8), Math.max(z - L / 2, -len - 3 + L / 2), i, b.rng.range(1.15, 1.35));
+        if (b.rng.chance(0.6)) cliffFall(b, side, 7.0, Math.max(z - L * b.rng.range(0.3, 0.7), -len + 2), h * 0.75, b.rng.range(2.8, 4.0));
+        z -= L * b.rng.range(0.82, 0.95);
+      }
+      canopy(b, side, -len * b.rng.range(0.2, 0.6), 0, 0.5);
+      scenery(b, len, { sides: [-side], minX: 9, big: true });
+      return { hazards: ['rockfall', 'chasm'], walls: 'cliff' };
+    },
+  },
 };
 
 export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number): Layout {
@@ -1060,17 +1176,30 @@ export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];
  * The beat's types get a strong bias; every type stays possible.
  */
 export const BIOMES: { until: number; types: SectionType[] }[] = [
-  { until: 0.22, types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins'] },
-  { until: 0.45, types: ['gate', 'statues', 'avenue', 'arcade', 'corridor'] },
-  { until: 0.7, types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues'] },
-  { until: 2, types: ['cliff', 'gorge', 'bridge', 'tunnel'] },
+  { until: 0.22, types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots'] },
+  { until: 0.45, types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi'] },
+  { until: 0.7, types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots'] },
+  { until: 2, types: ['cliff', 'gorge', 'bridge', 'tunnel', 'ledge'] },
 ];
 
 export function biomeOf(intensity: number): number {
   return BIOMES.findIndex((b) => intensity < b.until);
 }
 
-export function nextType(rng: Rng, prev: SectionType, elevation: number, intensity: number): SectionType {
+/**
+ * Round 11: a run plan. Each world (a new one per round) favours one theme's scenario types, picked from
+ * the world's own cosmetic seed and never the same as the last world's. Presentation only: the seed is
+ * drawn on the client when the world is built, and knows nothing of the round's fall point.
+ */
+export const THEMES: { name: string; types: SectionType[] }[] = [
+  { name: 'causeway', types: ['corridor', 'bridge', 'boardwalk', 'sunken'] },
+  { name: 'jungle', types: ['roots', 'boardwalk', 'cliff', 'tunnel'] },
+  { name: 'colossi', types: ['colossi', 'statues', 'avenue', 'gate'] },
+  { name: 'gorge', types: ['ledge', 'gorge', 'cliff', 'bridge'] },
+  { name: 'temples', types: ['sunken', 'plaza', 'ruins', 'arcade', 'tall'] },
+];
+
+export function nextType(rng: Rng, prev: SectionType, elevation: number, intensity: number, favor: SectionType[] = []): SectionType {
   const beat = BIOMES[biomeOf(intensity)]!.types;
   const w: [SectionType, number][] = [
     ['corridor', 4],
@@ -1086,9 +1215,13 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['boardwalk', 1.5],
     ['tunnel', 1.0 + 0.8 * intensity],
     ['statues', 1.2],
+    ['sunken', 1.2],
+    ['roots', 1.3],
+    ['colossi', 1.1],
+    ['ledge', 1.1 + 0.6 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
   ];
-  const options = w.filter(([t]) => t !== prev || t === 'corridor').map(([t, k]) => [t, beat.includes(t) ? k * 2.2 : k] as [SectionType, number]);
+  const options = w.filter(([t]) => t !== prev || t === 'corridor').map(([t, k]) => [t, (beat.includes(t) ? k * 2.2 : k) * (favor.includes(t) ? 2.4 : 1)] as [SectionType, number]);
   return rng.weighted(options);
 }
 
