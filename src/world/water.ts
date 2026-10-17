@@ -19,8 +19,8 @@ export class Water {
         uSky: { value: null },
         uSunDir: { value: sunDir.clone() },
         uSunColor: { value: new THREE.Color(1.0, 0.82, 0.6) },
-        uShallow: { value: new THREE.Color('#2fa593') },
-        uDeep: { value: new THREE.Color('#06403f') },
+        uShallow: { value: new THREE.Color('#29b39a') }, // round 11: richer turquoise-green (ref17)
+        uDeep: { value: new THREE.Color('#05473f') },
         uSkyYaw: { value: 0 },
         uMark: { value: 1 },
         uDetail: { value: 2 },
@@ -85,6 +85,12 @@ export class Water {
           vec2 g = waveGrad(vWorld.xz, uTime);
           // Flatten waves with distance to avoid shimmer.
           g *= 1.0 / (1.0 + dist * 0.02);
+          // Round 11: fine ripples close to the eye break the mirror into glitter (ref17).
+          if (uDetail > 1) {
+            vec2 rp = vWorld.xz * 3.1;
+            vec2 rg = vec2(cos(rp.x + uTime * 2.3 + sin(rp.y * 0.7)), cos(rp.y * 1.13 - uTime * 1.9 + sin(rp.x * 0.6)));
+            g += rg * 0.02 * smoothstep(28.0, 4.0, dist);
+          }
           vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
           float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
           vec3 R = reflect(-V, N);
@@ -114,6 +120,9 @@ export class Water {
           // reflection off softly above ~1 so it stays bright sky, never clipped.
           float rl = max(max(refl.r, refl.g), refl.b);
           refl *= rl > 0.9 ? (0.9 + 0.6 * (1.0 - exp(-(rl - 0.9) / 0.6))) / rl : 1.0;
+          // Light through the water toward the sun: a warm green glow in the body (backlit shallows).
+          float toSunV = max(dot(-V, normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);
+          body += vec3(0.32, 0.5, 0.24) * pow(toSunV, 4.0) * 0.35 * (1.0 - depthLook);
           vec3 col = mix(body, refl * vec3(0.9, 0.97, 0.95), clamp(fres * 1.05, 0.0, 0.95));
           vec3 H = normalize(uSunDir + V);
           float spec = pow(max(dot(N, H), 0.0), 420.0) * 22.0 + pow(max(dot(N, H), 0.0), 60.0) * 0.35;

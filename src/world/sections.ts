@@ -256,6 +256,27 @@ type Vista = 'arch' | 'guardians' | 'temple' | 'towers' | 'falls';
  * Something for the eye to run toward at the end of a section: a gateway the path passes through,
  * colossi flanking it, a temple or twin towers rising beside it, a fall pouring off a cliff.
  */
+/**
+ * Round 11: a colossal guardian standing in the water close beside the way (ref18): twice life-size
+ * and more, sunk to the knees, turned toward the runner, vines down its shoulders.
+ */
+function colossus(b: Builder, side: number, z: number, p = 1) {
+  if (!b.rng.chance(p)) return;
+  const x = side * b.rng.range(5.4, 6.4);
+  b.place(b.rng.chance(0.65) ? 'guardian_0' : 'guardian_1', x, WL + 0.35, z, faceIn(side, 0.7), b.rng.range(1.55, 1.85));
+  b.foamRing(x, z, 2.8);
+  if (b.foliage(0.7)) b.place('vines_0', x - side * 0.4, WL + 6.4, z, faceIn(side, 0.7), [0.55, 0.9, 1]);
+}
+
+/** Round 11: a tall ruined temple front just off the path, its broken top against the sky. */
+function ruinFront(b: Builder, side: number, z: number, p = 1) {
+  if (!b.rng.chance(p)) return;
+  const x = side * b.rng.range(8.5, 10.5);
+  b.place(`facade_${b.rng.int(0, 1)}`, x, WL + 0.2, z, faceIn(side, b.rng.range(1.6, 2.6)), b.rng.range(0.8, 0.95));
+  b.foamRing(x, z, 5);
+  if (b.foliage(0.8)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, WL + 0.4, z + 2, b.rng.range(0, 6.28), 1.1);
+}
+
 function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
   // Variants rotate through the kinds (so every landmark shows up among a type's variants); the
   // remaining variants roll for one.
@@ -356,8 +377,9 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       // Green spilling over the wall's outer side, down toward the water.
       else if (b.foliage(0.3)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 1.1), b.rng.range(0.2, 0.7), z - b.rng.range(1, 3), b.rng.range(0, 6.28), b.rng.range(0.55, 0.8));
       if (b.foliage(0.55)) b.place(`grass_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.2), 0, z - b.rng.range(0.3, 3.7), b.rng.range(0, 6.28), b.rng.range(0.7, 1.1));
-      if (b.foliage(0.22)) b.place(`vines_0`, side * (PATH_HALF + 0.95), b.rng.range(1.0, 1.5), z - 2, side * Math.PI / 2, [0.9, b.rng.range(0.5, 0.8), 1]);
-      spill(b, side, z, b.rng.range(1.05, 1.3), PATH_HALF + 0.02, 0.16);
+      // Round 11: denser vegetation hanging off the parapets (ref17/19).
+      if (b.foliage(0.38)) b.place(`vines_0`, side * (PATH_HALF + 0.95), b.rng.range(1.0, 1.5), z - 2, side * Math.PI / 2, [0.9, b.rng.range(0.5, 0.8), 1]);
+      spill(b, side, z, b.rng.range(1.05, 1.3), PATH_HALF + 0.02, 0.3);
       bananas(b, side * (PATH_HALF + b.rng.range(1.3, 1.9)), -0.9, z - b.rng.range(0.5, 3.5), 0.1);
     }
   }
@@ -507,6 +529,11 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       canopy(b, b.rng.pick([-1, 1]), -b.rng.range(4, len - 4), 0, 0.55);
       scenery(b, len);
       vista(b, len, ['arch', 'guardians', 'temple', 'towers', 'falls'], 0.65);
+      {
+        const side = b.rng.pick([-1, 1]);
+        colossus(b, side, -len * b.rng.range(0.3, 0.6), 0.4);
+        ruinFront(b, -side, -len * b.rng.range(0.3, 0.7), 0.3);
+      }
       return { hazards: ['chasm', 'rockfall'], walls: 'low' };
     },
   },
@@ -740,6 +767,11 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       canopy(b, b.rng.pick([-1, 1]), -b.rng.range(4, len - 4), 0, 0.35);
       scenery(b, len, { minX: 9, big: false });
       vista(b, len, ['towers', 'temple', 'guardians', 'falls'], 0.6);
+      {
+        const side = b.rng.pick([-1, 1]);
+        colossus(b, side, -len * b.rng.range(0.25, 0.55), 0.6);
+        ruinFront(b, -side, -len * b.rng.range(0.3, 0.7), 0.55);
+      }
       return { hazards: ['rockfall', 'chasm'], walls: 'low' };
     },
   },
@@ -890,6 +922,7 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       for (let k = 0; k < 2; k++) bananas(b, bank * b.rng.range(4.6, 5.6), WL + 1.1, -b.rng.range(1, len - 1), 0.7);
       canopy(b, bank, -len * b.rng.range(0.3, 0.7), 0, 0.6);
       vista(b, len, ['temple', 'falls', 'guardians'], 0.5);
+      colossus(b, -bank, -len * b.rng.range(0.3, 0.7), 0.45);
       if (b.rich) cliffWall(b, bank, b.rng.range(13, 16), -len / 2, undefined, b.rng.range(0.9, 1.15));
       scenery(b, len, { sides: [-bank], minX: 8 });
       return { hazards: ['chasm', 'rockfall'], walls: 'none' };
