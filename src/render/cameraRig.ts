@@ -206,7 +206,9 @@ export class CameraRig {
   /** A footfall: the operator is running too. */
   footfall(strength: number, foot: 'L' | 'R'): void {
     if (this.mode !== 'run' && this.mode !== 'lead') return;
-    this.bobV -= (0.22 + 0.34 * strength) * this.motionScale;
+    // From the sprint tier up the operator's own footfalls jar the frame a little.
+    if (this.mode === 'run' && this.drive > 2) this.trauma = Math.min(1, this.trauma + 0.035 * (this.drive - 2) * strength * this.motionScale);
+    this.bobV -= (0.22 + 0.34 * strength) * (1 + 0.15 * Math.max(0, this.drive - 2)) * this.motionScale;
     this.swayV += (foot === 'L' ? -1 : 1) * 0.06 * strength * this.motionScale;
     // Each plant flares the lens open a hair, more as he drives: the cadence is felt, not only seen.
     if (this.mode === 'run') this.fovKick += (0.35 + 0.25 * Math.min(4, this.drive) * 0.25) * strength * this.motionScale;
@@ -357,7 +359,9 @@ export class CameraRig {
         // included, above the cash-out plate.
         const d = this.drive;
         const hi = Math.max(0, d - 2.5);
-        const dist = 2.2 + 0.3 * I - 0.1 * hi;
+        // Round 11: the chase closes in and drops as the multiplier climbs (the lens widens with it,
+        // so he keeps his size while the world rushes past faster at the edges).
+        const dist = 2.25 - 0.25 * I - 0.12 * hi;
         const drift = 0.22 * I * Math.sin(this.t * 0.37) * this.motionScale;
         // Round 8: a three-quarter view over his right shoulder, a hand lower than before. Straight
         // from behind the forward lean of the run (9°) and the sprint (17°) vanished into his own
@@ -366,7 +370,7 @@ export class CameraRig {
         // edge; there it comes in toward the axis (keepInFrame below enforces the margin).
         const narrow = Math.min(1, Math.max(0, (1 - this.camera.aspect) / 0.5));
         const lat = lerp(0.72, 0.36, narrow);
-        fov = this.shot(runnerPos, this.fitInBand(F(-dist, lat + drift, 1.34 - 0.06 * I - 0.05 * hi, 9, lerp(0.6, 0.3, narrow) + drift * 0.4, 1.0, 60 + 16 * I + 2 * hi)));
+        fov = this.shot(runnerPos, this.fitInBand(F(-dist, lat + drift, 1.34 - 0.16 * I - 0.06 * hi, 9, lerp(0.6, 0.3, narrow) + drift * 0.4, 1.0 + 0.08 * I, 60 + 18 * I + 3 * hi)));
         break;
       }
       case 'crash': {
