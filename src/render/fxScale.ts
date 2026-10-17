@@ -137,8 +137,8 @@ const CUE_TABLE: readonly { wait: number; w: readonly (readonly [DangerCue, numb
   { wait: Infinity, w: [] },
   { wait: 7.5, w: [['burst', 2], ['birds', 2], ['stones', 1]] },
   { wait: 4.6, w: [['burst', 3], ['stones', 2], ['birds', 1], ['rumble', 1]] },
-  { wait: 3.0, w: [['burst', 3], ['stones', 2], ['rumble', 2], ['birds', 1]] },
-  { wait: 1.9, w: [['burst', 4], ['stones', 3], ['rumble', 2], ['birds', 1]] },
+  { wait: 2.5, w: [['burst', 4], ['stones', 2], ['rumble', 2], ['birds', 1]] },
+  { wait: 1.5, w: [['burst', 5], ['stones', 3], ['rumble', 2], ['birds', 1]] },
 ];
 
 /**

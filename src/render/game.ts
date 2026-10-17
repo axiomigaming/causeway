@@ -34,6 +34,13 @@ export interface WorldSounds {
   whoosh(): void;
   /** A heavy landing at its exact frame: the gate slab, the biggest rockfall block. Optional. */
   slam?(size: number): void;
+  /**
+   * A named one-shot from the world, `strength` 0..1 (optional; the audio layer may ignore names it
+   * does not know). Events: 'dust_burst' (a wall blows out dust beside the runner), 'stones_skitter'
+   * (small stones across the path), 'tier_up' (a run tier arrives: 2, 5, 10, 25×). Stones dropping
+   * into the water already sound through impact(size, true).
+   */
+  event?(name: string, strength: number): void;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -1188,7 +1195,9 @@ export class Game {
    */
   private dangerCue(cue: DangerCue, k: number, I: number): void {
     const c = this.cosmetic;
-    const ahead = this.s + c.range(7, 15);
+    // From the sprint tiers the walls blow out right beside him as he passes (ref 18).
+    const near = cue === 'burst' && k > 0.6 && c.chance(0.6);
+    const ahead = this.s + (near ? c.range(3.5, 6) : c.range(7, 15));
     const f = this.track.path.sample(ahead);
     const pos = f.pos.clone();
     const rightV = new THREE.Vector3(Math.cos(f.yaw), 0, -Math.sin(f.yaw));
@@ -1211,8 +1220,15 @@ export class Game {
           const sc = c.range(0.08, 0.18);
           this.debris.spawn(`shard_${i}`, new THREE.Matrix4().compose(p, new THREE.Quaternion(), new THREE.Vector3(sc, sc, sc)), jet.clone().multiplyScalar(c.range(0.5, 0.9)).setY(c.range(1, 2.5)), new THREE.Vector3(5, 3, 2), onPathHere);
         }
+        // At the top tier the opposite wall answers a beat later.
+        if (k > 0.8 && walls !== 'cliff') {
+          const q = p.clone().addScaledVector(rightV, -2 * side * (PATH_HALF + 0.35)).addScaledVector(fwd, c.range(1, 3));
+          this.later(0.18, () => B.puff(q, { count: 3 + Math.round(3 * k), spread: 0.5, jitter: 0.9, vel: jet.clone().multiplyScalar(-1).setY(0.6), size: [0.45, 1.4 + k], life: 1 + 0.4 * k, alpha: 0.55, tint: DUST_T, rise: 0.15, drag: 2.0, floor: pos.y, group: CUE }), CUE);
+        }
         this.sounds.impact(0.25 + 0.3 * k, false);
         this.rig.addTrauma(0.04 + 0.06 * k);
+        this.sounds.event?.('dust_burst', k);
+        if (near) this.react('flinch', () => this.runner.glance(side));
         break;
       }
       case 'stones': {
@@ -1227,10 +1243,22 @@ export class Game {
           }, CUE);
         }
         B.puff(pos.clone().addScaledVector(rightV, side * (PATH_HALF + 0.3)).setY(pos.y + 0.8), { count: 2, spread: 0.6, jitter: 0.4, vel: rightV.clone().multiplyScalar(-side * 1.2), size: [0.4, 1.4], life: 1.4, alpha: 0.4, tint: DUST_T, floor: pos.y, group: CUE });
+        // A bigger stone or two tips off the far edge into the water: a splash and a ring.
+        if (k > 0.45) {
+          for (let i = 0; i < 1 + Math.round(k); i++) {
+            const q = pos.clone().addScaledVector(fwd, c.range(0, 4)).addScaledVector(rightV, -side * (PATH_HALF + 0.2)).setY(pos.y + 0.4);
+            const sc = c.range(0.35, 0.6);
+            this.later(0.3 + i * 0.25, () => this.debris.spawn(`shard_${(i + 3) % 6}`, new THREE.Matrix4().compose(q, new THREE.Quaternion(), new THREE.Vector3(sc, sc, sc)), rightV.clone().multiplyScalar(-side * 1.5).setY(0.5), new THREE.Vector3(3, 1, 2), () => null), CUE);
+          }
+        }
+        this.sounds.event?.('stones_skitter', k);
+        // Stones skittering into his path: a hop over them (or a stumble-recover).
+        if (k > 0.5) this.later(0.25, () => this.react('hop', () => this.runner.stumble()), CUE);
         break;
       }
       case 'rumble':
         this.tremor(I, k);
+        if (k > 0.55) this.react('duck', () => this.runner.glance(c.chance(0.5) ? 1 : -1));
         break;
       case 'birds': {
         // Birds burst out of the trees off to one side and wheel away from the noise.
@@ -1242,6 +1270,18 @@ export class Game {
         break;
       }
     }
+  }
+
+  private reactAt = -10;
+  /**
+   * A reactive one-shot from the runner (the character agent's clips: 'flinch', 'hop', 'duck', …),
+   * if this build of the runner has it; otherwise `fallback`. At most one every 1.5 s, run only.
+   */
+  private react(kind: string, fallback?: () => unknown): void {
+    if (this.stage !== 'run' || this.worldT - this.reactAt < 1.5) return;
+    this.reactAt = this.worldT;
+    const r = this.runner as unknown as { react?: (k: string) => boolean };
+    if (!(r.react?.(kind) ?? false)) fallback?.();
   }
 
   /** A distant rumble: camera tremor, grit off the walls, and a plume of dust far off over the jungle. */
@@ -1410,6 +1450,29 @@ export class Game {
     this.runner.lean = this.stage === 'run' ? 0.04 * I : 0;
     // Run tier from the current multiplier only: gait and camera escalate, with cosmetic beats.
     const drive = this.stage === 'run' ? runDrive(mult) : 0;
+    // A lens punch as each run tier arrives (2, 5, 10, 25×): from the current multiplier only.
+    const tierNow = this.stage === 'run' ? runTier(mult) : 0;
+    if (this.stage === 'run' && tierNow > this.lastRunTier) {
+      this.rig.kick(3 + 1.5 * tierNow);
+      this.sounds.event?.('tier_up', tierNow / 4);
+      this.rig.addTrauma(0.06 + 0.03 * tierNow);
+    }
+    this.lastRunTier = tierNow;
+    // Speed without blur: from the driven tier, grit and low dust lift off the floor and the wall
+    // feet just ahead and either side of him; the lens rushes through them (parallax), denser with
+    // the tier. Cosmetic, from the current multiplier only; trimmed by the particle budget.
+    if (this.stage === 'run' && drive > 1 && this.motion === 'full') {
+      this.rushAcc += dt * (drive - 1) * 9;
+      while (this.rushAcc >= 1) {
+        this.rushAcc -= 1;
+        const c = this.cosmetic;
+        const f = this.track.path.sample(this.s + c.range(1.5, 7), this.cframe);
+        const side = c.chance(0.5) ? 1 : -1;
+        const p = this.tmpRush.set(Math.cos(f.yaw), 0, -Math.sin(f.yaw)).multiplyScalar(side * c.range(0.9, PATH_HALF + 0.2)).add(f.pos);
+        p.y = f.pos.y + c.range(0.02, 0.5);
+        this.particles.burst(p, 1, { spread: 0.3, up: 0.6, speed: 1.2, size: c.chance(0.3) ? 0.35 : 0.05, life: 0.7, color: c.chance(0.3) ? DUST : DUST_DARK, alpha: 0.35, gravity: 3, drag: 1, grow: 1 });
+      }
+    }
     this.runner.drive = drive;
     this.rig.drive = drive;
     if (this.stage === 'run' && this.stageT > 1.5) {
@@ -1602,6 +1665,9 @@ export class Game {
   // perf: dynamic resolution first; the tier steps down only when the scale is at its floor.
   private dynRes = new DynamicResolution();
   private tension = 0;
+  private lastRunTier = 0;
+  private rushAcc = 0;
+  private tmpRush = new THREE.Vector3();
   private govern(ms: number, dt: number) {
     if (!this.autoQuality || this.paused) return;
     if (this.dynRes.sample(dt * 1000)) this.resize();
