@@ -1228,7 +1228,8 @@ export class Game {
         this.sounds.impact(0.25 + 0.3 * k, false);
         this.rig.addTrauma(0.04 + 0.06 * k);
         this.sounds.event?.('dust_burst', k);
-        if (near) this.react('flinch', () => this.runner.glance(side));
+        // Debris landing beside him: now and then a stumble-and-recover, else a glance at the wall.
+        if (near) this.later(0.35, () => (c.chance(0.4) ? this.runner.stumble() : this.runner.glance(side)), CUE);
         break;
       }
       case 'stones': {
@@ -1252,13 +1253,25 @@ export class Game {
           }
         }
         this.sounds.event?.('stones_skitter', k);
-        // Stones skittering into his path: a hop over them (or a stumble-recover).
-        if (k > 0.5) this.later(0.25, () => this.react('hop', () => this.runner.stumble()), CUE);
+        // Some come to rest across the way (presentation-only rubble): he hops them, timed to leave
+        // the floor ~0.2 s before he reaches them (the clip lands on both feet with footsteps).
+        if (k > 0.45) {
+          const rs = ahead + c.range(-0.5, 1.5);
+          const rf = this.track.path.sample(rs);
+          const rr = new THREE.Vector3(Math.cos(rf.yaw), 0, -Math.sin(rf.yaw));
+          for (let i = 0; i < 2 + Math.round(2 * k); i++) {
+            const q = rf.pos.clone().addScaledVector(rr, c.range(-0.8, 0.8)).addScaledVector(forward(rf.yaw), c.range(-0.3, 0.3));
+            const sc = c.range(0.12, 0.24);
+            const at = rf.pos.y;
+            this.debris.spawn(`shard_${i % 6}`, new THREE.Matrix4().compose(q.setY(at + 0.5), new THREE.Quaternion().setFromEuler(new THREE.Euler(c.range(0, 6), c.range(0, 6), 0)), new THREE.Vector3(sc, sc, sc)), new THREE.Vector3(0, -1, 0), new THREE.Vector3(2, 1, 1), () => at, { mat: 'floor' });
+          }
+          this.hopAt(rs);
+        }
         break;
       }
       case 'rumble':
         this.tremor(I, k);
-        if (k > 0.55) this.react('duck', () => this.runner.glance(c.chance(0.5) ? 1 : -1));
+        if (k > 0.55) this.runner.glance(c.chance(0.5) ? 1 : -1);
         break;
       case 'birds': {
         // Birds burst out of the trees off to one side and wheel away from the noise.
@@ -1272,16 +1285,40 @@ export class Game {
     }
   }
 
-  private reactAt = -10;
+  /** Hop ~0.2 s before the runner reaches route distance `sAt` (re-aimed as his speed changes). */
+  private hopAt(sAt: number): void {
+    const v = Math.max(1, this.speed);
+    const lead = (sAt - this.s) / v - 0.2;
+    if (lead <= 0.05) return;
+    this.later(lead * 0.6, () => {
+      const t2 = (sAt - this.s) / Math.max(1, this.speed) - 0.2;
+      if (t2 > 0) this.later(t2, () => this.stage === 'run' && this.runner.hop(), CUE);
+    }, CUE);
+  }
+
+  private duckScanIn = 0;
+  private duckCool = 0;
+  private duckFrom = new THREE.Vector3();
+  private duckTo = new THREE.Vector3();
   /**
-   * A reactive one-shot from the runner (the character agent's clips: 'flinch', 'hop', 'duck', …),
-   * if this build of the runner has it; otherwise `fallback`. At most one every 1.5 s, run only.
+   * Low beams, lintels and hanging vines: look a stride ahead for something solid at head height over
+   * the path, and duck ~0.25 s before it passes overhead. From world geometry and the current tier
+   * (the driven tiers and up) only.
    */
-  private react(kind: string, fallback?: () => unknown): void {
-    if (this.stage !== 'run' || this.worldT - this.reactAt < 1.5) return;
-    this.reactAt = this.worldT;
-    const r = this.runner as unknown as { react?: (k: string) => boolean };
-    if (!(r.react?.(kind) ?? false)) fallback?.();
+  private scanOverhead(dt: number, tier: number): void {
+    this.duckCool -= dt;
+    this.duckScanIn -= dt;
+    if (this.stage !== 'run' || tier < 1 || this.duckScanIn > 0 || this.duckCool > 0) return;
+    this.duckScanIn = 0.08;
+    const v = Math.max(2, this.speed);
+    const sAt = this.s + v * 0.25 + 0.4;
+    const f = this.track.path.sample(sAt, this.cframe);
+    // A ray across the path at head height: anything solid there passes over (or into) his head.
+    const rv = this.tmpRush.set(Math.cos(f.yaw), 0, -Math.sin(f.yaw));
+    this.duckFrom.copy(f.pos).addScaledVector(rv, -0.6).setY(f.pos.y + 1.75);
+    this.duckTo.copy(f.pos).addScaledVector(rv, 0.6).setY(f.pos.y + 1.75);
+    const hit = this.occluder(this.duckFrom, this.duckTo) ?? this.occluder(this.duckTo, this.duckFrom);
+    if (hit !== null && this.runner.duck()) this.duckCool = 1.2;
   }
 
   /** A distant rumble: camera tremor, grit off the walls, and a plume of dust far off over the jungle. */
@@ -1458,6 +1495,7 @@ export class Game {
       this.rig.addTrauma(0.06 + 0.03 * tierNow);
     }
     this.lastRunTier = tierNow;
+    this.scanOverhead(dt, tierNow);
     // Speed without blur: from the driven tier, grit and low dust lift off the floor and the wall
     // feet just ahead and either side of him; the lens rushes through them (parallax), denser with
     // the tier. Cosmetic, from the current multiplier only; trimmed by the particle budget.
