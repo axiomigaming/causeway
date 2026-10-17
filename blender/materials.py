@@ -49,6 +49,66 @@ def _ao(nt, dist, only_local=True, inside=False):
     return a.outputs["AO"]
 
 
+# ---------------------------------------------------------------- round 11: photoscanned surfaces
+# CC0 scans from Poly Haven (tools/fetch-polyhaven.mjs → blender/cache/polyhaven; credits in
+# THIRD_PARTY_NOTICES.md), box-projected in object space so every block, slab and board gets real
+# grain, pores, cracks and chips in its bake. The vertex colours still pick each stone's hue: the scan's
+# colour is normalised to its mean (and partly desaturated) and multiplied in.
+import os as _os
+
+SCANS = _os.path.join(_os.path.dirname(__file__), "cache", "polyhaven")
+_scan_mean = {}
+
+
+def _scan_img(asset, mapname, colorspace):
+    path = _os.path.join(SCANS, f"{asset}_{mapname}_2k.png")
+    key = f"{asset}_{mapname}"
+    im = bpy.data.images.get(key)
+    if im is None:
+        im = bpy.data.images.load(path)
+        im.name = key
+        im.colorspace_settings.name = colorspace
+    return im
+
+
+def _mean_lum(im):
+    import numpy as np
+    if im.name not in _scan_mean:
+        px = np.array(im.pixels[:], np.float32).reshape(-1, 4)[::97, :3]
+        _scan_mean[im.name] = float((px @ np.array([0.2126, 0.7152, 0.0722], np.float32)).mean())
+    return _scan_mean[im.name]
+
+
+def scan(nt, vec, asset, scale=0.6, desat=0.45, contrast=1.0):
+    """Box-projected scan: (normalised colour factor ~1 on average, height, roughness) sockets."""
+    mp = N(nt, "ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (scale, scale, scale)
+    L(nt, vec, mp.inputs[0])
+
+    def tex(mapname, cs):
+        im = _scan_img(asset, mapname, cs)
+        t = N(nt, "ShaderNodeTexImage", _image=im)
+        t.projection = "BOX"
+        t.projection_blend = 0.25
+        L(nt, mp.outputs[0], t.inputs["Vector"])
+        return t, im
+
+    d, dim = tex("diff", "sRGB")
+    h, _ = tex("disp", "Non-Color")
+    r, _ = tex("rough", "Non-Color")
+    k = 1.0 / max(0.02, _mean_lum(dim))
+    grey = N(nt, "ShaderNodeRGBToBW")
+    L(nt, d.outputs[0], grey.inputs[0])
+    c = mix(nt, desat, d.outputs[0], grey.outputs[0], "MIX")
+    c = mix(nt, 1.0, c, (k, k, k, 1), "MULTIPLY")
+    if contrast != 1.0:
+        bc = N(nt, "ShaderNodeBrightContrast")
+        bc.inputs["Contrast"].default_value = (contrast - 1.0) * 0.5
+        L(nt, c, bc.inputs["Color"])
+        c = bc.outputs[0]
+    return c, h.outputs[0], r.outputs[0]
+
+
 def stone(name="stone", moss=0.55, glyphs=False):
     m = bpy.data.materials.new(name)
     nt = nodes_clear(m)
@@ -60,11 +120,12 @@ def stone(name="stone", moss=0.55, glyphs=False):
     base = attr.outputs[0]
 
     big = _noise(nt, vec, 1.3, 6, 0.6)
-    mot = ramp(nt, big.outputs[0], [(0.3, (0.8, 0.78, 0.74)), (0.7, (1.1, 1.06, 1.0))])
+    mot = ramp(nt, big.outputs[0], [(0.3, (0.86, 0.84, 0.8)), (0.7, (1.08, 1.05, 1.0))])
     col = mix(nt, 1.0, base, mot, "MULTIPLY")
     grain = _noise(nt, vec, 38, 8, 0.7)
-    gr = ramp(nt, grain.outputs[0], [(0.35, (0.86, 0.84, 0.82)), (0.65, (1.06, 1.04, 1.0))])
-    col = mix(nt, 1.0, col, gr, "MULTIPLY")
+    # Round 11: the surface is a photoscan (sandstone with real pores, cracks and chips), not noise.
+    sc_col, sc_h, sc_r = scan(nt, vec, "rock_face", 0.5, 0.85, 1.0)
+    col = mix(nt, 0.8, col, sc_col, "MULTIPLY")
 
     # Strata: soft horizontal banding in the sediment.
     wave = N(nt, "ShaderNodeTexWave", Scale=2.2, Distortion=6, Detail=3)
@@ -100,14 +161,25 @@ def stone(name="stone", moss=0.55, glyphs=False):
     taf = _voronoi(nt, vec, 4.5, "F1", 0.9)
     tafm = maprange(nt, _noise(nt, vec, 1.6, 3).outputs[0], 0.5, 0.62)
     tafh = math_node(nt, "MULTIPLY", maprange(nt, taf.outputs["Distance"], 0.28, 0.0, 0.0, 1.0), tafm)
-    col = mix(nt, math_node(nt, "MULTIPLY", tafh, 0.55), col, hexcol("#6b4a2e"), "MULTIPLY")
+    col = mix(nt, math_node(nt, "MULTIPLY", tafh, 0.12), col, hexcol("#6b4a2e"), "MULTIPLY")
     # Pale dust on convex, weathered edges.
     edge = _ao(nt, 0.08, True, True)
     ew = maprange(nt, edge, 0.55, 0.9, 0.45, 0.0)
     col = mix(nt, math_node(nt, "MULTIPLY", ew, maprange(nt, grain.outputs[0], 0.4, 0.6)), col, hexcol("#e3cfae"), "MIX")
+    # Round 11: chipped arrises. Convex edges (pointiness) show fresh, paler broken stone with darker
+    # chip scars along them, so the blocks read dressed-and-damaged rather than soft clay.
+    geo = N(nt, "ShaderNodeNewGeometry")
+    pt = maprange(nt, geo.outputs["Pointiness"], 0.5, 0.58, 0.0, 1.0)
+    chipn = _noise(nt, vec, 14, 4, 0.6)
+    chips = math_node(nt, "MULTIPLY", pt, maprange(nt, chipn.outputs[0], 0.48, 0.62))
+    col = mix(nt, math_node(nt, "MULTIPLY", chips, 0.55), col, hexcol("#e8c9a0"), "MIX")
+    scar = math_node(nt, "MULTIPLY", pt, maprange(nt, chipn.outputs[0], 0.66, 0.74))
+    col = mix(nt, math_node(nt, "MULTIPLY", scar, 0.5), col, hexcol("#5a3c26"), "MIX")
     # Erosion pits.
-    pits = _voronoi(nt, vec, 16, "F1")
-    pm = maprange(nt, pits.outputs["Distance"], 0.0, 0.14, 0.5, 0.0)
+    pits = _voronoi(nt, vec, 9, "F1")
+    # Pits only in weathered patches, not as an even speckle.
+    pm = math_node(nt, "MULTIPLY", maprange(nt, pits.outputs["Distance"], 0.0, 0.12, 0.28, 0.0),
+                   maprange(nt, _noise(nt, vec, 1.1, 3).outputs[0], 0.5, 0.62))
     col = mix(nt, pm, col, hexcol("#5c4630"), "MIX")
     # Dark runoff stains, stretched vertically.
     tc2 = N(nt, "ShaderNodeMapping")
@@ -117,14 +189,14 @@ def stone(name="stone", moss=0.55, glyphs=False):
     stain_m = maprange(nt, stain.outputs[0], 0.52, 0.72, 0.0, 0.38)
     col = mix(nt, stain_m, col, hexcol("#5b4a32"), "MULTIPLY")
 
-    rough_v = maprange(nt, grain.outputs[0], 0.3, 0.7, 0.78, 0.95)
+    rough_v = maprange(nt, sc_r, 0.3, 1.0, 0.72, 0.97)
     if moss > 0:
         up = _up_mask(nt, 0.35, 0.8)
         mn = _noise(nt, vec, 3.2, 6, 0.65, 0.6)
         mm = maprange(nt, mn.outputs[0], 0.58 - 0.25 * moss, 0.7 - 0.2 * moss)
         mfac = math_node(nt, "MULTIPLY", up, mm)
         # Moss also creeps into cracks and down from the tops.
-        mfac = math_node(nt, "MAXIMUM", mfac, math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.55, 0.7, 0, 0.6 * moss)))
+        mfac = math_node(nt, "MAXIMUM", mfac, math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.48, 0.66, 0, 0.85 * moss)))
         mc = _noise(nt, vec, 9, 4)
         moss_col = ramp(nt, mc.outputs[0], [(0.3, hexcol("#3f4d1c")), (0.7, hexcol("#6f7d2c"))])
         col = mix(nt, mfac, col, moss_col, "MIX")
@@ -134,11 +206,11 @@ def stone(name="stone", moss=0.55, glyphs=False):
     L(nt, rough_v, bsdf.inputs["Roughness"])
 
     h1 = _noise(nt, vec, 9, 10, 0.72)
-    h2 = _voronoi(nt, vec, 7, "F1")
-    height = math_node(nt, "ADD", h1.outputs[0], math_node(nt, "MULTIPLY", h2.outputs["Distance"], 0.35))
-    nrm = _bump(nt, height, 0.7, 0.14)
+    height = math_node(nt, "ADD", sc_h, math_node(nt, "MULTIPLY", h1.outputs[0], 0.15))
+    nrm = _bump(nt, height, 1.0, 0.06)
     nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, math_node(nt, "ADD", crack, pm)), 0.7, 0.04, nrm)
-    nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, tafh), 0.8, 0.08, nrm)
+    nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, tafh), 0.6, 0.08, nrm)
+    nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, scar), 0.8, 0.03, nrm)
     rough_v = mix(nt, math_node(nt, "MULTIPLY", wet, 0.6), rough_v, (0.45, 0.45, 0.45, 1), "MIX")
     L(nt, rough_v, bsdf.inputs["Roughness"])
     if glyphs:
@@ -164,16 +236,18 @@ def floor(name="floor"):
     base = N(nt, "ShaderNodeVertexColor", _layer_name="Col").outputs[0]
     big = _noise(nt, vec, 0.9, 5)
     col = mix(nt, 1.0, base, ramp(nt, big.outputs[0], [(0.3, (0.82, 0.8, 0.78)), (0.7, (1.1, 1.05, 1.0))]), "MULTIPLY")
-    fine = _noise(nt, vec, 55, 8, 0.75)
-    col = mix(nt, 1.0, col, ramp(nt, fine.outputs[0], [(0.3, (0.85, 0.84, 0.82)), (0.7, (1.07, 1.05, 1.03))]), "MULTIPLY")
+    # Round 11: a photoscanned sandstone surface (pores, cracks, chips), not procedural noise.
+    sc_col, sc_h, sc_r = scan(nt, vec, "sandstone_cracks", 0.42, 0.8, 1.0)
+    col = mix(nt, 0.7, col, sc_col, "MULTIPLY")
     # Worn pale patches where feet go.
     wear = _noise(nt, vec, 2.2, 3)
     col = mix(nt, maprange(nt, wear.outputs[0], 0.55, 0.75, 0, 0.35), col, hexcol("#d9a47a"), "MIX")
     pits = _voronoi(nt, vec, 30, "F1")
-    pm = maprange(nt, pits.outputs["Distance"], 0.0, 0.12, 0.55, 0.0)
+    pm = maprange(nt, pits.outputs["Distance"], 0.0, 0.12, 0.12, 0.0)
     col = mix(nt, pm, col, hexcol("#5a3222"), "MIX")
     vor = _voronoi(nt, vec, 1.8)
-    crack = maprange(nt, vor.outputs["Distance"], 0.0, 0.015, 0.7, 0.0)
+    # (The long voronoi crack lines read as procedural swirls on the tiles: the scan's cracks do the job.)
+    crack = maprange(nt, vor.outputs["Distance"], 0.0, 0.012, 0.18, 0.0)
     crack = math_node(nt, "MULTIPLY", crack, maprange(nt, _noise(nt, vec, 3, 2).outputs[0], 0.56, 0.66))
     col = mix(nt, crack, col, hexcol("#2e1a10"), "MIX")
     ao = _ao(nt, 0.2)
@@ -187,9 +261,8 @@ def floor(name="floor"):
     moss = math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.58, 0.68, 0, 0.8))
     col = mix(nt, moss, col, hexcol("#4d5a22"), "MIX")
     L(nt, col, bsdf.inputs["Base Color"])
-    L(nt, maprange(nt, wear.outputs[0], 0.3, 0.8, 0.9, 0.62), bsdf.inputs["Roughness"])
-    h = _noise(nt, vec, 14, 10, 0.7)
-    nrm = _bump(nt, h.outputs[0], 0.5, 0.07)
+    L(nt, mix(nt, 0.5, maprange(nt, wear.outputs[0], 0.3, 0.8, 0.9, 0.62), maprange(nt, sc_r, 0.3, 1.0, 0.7, 0.97), "MIX"), bsdf.inputs["Roughness"])
+    nrm = _bump(nt, sc_h, 1.0, 0.05)
     nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, math_node(nt, "ADD", crack, pm)), 0.6, 0.035, nrm)
     L(nt, nrm, bsdf.inputs["Normal"])
     return m
@@ -240,7 +313,22 @@ def wood(name="wood"):
     vec = mp.outputs[0]
     base = N(nt, "ShaderNodeVertexColor", _layer_name="Col").outputs[0]
     grain = _noise(nt, vec, 2.0, 8, 0.6, 2.5)
-    col = mix(nt, 1.0, base, ramp(nt, grain.outputs[0], [(0.3, (0.8, 0.76, 0.72)), (0.7, (1.1, 1.06, 1.0))]), "MULTIPLY")
+    # Round 11: photoscanned weathered board grain (old_planks_02), sampled within one board's width so
+    # no seam crosses ours; the vertex colour keeps it warm.
+    gm = N(nt, "ShaderNodeMapping")
+    gm.inputs["Scale"].default_value = (0.11, 0.42, 0.11)
+    gm.inputs["Location"].default_value = (0.08, 0.0, 0.0)
+    L(nt, tc.outputs["Object"], gm.inputs[0])
+    gim = _scan_img("old_planks_02", "diff", "sRGB")
+    gt = N(nt, "ShaderNodeTexImage", _image=gim)
+    L(nt, gm.outputs[0], gt.inputs["Vector"])
+    ght = N(nt, "ShaderNodeTexImage", _image=_scan_img("old_planks_02", "disp", "Non-Color"))
+    L(nt, gm.outputs[0], ght.inputs["Vector"])
+    gk = 1.0 / max(0.02, _mean_lum(gim))
+    gbw = N(nt, "ShaderNodeRGBToBW")
+    L(nt, gt.outputs[0], gbw.inputs[0])
+    gcol = mix(nt, 1.0, gbw.outputs[0], (gk, gk, gk, 1), "MULTIPLY")
+    col = mix(nt, 1.0, base, gcol, "MULTIPLY")
     ao = _ao(nt, 0.15)
     col = mix(nt, maprange(nt, ao, 0.3, 0.95, 0.6, 0), col, hexcol("#3a2518"), "MIX")
     # Sun-bleached tops: warm honey-tan in the grain, never grey (round 5: the boardwalk read grey-green).
@@ -248,7 +336,7 @@ def wood(name="wood"):
     col = mix(nt, math_node(nt, "MULTIPLY", _up_mask(nt, 0.5, 0.9), 0.62), col, bleach, "MIX")
     L(nt, col, bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.8
-    L(nt, _bump(nt, grain.outputs[0], 0.5, 0.03), bsdf.inputs["Normal"])
+    L(nt, _bump(nt, ght.outputs[0], 0.9, 0.025), bsdf.inputs["Normal"])
     return m
 
 

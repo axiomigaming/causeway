@@ -360,11 +360,15 @@ def moss_clump(name, seed, radius=0.6, n=5):
         off = Vector((seed + i * 3.1, i, 0))
         a = rng.uniform(0, 6.28)
         d = radius * rng.uniform(0, 0.9)
+        flat = rng.uniform(0.3, 0.45)
         for v in t.verts:
-            v.co.z = max(v.co.z, -0.02) * rng.uniform(0.35, 0.5)
-            v.co *= 1 + noise.fractal(v.co * 3 + off, 0.6, 2, 3) * 0.25
+            v.co.z = max(v.co.z, -0.02) * flat
+            # Round 11: lumpier cushions (tufts on tufts), not smooth domes.
+            v.co *= 1 + noise.fractal(v.co * 3 + off, 0.6, 2, 3) * 0.3 + noise.noise(v.co * 7 + off) * 0.06
             v.co += Vector((math.cos(a) * d, math.sin(a) * d, -0.03))
         col = jitter_color(hexcol(rng.choice(("#4e6a22", "#5c7426", "#435e1e", "#6f7f2c"))), rng, 0.1, 0.05)
-        _merge(bm, t, col)
+        # Alpha 0 marks moss for the flora material's fuzzy moss surface (materials_scan.flora); vertex
+        # colours are not exported, so this never reaches the game.
+        _merge(bm, t, col[:3] + (0.0,))
     ob = finish_obj(name, bm, 80)
     return ob

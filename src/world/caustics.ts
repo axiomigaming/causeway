@@ -15,8 +15,10 @@ export const MAX_FEET = 6;
 export const causticUniforms = {
   uCausticTime: { value: 0 },
   uCausticStrength: { value: 1 },
-  /** Procedural detail normals on the near stone (0 = off: the lightest tier). */
+  /** Scanned detail normals on the near stone (0 = off: the lightest tier). */
   uDetail: { value: 1 },
+  uDetailReady: { value: 0 },
+  uDetailMap: { value: null as THREE.Texture | null },
   /** xyz: foot of a waterfall (world), w: reach of its spray (m). w = 0: unused. */
   uFeet: { value: Array.from({ length: MAX_FEET }, () => new THREE.Vector4(0, -1e4, 0, 0)) },
 };
@@ -73,46 +75,59 @@ float wetAt(vec3 p) {
   return wet;
 }`;
 
-// Round 8: detail normals. The baked atlases hold the shape of each stone; up close they read as
-// soft clay. A height field in world space — chisel pits, a fine grain and hairline cracks — is
-// turned into a normal through screen-space derivatives (Mikkelsen's surface gradient, unnormalised
-// so the tilt is in world units and holds at any distance). No textures, nothing to download.
+// Round 11: detail normals from a photoscan. The baked atlases hold the shape of each stone; up close
+// they read as soft clay. detail_stone.webp is a 1K tile cut from the Poly Haven "rock_face" scan
+// (CC0, see THIRD_PARTY_NOTICES.md): R,G = its tangent normal, B = cavity (AO and height). It is
+// projected three ways in world space (triplanar, each plane's tilt added to the surface normal), at
+// two scales, and fades out with distance, so the near walls, pavers and boards get real pores, grain
+// and pitting. It is fetched only on the tiers that use it (ensureDetailMap); until it arrives the
+// term is simply off.
+import detailUrl from './detail_stone.webp?url';
+
+let detailMap: THREE.Texture | null = null;
+export function ensureDetailMap(): void {
+  if (detailMap || typeof document === 'undefined') return;
+  detailMap = new THREE.TextureLoader().load(detailUrl, () => (causticUniforms.uDetailReady.value = 1));
+  detailMap.wrapS = detailMap.wrapT = THREE.RepeatWrapping;
+  detailMap.colorSpace = THREE.NoColorSpace;
+  detailMap.anisotropy = 4;
+  causticUniforms.uDetailMap.value = detailMap;
+}
+
 const DETAIL_PARS = /* glsl */ `
 uniform float uDetail;
-float dtH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-float dtN(vec3 p) {
-  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(dtH(i), dtH(i + vec3(1, 0, 0)), f.x), mix(dtH(i + vec3(0, 1, 0)), dtH(i + vec3(1, 1, 0)), f.x), f.y),
-             mix(mix(dtH(i + vec3(0, 0, 1)), dtH(i + vec3(1, 0, 1)), f.x), mix(dtH(i + vec3(0, 1, 1)), dtH(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-}
-float detailHeight(vec3 p, float px) {
-  // Each octave fades out before it is finer than a couple of pixels (no shimmer at a distance).
-  float h = 0.0;
-  h += (dtN(p * 7.0) - 0.5) * 0.007 * (1.0 - smoothstep(0.08, 0.3, px * 7.0));
-  h += (dtN(p * 23.0 + 3.1) - 0.5) * 0.0026 * (1.0 - smoothstep(0.08, 0.3, px * 23.0));
-  float c = abs(dtN(p * vec3(1.7, 2.3, 1.9) + 7.0) - 0.5);
-  h -= (1.0 - smoothstep(0.0, 0.035, c)) * 0.005 * (1.0 - smoothstep(0.05, 0.25, px * 4.0));
-  return h;
+uniform float uDetailReady;
+uniform sampler2D uDetailMap;
+// One triplanar lookup: xyz = world-space tilt to add to the normal, w = cavity (0 deep .. 1 proud).
+vec4 dtTri(vec3 p, vec3 w, vec3 n) {
+  vec3 tx = texture2D(uDetailMap, p.zy).rgb, ty = texture2D(uDetailMap, p.xz).rgb, tz = texture2D(uDetailMap, p.xy).rgb;
+  vec2 ax = tx.rg * 2.0 - 1.0, ay = ty.rg * 2.0 - 1.0, az = tz.rg * 2.0 - 1.0;
+  vec3 s = sign(n);
+  vec3 d = w.x * vec3(0.0, ax.y, ax.x * s.x) + w.y * vec3(ay.x * s.y, 0.0, ay.y) + w.z * vec3(az.x * s.z, az.y, 0.0);
+  return vec4(d, dot(w, vec3(tx.b, ty.b, tz.b)));
 }`;
 
 const FRAG_DETAIL = /* glsl */ `
-if (uDetail > 0.0) {
+if (uDetail > 0.0 && uDetailReady > 0.0) {
   float dist = length(vViewPosition);
-  float px = length(fwidth(vWetPos));
-  float k = uDetail * DETAIL_AMP * (1.0 - smoothstep(16.0, 34.0, dist));
-  float h = detailHeight(vWetPos, px) * k;
-  vec3 sp = -vViewPosition;
-  vec3 sx = dFdx(sp), sy = dFdy(sp);
-  vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
-  float det = dot(sx, r1) * faceDirection;
-  vec3 g = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
-  // NaN guard: on a face seen exactly edge-on (or a zero-area triangle) det is 0 and the bumped
-  // normal is the zero vector; normalize(0) is NaN, which bloom then smeared over the whole frame.
-  vec3 bn = abs(det) * normal - g;
-  float bl = length(bn);
-  if (k > 0.0 && bl > 1e-12 && abs(det) > 1e-14) normal = bn / bl;
-  // The chisel pits and cracks hold a little dirt.
-  diffuseColor.rgb *= 1.0 + clamp(h * 140.0, -0.22, 0.08);
+  float k = uDetail * DETAIL_AMP * (1.0 - smoothstep(14.0, 30.0, dist));
+  if (k > 0.0) {
+    vec3 wn = vWetN;
+    vec3 w = pow(abs(wn), vec3(4.0));
+    w /= max(w.x + w.y + w.z, 1e-4);
+    vec4 a = dtTri(vWetPos * 0.8, w, wn);
+    // A finer octave (offset so the two tiles never line up), faded before it shimmers.
+    float fine = 1.0 - smoothstep(4.0, 10.0, dist);
+    vec4 b = dtTri(vWetPos * 2.9 + 0.37, w, wn);
+    vec3 dw = a.xyz * 1.5 + b.xyz * 0.8 * fine;
+    vec3 dv = mat3(viewMatrix) * dw;
+    vec3 bn = normal + dv * k;
+    float bl = length(bn);
+    // NaN guard (an exactly cancelling tilt would be normalize(0), which bloom smeared over the frame).
+    if (bl > 1e-4) normal = bn / bl;
+    float cav = mix(a.w, a.w * (0.6 + 0.8 * b.w), fine);
+    diffuseColor.rgb *= mix(1.0, 0.62 + 0.7 * cav, min(1.0, k * 1.2));
+  }
 }`;
 
 const FRAG_WET = /* glsl */ `

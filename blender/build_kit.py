@@ -15,6 +15,7 @@ from mathutils import Vector
 from common import reset, bake_group, ensure_uvs_packed_weighted, export_glb, textured_material, OUT, CACHE
 import kit_geo as K
 import materials as M
+import materials_scan as MS
 import foliage as F
 import setpieces as S
 import stage as G
@@ -197,12 +198,12 @@ mats = {
     "stoneA": (M.stone("stoneA", moss=0.7), 4096),
     "stoneB": (M.stone("stoneB", moss=0.45, glyphs=False), 4096),
     "floor": (M.floor("floor"), 4096),
-    "rock": (M.rock("rock"), 2048),
+    "rock": (MS.rock("rock"), 2048),
     "wood": (M.wood("wood"), 1024),
     "bark": (M.bark("bark"), 1024),
     "statue": (M.stone("statue", moss=0.5, glyphs=False), 2048),
-    "flora": (M.flora("flora"), 1024),
-    "cliff": (M.cliff("cliff"), 2048),
+    "flora": (MS.flora("flora"), 1024),
+    "cliff": (MS.cliff("cliff"), 2048),
     "gold": (M.gold("gold"), 1024),
     "temple": (M.stone("temple", moss=0.5, glyphs=False), 512),  # far pieces; keeps the High set under budget
 }
@@ -247,7 +248,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     for o in objs:
         me = o.data
