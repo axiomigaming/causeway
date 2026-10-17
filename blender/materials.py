@@ -63,7 +63,8 @@ def stone(name="stone", moss=0.55, glyphs=False):
     mot = ramp(nt, big.outputs[0], [(0.3, (0.8, 0.78, 0.74)), (0.7, (1.1, 1.06, 1.0))])
     col = mix(nt, 1.0, base, mot, "MULTIPLY")
     grain = _noise(nt, vec, 38, 8, 0.7)
-    gr = ramp(nt, grain.outputs[0], [(0.35, (0.86, 0.84, 0.82)), (0.65, (1.06, 1.04, 1.0))])
+    # Round 11: a quieter grain (the old one read as speckled granite on the piers and steles).
+    gr = ramp(nt, grain.outputs[0], [(0.35, (0.93, 0.92, 0.9)), (0.65, (1.03, 1.02, 1.0))])
     col = mix(nt, 1.0, col, gr, "MULTIPLY")
 
     # Strata: soft horizontal banding in the sediment.
@@ -100,14 +101,25 @@ def stone(name="stone", moss=0.55, glyphs=False):
     taf = _voronoi(nt, vec, 4.5, "F1", 0.9)
     tafm = maprange(nt, _noise(nt, vec, 1.6, 3).outputs[0], 0.5, 0.62)
     tafh = math_node(nt, "MULTIPLY", maprange(nt, taf.outputs["Distance"], 0.28, 0.0, 0.0, 1.0), tafm)
-    col = mix(nt, math_node(nt, "MULTIPLY", tafh, 0.55), col, hexcol("#6b4a2e"), "MULTIPLY")
+    col = mix(nt, math_node(nt, "MULTIPLY", tafh, 0.3), col, hexcol("#6b4a2e"), "MULTIPLY")
     # Pale dust on convex, weathered edges.
     edge = _ao(nt, 0.08, True, True)
     ew = maprange(nt, edge, 0.55, 0.9, 0.45, 0.0)
     col = mix(nt, math_node(nt, "MULTIPLY", ew, maprange(nt, grain.outputs[0], 0.4, 0.6)), col, hexcol("#e3cfae"), "MIX")
+    # Round 11: chipped arrises. Convex edges (pointiness) show fresh, paler broken stone with darker
+    # chip scars along them, so the blocks read dressed-and-damaged rather than soft clay.
+    geo = N(nt, "ShaderNodeNewGeometry")
+    pt = maprange(nt, geo.outputs["Pointiness"], 0.5, 0.58, 0.0, 1.0)
+    chipn = _noise(nt, vec, 14, 4, 0.6)
+    chips = math_node(nt, "MULTIPLY", pt, maprange(nt, chipn.outputs[0], 0.48, 0.62))
+    col = mix(nt, math_node(nt, "MULTIPLY", chips, 0.55), col, hexcol("#e8c9a0"), "MIX")
+    scar = math_node(nt, "MULTIPLY", pt, maprange(nt, chipn.outputs[0], 0.66, 0.74))
+    col = mix(nt, math_node(nt, "MULTIPLY", scar, 0.5), col, hexcol("#5a3c26"), "MIX")
     # Erosion pits.
-    pits = _voronoi(nt, vec, 16, "F1")
-    pm = maprange(nt, pits.outputs["Distance"], 0.0, 0.14, 0.5, 0.0)
+    pits = _voronoi(nt, vec, 9, "F1")
+    # Pits only in weathered patches, not as an even speckle.
+    pm = math_node(nt, "MULTIPLY", maprange(nt, pits.outputs["Distance"], 0.0, 0.12, 0.28, 0.0),
+                   maprange(nt, _noise(nt, vec, 1.1, 3).outputs[0], 0.5, 0.62))
     col = mix(nt, pm, col, hexcol("#5c4630"), "MIX")
     # Dark runoff stains, stretched vertically.
     tc2 = N(nt, "ShaderNodeMapping")
@@ -124,7 +136,7 @@ def stone(name="stone", moss=0.55, glyphs=False):
         mm = maprange(nt, mn.outputs[0], 0.58 - 0.25 * moss, 0.7 - 0.2 * moss)
         mfac = math_node(nt, "MULTIPLY", up, mm)
         # Moss also creeps into cracks and down from the tops.
-        mfac = math_node(nt, "MAXIMUM", mfac, math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.55, 0.7, 0, 0.6 * moss)))
+        mfac = math_node(nt, "MAXIMUM", mfac, math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.48, 0.66, 0, 0.85 * moss)))
         mc = _noise(nt, vec, 9, 4)
         moss_col = ramp(nt, mc.outputs[0], [(0.3, hexcol("#3f4d1c")), (0.7, hexcol("#6f7d2c"))])
         col = mix(nt, mfac, col, moss_col, "MIX")
@@ -138,7 +150,8 @@ def stone(name="stone", moss=0.55, glyphs=False):
     height = math_node(nt, "ADD", h1.outputs[0], math_node(nt, "MULTIPLY", h2.outputs["Distance"], 0.35))
     nrm = _bump(nt, height, 0.7, 0.14)
     nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, math_node(nt, "ADD", crack, pm)), 0.7, 0.04, nrm)
-    nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, tafh), 0.8, 0.08, nrm)
+    nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, tafh), 0.6, 0.08, nrm)
+    nrm = _bump(nt, math_node(nt, "SUBTRACT", 0, scar), 0.8, 0.03, nrm)
     rough_v = mix(nt, math_node(nt, "MULTIPLY", wet, 0.6), rough_v, (0.45, 0.45, 0.45, 1), "MIX")
     L(nt, rough_v, bsdf.inputs["Roughness"])
     if glyphs:

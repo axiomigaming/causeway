@@ -17,8 +17,10 @@ from common import add_block, add_stone, drop_faces_below, finish_obj, hexcol, j
 # Warm, saturated sandstone (round 3: the beige read dusty; the references are red-orange and cream).
 # Round 8: less brick-red. Weathered limestone and tan sandstone (the critic read the red bricks as
 # European ruins); the pavers are a warm grey-tan stone rather than terracotta.
-SAND = [hexcol(h) for h in ("#c39a6c", "#b58b60", "#d1aa7c", "#a8825c", "#bf9670", "#b9946c", "#cba57a", "#b5a080")]
-TERRA = [hexcol(h) for h in ("#b08a6a", "#a07c60", "#bc9878", "#987458", "#a98a70", "#b39072")]
+# Round 11: warm, saturated sandstone again (the references: golden-orange blocks, a few pale and a
+# few red-brown ones for variety); the pavers a warm red-tan.
+SAND = [hexcol(h) for h in ("#c88a55", "#b8794a", "#d59a62", "#a96c44", "#c38558", "#be9064", "#d4a26c", "#9c6340", "#cfae84")]
+TERRA = [hexcol(h) for h in ("#b67f5e", "#a67156", "#c38d6a", "#986650", "#ae7e64", "#bd8a68")]
 WOOD = [hexcol(h) for h in ("#8a6547", "#7a5a40", "#96714f", "#6d4f38")]
 # Weathered boards: warm honey-brown, bleached where the sun takes them (round 5: never grey).
 BOARDS = [hexcol(h) for h in ("#b8895c", "#a87a4e", "#c4986a", "#9e754e", "#c09c72", "#b08458")]
