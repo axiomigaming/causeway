@@ -7,7 +7,7 @@ import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionT
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
-import { causticUniforms, patchWetStone, updateCaustics } from './caustics';
+import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { atmosphereUniforms } from './atmosphere';
 
@@ -198,6 +198,7 @@ export class Track {
     this.density = density;
     // The lightest tier (phones) skips the detail normals: a few dozen ALU per stone pixel.
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
+    if (causticUniforms.uDetail.value > 0) ensureDetailMap();
     // Build into a fresh map and swap at the end: the route keeps spawning from the old
     // variants meanwhile, and their geometry is retired only when the world next resets.
     const next = new Map<SectionType, Variant[]>();
