@@ -97,3 +97,48 @@ export function warmUp(renderer: THREE.WebGLRenderer, roots: THREE.Object3D[], m
   plain.dispose();
   return { geometries: geos.size, textures: textures.size };
 }
+
+/**
+ * Texture sampling for every world material (clarity, round 12): the GPU's full anisotropy (up to
+ * 16×) so floor planks and wall courses seen at a grazing angle keep their detail instead of
+ * shimmering into a dotted moiré; trilinear mips; colour maps decoded as sRGB and data maps
+ * (normal, roughness, metalness, AO) left linear. Returns how many textures were changed.
+ */
+export function tuneTextures(renderer: THREE.WebGLRenderer, roots: THREE.Object3D[], materials: Iterable<THREE.Material> = []): number {
+  const maxAniso = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+  const COLOR = ['map', 'emissiveMap', 'specularColorMap', 'sheenColorMap'];
+  const DATA = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap', 'displacementMap', 'alphaMap', 'clearcoatNormalMap'];
+  const seen = new Set<THREE.Material>();
+  let changed = 0;
+  const tune = (m: THREE.Material) => {
+    if (seen.has(m)) return;
+    seen.add(m);
+    const rec = m as unknown as Record<string, THREE.Texture | null | undefined>;
+    for (const [keys, cs] of [
+      [COLOR, THREE.SRGBColorSpace],
+      [DATA, THREE.NoColorSpace],
+    ] as const) {
+      for (const k of keys) {
+        const t = rec[k];
+        if (!t?.isTexture || (t as THREE.DataTexture).isDataTexture) continue;
+        let dirty = false;
+        if (t.colorSpace !== cs) ((t.colorSpace = cs), (dirty = true));
+        if (t.anisotropy < maxAniso) ((t.anisotropy = maxAniso), (dirty = true));
+        if (t.minFilter === THREE.LinearFilter || t.minFilter === THREE.NearestFilter || t.minFilter === THREE.LinearMipmapNearestFilter) {
+          t.minFilter = THREE.LinearMipmapLinearFilter;
+          t.generateMipmaps = true;
+          dirty = true;
+        }
+        if (dirty) ((t.needsUpdate = true), changed++);
+      }
+    }
+  };
+  for (const m of materials) tune(m);
+  for (const root of roots)
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) tune(m);
+    });
+  return changed;
+}
