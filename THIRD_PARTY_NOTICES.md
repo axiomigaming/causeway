@@ -17,6 +17,12 @@ Licence: CC0 1.0 Universal (public domain dedication), https://polyhaven.com/lic
 
 | Asset | Author | URL | Used for |
 | --- | --- | --- | --- |
-| Rock Face (`rock_face`) | Greg Zaal (photography), Dario Barresi (processing) | https://polyhaven.com/a/rock_face | wall and pier blocks, statues, near detail map |
+| Rock Face (`rock_face`) | Greg Zaal (photography), Dario Barresi (processing) | https://polyhaven.com/a/rock_face | wall and pier blocks, statues, boulders and cliff faces, near detail map |
 | Sandstone Cracks (`sandstone_cracks`) | Rob Tuytel | https://polyhaven.com/a/sandstone_cracks | causeway pavers and floors |
 | Old Planks 02 (`old_planks_02`) | Rob Tuytel | https://polyhaven.com/a/old_planks_02 | boardwalk plank grain |
+| Shrub 04 (`shrub_04`, model) | Rico Cilliers | https://polyhaven.com/a/shrub_04 | leaf atlas: leafy masses (canopies, bushes, wall greenery) |
+| Nettle Plant (`nettle_plant`, model) | Rob Tuytel (photography), Rico Cilliers (modelling) | https://polyhaven.com/a/nettle_plant | leaf atlas: broadleaf clumps |
+| Fern 02 (`fern_02`, model) | Rob Tuytel (scanning), Rico Cilliers (modelling) | https://polyhaven.com/a/fern_02 | leaf atlas: ferns |
+
+The scanned plant models are rendered (by `blender/scanned.py`) into cells of the foliage atlas; only
+that rendered atlas ships.
