@@ -461,7 +461,7 @@ button { cursor: pointer; }
 
 /* ---- RUN: one gold slab with one word-mark (the stake is read from the stepper) */
 .run-cell { display: flex; }
-.run-btn { --h: 84px; --panel: url('/ui/panel-gold.webp'); width: 360px; justify-content: center; gap: 12px; padding: 0 16px; }
+.run-btn { --h: 84px; width: 360px; justify-content: center; gap: 12px; padding: 0 16px; }
 .run-btn .word { display: inline-flex; align-items: center; gap: 12px; font-family: var(--f-block); font-size: 30px; letter-spacing: 0.08em; text-transform: uppercase; color: #2a1003; text-shadow: 0 1px 0 rgba(255, 244, 200, 0.75), 0 -1px 0 rgba(90, 44, 4, 0.35); }
 .run-btn .spinner { border-color: #2a1003; border-right-color: transparent; filter: none; }
 .run-btn:disabled .word { color: var(--ivory); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9); }
@@ -931,3 +931,121 @@ input[type='range']:focus-visible::-webkit-slider-thumb { filter: var(--ring-on)
 /* the switch's word reads at a glance, on or off */
 .toggle { color: var(--ivory); font-weight: 700; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85); }
 .toggle .toggle-text::after { color: var(--ivory); }
+
+/* ================================================================== round 11: the reference's craft
+   Hero plates: the chipped limestone frame around the deep red-brown well (as on the reference),
+   a cast-gold word-mark (GoldWord: bronze edge, gold face with a carved notch, lit top bevel),
+   and on the primary plate a plumed crest above and a pendant below breaking the outline. */
+.gw { position: relative; display: inline-block; font-family: var(--f-block); font-weight: 400; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; white-space: nowrap; }
+.gw > span { display: block; padding: 0.04em 0.03em 0.02em; }
+.gw-edge { position: absolute; inset: 0; color: #6a2a04; -webkit-text-stroke: 0.15em #2e1002; transform: translateY(0.07em); filter: drop-shadow(0 0.1em 0.07em rgba(0, 0, 0, 0.65)); }
+.gw-face {
+  position: relative;
+  /* bright enough for 4.5:1 on the well; the amber depth comes from the bronze edge and the notch */
+  background: linear-gradient(180deg, #fffbe8 0%, #fff0a0 14%, #ffd546 36%, #8a3c04 43.5%, #8a3c04 47%, #ffc634 50.5%, #ffb526 76%, #ffa61c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0.03em #4a1c02;
+}
+.gw-hi { position: absolute; inset: 0; transform: translateY(-0.03em); background: linear-gradient(180deg, rgba(255, 255, 245, 0.95) 0%, rgba(255, 255, 245, 0.55) 10%, rgba(255, 255, 245, 0) 24%); -webkit-background-clip: text; background-clip: text; color: transparent; pointer-events: none; }
+.btn-cta .btn-label { display: inline-flex; align-items: center; gap: 12px; }
+/* disabled: the gold goes to old silver-stone, still crisply outlined and readable */
+.btn-cta:disabled .gw { filter: grayscale(0.85) brightness(1.08); }
+.cash.lead .gw, .cash.held.fell .gw { filter: grayscale(0.7) brightness(1.05); }
+
+/* RUN: the red-brown well and a big word-mark (no more mustard slab) */
+.run-btn { --panel: url('/ui/panel.webp'); }
+.run-btn .btn-label { font-size: 34px; }
+.run-btn.busy .btn-label { font-size: 24px; }
+.run-btn .spinner { border-color: var(--gold-1); border-right-color: transparent; }
+.cta-sun.run-btn .btn-label { font-size: 26px; }
+
+/* the plumed crest (feathers fanned behind the gem crest) on the primary plates */
+.btn-cta .crest.plume { top: calc(0px - var(--fy) - 68px * var(--cs)); width: calc(160px * var(--cs)); height: calc(84px * var(--cs)); background-image: url('/ui/crest-plume.webp'); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+.cash .crest.plume { filter: brightness(calc(1 + var(--heat) * 0.2)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 calc(var(--heat) * 10px) rgba(255, 60, 40, calc(var(--heat) * 0.8))); }
+.run-btn .crest.plume { --cs: 0.8; }
+.run-btn .pendant { --ps: 0.85; }
+/* desktop: the Auto switch moves left in the panel head, so the RUN plume rises clear of it */
+@media (min-width: 761px) {
+  .auto { margin-left: 24px; }
+  .setup-body { align-items: end; }
+}
+@media (max-width: 760px) {
+  .run-cell { margin-top: 30px; }
+  .run-btn .btn-label { font-size: 30px; }
+  .run-btn .crest.plume { --cs: 0.6; }
+  .run-btn .pendant { --ps: 0.62; }
+  .cash .crest.plume { --cs: 0.62; }
+}
+@media (max-width: 760px) and (max-height: 780px) {
+  .run-cell { margin-top: 24px; }
+  .run-btn .btn-label { font-size: 26px; }
+  .run-btn .crest.plume { --cs: 0.5; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .run-cell { margin-top: 0; }
+  .run-btn .btn-label { font-size: 24px; }
+  .run-btn .crest.plume, .run-btn .pendant { display: none; }
+  .cash .crest.plume { --cs: 0.5; }
+}
+
+/* ================================================================== round 11: the top bar as one piece
+   Brand, balance plaque, history and tools share one height (52), one gap (8) and one centre line.
+   The balance is a small carved plaque: the hero frame around the red-brown well, a small-caps
+   label over a big cast-gold tabular figure. Icon keys are the full 52 stone key. */
+.topbar { align-items: center; }
+.tools { gap: 8px; padding-left: 0; }
+.tools::before { display: none; }
+.icon-btn { width: 52px; height: 52px; }
+.icon-btn::before { inset: 0; border-image-width: 9px; }
+.icon-btn svg { width: 22px; height: 22px; }
+.balance {
+  position: relative;
+  isolation: isolate;
+  height: 52px;
+  min-width: 176px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  row-gap: 3px;
+  padding: 0 10px;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 9px 16px;
+  border-image: var(--frame) 50% 68 / 50% 18px stretch;
+  filter: drop-shadow(0 0 1px rgba(20, 12, 4, 0.9)) drop-shadow(0 3px 0 var(--stone-d)) drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+}
+.balance::before { content: ''; position: absolute; inset: -2px -6px; z-index: -1; border: 6px solid transparent; border-image: url('/ui/panel.webp') 24 fill / 6px stretch; }
+.balance .k { font-family: var(--f-display); font-size: 10px; letter-spacing: 0.18em; color: #f3e6c8; line-height: 1; }
+.balance .v { font-family: var(--f); font-weight: 900; font-size: 21px; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums lining-nums; color: transparent; background: linear-gradient(180deg, #fffbe8 0%, #ffe27a 34%, #ffbf2a 64%, #f08a10 100%); -webkit-background-clip: text; background-clip: text; text-shadow: none; filter: drop-shadow(1px 0 0 #2e1002) drop-shadow(-1px 0 0 #2e1002) drop-shadow(0 1px 0 #2e1002) drop-shadow(0 -1px 0 #2e1002) drop-shadow(0 2px 1px rgba(0, 0, 0, 0.55)); }
+.balance .v small { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; margin-left: 4px; color: transparent; background: inherit; -webkit-background-clip: text; background-clip: text; }
+.balance.bump .v { animation: none; }
+.balance.bump { animation: plaqueBump 0.6s var(--ease-out); }
+@keyframes plaqueBump { 30% { filter: drop-shadow(0 0 1px rgba(20, 12, 4, 0.9)) drop-shadow(0 3px 0 var(--stone-d)) drop-shadow(0 0 14px rgba(255, 200, 80, 0.8)); } }
+.logo.compact { --lh: 56px; padding-top: 6px; }
+.logo.mark { --lh: 52px; }
+.brand .tag { padding: 8px 10px; }
+/* history: the same quiet keys, an even rhythm */
+.history { gap: 6px; }
+.history .chip { height: 30px; display: inline-grid; place-items: center; padding: 0 10px; font-size: 12.5px; font-weight: 800; }
+.hist-k { font-size: 12px; letter-spacing: 0.14em; margin-right: 2px; }
+@media (max-width: 760px) {
+  .topbar { column-gap: 8px; padding-left: calc(12px + var(--safe-l)); padding-right: calc(12px + var(--safe-r)); }
+  .balance { justify-self: stretch; justify-items: center; min-width: 0; padding: 0 6px; }
+  .tools { gap: 8px; }
+  .history { margin: 6px 0 0 2px; }
+  .history .chip { height: 28px; padding: 0 8px; font-size: 12px; }
+}
+@media (max-width: 380px) {
+  .balance .v { font-size: 19px; }
+  .icon-btn { width: 48px; height: 48px; }
+  .logo.mark { --lh: 48px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .balance { height: 46px; min-width: 160px; }
+  .icon-btn { width: 48px; height: 48px; }
+}
+/* the keyboard hint sits below the pendant, never under it */
+.cash-meta { margin-top: 22px; }
+.cta-sun.run-btn .btn-sub { margin-left: 4px; }
