@@ -53,7 +53,7 @@ const t0 = Date.now();
 const elapsed = () => (Date.now() - t0) / 1000;
 const phase = () => page.evaluate(() => window.__store.getState().phase);
 const mark = (label) => page.evaluate((l) => window.__rec.cues.push({ t: +((performance.now() - window.__rec.t0) / 1000).toFixed(3), id: `qa:${window.__rec.cues.length}`, label: l }), label);
-const targets = [1.6, 0, 3.2, 1.25, 0, 2.2, 6, 1.4];
+const targets = [1.5, 1.3, 1.6, 0, 1.25, 2.2, 1.4, 0];
 let round = 0;
 while (elapsed() < SECONDS - 4) {
   const p = await phase();

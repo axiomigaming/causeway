@@ -38,8 +38,8 @@ export const SOUNDS: Record<string, SoundSpec> = {
   breath: { bus: 'foley', db: -17, cents: 0, vary: 0, priority: 1, max: 1 },
   pant: { bus: 'foley', db: -15, cents: 40, vary: 1, priority: 1, max: 1 },
   // The world under strain and coming down.
-  impact: { bus: 'sfx', db: -6, cents: 150, vary: 2, priority: 2, max: 4, pan: 0.35, floor: -16, dull: true },
-  slam: { bus: 'sfx', db: -1, cents: 60, vary: 1, priority: 3, max: 2, pan: 0.05 },
+  impact: { bus: 'sfx', db: -3, cents: 150, vary: 2, priority: 2, max: 4, pan: 0.35, floor: -16, dull: true },
+  slam: { bus: 'sfx', db: 3, cents: 60, vary: 1, priority: 3, max: 2, pan: 0.05 },
   grind: { bus: 'sfx', db: -6, cents: 100, vary: 1.5, priority: 2, max: 2, pan: 0.15 },
   rumble: { bus: 'sfx', db: -7, cents: 120, vary: 1.5, priority: 2, max: 2, floor: -12, scatter: 2 },
   rockfall: { bus: 'sfx', db: -5, cents: 120, vary: 2, priority: 2, max: 3, pan: 0.3, floor: -12, dull: true },
@@ -55,10 +55,10 @@ export const SOUNDS: Record<string, SoundSpec> = {
   sparkle: { bus: 'ui', db: -13, cents: 50, vary: 1, priority: 2, max: 2, pan: 0.25 },
   swell: { bus: 'sting', db: -9, cents: 0, vary: 0, priority: 3, max: 1 },
   // Interface: stone and wood, small and close.
-  ui_tap: { bus: 'ui', db: -14, cents: 80, vary: 1.5, priority: 2, max: 3 },
+  ui_tap: { bus: 'ui', db: -10, cents: 80, vary: 1.5, priority: 2, max: 3 },
   ui_tick: { bus: 'ui', db: -19, cents: 120, vary: 1.5, priority: 1, max: 3 },
   ui_slide: { bus: 'ui', db: -17, cents: 60, vary: 1, priority: 1, max: 2 },
-  ui_toggle: { bus: 'ui', db: -17, cents: 50, vary: 1, priority: 1, max: 2 },
+  ui_toggle: { bus: 'ui', db: -8, cents: 50, vary: 1, priority: 1, max: 2 },
   // Beds (loops; levels are set by the engine).
   bed_jungle: { bus: 'amb', db: -16, cents: 0, vary: 0, priority: 0, max: 1 },
   bed_insects: { bus: 'amb', db: -22, cents: 0, vary: 0, priority: 0, max: 1 },
