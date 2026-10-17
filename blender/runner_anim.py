@@ -205,22 +205,22 @@ def configure(rig):
 G_ACC = 9.81
 
 RUN = dict(
-    ts=0.3, D=0.84, xtd=0.24, knee=(0.36, 0.85, 0.28), v=5.0,
-    af=[(0.0, 0.14), (0.14, 0.0), (0.44, 0.0), (1.0, -1.0)],
+    ts=0.3, D=0.84, xtd=0.24, knee=(0.38, 0.97, 0.24), v=5.0,
+    af=[(0.0, 0.14), (0.14, 0.0), (0.42, 0.0), (1.0, -1.15)],
     swing=[(0.18, -0.34, 1.05, 0.45), (0.42, 0.12, 1.85, 0.12), (0.68, 0.72, 1.42, -0.12), (0.86, 0.66, 0.66, -0.16)],
     hp=0.14, lean=0.17, hyaw=0.12, hroll=0.05, chest=0.8, head_down=0.14,
     arm_c=0.2, arm_a=0.8, elbow=1.65, elbow_a=0.35, out=0.26, curl=0.5, peak=0.76, frames=48,
 )
 SPRINT = dict(
-    ts=0.225, D=0.88, xtd=0.18, knee=(0.4, 0.8, 0.2), v=9.0,
-    af=[(0.0, -0.2), (0.4, -0.05), (0.55, -0.08), (1.0, -1.12)],
+    ts=0.225, D=0.88, xtd=0.18, knee=(0.42, 0.9, 0.18), v=9.0,
+    af=[(0.0, -0.2), (0.4, -0.05), (0.55, -0.08), (1.0, -1.22)],
     swing=[(0.15, -0.4, 1.28, 0.55), (0.38, 0.2, 2.3, 0.1), (0.64, 1.12, 1.75, -0.2), (0.84, 0.92, 0.78, -0.12)],
     hp=0.23, lean=0.32, hyaw=0.16, hroll=0.06, chest=0.9, head_down=0.1,
     arm_c=0.3, arm_a=1.1, elbow=1.6, elbow_a=0.5, out=0.22, curl=0.55, peak=0.74, frames=48,
 )
 # The desperate all-out run of the top tiers: longer reach, higher knees, a harder pump, a deeper lean.
-DASH = dict(SPRINT, ts=0.19, D=0.92, xtd=0.21, knee=(0.42, 0.78, 0.18), v=12.6,
-            af=[(0.0, -0.26), (0.4, -0.08), (0.55, -0.1), (1.0, -1.18)],
+DASH = dict(SPRINT, ts=0.19, D=0.92, xtd=0.21, knee=(0.44, 0.88, 0.16), v=12.6,
+            af=[(0.0, -0.26), (0.4, -0.08), (0.55, -0.1), (1.0, -1.25)],
             swing=[(0.15, -0.42, 1.38, 0.55), (0.37, 0.24, 2.42, 0.1), (0.63, 1.26, 1.85, -0.22), (0.83, 1.02, 0.84, -0.12)],
             hp=0.27, lean=0.42, hyaw=0.19, hroll=0.07, chest=0.95, head_down=0.18,
             arm_c=0.35, arm_a=1.35, elbow=1.58, elbow_a=0.6, out=0.24, curl=0.6, peak=0.73)
@@ -426,12 +426,12 @@ def _gait(ph, G, k=1.0):
         fwd = (G["arm_c"] + G["arm_a"] * a * asym) * k + 0.05 * (1 - k)
         arm(P, m, fwd=fwd, elbow=(G["elbow"] + G["elbow_a"] * lag) * (0.55 + 0.45 * k),
             out=G["out"] + wide - 0.06 * k + 0.03 * a * k, wrist=0.08 + 0.12 * flop * k, twist=0.08 * a * k,
-            curl=G["curl"] + 0.1 * lag * k, prot=0.1 * a * k, shrug=0.04 * max(0.0, a) * k)
+            curl=G["curl"] + 0.1 * lag * k, prot=0.15 * a * k, shrug=(0.03 + 0.05 * max(0.0, a)) * k)
     # Trunk: a steady forward lean with a small flex as each stance loads, the chest counter-rotating
     # against the pelvis; the head keeps its gaze level through all of it.
     load = math.exp(-(((ph % 0.5) - 0.45 * ts) / (0.5 * ts + 0.03)) ** 2)
     lean = G["lean"] * (0.4 + 0.6 * k) + 0.025 * k * load
-    look = hp + lean - G["head_down"] - 0.015 * k * load
+    look = hp + lean - G["head_down"] - 0.03 * k * load
     torso(P, lean=lean, look=look, yaw=-G["chest"] * hy, roll=-roll * 0.8, hp=hp, hyaw=hy, hroll=roll,
           head_yaw=0.0, head_roll=-roll * 0.1)
     # The body's line shifts a little over each stance foot.
@@ -579,18 +579,18 @@ def build(rig):
     key(1, ready_pose())
     P = ready_pose()
     torso(P, lean=0.7, look=0.66, hp=0.24, yaw=0.12, hyaw=0.06)
-    leg(P, "L", hip=1.05, knee=1.7, ankle=-0.45)
-    leg(P, "R", hip=-0.05, knee=1.05, ankle=0.35, toe=0.6)
-    arm(P, "R", fwd=1.05, elbow=1.45, out=0.14, curl=0.85)
-    arm(P, "L", fwd=-0.9, elbow=1.0, out=0.2, curl=0.85)
-    key(4, P)
+    leg(P, "L", hip=1.15, knee=1.85, ankle=-0.5)
+    leg(P, "R", hip=0.0, knee=1.2, ankle=0.4, toe=0.65)
+    arm(P, "R", fwd=1.15, elbow=1.5, out=0.14, curl=0.9)
+    arm(P, "L", fwd=-1.0, elbow=1.0, out=0.2, curl=0.9)
+    key(4, P, lift=-0.035)
     P = {}
-    torso(P, lean=0.78, look=0.72, hp=0.22, hyaw=-0.16, yaw=0.14)
-    leg(P, "L", hip=-0.2, knee=0.2, ankle=0.75, toe=0.7)
-    leg(P, "R", hip=1.2, knee=2.0, ankle=0.25)
-    arm(P, "L", fwd=1.45, elbow=1.3, curl=0.9, prot=0.14, out=0.06)
-    arm(P, "R", fwd=-1.1, elbow=0.9, out=0.22, curl=0.9)
-    key(7, P, lift=0.015)
+    torso(P, lean=0.85, look=0.78, hp=0.24, hyaw=-0.2, yaw=0.18)
+    leg(P, "L", hip=-0.32, knee=0.06, ankle=0.95, toe=0.85)
+    leg(P, "R", hip=1.35, knee=2.1, ankle=0.25)
+    arm(P, "L", fwd=1.65, elbow=1.25, curl=1.0, prot=0.18, out=0.06, shrug=0.1)
+    arm(P, "R", fwd=-1.3, elbow=0.8, out=0.24, curl=1.0)
+    key(7, P, lift=0.04)
     P = {}
     torso(P, lean=0.7, look=0.64, hp=0.2, hyaw=-0.06)
     leg(P, "R", hip=0.42, knee=0.55, ankle=-0.05)
