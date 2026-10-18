@@ -100,8 +100,8 @@ MEL = {
 class Part:
     """one instrument line: notes (beat, dur, midi, vel) on one program, plus expression and pan"""
 
-    def __init__(self, prog, bank=0, pan=64, gain=1.0, wet=0.2, legato=1.0, jitter=0.006, vib=False, chan=0, swell=None):
-        self.prog, self.bank, self.pan, self.gain, self.wet = prog, bank, pan, gain, wet
+    def __init__(self, prog, bank=0, pan=64, gain=1.0, wet=0.2, legato=1.0, jitter=0.006, vib=False, chan=0, swell=None, breath=False):
+        self.prog, self.bank, self.pan, self.gain, self.wet, self.breath = prog, bank, pan, gain, wet, breath
         self.legato, self.jitter, self.vib, self.chan, self.swell = legato, jitter, vib, chan, swell
         self.notes = []
 
@@ -129,6 +129,11 @@ def midi_file(part, bpm, path, seconds=None):
         v = v + rng.randint(-5, 5)
         ev.append((on, mido.Message('note_on', channel=ch, note=n, velocity=int(max(1, min(127, v))))))
         ev.append((off, mido.Message('note_off', channel=ch, note=n, velocity=0)))
+        if part.breath:
+            # A wind player's breath: each note starts a touch under and swells; long notes swell more.
+            a0, a1 = (92, 122) if d >= 0.75 else (104, 116)
+            for k in range(5):
+                ev.append((on + int(k / 4 * (off - on)), mido.Message('control_change', channel=ch, control=11, value=int(a0 + (a1 - a0) * k / 4))))
         if part.vib and d >= 1.0:
             # Vibrato blooms into long notes, as a player would.
             for k in range(6):
@@ -276,18 +281,18 @@ def arrange_run(sections, key=0, tier4=False, cycles=2):
     Returns {layer: [Part|Drums]}; layer 0 ostinato + light drums + kalimba hint, 1 bass + melody,
     2 strings + denser drums, 3 brass + counter-melody (+ choir, cymbals at tier 4)."""
     L = {i: [] for i in range(4)}
-    mar = Part(12, pan=44, gain=0.55, wet=0.15, legato=0.9)
-    kal = Part(108, pan=86, gain=0.5, wet=0.25)
+    mar = Part(12, pan=26, gain=0.55, wet=0.15, legato=0.9)
+    kal = Part(108, pan=102, gain=0.5, wet=0.25)
     d0 = Drums(gain=0.55, wet=0.1)
-    flute = Part(75, pan=64, gain=0.9, wet=0.3, vib=True, legato=0.96, jitter=0.008)
+    flute = Part(75, pan=64, gain=0.9, wet=0.3, vib=True, legato=0.96, jitter=0.008, breath=True)
     bass = Part(33, pan=64, gain=0.85, wet=0.03, legato=0.8)
     sub = Part(80, bank=8, pan=64, gain=0.25, wet=0.0, legato=0.95)
     pad = Part(49, bank=17, pan=64, gain=0.5, wet=0.35, legato=1.0, swell=[])
-    pizz = Part(45, pan=86, gain=0.55, wet=0.25)
-    stac = Part(48, pan=40, gain=0.35, wet=0.2, legato=0.45)
+    pizz = Part(45, pan=104, gain=0.55, wet=0.25)
+    stac = Part(48, pan=24, gain=0.35, wet=0.2, legato=0.45)
     d2 = Drums(gain=0.6, wet=0.14)
-    brass = Part(61, pan=52, gain=0.55, wet=0.25, legato=0.85)
-    horns = Part(60, pan=80, gain=0.6, wet=0.3, legato=1.0)
+    brass = Part(61, pan=38, gain=0.55, wet=0.25, legato=0.85)
+    horns = Part(60, pan=96, gain=0.6, wet=0.3, legato=1.0)
     timp = Part(47, pan=64, gain=0.7, wet=0.25)
     d3 = Drums(gain=0.65, wet=0.16)
     choir = Part(52, pan=64, gain=0.55, wet=0.4, legato=1.0)
@@ -543,30 +548,57 @@ def fanfare(size):
 
 
 def loss_sting():
-    """a fall: low brass falling D C Bb A, then a low D with timpani and tremolo strings (D minor)"""
-    bpm = 100
-    bone = Part(57, pan=54, gain=0.7, wet=0.3, legato=1.0)
-    tuba = Part(58, pan=70, gain=0.7, wet=0.25, legato=1.0)
-    trem = Part(44, gain=0.5, wet=0.35, swell=[(2.4, 4, 110, 40)])
-    timp = Part(47, gain=0.8, wet=0.3)
-    choir = Part(53, gain=0.35, wet=0.5)
-    d = Drums(gain=0.8, wet=0.2)
-    for k, n in enumerate([62, 60, 58, 57]):
-        bone.add(k * 0.6, 0.62, n, 100 - k * 4)
-        tuba.add(k * 0.6, 0.62, n - 12, 96 - k * 4)
-    bone.add(2.4, 3.2, 50, 104)
-    bone.add(2.4, 3.2, 53, 96)
-    tuba.add(2.4, 3.2, 38, 108)
-    for n in (38, 45, 50, 53):
-        trem.add(2.4, 3.6, n, 84)
+    """a fall: the hook's head turned downward (A F E D) on low strings and soft horns, landing on a dark
+    D minor with an added flat sixth, a timpani stroke and low voices; slow, quiet, not comic"""
+    bpm = 76
+    cello = Part(42, pan=50, gain=0.75, wet=0.35, legato=1.0, breath=True)
+    cb = Part(43, pan=78, gain=0.6, wet=0.3, legato=1.0)
+    horns = Part(60, pan=96, gain=0.45, wet=0.4, legato=1.0)
+    trem = Part(44, pan=30, gain=0.4, wet=0.4, swell=[(0, 3, 40, 100), (3, 4, 100, 30)])
+    timp = Part(47, gain=0.75, wet=0.3)
+    choir = Part(53, gain=0.4, wet=0.55, legato=1.0)
+    d = Drums(gain=0.6, wet=0.25)
+    for (b, du, n, v) in [(0, 1, 57, 92), (1, 1, 53, 88), (2, 1, 52, 84), (3, 3.5, 50, 96)]:
+        cello.add(b, du, n, v)
+        horns.add(b, du, n + 12, v - 26)
+        cb.add(b, du, n - 12, v - 10)
+    for n in (38, 45):
+        trem.add(0, 6.5, n, 70)
+    for n in (62, 65, 69, 70):
+        choir.add(3, 3.5, n, 64)
     for k in range(6):
-        timp.add(1.65 + k * 0.125, 0.125, 45, 58 + k * 8)
-    timp.add(2.4, 1.5, 38, 120)
-    choir.add(2.4, 3.2, 62, 70)
-    choir.add(2.4, 3.2, 65, 66)
-    d.add(2.4, 'm_boom', 0.8, 0, 0)
-    d.add(2.4, 'm_taiko', 1.0, 0, 0)
-    return render_once([bone, tuba, trem, timp, choir, d], bpm, 6 * 60 / bpm + 2.5)
+        timp.add(2.25 + k * 0.125, 0.125, 45, 46 + 6 * k)
+    timp.add(3, 2, 38, 112)
+    d.add(3, 'm_boom', 0.55, 0, 0)
+    return render_once([cello, cb, horns, trem, timp, choir, d], bpm, 6.5 * 60 / bpm + 2.5)
+
+
+def safe_loop():
+    """after a cash-out: the tune turned to D major (F, C, Bb raised), warm and unhurried: flute over harp,
+    kalimba and strings, D - Bm - F#m - A | D - G - Em - A"""
+    chords = [(0, 'M'), (9, 'm'), (4, 'm'), (7, 'M'), (0, 'M'), (5, 'M'), (2, 'm'), (7, 'M')]
+    fl = Part(75, pan=60, gain=0.6, wet=0.4, vib=True, legato=0.98, jitter=0.01, breath=True)
+    kal = Part(108, pan=100, gain=0.45, wet=0.35)
+    harp = Part(46, pan=30, gain=0.6, wet=0.3)
+    pad = Part(49, bank=17, pan=64, gain=0.4, wet=0.45, swell=[])
+
+    def major(n):
+        return n + 1 if n % 12 in (0, 5, 10) else n
+    for c in range(2):
+        for bi, (r, q) in enumerate(chords):
+            B = (c * 8 + bi) * 4
+            ts = [r, r + (3 if q == 'm' else 4), r + 7]
+            if bi < 4 or c == 0:
+                for (b, du, n) in MEL['A'][bi]:
+                    fl.add(B + b, du, major(n), 72 if b == 0 else 62)
+            for k, n in enumerate(sorted(near(ts, 62, 78))[:4] * 2):
+                kal.add(B + k * 0.5, 0.5, n, 54 if k % 2 else 62)
+            harp.add(B, 2, min(near([r], 38, 50)), 80)
+            harp.add(B + 2, 2, min(near([r + 7], 43, 55)), 66)
+            for n in sorted(near(ts, 57, 72))[:3]:
+                pad.add(B, 4, n, 62)
+            pad.swell.append((B, 4, 64, 100))
+    return render_loop({0: [fl, kal, harp, pad]}, BPM_CALM, 8, 2)[0]
 
 
 def fill():
@@ -619,7 +651,7 @@ def main():
     print('tier 4 ...', flush=True)
     top = top_loop()
     print('calm, tense ...', flush=True)
-    calm, tense = calm_loop(), tense_loop()
+    calm, tense, safe = calm_loop(), tense_loop(), safe_loop()
     print('stingers ...', flush=True)
     fan = [fanfare(i) for i in range(3)]
     loss = loss_sting()
@@ -645,6 +677,7 @@ def main():
         out[name] = encode(name, x * g, True, {'bpm': BPM_RUN, 'bars': 8}, 80)
     out['th_top'] = encode('th_top', fit(top, 1.0), True, {'bpm': BPM_TOP, 'bars': 8}, 96)
     out['th_calm'] = encode('th_calm', fit(calm, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, 72)
+    out['th_safe'] = encode('th_safe', fit(safe, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, 72)
     out['th_tense'] = encode('th_tense', fit(tense, -9.0), True, {'bpm': BPM_CALM, 'bars': 4}, 64)
     for i, x in enumerate(fan):
         out[f'th_win{i}'] = encode(f'th_win{i}', fit(x, -1.0 + 1.0 * i), False, {}, 96)

@@ -689,6 +689,7 @@ export class AudioEngine implements WorldSounds {
       th.startRun(t + 0.05);
       th.setTier(tierOf(this.mult));
     } else if (this.scene === 'fallen') th.setIdle('th_tense', t + 0.05);
+    else if (this.scene === 'escaped') th.setIdle('th_safe', t + 0.05);
     else if (this.scene !== 'lead') th.rest();
     this.duckAmbience(1.5);
   }

@@ -1345,7 +1345,7 @@
     [
      0,
      17.14285,
-     0.3863
+     0.3867
     ]
    ],
    "loop": true,
@@ -1353,13 +1353,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l0_a.webm",
-    "bytes": 164501,
-    "hash": "40e0b5c799"
+    "bytes": 179391,
+    "hash": "5350f5dcbc"
    },
    "m4a": {
     "file": "th_l0_a.m4a",
-    "bytes": 267468,
-    "hash": "65658db17e"
+    "bytes": 267054,
+    "hash": "153f5cf166"
    }
   },
   "th_l0_b": {
@@ -1369,7 +1369,7 @@
     [
      0,
      17.14285,
-     0.4299
+     0.4341
     ]
    ],
    "loop": true,
@@ -1377,13 +1377,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l0_b.webm",
-    "bytes": 165050,
-    "hash": "dfc59e2a97"
+    "bytes": 180531,
+    "hash": "cb651074fb"
    },
    "m4a": {
     "file": "th_l0_b.m4a",
-    "bytes": 266659,
-    "hash": "0c9ef52c05"
+    "bytes": 267751,
+    "hash": "81b2ea847f"
    }
   },
   "th_l1_a": {
@@ -1393,7 +1393,7 @@
     [
      0,
      17.14285,
-     0.2196
+     0.2017
     ]
    ],
    "loop": true,
@@ -1401,13 +1401,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l1_a.webm",
-    "bytes": 191339,
-    "hash": "c6f8fa6677"
+    "bytes": 190415,
+    "hash": "c89456c996"
    },
    "m4a": {
     "file": "th_l1_a.m4a",
-    "bytes": 261748,
-    "hash": "c72ea95b51"
+    "bytes": 261698,
+    "hash": "427794c62d"
    }
   },
   "th_l1_b": {
@@ -1417,7 +1417,7 @@
     [
      0,
      17.14285,
-     0.2233
+     0.2039
     ]
    ],
    "loop": true,
@@ -1425,13 +1425,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l1_b.webm",
-    "bytes": 194781,
-    "hash": "5e7ab32ce8"
+    "bytes": 192766,
+    "hash": "bc136d6f7e"
    },
    "m4a": {
     "file": "th_l1_b.m4a",
-    "bytes": 261548,
-    "hash": "a83e651380"
+    "bytes": 261715,
+    "hash": "5f3be740cb"
    }
   },
   "th_l2_a": {
@@ -1441,7 +1441,7 @@
     [
      0,
      17.14285,
-     0.7699
+     0.7801
     ]
    ],
    "loop": true,
@@ -1449,13 +1449,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l2_a.webm",
-    "bytes": 160432,
-    "hash": "6501ed1562"
+    "bytes": 158379,
+    "hash": "9938a994d8"
    },
    "m4a": {
     "file": "th_l2_a.m4a",
-    "bytes": 265930,
-    "hash": "03d9d0105f"
+    "bytes": 266606,
+    "hash": "6511951d51"
    }
   },
   "th_l2_b": {
@@ -1465,7 +1465,7 @@
     [
      0,
      17.14285,
-     0.7317
+     0.7411
     ]
    ],
    "loop": true,
@@ -1473,13 +1473,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l2_b.webm",
-    "bytes": 156938,
-    "hash": "163a728690"
+    "bytes": 154645,
+    "hash": "7aaea7d097"
    },
    "m4a": {
     "file": "th_l2_b.m4a",
-    "bytes": 266068,
-    "hash": "ba96035ffa"
+    "bytes": 266075,
+    "hash": "ca019d57d2"
    }
   },
   "th_l3_a": {
@@ -1489,7 +1489,7 @@
     [
      0,
      17.14285,
-     0.3488
+     0.3468
     ]
    ],
    "loop": true,
@@ -1497,13 +1497,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l3_a.webm",
-    "bytes": 158827,
-    "hash": "6f3185c531"
+    "bytes": 176533,
+    "hash": "92e2c88077"
    },
    "m4a": {
     "file": "th_l3_a.m4a",
-    "bytes": 263994,
-    "hash": "5d7bfaa116"
+    "bytes": 263999,
+    "hash": "63bcbf2278"
    }
   },
   "th_l3_b": {
@@ -1513,7 +1513,7 @@
     [
      0,
      17.14285,
-     0.3395
+     0.3467
     ]
    ],
    "loop": true,
@@ -1521,13 +1521,13 @@
    "bars": 8,
    "webm": {
     "file": "th_l3_b.webm",
-    "bytes": 157165,
-    "hash": "b6d981e66b"
+    "bytes": 174424,
+    "hash": "a9f8a0422f"
    },
    "m4a": {
     "file": "th_l3_b.m4a",
-    "bytes": 262993,
-    "hash": "ec43aec0dd"
+    "bytes": 263800,
+    "hash": "bd23177e33"
    }
   },
   "th_top": {
@@ -1545,13 +1545,13 @@
    "bars": 8,
    "webm": {
     "file": "th_top.webm",
-    "bytes": 213212,
-    "hash": "93a89d8a7c"
+    "bytes": 216129,
+    "hash": "02d1aa23b3"
    },
    "m4a": {
     "file": "th_top.m4a",
-    "bytes": 298936,
-    "hash": "ba27d9fc4f"
+    "bytes": 300267,
+    "hash": "4c5a08dea6"
    }
   },
   "th_calm": {
@@ -1561,7 +1561,7 @@
     [
      0,
      22.85715,
-     0.2682
+     0.2674
     ]
    ],
    "loop": true,
@@ -1569,13 +1569,37 @@
    "bars": 8,
    "webm": {
     "file": "th_calm.webm",
-    "bytes": 221429,
-    "hash": "85386e691f"
+    "bytes": 221496,
+    "hash": "e603483780"
    },
    "m4a": {
     "file": "th_calm.m4a",
-    "bytes": 316639,
-    "hash": "9101ccc173"
+    "bytes": 316319,
+    "hash": "8535f1fbdd"
+   }
+  },
+  "th_safe": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     22.85715,
+     0.2818
+    ]
+   ],
+   "loop": true,
+   "bpm": 84,
+   "bars": 8,
+   "webm": {
+    "file": "th_safe.webm",
+    "bytes": 254827,
+    "hash": "2df6633b15"
+   },
+   "m4a": {
+    "file": "th_safe.m4a",
+    "bytes": 316339,
+    "hash": "4a6a5807d5"
    }
   },
   "th_tense": {
@@ -1585,7 +1609,7 @@
     [
      0,
      11.42856,
-     0.4347
+     0.4334
     ]
    ],
    "loop": true,
@@ -1593,13 +1617,13 @@
    "bars": 4,
    "webm": {
     "file": "th_tense.webm",
-    "bytes": 79468,
-    "hash": "67bec1d9fc"
+    "bytes": 79465,
+    "hash": "90421d19ab"
    },
    "m4a": {
     "file": "th_tense.m4a",
-    "bytes": 141460,
-    "hash": "f1568df3ed"
+    "bytes": 141511,
+    "hash": "5801b6ff3e"
    }
   },
   "th_win0": {
@@ -1609,18 +1633,18 @@
     [
      0,
      4.0,
-     0.5462
+     0.4803
     ]
    ],
    "webm": {
     "file": "th_win0.webm",
-    "bytes": 57120,
-    "hash": "aaa6cf8bfd"
+    "bytes": 57313,
+    "hash": "aa04d266ca"
    },
    "m4a": {
     "file": "th_win0.m4a",
-    "bytes": 74254,
-    "hash": "12087cb0f0"
+    "bytes": 74037,
+    "hash": "2a8eeef8d9"
    }
   },
   "th_win1": {
@@ -1630,18 +1654,18 @@
     [
      0,
      4.87856,
-     0.5112
+     0.5907
     ]
    ],
    "webm": {
     "file": "th_win1.webm",
-    "bytes": 62691,
-    "hash": "1411aea0ad"
+    "bytes": 61053,
+    "hash": "f568eedb66"
    },
    "m4a": {
     "file": "th_win1.m4a",
-    "bytes": 89831,
-    "hash": "4e4d96aeaf"
+    "bytes": 90319,
+    "hash": "33a549a3f6"
    }
   },
   "th_win2": {
@@ -1651,18 +1675,18 @@
     [
      0,
      5.14642,
-     0.7777
+     0.8026
     ]
    ],
    "webm": {
     "file": "th_win2.webm",
-    "bytes": 68635,
-    "hash": "51ac344c1b"
+    "bytes": 67991,
+    "hash": "a0260044b5"
    },
    "m4a": {
     "file": "th_win2.m4a",
-    "bytes": 95235,
-    "hash": "a5e6e5e45c"
+    "bytes": 95037,
+    "hash": "36cb2bd41d"
    }
   },
   "th_lose": {
@@ -1671,19 +1695,19 @@
    "slices": [
     [
      0,
-     6.1,
-     0.5191
+     7.63156,
+     0.4764
     ]
    ],
    "webm": {
     "file": "th_lose.webm",
-    "bytes": 80225,
-    "hash": "2df595064c"
+    "bytes": 94180,
+    "hash": "401b10cb6f"
    },
    "m4a": {
     "file": "th_lose.m4a",
-    "bytes": 111645,
-    "hash": "cdc1ad2787"
+    "bytes": 139637,
+    "hash": "de8065e714"
    }
   },
   "th_fill": {
@@ -1693,19 +1717,19 @@
     [
      0,
      4.54285,
-     0.3547
+     0.333
     ]
    ],
    "bpm": 112,
    "webm": {
     "file": "th_fill.webm",
-    "bytes": 36765,
-    "hash": "95a548a89b"
+    "bytes": 36974,
+    "hash": "4fbf59db65"
    },
    "m4a": {
     "file": "th_fill.m4a",
-    "bytes": 70301,
-    "hash": "5939287d71"
+    "bytes": 70390,
+    "hash": "e27ce56563"
    }
   }
  }

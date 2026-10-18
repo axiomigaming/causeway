@@ -155,7 +155,7 @@ describe('theme player', () => {
     ctx.currentTime = 5;
     th.escape(4);
     expect(starts.some((s) => s.name === 'th_win2')).toBe(true);
-    expect(th.state().idle).toBe('th_calm');
+    expect(th.state().idle).toBe('th_safe');
     const n = starts.length;
     th.fall(); // no near-miss or loss cue after a cash-out
     th.escape(4);

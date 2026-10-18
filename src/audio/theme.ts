@@ -12,7 +12,7 @@
  * own phrase order with the cosmetic RNG and now and then drops the drums for a bar (a break). A tier change
  * plays a one-bar fill (taiko roll, string swell, cymbal) from the next bar line and the new layer lands on
  * the downbeat after it. A cash-out stops the run and plays a fanfare in the theme's key (bigger with the
- * cash-out tier), then a calm, warm version of the tune; a fall plays a descending low-brass sting and a
+ * cash-out tier), then the tune turned warm (D major) under the result; a fall plays a descending low-brass sting and a
  * sparse tense loop. Title and setup play the calm version too.
  *
  * Only the tier of the multiplier ON SCREEN (during a run) or the settled result (after it) reaches this
@@ -24,7 +24,7 @@ import type { Rng } from './select';
 
 export const THEME_SOUNDS = [
   'th_l0_a', 'th_l0_b', 'th_l1_a', 'th_l1_b', 'th_l2_a', 'th_l2_b', 'th_l3_a', 'th_l3_b',
-  'th_top', 'th_calm', 'th_tense', 'th_win0', 'th_win1', 'th_win2', 'th_lose', 'th_fill',
+  'th_top', 'th_calm', 'th_safe', 'th_tense', 'th_win0', 'th_win1', 'th_win2', 'th_lose', 'th_fill',
 ] as const;
 
 /** Phrase orders a run cycles through, four segments at a time; picked per block with the cosmetic RNG. */
@@ -144,7 +144,7 @@ export class ThemePlayer {
   }
 
   /** Calm (title, setup, after a cash-out) or tense (after a fall) loop, faded in from `at`. */
-  setIdle(name: 'th_calm' | 'th_tense', at: number, fadeIn = 1.5, level = 1): void {
+  setIdle(name: 'th_calm' | 'th_safe' | 'th_tense', at: number, fadeIn = 1.5, level = 1): void {
     if (this.idle?.name === name) {
       this.idle.gain.gain.setTargetAtTime(level, Math.max(at, this.ctx.currentTime), 0.4);
       this.mode = this.mode === 'off' ? 'idle' : this.mode;
@@ -357,7 +357,7 @@ export class ThemePlayer {
     const n = fanfareFor(tier);
     const f = this.buf(`th_win${n}`);
     this.source(`th_win${n}`, this.sting, t + 0.01);
-    this.setIdle('th_calm', t + Math.max(1.5, (f?.duration ?? 4) - 1.6), 2.5, 0.85);
+    this.setIdle('th_safe', t + Math.max(1.5, (f?.duration ?? 4) - 1.6), 2.5, 0.85);
     this.mode = 'result';
   }
 

@@ -66,7 +66,7 @@ for i, s in enumerate(order[:7]):
 loop('th_top', t, 32.0)
 t += 32.0
 put(w('th_win2').copy(), t)
-loop('th_calm', t + 3.5, 14, 0.9, 2.0, 1.5)
+loop('th_safe', t + 3.5, 14, 0.9, 2.0, 1.5)
 t += 18.0
 # run 2: tiers 0-2, then the fall mid-bar
 for i, (s, ls) in enumerate([('a', [0]), ('b', [0, 1]), ('a', [0, 1, 2])]):
