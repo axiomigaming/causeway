@@ -88,10 +88,15 @@ export class ThemePlayer {
   constructor(
     private readonly ctx: BaseAudioContext,
     private readonly bank: SampleBank,
-    private readonly out: AudioNode,
+    private out: AudioNode,
     private readonly sting: AudioNode,
     private readonly rnd: Rng,
   ) {
+    // The theme sits 3 dB hotter than the bus it joins (measured in play: it read under the beds at unity).
+    const level = ctx.createGain();
+    level.gain.value = 1.41;
+    level.connect(out);
+    out = level;
     this.brk = ctx.createGain();
     this.brk.connect(out);
     for (let i = 0; i < 4; i++) {

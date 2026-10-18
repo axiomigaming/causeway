@@ -80,11 +80,11 @@ loop('th_tense', t + 4.0, 14, 1.0, 1.5, 2.0)
 t += 18.0
 mix = out[: int(t * SR)]
 pk = float(np.abs(mix).max())
-if pk > 0.95:
-    mix *= 0.95 / pk
+mix *= 0.84 / pk  # -1.5 dBFS sample peak: under -1 dBTP after MP3 encoding
 dst = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'review', 'audio12', 'preview.mp3')
 os.makedirs(os.path.dirname(dst), exist_ok=True)
 wav = os.path.join(C, 'preview.wav')
 sf.write(wav, mix, SR, subtype='PCM_16')
-subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '160k', dst], check=True)
+# Mastered for listening only (the game mixes the stems itself): -16 LUFS, -1.5 dBTP ceiling.
+subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'libmp3lame', '-b:a', '160k', dst], check=True)
 print(f'{dst}: {t:.1f} s')
