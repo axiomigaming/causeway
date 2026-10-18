@@ -711,16 +711,19 @@ class GradeEffect extends Effect {
         c = max(c, 0.0);
         c = c * kc - (kc - 1.0) * 0.5 * (c / (c + 0.15));
         // Round 14 finish (world request): no grey veil. Haze, bloom and the lens lift the darkest
-        // values to a milky pedestal; a soft black toe takes it back out (about −20 % at 0.02, −4 % at
+        // values to a milky pedestal; a soft black toe takes it back out (about −8 % at 0.02, −2 % at
         // 0.1, the whites kept), the shadows lean teal and the lights warm a touch. Subtle:
         // 'finish' scales it (0 = the old grade, for before/after QA).
         {
-          float pk = 0.005 * finish;
+          // c·(c + 0.65p)/(c + p): the slope at black stays 0.65 (the deepest shade darkens by a third,
+          // it never crushes to 0 — a straight c²/(c+p) toe printed black holes again).
+          float pk = 0.006 * finish;
           c = max(c, 0.0);
-          c = c * c / (c + pk) * (1.0 + pk);
+          c = c * (c + 0.65 * pk) / (c + pk) * (1.0 + 0.35 * pk);
           float lf = dot(c, vec3(0.2126, 0.7152, 0.0722));
           float shade = 1.0 - smoothstep(0.015, 0.22, lf);
-          float lights = smoothstep(0.35, 0.9, lf);
+          // (Warmth fades out as a channel nears white, so it never pushes a highlight into clipping.)
+          float lights = smoothstep(0.35, 0.9, lf) * (1.0 - smoothstep(0.82, 1.0, max(c.r, max(c.g, c.b))));
           c *= mix(vec3(1.0), vec3(0.95, 1.0, 1.045), shade * 0.55 * finish);
           c *= mix(vec3(1.0), vec3(1.025, 1.0, 0.965), lights * finish);
         }

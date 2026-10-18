@@ -1664,8 +1664,9 @@ export class Game {
     if (this.ceilT <= 0) {
       this.ceilT = 0.12;
       const p = cam.position;
-      // Probe from where the lens would be without the previous drop, so the drop does not undo itself.
-      this.ceilP.copy(p).setY(p.y + this.ceilDrop);
+      // The rig places the lens afresh each frame (the drop below is applied after it), so this is
+      // where the lens would be without any drop.
+      this.ceilP.copy(p);
       const top = this.ceilP.clone().setY(this.ceilP.y + 1.6);
       const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
       this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
@@ -1676,7 +1677,7 @@ export class Game {
     let want = this.ceilWant;
     for (const ahead of [0, 0.15, 0.3]) {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
-      if (y !== null) want = Math.max(want, cam.position.y + this.ceilDrop - (y - 0.4));
+      if (y !== null) want = Math.max(want, cam.position.y - (y - 0.4));
     }
     this.ceilDrop += (want - this.ceilDrop) * (1 - Math.exp(-dt * (want > this.ceilDrop ? 14 : 2.5)));
     if (this.ceilDrop < 1e-3) return;

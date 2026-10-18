@@ -525,6 +525,8 @@ export class ObstacleDirector {
         if ((k.userData.centre as THREE.Vector3).y > (kids[top]!.userData.centre as THREE.Vector3).y) top = i;
       });
       const member = kids[top]!;
+      // Hanging dressing (vines) would sweep across the lens as it ducks through: gone just before.
+      const curtain = kids.filter((k) => /vines/.test(k.name));
       const c = (member.userData.centre as THREE.Vector3).clone();
       const rest = w.rest[top]!.clone();
       const slam = this.tier >= 1 && this.h.rng().chance(0.65);
@@ -538,6 +540,8 @@ export class ObstacleDirector {
         (dt, ds) => {
           // Near miss: once the lens is through too, the member slams down right behind it.
           if (slam && fall < 0 && ds < -(this.h.lensBack() + 0.9)) fall = 0;
+          const lensTo = ds + this.h.lensBack();
+          for (const k of curtain) k.visible = lensTo > 1.8 || lensTo < -1.5;
           if (fall >= 0 && fall < 1) {
             if (fall === 0) this.h.sound('wood_crack', 0.6);
             fall = Math.min(1, fall + dt / 0.3);
