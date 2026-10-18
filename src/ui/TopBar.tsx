@@ -65,7 +65,9 @@ export function TopBar() {
         )}
       </button>
       <div className={`balance${bump ? ' bump' : ''}`} aria-live="polite">
-        <div className="k">Demo balance</div>
+        <div className="k">
+          <span className="wide-only">Demo </span>Balance
+        </div>
         <div className="v num">
           {formatCredits(balance)}
           <small>CR</small>
