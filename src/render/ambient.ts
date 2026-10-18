@@ -167,7 +167,10 @@ export class Ambient {
         pos.y = uCenter.y - 3.0 + mod(aSeed.y * 9.0 - fall + 9.0 * 50.0, 9.0);
         float spin = uTime * (2.0 + aSeed.x * 3.0) + aSeed.y * 10.0;
         mat3 r = rotY(aSeed.w * 6.28 + uTime * 0.5) * rotX(spin) * rotZ(sin(spin * 0.7) * 0.8);
-        vec3 wp = pos + r * position;
+        // A leaf drifting right past the lens filled the frame as a flat pale card: they shrink away
+        // inside ~4 m of the camera (and none come closer than ~2.5 m).
+        float nearK = smoothstep(2.5, 4.5, length(pos - cameraPosition));
+        vec3 wp = pos + r * position * nearK;
         vShade = 0.55 + 0.45 * abs((r * vec3(0.0, 0.0, 1.0)).y);
         vCol = mix(vec3(0.34, 0.42, 0.12), vec3(0.72, 0.52, 0.16), aSeed.z);
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
