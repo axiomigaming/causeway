@@ -14,14 +14,15 @@ R = D / 2
 PAD = 16
 
 
-def rays(c, r0, r1, n, mat, z, long_every=2):
+def rays(c, r0, r1, n, mat, z, long_every=2, cy=None):
     """Serrated sun rays: trapezoid teeth, alternately long and short, chamfered."""
+    cx, cy = c, (c if cy is None else cy)
     for i in range(n):
         a = i / n * math.tau - math.pi / 2
         ro = r1 if i % long_every == 0 else r0 + (r1 - r0) * 0.55
         hw_in = math.pi / n * (0.62 if i % long_every == 0 else 0.5)
-        pts = [(c + r0 * math.cos(a - hw_in), c + r0 * math.sin(a - hw_in)), (c + ro * math.cos(a), c + ro * math.sin(a)),
-               (c + r0 * math.cos(a + hw_in), c + r0 * math.sin(a + hw_in))]
+        pts = [(cx + r0 * math.cos(a - hw_in), cy + r0 * math.sin(a - hw_in)), (cx + ro * math.cos(a), cy + ro * math.sin(a)),
+               (cx + r0 * math.cos(a + hw_in), cy + r0 * math.sin(a + hw_in))]
         K.cobj("ray", [pts], mat, z=z, extrude=0.6, bevel=1.2, res=0)
 
 
@@ -45,8 +46,8 @@ def disc(name, state="idle"):
         tq = K.turquoise("tq")
         nt = tq.node_tree
         bs = nt.nodes["Principled BSDF"]
-        bs.inputs["Emission Color"].default_value = (0.05, 0.9, 0.75, 1) if state == "cash" else (1.0, 0.36, 0.04, 1)
-        bs.inputs["Emission Strength"].default_value = 0.6 if state == "cash" else 2.2
+        bs.inputs["Emission Color"].default_value = (0.05, 0.9, 0.75, 1) if state == "cash" else (1.0, 0.22, 0.02, 1)
+        bs.inputs["Emission Strength"].default_value = 0.6 if state == "cash" else 0.9
     elif dis:
         tq = K.carved("tqd", K.ASH2, wear=0.2, pits=0.2)
     else:
@@ -59,7 +60,7 @@ def disc(name, state="idle"):
         nt = ob.node_tree
         bs = nt.nodes["Principled BSDF"]
         bs.inputs["Emission Color"].default_value = (1.0, 0.3, 0.03, 1)
-        bs.inputs["Emission Strength"].default_value = 0.08
+        bs.inputs["Emission Strength"].default_value = 0.02
     K.cobj("obs", [K.circle(c, c, 68.4)], ob, z=2.2 + dz, extrude=0.3, bevel=0.9)
     # gems: ruby at the top of the ring, three jade studs at 3, 6 and 9 o'clock
     foil = K.gold("foil", rough=0.08, scratch=0.0, grime=0.0, aged=1.0 if dis else 0.0)
@@ -179,7 +180,7 @@ def tablet(name, w, h, aged=0.0):
     # a small sun crest at the top centre (the relic's emblem)
     cx = w / 2
     K.cobj("cbody", [K.circle(cx, 0, 13)], K.gold("gh", rough=0.3, aged=aged), z=5.0, extrude=0.6, bevel=1.0)
-    rays(cx, 12.5, 18, 16, g, z=5.2)
+    rays(cx, 12.5, 18, 16, g, z=5.2, cy=0)
     K.cobj("cfoil", [K.circle(cx, 0, 8.2)], K.gold("f", rough=0.08, scratch=0, grime=0), z=6.4, extrude=0.2, bevel=0)
     K.bezel("cbz", cx, 0, 8, g, z=7.0, w=2.0)
     K.gem("ruby", cx, 0, 8, K.glass_gem("ruby", K.RUBY, glow=0.4), z=6.8, h=0.62, seg=12)

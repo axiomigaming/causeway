@@ -259,8 +259,8 @@ if (C === '2') {
   const ty = SAFE_T + (PH ? 8 : 12);
   const rkey = (ic) => `<div class="rk">${spr('c2-rkey', 44, 44, 8)}${ic}</div>`;
   if (PH) {
-    html += `<div class="top" style="top:${ty}px"><div class="emb">${spr('c2-emblem', 40, 40, 6)}</div><span class="wm">CAUSEWAY</span><div class="spacer"></div>
-      <div class="cart" style="width:128px"><div class="in"><span class="cap">Balance</span><b class="num">${BAL}<small>CR</small></b></div></div>
+    html += `<div class="top" style="top:${ty}px"><div class="emb">${spr('c2-emblem', 40, 40, 6)}</div><div class="spacer"></div>
+      <div class="cart" style="width:144px"><div class="in"><span class="cap">Balance</span><b class="num">${BAL}<small>CR</small></b></div></div>
       ${rkey(svg.snd('#f0c75e'))}${rkey(svg.menu('#f0c75e'))}</div>`;
     html += `<div class="hist" style="top:${bandH + 8}px">${histVals.slice(0, 6).map((v) => `<span class="chip num">${v}</span>`).join('')}</div>`;
   } else {
@@ -286,7 +286,7 @@ if (C === '2') {
   } else {
     const xL = dx + (dw / 2 - 95) / 2, xR = dx + dw - (dw / 2 - 95) / 2;
     html += `<div class="side" style="left:${xL - 50}px;width:100px;top:${sideY - 18}px"><span class="cap">Stake</span><b class="num">25.00</b></div>`;
-    html += `<div class="side" style="left:${xR - 50}px;width:100px;top:${sideY - 18}px"><span class="cap">${PH ? 'Tap the sun' : 'Space'}</span><b style="font-size:12px;color:#f0c75e">to cash out</b></div>`;
+    html += `<div class="side" style="left:${xR - 50}px;width:100px;top:${sideY - 18}px"><span class="cap">${PH ? 'Tap' : 'Space'}</span><b style="font-size:12px;color:#f0c75e">to cash out</b></div>`;
   }
   let lay;
   if (running) {
@@ -295,9 +295,10 @@ if (C === '2') {
   } else {
     const disc = pressed ? 'c2-disc-pressed' : DIS ? 'c2-disc-disabled' : 'c2-disc';
     const word = result ? 'c2-w-again' : DIS ? 'c2-w-run-dis' : 'c2-w-run';
-    const ww = 124, wh = result ? 40 : 46;
-    const sweep = HOV ? `<div class="sweep" style="left:-8px;top:-8px;width:${ww + 16}px;height:${wh + 16}px;-webkit-mask-image:url(art/${word}.png)"></div>` : '';
-    lay = `<div class="lay base">${spr(disc, 176, 176, 14.08)}</div><div class="lay words"><div class="ctr"><div style="position:relative;width:${ww}px;height:${wh}px">${spr(word, ww, wh, 8)}${sweep}</div></div></div>`;
+    const sc = result ? 0.70 : 0.78;
+    const ww = 124 * sc, wh = (result ? 40 : 46) * sc;
+    const sweep = HOV ? `<div class="sweep" style="left:${-8 * sc}px;top:${-8 * sc}px;width:${ww + 16 * sc}px;height:${wh + 16 * sc}px;-webkit-mask-image:url(art/${word}.png)"></div>` : '';
+    lay = `<div class="lay base">${spr(disc, 176, 176, 14.08)}</div><div class="lay words"><div class="ctr"><div style="position:relative;width:${ww}px;height:${wh}px">${spr(word, ww, wh, 8 * sc)}${sweep}</div></div></div>`;
   }
   html += `<div class="disc ${pressed ? 'pressed' : ''} ${FOC ? 'focus' : ''} ${heat > 0.5 ? 'heat-hi' : ''}" style="left:${discC.x - 88}px;top:${discC.y - 88}px">${lay}</div>`;
   if (running) html += `<div class="hud" style="top:${PH ? 180 : 200}px;--heat:${heat}"><div class="m num" data-len="${mult.length}">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;

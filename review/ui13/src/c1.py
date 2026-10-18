@@ -120,7 +120,7 @@ def logo(name, w=150, h=48):
     K.rig()
     K.card(0, h, K.CARD_SOFT, strength=1.15)
     lime = K.carved("lime", K.SAND)
-    outer = K.chipped(K.stepped_rect(0, 0, w, h, 5), seed=13, step=2.5, depth=0.8, bites=0.05)
+    outer = K.chipped(K.stepped_rect(0, 0, w, h, 5), seed=29, step=2.5, depth=0.8, bites=0.05)
     K.cobj("frame", [outer, K.stepped_rect(6, 6, w - 6, h - 6, 3)[::-1]], lime, z=3.6, extrude=0.6, bevel=1.8)
     K.cobj("face", [K.stepped_rect(5, 5, w - 5, h - 5, 3)], K.carved("bas", K.OXB, wear=0.3, pits=0.3), z=1.4, extrude=0.3, bevel=0.9)
     K.card(h / 2 - cap / 2, h / 2 + cap / 2, K.CARD_WORD, strength=1.55, z=30)
