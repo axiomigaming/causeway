@@ -396,7 +396,7 @@ for key, (mat, size) in mats.items():
                 hit = json.load(f)["hash"] == digest
         except (OSError, ValueError, KeyError):
             hit = False
-        log(f"HASH {key} {digest[:16]} {'hit' if hit else 'MISS'}")
+        log(f"HASH {key} {digest[:16]} {'hit' if hit else 'MISS'} (bake {bake_size}px; the hash covers it: run with the same KIT_BAKE_CAP as the bake, 2048 in review/world11/bake.sh)")
         continue
     if cached_group(objs, key, digest):
         log(f"cached {key} ({len(objs)} objects)")
