@@ -61,7 +61,25 @@
   transition: transform 0.5s var(--ease-out), filter 0.4s;
   white-space: nowrap;
 }
-.hud .mult-glow { display: inline-block; transform-origin: 50% 60%; }
+.hud .mult-glow { position: relative; display: inline-block; transform-origin: 50% 60%; }
+/* Tier-up pulse (src/ui/pulse.ts → tierPulse): a cast-gold ring swells out from the figure (full motion only). */
+.hud .mult-glow.tier-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -6% -10%;
+  border-radius: 999px;
+  pointer-events: none;
+  border: 3px solid rgba(255, 200, 80, 0.85);
+  box-shadow: 0 0 24px rgba(255, 170, 50, 0.6), inset 0 0 18px rgba(255, 190, 70, 0.35);
+  animation: tierRing 0.74s var(--ease-out) both;
+}
+@keyframes tierRing {
+  from { opacity: 0.95; transform: scale(0.72); }
+  to { opacity: 0; transform: scale(1.22); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud .mult-glow.tier-pulse::after { animation: none; opacity: 0; }
+}
 .hud .mult .mi { display: inline-block; }
 .hud .mult .mf { display: inline-block; }
 .hud .mult .x { font-size: 0.42em; font-weight: 500; margin-left: 0.06em; color: var(--gold); vertical-align: 0.72em; }
