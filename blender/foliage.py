@@ -26,6 +26,10 @@ import numpy as np
 from mathutils import Vector, Matrix, Euler, noise
 
 from common import CACHE, N, L, nodes_clear, hexcol, link, new_mesh_obj
+import scanned as SC
+
+# KIT_SCANNED=0 renders the old, fully modelled leaf cells.
+SCANNED = os.environ.get("KIT_SCANNED", "1") != "0"
 
 CELLS = {
     "frond": (0.0, 0.5, 0.5, 1.0),
@@ -402,11 +406,18 @@ def render_atlas(size=2048):
         solid = key in ("broad", "cluster_s", "cluster", "drape")
         sc.cycles.samples = 64 if solid else 4
         sc.cycles.use_denoising = True
-        bm = fn(rng)
-        ob = new_mesh_obj(f"leaf_{key}", bm)
-        ob.data.materials.append(mat_lit if solid else mat_flat)
+        bm = fn(rng)  # always built, so the rng stays in step for the modelled cells after it
         u0, v0, u1, v1 = CELLS[key]
         w, h = int((u1 - u0) * size), int((v1 - v0) * size)
+        scanned = SCANNED and SC.available(key)
+        if scanned:
+            # Round 11: a photoscanned plant instead of the modelled leaves (see scanned.py).
+            bm.free()
+            ob = SC.plant_object(key, w / h)
+            sc.cycles.samples = 96
+        else:
+            ob = new_mesh_obj(f"leaf_{key}", bm)
+            ob.data.materials.append(mat_lit if solid else mat_flat)
         cd = bpy.data.cameras.new("c")
         cd.type = "ORTHO"
         aspect = w / h
@@ -417,7 +428,7 @@ def render_atlas(size=2048):
         sc.camera = co
         sc.render.resolution_x, sc.render.resolution_y = w, h
         # Narrow cells show x ∈ [-aspect, aspect]; scale geometry to fill them.
-        if aspect < 1:
+        if aspect < 1 and not scanned:
             ob.scale = (aspect, 1, 1)
         path = os.path.join(CACHE, f"leaf_{key}.png")
         sc.render.filepath = path
