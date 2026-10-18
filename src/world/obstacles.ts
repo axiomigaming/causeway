@@ -86,11 +86,7 @@ export class Obstacles {
     // Centre the piece's bounds on `at`.
     const c = centre.clone().applyMatrix4(m);
     m.setPosition(at.x - c.x, at.y - c.y, at.z - c.z);
-    const mesh = new THREE.Mesh(g, this.kit.mat.get(this.kit.matOf.get(piece) ?? '') ?? undefined);
-    mesh.name = `obstacle|${piece}`;
-    mesh.matrixAutoUpdate = false;
-    mesh.matrix.copy(m);
-    mesh.castShadow = true;
+    const mesh = this.mesh(piece, g, m);
     mesh.receiveShadow = true;
     root.add(mesh);
     this.laid.push({ y: at.y, thick, tilt });
@@ -100,13 +96,28 @@ export class Obstacles {
   private piece(root: THREE.Group, piece: string, x: number, y: number, z: number, rotY = 0, s: number | [number, number, number] = 1): THREE.Mesh | null {
     const g = this.kit.geo.get(piece);
     if (!g) return null;
-    const mesh = new THREE.Mesh(g, this.kit.mat.get(this.kit.matOf.get(piece) ?? '') ?? undefined);
+    const sc = typeof s === 'number' ? new THREE.Vector3(s, s, s) : new THREE.Vector3(...s);
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotY), sc);
+    const mesh = this.mesh(piece, g, m);
+    root.add(mesh);
+    return mesh;
+  }
+
+  /**
+   * The placement is baked into a copy of the geometry (as the sections' merged props are; the kit's
+   * patched materials drew nothing under a rotated, non-uniformly scaled model matrix), so every
+   * child rests at the identity. userData.centre is its centre in the obstacle's frame: the pivot to
+   * rotate it about when animating.
+   */
+  private mesh(piece: string, g: THREE.BufferGeometry, m: THREE.Matrix4): THREE.Mesh {
+    const gg = g.clone().applyMatrix4(m);
+    gg.computeBoundingBox();
+    gg.computeBoundingSphere();
+    const mesh = new THREE.Mesh(gg, this.kit.mat.get(this.kit.matOf.get(piece) ?? '') ?? undefined);
     mesh.name = `obstacle|${piece}`;
     mesh.matrixAutoUpdate = false;
-    const sc = typeof s === 'number' ? new THREE.Vector3(s, s, s) : new THREE.Vector3(...s);
-    mesh.matrix.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotY), sc);
     mesh.castShadow = true;
-    root.add(mesh);
+    mesh.userData.centre = gg.boundingBox!.getCenter(new THREE.Vector3());
     return mesh;
   }
 
@@ -192,6 +203,7 @@ export class Obstacles {
     const i = this.list.indexOf(o);
     if (i >= 0) this.list.splice(i, 1);
     this.parent.remove(o.root);
+    for (const c of o.root.children as THREE.Mesh[]) c.geometry.dispose();
   }
 
   /** Drop the ones the run has left behind. */
