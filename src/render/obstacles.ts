@@ -363,10 +363,31 @@ export class ObstacleDirector {
   private log(at: number): boolean {
     if (!this.h.clearRun(at - 3, at + 3)) return false;
     const f = this.h.frameAt(at);
-    const geo = new THREE.CylinderGeometry(0.3, 0.36, 5.6, 10, 1).rotateZ(Math.PI / 2);
-    const m = new THREE.Mesh(geo, this.h.material('bark') ?? this.h.material('wood') ?? this.h.material('floor'));
-    m.castShadow = m.receiveShadow = true;
-    this.placeAcross(m, f, 0.3);
+    const bark = this.h.material('bark') ?? this.h.material('wood') ?? this.h.material('floor');
+    const m = new THREE.Group();
+    // A real jungle trunk from the kit, felled across the way (a plain cylinder if the kit lacks one).
+    const trunk = this.h.geometry(this.h.rng().chance(0.5) ? 'jungle_0_trunk' : 'jungle_1_trunk') ?? this.h.geometry('palm_0_trunk');
+    const L = 5.8;
+    if (trunk) {
+      if (!trunk.boundingBox) trunk.computeBoundingBox();
+      const bb = trunk.boundingBox!;
+      const h = Math.max(0.5, bb.max.y - bb.min.y);
+      const w = Math.max(0.1, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z));
+      // Its lower part is the thick one: keep a 0.55–0.7 m girth whatever the source tree.
+      const r = THREE.MathUtils.clamp(0.62 / w, 0.4, 1.6);
+      const t = new THREE.Mesh(trunk, bark);
+      t.scale.set(r, L / h, r);
+      t.rotation.z = Math.PI / 2;
+      t.position.set(L / 2 + bb.min.y * (L / h), 0.3, -(bb.min.z + bb.max.z) * 0.5 * r);
+      t.castShadow = t.receiveShadow = true;
+      m.add(t);
+    } else {
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, L, 10, 1).rotateZ(Math.PI / 2), bark);
+      t.position.y = 0.3;
+      t.castShadow = t.receiveShadow = true;
+      m.add(t);
+    }
+    this.placeAcross(m, f, 0);
     m.rotateY(this.h.rng().range(-0.15, 0.15));
     this.h.add(m);
     this.plan('jump_log', at, 2.25, {
@@ -440,10 +461,17 @@ export class ObstacleDirector {
     const f = this.h.frameAt(at);
     const side = this.h.rng().chance(0.5) ? 1 : -1;
     const pivot = new THREE.Group();
-    pivot.position.copy(f.pos).addScaledVector(f.right, side * 2.7);
+    pivot.position.copy(f.pos).addScaledVector(f.right, side * 2.9);
     pivot.rotation.set(0, f.yaw, 0);
     const col = new THREE.Mesh(geo, mat);
-    col.scale.set(0.5, 0.95, 0.5);
+    // Sized so it lies across the whole way (5.2 m) at vaulting height (~0.8 m thick).
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    const bb = geo.boundingBox!;
+    const gh = Math.max(0.5, bb.max.y - bb.min.y);
+    const gw = Math.max(0.1, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z));
+    const xz = THREE.MathUtils.clamp(0.8 / gw, 0.2, 1.5);
+    col.scale.set(xz, 5.2 / gh, xz);
+    col.position.y = -bb.min.y * (5.2 / gh);
     col.castShadow = col.receiveShadow = true;
     pivot.add(col);
     this.h.add(pivot);
@@ -466,14 +494,17 @@ export class ObstacleDirector {
         if (t > 0 && !landed) {
           // Topple about the base toward the way: an accelerating fall, a small bounce.
           const k = Math.min(1, (t / 0.8) ** 2);
-          pivot.rotation.z = -side * (Math.PI / 2) * k;
+          // +Z roll takes the column's top (+Y) toward −X: from the right side (+1) that is the way.
+          pivot.rotation.z = side * (Math.PI / 2) * k;
+          // It rolls onto its side: the axis ends a radius above the floor, not half sunk into it.
+          pivot.position.y = f.pos.y + 0.4 * k;
           if (k >= 1) {
             landed = true;
             this.h.dust(f.pos.clone().addScaledVector(f.right, side * 0.5), 1);
             this.h.shake(0.3);
             this.h.sound('tree_fall', 0.8);
           }
-        } else if (landed && t < 1.1) pivot.rotation.z = -side * (Math.PI / 2 - 0.05 * Math.sin((t - 0.8) * 30) * Math.exp(-(t - 0.8) * 9));
+        } else if (landed && t < 1.1) pivot.rotation.z = side * (Math.PI / 2 - 0.05 * Math.sin((t - 0.8) * 30) * Math.exp(-(t - 0.8) * 9));
         return ds > -30;
       },
     });
