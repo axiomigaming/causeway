@@ -251,6 +251,9 @@ export class ObstacleDirector {
 
   /** Force one (QA): returns whether it was placed. */
   force(kind: SetPiece, lead = 2.5): boolean {
+    // QA: clear the way first (pending moves and spacing), so the piece always goes in.
+    this.plans.length = 0;
+    this.lastS = -1e9;
     return this.place(kind, lead);
   }
 
