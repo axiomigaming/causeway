@@ -301,7 +301,7 @@ describe('shipped audio', () => {
   });
 
   it('every shipped sound has a catalog entry (and so a bus, level and voice limits)', () => {
-    for (const n of names) if (n !== 'ir_room') expect(SOUNDS[n], n).toBeDefined();
+    for (const n of names) if (n !== 'ir_room' && MANIFEST.sounds[n]!.group !== 'theme') expect(SOUNDS[n], n).toBeDefined();
   });
 
   it('first load stays within 1.5 MB, the lazy groups within 2.5 MB more', () => {

@@ -642,8 +642,13 @@ def crest():
     W, H = 128, 52
     scene(W, H)
     sun_lamp(1.5)
-    g = gold()
-    cx = W / 2
+    build_crest(W / 2, 0.0, H, gold())
+    render("crest")
+
+
+def build_crest(cx, oy, H, g):
+    """The crest's pieces, centred on cx, shifted down by oy (image coords)."""
+    P = lambda pts, h: globals()["P"]([(x, y + oy) for x, y in pts], h)  # noqa: E731 — shifted by oy
     # wings: stepped fret scrolls
     wing = [(cx - 14, 20), (cx - 52, 20), (cx - 52, 26), (cx - 62, 26), (cx - 62, 38), (cx - 50, 38), (cx - 50, 32), (cx - 40, 32), (cx - 40, 40), (cx - 14, 40)]
     for side in (1, -1):
@@ -679,7 +684,134 @@ def crest():
         gm.data.materials.append(jewel("emer", "#0a6a38", "#2bd47a"))
     knob = curve_obj("knob", [P(rect(cx - 5, 1.5, cx + 5, 7.5), H)], extrude=1.8, bevel=1.4, offset=-1.4, z=2.0, res=3)
     knob.data.materials.append(g)
-    render("crest")
+
+
+def gold_rich(name="goldrich"):
+    """Polished cast gold, lit like the reference's lettering: bright yellow-white across the
+    top, a deep orange-amber body, darker where the bevel turns away; a clear coat carries the
+    studio's specular. The body colour is part emissive so a flat face never reads as mustard."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    bs = nt.nodes["Principled BSDF"]
+    tc = N(nt, "ShaderNodeTexCoord")
+    sep = N(nt, "ShaderNodeSeparateXYZ")
+    L(nt, tc.outputs["Generated"], sep.inputs[0])
+    body = ramp(nt, sep.outputs["Y"], [(0.0, hexcol("#c25a06")), (0.35, hexcol("#f08a10")), (0.68, hexcol("#ffbf2a")), (0.86, hexcol("#ffe27a")), (1.0, hexcol("#fff6d0"))])
+    lw = N(nt, "ShaderNodeLayerWeight")
+    lw.inputs["Blend"].default_value = 0.35
+    turn = maprange(nt, lw.outputs["Facing"], 0.25, 0.9, 0.0, 0.75)
+    col = N(nt, "ShaderNodeMix")
+    col.data_type = "RGBA"
+    L(nt, turn, col.inputs[0])
+    L(nt, body, col.inputs[6])
+    col.inputs[7].default_value = hexcol("#6a2c04")
+    L(nt, col.outputs[2], bs.inputs["Base Color"])
+    L(nt, col.outputs[2], bs.inputs["Emission Color"])
+    bs.inputs["Emission Strength"].default_value = 0.55
+    bs.inputs["Metallic"].default_value = 0.85
+    bs.inputs["Roughness"].default_value = 0.22
+    bs.inputs["Coat Weight"].default_value = 0.5
+    bs.inputs["Coat Roughness"].default_value = 0.06
+    return m
+
+
+def bronze_dark(name="bronzedark"):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bs = m.node_tree.nodes["Principled BSDF"]
+    bs.inputs["Base Color"].default_value = hexcol("#5a2c06")
+    bs.inputs["Metallic"].default_value = 1.0
+    bs.inputs["Roughness"].default_value = 0.4
+    return m
+
+
+def gold_tile():
+    """One polished gold tile (the BLOX letter tiles): a stepped-corner block with a deep bevel
+    and a bronze rim. 36×40 CSS; used whole."""
+    W, H = 36, 40
+    scene(W, H)
+    sun_lamp(1.6, el=48)
+    rim = curve_obj("rim", [P(stepped_rect(0.6, 0.6, W - 0.6, H - 0.6, 3), H)], extrude=1.2, bevel=1.0, offset=-1.0, z=1.2, res=3)
+    rim.data.materials.append(bronze_dark())
+    face = curve_obj("face", [P(stepped_rect(2.2, 2.2, W - 2.2, H - 2.2, 2.5), H)], extrude=1.6, bevel=3.2, offset=-3.2, z=2.6, res=5)
+    face.data.materials.append(gold_rich())
+    render("goldtile")
+
+
+def gold_bar():
+    """A cast gold bar for the RUN slab: a bevelled block with an engraved line inset along its
+    edge. 480×64 CSS, nine-slice 24 px + fill."""
+    W, H = 480, 64
+    scene(W, H)
+    sun_lamp(1.6, el=46)
+    rim = curve_obj("rim", [P(rect(0.5, 0.5, W - 0.5, H - 0.5), H)], extrude=1.0, bevel=1.0, offset=-1.0, z=1.0, res=3)
+    rim.data.materials.append(bronze_dark())
+    face = curve_obj("face", [P(rect(2.5, 2.5, W - 2.5, H - 2.5), H)], extrude=2.0, bevel=5.0, offset=-5.0, z=3.4, res=6)
+    face.data.materials.append(gold_rich())
+    line = curve_obj("line", [P(rect(9, 9, W - 9, H - 9), H)], bevel=0.7, closed=True, z=5.5, dim="3D", res=2)
+    line.data.materials.append(bronze_dark("line"))
+    render("goldbar")
+
+
+def crest_plume():
+    """The primary plate's crest with a plume of feathers fanned behind it (red, violet and
+    pale grey-white), as on the gate ornaments. 160×84 CSS."""
+    import bmesh
+    W, H = 160, 84
+    scene(W, H)
+    sun_lamp(1.5)
+
+    def feather_mat(name, base, tip):
+        m = bpy.data.materials.new(name)
+        m.use_nodes = True
+        nt = m.node_tree
+        bs = nt.nodes["Principled BSDF"]
+        tc = N(nt, "ShaderNodeTexCoord")
+        sep = N(nt, "ShaderNodeSeparateXYZ")
+        L(nt, tc.outputs["UV"], sep.inputs[0])
+        L(nt, ramp(nt, sep.outputs["X"], [(0.0, hexcol(base)), (0.75, hexcol(base)), (1.0, hexcol(tip))]), bs.inputs["Base Color"])
+        bs.inputs["Roughness"].default_value = 0.6
+        bs.inputs["Sheen Weight"].default_value = 0.6
+        return m
+
+    mats = {
+        "violet": feather_mat("fv", "#7a2cc8", "#3a1060"),
+        "red": feather_mat("fr", "#d2281a", "#7a0a0a"),
+        "white": feather_mat("fw", "#d8d4dc", "#8a8494"),
+    }
+    cx, base_y = W / 2, 52
+    fan = [(-64, "violet", 46, 0), (-40, "red", 50, 1), (-18, "white", 44, 2), (18, "white", 44, 2), (40, "red", 50, 1), (64, "violet", 46, 0)]
+    for ang, mk, ln, layer in fan:
+        bm = bmesh.new()
+        uv = bm.loops.layers.uv.new()
+        segs, cols = 12, 4
+        grid = []
+        for a_ in range(segs + 1):
+            t = a_ / segs
+            wdt = math.sin(math.pi * min(1.0, t * 1.15)) ** 0.7 * ln * 0.13
+            grid.append([bm.verts.new((t * ln, (b_ / cols * 2 - 1) * wdt, -abs(b_ / cols * 2 - 1) * wdt * 0.25)) for b_ in range(cols + 1)])
+        for a_ in range(segs):
+            for b_ in range(cols):
+                f = bm.faces.new((grid[a_][b_], grid[a_ + 1][b_], grid[a_ + 1][b_ + 1], grid[a_][b_ + 1]))
+                for lp in f.loops:
+                    lp[uv].uv = (lp.vert.co.x / ln, 0.5)
+        me = bpy.data.meshes.new("feather")
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new("feather", me)
+        bpy.context.scene.collection.objects.link(ob)
+        ob.data.materials.append(mats[mk])
+        for poly in me.polygons:
+            poly.use_smooth = True
+        ob.location = (cx, -base_y, -2 + layer * 0.6)
+        ob.rotation_euler = (0, 0, math.radians(90 + ang))
+        rib = curve_obj("rib", [[(0, 0), (ln * 0.95, 0)]], bevel=0.35, closed=False, dim="3D", res=1)
+        rib.location = (cx, -base_y, -1.4 + layer * 0.6)
+        rib.rotation_euler = (0, 0, math.radians(90 + ang))
+        rib.data.materials.append(mats["white"])
+    build_crest(cx, 30.0, H, gold())
+    render("crest-plume")
 
 
 def pendant():
@@ -816,6 +948,9 @@ JOBS = {
     "tablet-jade": lambda: tablet("tablet-jade", "jade"),
     "panel-gold": gold_panel,
     "crest": crest,
+    "crest-plume": crest_plume,
+    "goldtile": gold_tile,
+    "goldbar": gold_bar,
     "pendant": pendant,
     "leaves": leaves,
     "fret": fret_strip,

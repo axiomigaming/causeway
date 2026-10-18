@@ -233,6 +233,13 @@ for (const [name, s] of Object.entries(cfg.sounds)) {
 rmSync(tmp, { recursive: true, force: true });
 
 // Stale outputs of sounds no longer listed.
+// The composed theme (group "theme") is rendered by tools/score/compose.py: keep its entries and files.
+try {
+  const prev = JSON.parse(readFileSync(join(OUT, 'manifest.json'), 'utf8'));
+  for (const [n, s] of Object.entries(prev.sounds ?? {})) if (s.group === 'theme') manifest.sounds[n] = s;
+} catch {
+  /* first build */
+}
 const keep = new Set(Object.values(manifest.sounds).flatMap((s) => [s.webm.file, s.m4a.file]));
 for (const f of readdirSync(OUT)) if (/\.(webm|m4a)$/.test(f) && !keep.has(f)) rmSync(join(OUT, f));
 
@@ -253,6 +260,8 @@ const lines = [
 for (const p of [...picks.values()].filter((x) => used.has(x.id)).sort((a, b) => a.record.title.localeCompare(b.record.title))) {
   lines.push(p.record.attribution, `  ${p.record.foreign_landing_url}`, '');
 }
+const themeCredits = join(ROOT, 'tools', 'score', 'CREDITS-theme.txt');
+if (existsSync(themeCredits)) lines.push('', readFileSync(themeCredits, 'utf8'));
 writeFileSync(join(OUT, 'CREDITS.txt'), lines.join('\n'));
 
 // THIRD_PARTY_NOTICES.md: a generated section listing every shipped file and the recordings in it.
@@ -277,6 +286,15 @@ const section = [
   '| File | Title | Creator | Licence | Source |',
   '| --- | --- | --- | --- | --- |',
   ...rows,
+  '',
+  '### The theme',
+  '',
+  'The composed score (`public/audio/th_*.webm`, `th_*.m4a`) is rendered by `tools/score/compose.py` from the',
+  'MuseScore_General.sf3 SoundFont, version 0.2 (MIT; FluidR3 by Frank Wen, FluidR3Mono by Michael Cowgill,',
+  'adaptation by S. Christian Collins, Temple Blocks by Ethan Winer, Drumline Cymbals by Michael Schorsch),',
+  'source https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/, together with the recorded',
+  'percussion and impulse response above. The SoundFont\'s full notice and MIT licence text ship in',
+  '`public/audio/CREDITS.txt`.',
   '<!-- audio:end -->',
 ].join('\n');
 const noticesPath = join(ROOT, 'THIRD_PARTY_NOTICES.md');

@@ -21,6 +21,8 @@ import type { Bus } from './catalog';
 import { milestoneApproach, tierOf, type Tier } from './feedback';
 import { SampleBank, SamplePlayer, type PlayOpts, type Voice } from './samples';
 import { ScorePlayer } from './score';
+import { ThemePlayer } from './theme';
+import { worldMood } from '../world/mood';
 import { bedMix, mulberry32, resolveSfx, surfaceFor, voiceCap, type Bed } from './select';
 
 type Scene = 'title' | 'setup' | 'lead' | 'run' | 'escaped' | 'fallen';
@@ -112,6 +114,9 @@ export class AudioEngine implements WorldSounds {
   private readonly bank = new SampleBank();
   private sp: SamplePlayer | null = null;
   private scorePlayer: ScorePlayer | null = null;
+  /** The composed theme (theme.ts). When it is loaded it is the score; the percussion score is its fallback. */
+  private theme: ThemePlayer | null = null;
+  private themeOn = false;
   private bus!: Record<Bus, GainNode>;
   /** Between the score and the music bus: dips under stingers and milestone hits. */
   private duck!: GainNode;
@@ -124,6 +129,7 @@ export class AudioEngine implements WorldSounds {
   private strings: Voice | null = null;
   private windBed: Voice | null = null;
   private nextGust = 0;
+  private lastGust = 0;
   /** Cosmetic randomness for variation only (never game state). */
   private rnd = mulberry32((Date.now() ^ 0x5eed) >>> 0);
 
@@ -233,11 +239,17 @@ export class AudioEngine implements WorldSounds {
     this.sp = new SamplePlayer(ctx, this.bank, this.bus, voiceCap({ cores: nav.hardwareConcurrency, memoryGb: nav.deviceMemory, mobile }));
     this.sp.rnd = this.rnd;
     this.scorePlayer = new ScorePlayer(ctx, this.sp, this.score, this.rnd);
+    this.theme = new ThemePlayer(ctx, this.bank, this.duck, this.sting, this.rnd);
     void this.bank.load(ctx, 'core').then(() => {
       this.bank.prefetch('beds');
       this.bank.prefetch('music');
       void this.bank.load(ctx, 'beds').then(() => this.startBeds());
-      void this.bank.load(ctx, 'music').then(() => this.startScore());
+      void this.bank.load(ctx, 'music').then(() => {
+        this.startScore();
+        // The composed theme last (the largest group): until it is in, the percussion score plays.
+        this.bank.prefetch('theme');
+        void this.bank.load(ctx, 'theme').then(() => this.startTheme());
+      });
     });
     // Background tabs: stop the clock rather than pile up (and save the battery).
     document.addEventListener('visibilitychange', () => {
@@ -259,6 +271,50 @@ export class AudioEngine implements WorldSounds {
     const d = this.ctx.createMediaStreamDestination();
     this.out.connect(d);
     return d;
+  }
+
+  /**
+   * Seconds until the next bar line of the music playing now (the run, the lifted loop, or the calm and
+   * tense loops), or null when the composed theme is not playing (still loading, muted context, no
+   * AudioContext yet). Audio time runs with the game clock; use it to land visual punches on the downbeat.
+   */
+  nextDownbeat(): number | null {
+    if (!this.ctx || this.ctx.state !== 'running' || !this.themeOn) return null;
+    return this.theme?.nextDownbeat() ?? null;
+  }
+
+  /**
+   * Subscribe to the theme's bar lines: `cb(bar, inSeconds)` fires once per bar, up to ~60 ms ahead of it
+   * (`inSeconds` = time left). Returns an unsubscribe function. Safe to call before the theme loads.
+   */
+  onBar(cb: (bar: number, inSeconds: number) => void): () => void {
+    const pending = new Set<() => void>();
+    let off: (() => void) | null = null;
+    const attach = () => {
+      if (off || !this.theme) return;
+      off = this.theme.onBar(cb);
+    };
+    attach();
+    if (!off) {
+      const id = setInterval(() => {
+        attach();
+        if (off) clearInterval(id);
+      }, 250);
+      pending.add(() => clearInterval(id));
+    }
+    return () => {
+      for (const p of pending) p();
+      off?.();
+    };
+  }
+
+  /**
+   * The tier change the music is about to land, if any: `{ tier, in }` with `in` seconds until the new
+   * layer's downbeat (the fill is already rolling). A tier arriving now lands on the next bar line, or the
+   * one after if the next is less than a third of a bar away; at most ~1.35 bars after the tier change.
+   */
+  tierLanding(): { tier: Tier; in: number } | null {
+    return this.themeOn ? (this.theme?.pendingLanding() ?? null) : null;
   }
 
   /** Voices playing in the pool (QA). */
@@ -588,7 +644,8 @@ export class AudioEngine implements WorldSounds {
     const t = this.ctx.currentTime;
     const live = this.scene === 'run' || this.scene === 'lead';
     const tier = live ? tierOf(this.mult) : 0;
-    const db = !live ? 0 : -10 - Math.min(4, tier * 1.4);
+    // Between runs the jungle opens up, a little under the calm theme when it plays.
+    const db = !live ? (this.themeOn ? -5 : 0) : -10 - Math.min(4, tier * 1.4);
     this.ambDuck.gain.setTargetAtTime(Math.pow(10, db / 20), t, tc);
     this.ambTone.frequency.setTargetAtTime(live ? 6000 - tier * 380 : 16000, t, tc);
   }
@@ -617,6 +674,26 @@ export class AudioEngine implements WorldSounds {
     this.riserToneGain.gain.setTargetAtTime(0, t, 0.2);
     this.scorePlayer.restart(t + 0.05);
     this.setScene(this.scene);
+  }
+
+  /** The composed theme is decoded: it takes over from the percussion score, the drone and the riser. */
+  private startTheme() {
+    const ctx = this.ctx;
+    const th = this.theme;
+    if (!ctx || !th || !th.ready()) return;
+    const t = ctx.currentTime;
+    this.themeOn = true;
+    this.scorePlayer?.silence(t, 0.4);
+    if (this.scorePlayer) this.scorePlayer.mode = 'off';
+    this.drone?.gain.gain.setTargetAtTime(0, t, 0.6);
+    this.strings?.gain.gain.setTargetAtTime(0, t, 0.3);
+    if (this.scene === 'run') {
+      th.startRun(t + 0.05);
+      th.setTier(tierOf(this.mult));
+    } else if (this.scene === 'fallen') th.setIdle('th_tense', t + 0.05);
+    else if (this.scene === 'escaped') th.setIdle('th_safe', t + 0.05);
+    else if (this.scene !== 'lead') th.rest();
+    this.duckAmbience(1.5);
   }
 
   private get sampledScore(): boolean {
@@ -648,7 +725,8 @@ export class AudioEngine implements WorldSounds {
     if (name === 'tier_up') {
       // A run tier arrives (strength = tier / 4, from the multiplier on screen). Not a separate
       // ding: the score lands an accent on its next downbeat, the bar where the new layer enters.
-      this.scorePlayer?.accent(Math.min(1, Math.max(0, strength)));
+      // With the theme loaded, climb() already sent the tier: the fill and the new layer are the accent.
+      if (!this.themeOn) this.scorePlayer?.accent(Math.min(1, Math.max(0, strength)));
       return;
     }
     const r = resolveSfx(name, strength);
@@ -817,6 +895,9 @@ export class AudioEngine implements WorldSounds {
         this.nextGust = t + (running ? 5 : 9) + this.rnd() * (running ? 7 : 12);
       }
     }
+    // The world's tier-up gust (world/mood.ts: the foliage thrashes, leaves fly): a recorded gust with it.
+    if (worldMood.gust > 0.5 && this.lastGust <= 0.5) this.sample('gust', { strength: 0.5 + 0.5 * worldMood.gust, pan: this.rnd() * 0.6 - 0.3 });
+    this.lastGust = worldMood.gust;
     // Breathing: heavy once the run turns into a sprint (2× and up, the same tier the runner sprints at),
     // closer and louder with the multiplier on screen. Silent otherwise.
     const sprint = running && this.scene === 'run' && tierOf(this.mult) >= 1;
@@ -843,11 +924,12 @@ export class AudioEngine implements WorldSounds {
     this.riserOsc.frequency.setTargetAtTime(hz(12 + 7 * p), t, 0.12);
     const tier = tierOf(this.mult);
     this.scorePlayer?.setTier(tier);
+    if (this.themeOn && live) this.theme!.setTier(tier);
     if (tier !== this.ambTier) {
       this.ambTier = tier;
       this.duckAmbience(1.2);
     }
-    if (this.strings) {
+    if (this.strings && !this.themeOn) {
       // Recorded strings carry the riser: they swell over the last stretch and climb a whole tone.
       this.strings.gain.gain.setTargetAtTime(shaped * 0.9, t, live ? 0.15 : 0.06);
       this.strings.src.playbackRate.setTargetAtTime(1 + 0.12 * p, t, 0.2);
@@ -862,6 +944,11 @@ export class AudioEngine implements WorldSounds {
     const t = this.ctx.currentTime;
     const semi = MILESTONE_BELL[Math.min(i, MILESTONE_BELL.length - 1)]!;
     const k = 0.8 + Math.min(i, 5) * 0.08; // later marks ring a little fuller
+    if (this.themeOn && this.sp?.has('sparkle')) {
+      // The theme marks the tiers itself (fills and new layers on the bar line): a milestone only glints.
+      this.sample('sparkle', { strength: 0.5, rate: Math.pow(2, semi / 24), dest: this.cue });
+      return;
+    }
     if (this.sp?.has('m_taiko') && this.sp.has('sparkle')) {
       // A struck taiko and a gem sparkle that climbs with each mark; the score dips to let it through.
       this.duckFor(0.55, 0.6);
@@ -908,6 +995,18 @@ export class AudioEngine implements WorldSounds {
     this.score.gain.setTargetAtTime(0, t, 0.03);
     this.settleCues(t, 0.02);
     this.breath?.gain.gain.setTargetAtTime(0, t, 0.08);
+    if (this.themeOn && this.sample(kind === 'gate' ? 'grind' : kind === 'chasm' ? 'crumble' : 'rockfall', { strength: 1 })) {
+      // The theme cuts dead into its loss sting (low brass falling, timpani); the world adds the collapse.
+      this.theme!.fall();
+      if (kind === 'chasm') {
+        this.sample('debris', { strength: 0.9, when: t + 0.12 });
+        this.sample('rockfall', { strength: 0.6, when: t + 0.5 });
+      } else if (kind !== 'gate') {
+        this.sample('rumble', { strength: 0.8, fadeIn: 0.3, maxDur: 3 });
+        this.sample('debris', { strength: 0.7, when: t + 0.35 });
+      }
+      return;
+    }
     if (this.sampledScore && this.sp?.has('m_gong') && this.sp.has('m_boom')) {
       // The score stops dead. A boom and a low gong: brief at 1×, a long dark toll when a lot was
       // riding on it (sized by the settled fall point, which is public by now). The drone sags.
@@ -973,6 +1072,14 @@ export class AudioEngine implements WorldSounds {
     this.score.gain.setValueAtTime(this.score.gain.value, t);
     this.score.gain.setTargetAtTime(0, t, 0.25);
     this.breath?.gain.gain.setTargetAtTime(0, t, 0.2);
+    if (this.themeOn && this.sp?.has('coins')) {
+      // The theme's fanfare (sized by the cash-out tier) over gold, a sparkle and the runner's breath.
+      this.theme!.escape(g);
+      this.sample('coins', { strength: 0.75 + 0.05 * g, when: t + 0.02 });
+      this.sample('sparkle', { strength: 0.6 + 0.07 * g, when: t + 0.12 });
+      this.sample('pant', { strength: 0.8, when: t + 0.9 });
+      return;
+    }
     if (this.sp?.has('coins') && this.sp.has('swell')) {
       // The way out, sized by the cash-out multiplier only (never by where the fall would have been).
       // Every escape: a warm swell, gold, a sparkle, and the runner catching their breath. From 2× a
@@ -1152,8 +1259,6 @@ export class AudioEngine implements WorldSounds {
   private sampledScene(s: Scene, prev: Scene, t: number) {
     this.mixBeds(s === 'run' ? 1.2 : 2.5);
     if (s !== 'run') this.breath?.gain.gain.setTargetAtTime(0, t, 0.3);
-    const sc = this.scorePlayer;
-    if (!sc || !this.sampledScore) return;
     if (s === 'lead' && prev !== 'lead') {
       // A new run (maybe straight after a result): the last stinger gets out of the way.
       this.sting.gain.cancelScheduledValues(t);
@@ -1162,6 +1267,21 @@ export class AudioEngine implements WorldSounds {
       this.sting.gain.setTargetAtTime(1, t + 0.5, 0.05);
       this.duck.gain.cancelScheduledValues(t);
       this.duck.gain.setTargetAtTime(1, t, 0.05);
+    }
+    if (this.themeOn && this.theme) {
+      const th = this.theme;
+      if (s === 'lead' && prev !== 'lead') th.lead();
+      else if (s === 'run' && prev !== 'run') {
+        th.startRun(t + 0.01);
+        this.sample('m_taiko', { strength: 0.9, dest: this.sting });
+      } else if (s === 'title' || s === 'setup') th.rest();
+      else if (s === 'escaped') th.escape(this.grade);
+      else if (s === 'fallen') th.fall();
+      return;
+    }
+    const sc = this.scorePlayer;
+    if (!sc || !this.sampledScore) return;
+    if (s === 'lead' && prev !== 'lead') {
       sc.mode = 'lead';
       sc.setTier(0);
       sc.restart(t + 0.02);
@@ -1204,6 +1324,10 @@ export class AudioEngine implements WorldSounds {
     // After a stall (tab throttled), skip ahead instead of firing a burst of old notes.
     if (this.nextBeat < ctx.currentTime - 0.05) this.nextBeat = ctx.currentTime + 0.02;
     const ahead = ctx.currentTime + 0.12;
+    if (this.themeOn) {
+      this.theme!.update();
+      return;
+    }
     if (this.sampledScore) {
       this.scorePlayer!.schedule(ahead);
       return;

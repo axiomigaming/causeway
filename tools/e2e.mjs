@@ -38,19 +38,33 @@ for (const name of pick) {
   const st = () => page.evaluate(() => { const s = window.__store.getState(); return { phase: s.phase, balance: s.balance, stake: s.stake, history: s.history.length, result: s.result && { won: s.result.won, payout: s.result.round.payout, stake: s.result.round.stake, mult: s.result.round.cashoutMult, crash: s.result.round.crash } }; });
   const waitPhase = (phases, timeout = 120000) => page.waitForFunction((p) => p.includes(window.__store.getState().phase), phases, { timeout });
   const shot = (tag) => page.screenshot({ path: `${OUT}/${name}-${tag}.png` }).catch(() => {});
+  // Software rendering can starve the page of animation frames (a heavy scene at desktop size), and
+  // Playwright's actionability check waits for two frames to call an element "stable". Click with a
+  // real trusted mouse event at the element's centre once it is visible and enabled instead; the
+  // element must still be the topmost hit at that point, so a covered button still fails.
+  const tap = async (sel) => {
+    const el = page.locator(sel).first();
+    await el.waitFor({ state: 'visible', timeout: 120000 });
+    const box = await el.boundingBox();
+    if (!box) throw new Error(`no box for ${sel}`);
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    const hit = await page.evaluate(([x, y, sel]) => { const t = document.elementFromPoint(x, y); const e = document.querySelector(sel); return !!(t && e && (e === t || e.contains(t))); }, [x, y, sel]);
+    if (!hit) throw new Error(`${sel} is covered at its centre`);
+    await page.mouse.click(x, y);
+  };
   // Wide screens show a top-bar button per panel; phones reach the same panels through the menu.
   const openPanel = async (label) => {
     const direct = page.locator(`.topbar button[aria-label="${label}"]`);
-    if (await direct.isVisible()) return direct.click();
-    await page.click('.topbar button[aria-label="Menu"]');
-    await page.click(`.menu button:has-text("${label}")`);
+    if (await direct.isVisible()) return tap(`.topbar button[aria-label="${label}"]`);
+    await tap('.topbar button[aria-label="Menu"]');
+    await page.locator(`.menu button:has-text("${label}")`).click({ force: true });
   };
 
   await page.goto(`${URL}/?q=low&seed=e2e-${name}&qa`);
   await page.waitForSelector('.title-actions .btn-cta', { timeout: 300000 });
   check('title screen offers entry', true);
   await shot('1-title');
-  await page.click('.title-actions .btn-cta');
+  await tap('.title-actions .btn-cta');
   await waitPhase(['setup']);
   await shot('2-setup');
   const lay = await page.evaluate(() => ({ dock: (innerHeight - document.querySelector('.dock').getBoundingClientRect().top) / innerHeight, over: document.documentElement.scrollWidth > innerWidth }));
@@ -68,7 +82,7 @@ for (const name of pick) {
 
   // Run and cash out immediately, with three rapid clicks.
   let before = await st();
-  await page.click('.run-btn');
+  await tap('.run-btn');
   await waitPhase(['running', 'result']);
   await page.evaluate(() => { const b = document.querySelector('.cash'); for (let i = 0; i < 3; i++) b?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })); });
   await waitPhase(['result']);
@@ -112,7 +126,7 @@ for (const name of pick) {
   await shot('6-fair');
   await page.keyboard.press('Escape');
   await openPanel('Settings');
-  await page.click('.seg button:has-text("Medium")');
+  await page.locator('.seg button:has-text("Medium")').click({ force: true });
   await page.keyboard.press('Escape');
   await page.keyboard.press('m');
   check('mute toggles', (await page.evaluate(() => window.__store.getState().settings.muted)) === true);

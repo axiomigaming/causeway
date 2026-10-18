@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
+import { GoldWord } from './GoldWord';
 import { Logo } from './Logo';
 
 export function Title() {
@@ -41,7 +42,9 @@ export function Title() {
             <div className="title-actions">
               <button className={`btn btn-cta cta-go enter-btn${leaving ? ' busy' : ''}`} onClick={enter} onMouseEnter={() => ctl?.audio.ui('hover')} autoFocus>
                 {/* the crest belongs to the wordmark on this screen; the CTA is plain carved stone */}
-                <span className="btn-label gold">Enter the ruins</span>
+                <span className="btn-label">
+                  <GoldWord text="Enter the ruins" />
+                </span>
               </button>
               <button
                 className="btn btn-ghost"

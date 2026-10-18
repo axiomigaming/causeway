@@ -3,6 +3,7 @@ import { heatOf } from '../audio/feedback';
 import { formatCredits, formatMult, parseCredits, parseMult, payout } from '../engine/money';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
+import { GoldWord } from './GoldWord';
 import { useHold } from './hold';
 import { IconMinus, IconPlus } from './icons';
 
@@ -194,7 +195,9 @@ function Setup() {
           <div className="run-cell">
             {broke ? (
               <button className="btn btn-cta cta-sun run-btn" onClick={() => void ctl?.refill()} onMouseEnter={() => ctl?.audio.ui('hover')}>
-                <span className="btn-label word">Refill</span>
+                <span className="btn-label">
+                  <GoldWord text="Refill" />
+                </span>
                 <small className="btn-sub">Demo credits</small>
               </button>
             ) : (
@@ -206,10 +209,13 @@ function Setup() {
                 aria-busy={busy}
                 aria-label={busy ? 'Placing your stake' : `${s.phase === 'result' ? 'Run again' : 'Run'} with a stake of ${formatCredits(s.stake)}`}
               >
-                {/* One gold slab, one word-mark; the stake is read from the stepper above it. */}
-                <span className="btn-label word">
+                {/* The primary plate: crest and plume above, pendant below, one cast-gold word-mark;
+                    the stake is read from the stepper above it. */}
+                <span className="crest plume" aria-hidden />
+                <span className="pendant" aria-hidden />
+                <span className="btn-label">
                   {busy && <span className="spinner" aria-hidden />}
-                  {busy ? 'Placing' : s.phase === 'result' ? 'Run again' : 'Run'}
+                  <GoldWord text={busy ? 'Placing' : s.phase === 'result' ? 'Run again' : 'Run'} />
                 </span>
               </button>
             )}
@@ -296,10 +302,12 @@ function CashOut({ held }: { held: boolean }) {
         {/* The stone heats: ember seams open in the panel as --heat climbs, the crest's ruby kindles. */}
         <span className="heat hot" aria-hidden />
         <span className="heat glow" aria-hidden />
-        <span className="crest" aria-hidden />
+        <span className="crest plume" aria-hidden />
         <span className="pendant" aria-hidden />
         <span className="label">
-          <span className="btn-label gold">{label}</span>
+          <span className="btn-label">
+            <GoldWord text={label} />
+          </span>
           {/* the stake lives inside the plate: nothing orphaned in the home-indicator zone */}
           <small>
             Stake <b className="num">{formatCredits(stake)}</b>
@@ -314,7 +322,7 @@ function CashOut({ held }: { held: boolean }) {
           {amount}
         </span>
       </button>
-      <div className="cash-meta kbd-hint">
+      <div className={`cash-meta kbd-hint${held ? ' gone' : ''}`} aria-hidden={held || undefined}>
         Press <kbd>Space</kbd> to cash out
       </div>
     </>
