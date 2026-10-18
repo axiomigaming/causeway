@@ -16,6 +16,7 @@ from common import reset, bake_group, ensure_uvs_packed_weighted, export_glb, te
 import kit_geo as K
 import materials as M
 import materials_scan as MS
+import obstacle_geo as OG
 import foliage as F
 import setpieces as S
 import stage as G
@@ -66,6 +67,8 @@ groups["stoneB"] += [
     X.stele_glyph("stele_0", 240),
     X.stele_glyph("stele_1", 241, w=1.1, h=2.4),
     K.drum("drum_0", 250),
+    OG.beam_lintel("beam_lintel_0", 1410),
+    OG.pillar_topple("pillar_topple_0", 1420),
     K.tower("tower_0", 260),
     K.tower("tower_1", 261, w=3.4, h=14),
 ]
@@ -122,6 +125,8 @@ for i in range(3):
 # ---- wood
 groups["wood"] += [K.planks("planks_0", 500), K.planks("planks_1", 501), S.rope_rail("rope_rail_0", 510, width=3.6)]
 groups["bark"] += [S.roots("roots_0", 520), S.roots("roots_1", 521, width=4.5, n=10, length=(2.0, 4.5))]
+# Round 11: obstacle pieces for the obstacle director (obstacle_geo.py).
+groups["bark"].append(OG.log_fallen("log_fallen_0", 1400))
 groups["flora"] += [
     S.lily_pads("lily_0", 800),
     S.lily_pads("lily_1", 801, n=20, spread=2.4, flowers=3),
@@ -200,7 +205,7 @@ mats = {
     "floor": (M.floor("floor"), 4096),
     "rock": (MS.rock("rock"), 2048),
     "wood": (M.wood("wood"), 1024),
-    "bark": (M.bark("bark"), 1024),
+    "bark": (MS.bark("bark"), 1024),
     "statue": (M.stone("statue", moss=0.5, glyphs=False), 2048),
     "flora": (MS.flora("flora"), 1024),
     "cliff": (MS.cliff("cliff"), 2048),
@@ -250,7 +255,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11", "temple": "uvfit-r11"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "scan-r11"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:
