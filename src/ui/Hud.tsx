@@ -5,6 +5,7 @@ import { formatCredits, formatMult } from '../engine/money';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { useHold } from './hold';
+import { Stair } from './icons';
 import './hud.css';
 
 const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
@@ -58,8 +59,8 @@ export function Hud() {
         );
       }
       if (!full) return;
-      glowRef.current?.animate([{ transform: 'scale(1)', filter: 'brightness(1)' }, { transform: 'scale(1.07)', filter: 'brightness(1.4)', offset: 0.2 }, { transform: 'scale(1)', filter: 'brightness(1)' }], {
-        duration: 900,
+      glowRef.current?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)', offset: 0.25 }, { transform: 'scale(1)' }], {
+        duration: 700,
         easing: EASE,
       });
     };
@@ -131,11 +132,11 @@ export function Hud() {
       el.animate(
         full
           ? [
-              { transform: 'scale(1)', filter: 'brightness(1)' },
-              { transform: `scale(${(1 + 0.09 * k).toFixed(3)})`, filter: `brightness(${(1 + 0.45 * k).toFixed(2)})`, offset: 0.22 },
-              { transform: 'scale(1)', filter: 'brightness(1)' },
+              { transform: 'scale(1)' },
+              { transform: `scale(${(1 + 0.04 * k).toFixed(3)})`, offset: 0.25 },
+              { transform: 'scale(1)' },
             ]
-          : [{ filter: 'brightness(1)' }, { filter: 'brightness(1.3)', offset: 0.3 }, { filter: 'brightness(1)' }],
+          : [{ opacity: 1 }, { opacity: 0.82, offset: 0.3 }, { opacity: 1 }],
         { duration: 620, easing: EASE },
       );
     };
@@ -200,27 +201,21 @@ export function ResultPlate() {
     </button>
   );
   if (result.won) return <WonPlate key={r.id} stake={r.stake} payout={r.payout} mult={r.cashoutMult ?? 100} auto={r.auto} verify={verify} />;
-  const m = `${formatMult(r.crash)}×`;
+  const m = formatMult(r.crash);
+  // The fall, told quietly: muted tones, the fall point, what it cost. Never an alarm.
   return (
     <div className="result lost" role="status" key={r.id} data-grade={tierOf(r.crash)}>
-      <div className="hud-slot">
-        <span className="stamp fell">
-          <b className="gold">The way fell</b>
-        </span>
+      <div className="r-head">
+        <Stair />
+        <span className="r-k">The way fell</span>
       </div>
-      <div className="big num crack" aria-label={m} style={{ '--chars': m.length } as CSSProperties}>
-        <span className="half a" aria-hidden="true">
-          {m}
-        </span>
-        <span className="half b" aria-hidden="true">
-          {m}
-        </span>
-        <svg className="fault" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points="-2,63 14,52 27,58 39,47 52,56 63,43 76,51 88,40 102,45" />
-        </svg>
+      <div className="big num" aria-label={`${m}×`} style={{ '--chars': m.length + 1 } as CSSProperties}>
+        {m}
+        <span className="unit">×</span>
       </div>
       <div className="line">
-        Stake lost · <b className="num">{formatCredits(r.stake)}</b>
+        Stake lost<i className="dot">·</i>
+        <b className="num">{formatCredits(r.stake)}</b>
       </div>
       {verify}
     </div>
@@ -260,23 +255,22 @@ function WonPlate({ stake, payout, mult, auto, verify }: { stake: number; payout
       <span className="sr">
         Escaped at {formatMult(mult)}×. Paid {formatCredits(payout)}, profit {formatCredits(profit)}.
       </span>
-      <div className="hud-slot" aria-hidden="true">
-        <span className="stamp"><b className="gold">Escaped</b></span>
-        {auto && <span className="stamp-note">auto cash-out</span>}
+      <div className="r-head" aria-hidden="true">
+        <Stair />
+        <span className="r-k">Escaped</span>
+        {auto && <span className="r-note">Auto cash-out</span>}
       </div>
       <div className="big num" aria-hidden="true" style={{ '--chars': formatCredits(payout).length + 1 } as CSSProperties}>
-        <span className="halo" />
-        {grade >= 3 && <span className="halo h2" />}
         <span className="payout-fig" ref={bigRef}>
           +{formatCredits(payout)}
         </span>
       </div>
       <div className="line" aria-hidden="true">
-        at <b className="num hot">{formatMult(mult)}×</b>
+        At <b className="num">{formatMult(mult)}×</b>
         <i className="dot">·</i>
-        stake <b className="num">{formatCredits(stake)}</b>
+        Stake <b className="num">{formatCredits(stake)}</b>
         <i className="dot">·</i>
-        profit <b className="num jade">{formatCredits(profit, { sign: true })}</b>
+        Profit <b className="num gain">{formatCredits(profit, { sign: true })}</b>
       </div>
       {verify}
     </div>

@@ -158,7 +158,11 @@ function Fair({ onClose }: { onClose: () => void }) {
           <p className="empty">Finish a run and it appears here, ready to check.</p>
         )}
         <div className="callout">
-          The fall point is <code>floor(97 · 2⁵² / (2⁵² − h))</code> hundredths, from the first 52 bits <code>h</code> of the HMAC. So the chance the way holds to any multiplier
+          The fall point is{' '}
+          <code>
+            floor(97 · 2<sup>52</sup> / (2<sup>52</sup> − h))
+          </code>{' '}
+          hundredths, from the first 52 bits <code>h</code> of the HMAC. So the chance the way holds to any multiplier
           m is exactly 97% ÷ m: every cash-out target returns 97% on average, and no timing beats another.
           {s.deterministic ? ' This session is running on a fixed QA seed.' : ''}
         </div>

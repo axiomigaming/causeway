@@ -1,12 +1,19 @@
-// Three families: Bungee for the gold block lettering on the plates and the wordmark, Marcellus
-// SC for carved small-caps captions, Alegreya Sans (a warm humanist sans with tabular lining
-// figures) for the interface text and every amount of money.
-import '@fontsource/bungee/latin-400.css';
-import '@fontsource/marcellus-sc/latin-400.css';
-import '@fontsource/alegreya-sans/latin-500.css';
-import '@fontsource/alegreya-sans/latin-700.css';
-import '@fontsource/alegreya-sans/latin-800.css';
+// One family: Archivo (Omnibus-Type, OFL), variable in weight (100–900) and width (62–125 %),
+// self-hosted as its Latin subset (woff2), preloaded, font-display: swap.
+import archivoLatin from '@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2?url';
 import './ui/styles.css';
+{
+  const pre = document.createElement('link');
+  pre.rel = 'preload';
+  pre.as = 'font';
+  pre.type = 'font/woff2';
+  pre.crossOrigin = 'anonymous';
+  pre.href = archivoLatin;
+  document.head.appendChild(pre);
+  const face = new FontFace('Archivo', `url(${archivoLatin}) format('woff2')`, { weight: '100 900', stretch: '62% 125%', display: 'swap' });
+  document.fonts.add(face);
+  void face.load().catch(() => {});
+}
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AudioEngine } from './audio/engine';
