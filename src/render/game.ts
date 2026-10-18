@@ -1966,6 +1966,21 @@ export class Game {
     this.track.update(this.s, 0.5);
   }
 
+  /** QA: the nearest mesh under each screen point ([x, y] in 0..1 from the top left), with its material. */
+  debugPick(pts: [number, number][]): { name: string; mat: string; dist: number }[] {
+    const rc = new THREE.Raycaster();
+    const out: { name: string; mat: string; dist: number }[] = [];
+    this.scene.updateMatrixWorld(true);
+    for (const [x, y] of pts) {
+      rc.setFromCamera(new THREE.Vector2(x * 2 - 1, 1 - y * 2), this.rig.camera);
+      const hit = rc.intersectObject(this.scene, true).find((h) => (h.object as THREE.Mesh).isMesh && h.object.visible);
+      const m = hit?.object as THREE.Mesh | undefined;
+      const mat = m ? (Array.isArray(m.material) ? m.material[0] : m.material) : null;
+      out.push({ name: m ? `${m.parent?.name ?? ''}/${m.name}` : '(sky)', mat: mat ? `${mat.type}:${mat.name}` : '', dist: hit ? +hit.distance.toFixed(1) : -1 });
+    }
+    return out;
+  }
+
   /** Triangles by mesh name, split into what the camera sees and what it does not. */
   debugTriangles() {
     const cam = this.rig.camera;
