@@ -250,18 +250,28 @@ def group_hash(objs, key, size):
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
     MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
+    OBJ_DIGESTS[key] = {}
     for o in objs:
         me = o.data
         h.update(o.name.encode())
+        ho = hashlib.sha256()
         co = np.zeros(len(me.vertices) * 3, np.float32)
         me.vertices.foreach_get("co", co)
-        h.update(np.round(co, 4).tobytes())
-        h.update(np.array([len(me.loops), len(me.polygons)], np.int64).tobytes())
+        parts = [np.round(co, 4).tobytes(), np.array([len(me.loops), len(me.polygons)], np.int64).tobytes()]
         for ca in me.color_attributes:
             c = np.zeros(len(ca.data) * 4, np.float32)
             ca.data.foreach_get("color", c)
-            h.update(np.round(c, 3).tobytes())
+            parts.append(np.round(c, 3).tobytes())
+        for p in parts:
+            h.update(p)
+            ho.update(p)
+        OBJ_DIGESTS[key][o.name] = ho.hexdigest()[:16]
     return h.hexdigest()
+
+
+# Per-object digests, stored with each cached group: a cache miss logs which pieces changed (some
+# groups re-baked on every run; this names the culprit).
+OBJ_DIGESTS = {}
 
 
 def _uv_file(key):
@@ -285,8 +295,13 @@ def cached_group(objs, key, digest):
     d = os.path.join(CACHE, f"bake_{key}")
     try:
         with open(os.path.join(d, "hash.json")) as f:
-            if json.load(f)["hash"] != digest:
-                return False
+            stored = json.load(f)
+        if stored["hash"] != digest:
+            old = stored.get("objs", {})
+            changed = [n for n, v in OBJ_DIGESTS.get(key, {}).items() if old.get(n) != v]
+            if old:
+                log(f"  {key}: cache stale; changed pieces: {', '.join(changed) or '(none: material/settings)'}")
+            return False
         uvs = np.load(_uv_file(key))
         for o in objs:
             if len(uvs[o.name]) != len(o.data.loops) * 2:
@@ -310,7 +325,7 @@ def cache_group(key, digest):
         shutil.copyfile(os.path.join(CACHE, f"{key}_{k}.png"), os.path.join(d, f"{key}_{k}.png"))
     save_uvs(groups[key], key)
     with open(os.path.join(d, "hash.json"), "w") as f:
-        json.dump({"hash": digest}, f)
+        json.dump({"hash": digest, "objs": OBJ_DIGESTS.get(key, {})}, f)
 
 
 for key, (mat, size) in mats.items():
