@@ -179,7 +179,7 @@ score's tier are the same functions (`audio/feedback.ts` delegates to it).
 
 | Tier | Multiplier | Camera | Light and grade | Effects and cues | Runner | World | Score |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 composed | < 2× | 2.25 m back, shoulder high, 60° lens, a breath of shake | serene gold, open edges | footstep dust only | composed run | causeway over open water | pulse |
+| 0 running for his life | < 2× | 2.25 m back, a hand under shoulder height, 64° lens, a breath of shake | serene gold, open edges | footstep dust only | composed run | causeway over open water | pulse |
 | 1 driven | 2–5× | closer, lower, wider (≈66°) | warmer, a touch more contrast | wall dust, birds, a few stones; rush dust off the floor | run → sprint, leaning in | the gates and guardians | + hands (shaker, djembe) |
 | 2 sprint | 5–10× | ≈2.1 m, ≈70°, footfalls jar the frame | warm and harder, vignette closes | + rumbles, stones you hop, debris you stumble on | sprint, glances back | the sanctum: tunnels, tall walls, gorges | + taiko |
 | 3 all-out | 10–25× | ≈2 m, ≈76°, more shake | hot, dusty air, darker edges | + far collapses (ruins falling into the water), bursts beside him from both walls | sprint → dash | chasm country; the jungle thrashes | + drive layer |
@@ -191,11 +191,30 @@ leaves gust, `game.live.tier` changes and the score is told (`tier_up`; it rolls
 its fill). On the music's landing (`sounds.tierLanding()`, the new layer's
 downbeat, at most ~1.35 bars away; else its next bar line; with no theme
 playing, at once) the lens punches and jolts, the HUD pulses
-(`game.onTierPulse`, `causeway:tier` window event), the world gusts and
+(`game.onTierPulse`, `causeway:tier` and `causeway:tier-pulse` window events), the world gusts and
 flickers (`worldTierUp`), both walls breathe out dust, birds lift (from 5×),
 the ground rumbles (from 10×) and he glances back (from 5×). A cash-out or a
 fall before the landing cancels the punch; reduced motion keeps it, gentler;
 Low keeps it with smaller particle budgets.
+
+**Set pieces** (`src/render/obstacles.ts`, presentation only — he always clears them;
+which, when and how many come from the current tier and the cosmetic RNG). Calm
+straight stretches alternate with bursts of 1–3 pieces; the calm shortens
+(≈6.5 s → 2.4 s) and the bursts grow with the tier. Tier 0: logs to jump
+(`jump_log`) and low lintels to slide under (`slide`). From 2×: toppling
+pillars to vault (`vault`), rocks raining beside the way, the slab he just left
+dropping into the water, and the lintel slamming down right after he slides
+through. From 5×: the slabs ahead crack loose and drift apart over the water
+(2–3 `leap_gap`s sized to the gap) and boulders rolling across just behind him.
+Hard bends get a corner cut (`turn_cut_L/R`). Each piece stands ~2.5 s ahead;
+the move is called on its start foot and the route speed borrows a few percent
+so the takeoff meets the piece. A cash-out or a fall ends it at once: pieces
+still ahead crumble away, nothing moves or slams after the round settles.
+
+**Made it.** On a cash-out he keeps his stride for 0.75–1.3 s (longer for a
+bigger multiplier) toward a gate of light, stumbles with relief, pulls up and
+celebrates just short of the threshold; the chase lens calms, then swings
+round for the celebration.
 
 Milestones flare at 2, 5, 10, 25, 50 and 100×. A fall stages one of two variants
 per hazard (chasm, gate, rockfall), a cash-out one of four escapes (look back,

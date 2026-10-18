@@ -135,6 +135,7 @@ export class ObstacleDirector {
   /** Route distance of the last piece: pieces never crowd each other. */
   private lastS = -1e9;
   private turnS = -1e9;
+  private tier = 0;
   enabled = true;
   /** Route-speed correction (m/s) while a move lines up with its piece: add to the runner's ds/dt. */
   sRate = 0;
@@ -188,6 +189,7 @@ export class ObstacleDirector {
 
   /** Each frame while running (and only then). `tier` is the current multiplier's tier. */
   update(dt: number, tier: number, stageT: number): void {
+    this.tier = tier;
     const s = this.h.s();
     for (let i = this.live.length - 1; i >= 0; i--) {
       const l = this.live[i]!;
@@ -335,10 +337,11 @@ export class ObstacleDirector {
     const a = s + v * 1.2;
     if (a - this.turnS < 14 || this.plans.length) return;
     const y0 = this.h.frameAt(a).yaw;
-    const y1 = this.h.frameAt(a + 7).yaw;
+    const y1 = this.h.frameAt(a + 8).yaw;
     let d = y1 - y0;
     d = Math.atan2(Math.sin(d), Math.cos(d));
-    if (Math.abs(d) < 0.45) return;
+    // The bend sections turn 0.28–0.5 rad over 8 m; a 90° corner (if the world adds one) far more.
+    if (Math.abs(d) < 0.26) return;
     this.turnS = a;
     // Positive yaw turns the forward vector to the left.
     this.plan(d > 0 ? 'turn_cut_L' : 'turn_cut_R', a + 2, 2.25, { onTake: () => this.h.sound('whoosh_jump', 0.3) });
@@ -399,7 +402,7 @@ export class ObstacleDirector {
     }
     this.placeAcross(g, f, 0);
     this.h.add(g);
-    const slam = this.h.rng().chance(0.65);
+    const slam = this.tier >= 1 && this.h.rng().chance(0.65);
     let fall = -1;
     this.plan('slide', at, 2.25, {
       onTake: () => this.h.sound('slide_scrape', 0.6),
