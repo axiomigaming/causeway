@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Rng } from '../engine/rng';
 import { OBSTACLES, obstacleTiming, type Obstacle } from '../world/runner';
+import { PATH_HALF } from '../world/sections';
 
 /**
  * The obstacle director: set pieces on the way ahead that the runner always clears (presentation
@@ -76,6 +77,17 @@ function boxUV(w: number, h: number, d: number): THREE.BoxGeometry {
   return g;
 }
 
+/** A world obstacle (src/world/obstacles.ts Obstacle), as much of it as the director needs. */
+export interface WorldPiece {
+  action: 'jump' | 'slide';
+  /** Top (jump) or underside (slide) above the path, m. */
+  clearance: number;
+  sNear: number;
+  sFar: number;
+  root: THREE.Group;
+  rest: THREE.Matrix4[];
+}
+
 export interface FrameAt {
   pos: THREE.Vector3;
   yaw: number;
@@ -114,6 +126,16 @@ export interface ObstacleHost {
   dust(at: THREE.Vector3, k: number, vel?: THREE.Vector3): void;
   shake(k: number): void;
   sound(name: string, k: number): void;
+  /**
+   * Round 14: the world's own obstacle pieces (Track.spawnObstacle: log_fallen_0, beam_lintel_0,
+   * pillar_topple_0, a leaning bough), placed across the route at `s`; null if the world has none.
+   */
+  spawnWorld?(kind: 'log' | 'pillar' | 'beam' | 'bough', s: number, seed: number): WorldPiece | null;
+  removeWorld?(o: WorldPiece): void;
+  /** The real 90° corners (turnL/turnR sections) starting in [s0, s1]: entry s, exit s, +1 left / −1 right. */
+  corners?(s0: number, s1: number): { s0: number; s1: number; dir: 1 | -1 }[];
+  /** True when [s0, s1] is a stepping section (separate slabs over open water). */
+  stepping?(s0: number, s1: number): boolean;
   /** How far behind the runner (along the route) the lens is, metres. */
   lensBack(): number;
   /** One of the game's run cues ('stones': rocks raining beside the way). */
@@ -128,6 +150,8 @@ interface Live {
   tick: (dt: number, ds: number) => boolean;
   /** An overhead piece: the world height of its underside while it stands (else null). */
   ceil?: () => number | null;
+  /** A world obstacle piece (removed through the host). */
+  world?: WorldPiece;
 }
 
 /** A move the runner owes a set piece: `at` is where the middle of the move (the apex) must be. */
@@ -164,7 +188,7 @@ export class ObstacleDirector {
   constructor(private h: ObstacleHost) {}
 
   reset(): void {
-    for (const l of this.live) for (const o of l.objs) this.h.remove(o);
+    for (const l of this.live) this.drop(l);
     this.live.length = 0;
     this.plans.length = 0;
     this.calmIn = 3;
@@ -187,18 +211,23 @@ export class ObstacleDirector {
     const s = this.h.s();
     for (let i = this.live.length - 1; i >= 0; i--) {
       const l = this.live[i]!;
-      if (l.s < s - 1 || l.objs.length === 0) {
+      const has = l.objs.length > 0 || !!l.world;
+      if (l.s < s - 1 || !has) {
         // Behind him: keep the objects, stop any animation (a slam or a roll would be staging).
-        if (l.objs.length) this.live[i] = { ...l, tick: (_dt, ds) => ds > -30 };
+        if (has) this.live[i] = { ...l, tick: (_dt, ds) => ds > -30 };
         else this.live.splice(i, 1);
         continue;
       }
-      for (const o of l.objs) {
-        this.h.dust(new THREE.Vector3().setFromMatrixPosition(o.matrixWorld), 0.5);
-        this.h.remove(o);
-      }
+      for (const o of l.objs) this.h.dust(new THREE.Vector3().setFromMatrixPosition(o.matrixWorld), 0.5);
+      if (l.world) this.h.dust(new THREE.Vector3().setFromMatrixPosition(l.world.root.matrixWorld), 0.6);
+      this.drop(l);
       this.live.splice(i, 1);
     }
+  }
+
+  private drop(l: Live): void {
+    for (const o of l.objs) this.h.remove(o);
+    if (l.world) this.h.removeWorld?.(l.world);
   }
 
   /** The lowest underside of a standing overhead piece within ~1 m of route distance `s`, or null. */
@@ -224,7 +253,7 @@ export class ObstacleDirector {
     for (let i = this.live.length - 1; i >= 0; i--) {
       const l = this.live[i]!;
       if (!l.tick(dt, l.s - s)) {
-        for (const o of l.objs) this.h.remove(o);
+        this.drop(l);
         this.live.splice(i, 1);
       }
     }
@@ -321,6 +350,10 @@ export class ObstacleDirector {
   // ---------------------------------------------------------------- pacing
 
   private spawn(tier: number): boolean {
+    // Stepping slabs ahead (separate slabs on piers over open water): they come apart under him.
+    const v = Math.max(4, this.h.speed());
+    const s = this.h.s();
+    if (this.h.stepping?.(s + v * 1.8, s + v * 3.5) && this.h.rng().chance(tier === 0 ? 0.5 : 0.8) && this.place('blocks', 2.5)) return true;
     const kind = pickPiece(this.h.rng(), tier);
     if (this.place(kind, 2.5)) return true;
     return kind !== 'log' && this.place('log', 2.5);
@@ -365,22 +398,52 @@ export class ObstacleDirector {
     return ok;
   }
 
-  /** Hard bends ahead: he cuts the corner, planting the outside foot (turn_cut_L/R). */
+  /**
+   * Corners ahead: at a real 90° corner (turnL/turnR) he plants the outside foot and cuts it
+   * (turn_cut_L/R), the plant landing as he enters the bend; on the gentler bend sections too.
+   */
   private turns(): void {
     const s = this.h.s();
     const v = Math.max(4, this.h.speed());
+    const c = this.h.corners?.(s + v * 0.9, s + v * 2.2)[0];
+    if (c) {
+      if (c.s0 - this.turnS < 6) return;
+      this.turnS = c.s0;
+      // A move already lined up right at the corner gives way: the corner is the beat.
+      this.plans = this.plans.filter((p) => Math.abs(p.at - c.s0) > v * 1.2);
+      this.plan(c.dir > 0 ? 'turn_cut_L' : 'turn_cut_R', c.s0 + 0.6, 2.25, {
+        onTake: () => {
+          this.h.sound('whoosh_jump', 0.35);
+          this.landDust(this.h.s(), 0.35);
+        },
+      });
+      this.fired.turn = (this.fired.turn ?? 0) + 1;
+      return;
+    }
     const a = s + v * 1.2;
     if (a - this.turnS < 14 || this.plans.length) return;
     const y0 = this.h.frameAt(a).yaw;
     const y1 = this.h.frameAt(a + 8).yaw;
     let d = y1 - y0;
     d = Math.atan2(Math.sin(d), Math.cos(d));
-    // The bend sections turn 0.28–0.5 rad over 8 m; a 90° corner (if the world adds one) far more.
+    // The bend sections turn 0.28–0.5 rad over 8 m.
     if (Math.abs(d) < 0.26) return;
     this.turnS = a;
     // Positive yaw turns the forward vector to the left.
     this.plan(d > 0 ? 'turn_cut_L' : 'turn_cut_R', a + 2, 2.25, { onTake: () => this.h.sound('whoosh_jump', 0.3) });
     this.fired.turn = (this.fired.turn ?? 0) + 1;
+  }
+
+  /** A world piece as a Live entry (the world trims it once far behind; we remove it when done). */
+  private liveWorld(kind: SetPiece, o: WorldPiece, tick: Live['tick'], ceil?: Live['ceil']): void {
+    this.live.push({
+      kind,
+      s: 0.5 * (o.sNear + o.sFar),
+      objs: [],
+      world: o,
+      ceil,
+      tick,
+    });
   }
 
   private placeAcross(o: THREE.Object3D, f: FrameAt, y: number) {
@@ -397,6 +460,19 @@ export class ObstacleDirector {
 
   private log(at: number): boolean {
     if (!this.h.clearRun(at - 3, at + 3)) return false;
+    const w = this.h.spawnWorld?.('log', at, this.h.rng().int(0, 9999));
+    if (w) {
+      this.plan('jump_log', at, 2.25, {
+        onTake: () => this.h.sound('whoosh_jump', 0.5),
+        onLand: () => {
+          this.landDust(this.h.s(), 0.5);
+          this.h.sound('land_heavy', 0.5);
+          this.h.shake(0.06);
+        },
+      });
+      this.liveWorld('log', w, (_dt, ds) => ds > -25);
+      return true;
+    }
     const f = this.h.frameAt(at);
     const bark = this.h.material('bark') ?? this.h.material('wood') ?? this.h.material('floor');
     const m = new THREE.Group();
@@ -439,6 +515,49 @@ export class ObstacleDirector {
 
   private beam(at: number): boolean {
     if (!this.h.clearRun(at - 3, at + 3)) return false;
+    const w = this.h.spawnWorld?.(this.tier >= 2 && this.h.rng().chance(0.4) ? 'bough' : 'beam', at, this.h.rng().int(0, 9999));
+    if (w) {
+      const f0 = this.h.frameAt(at);
+      // The member he slides under: the highest child (the lintel, or the bough's trunk).
+      const kids = w.root.children as THREE.Mesh[];
+      let top = 0;
+      kids.forEach((k, i) => {
+        if ((k.userData.centre as THREE.Vector3).y > (kids[top]!.userData.centre as THREE.Vector3).y) top = i;
+      });
+      const member = kids[top]!;
+      const c = (member.userData.centre as THREE.Vector3).clone();
+      const rest = w.rest[top]!.clone();
+      const slam = this.tier >= 1 && this.h.rng().chance(0.65);
+      let fall = -1;
+      const m = new THREE.Matrix4();
+      const tmp = new THREE.Matrix4();
+      this.plan('slide', at, 2.25, { onTake: () => this.h.sound('slide_scrape', 0.6) });
+      this.liveWorld(
+        'beam',
+        w,
+        (dt, ds) => {
+          // Near miss: once the lens is through too, the member slams down right behind it.
+          if (slam && fall < 0 && ds < -(this.h.lensBack() + 0.9)) fall = 0;
+          if (fall >= 0 && fall < 1) {
+            if (fall === 0) this.h.sound('wood_crack', 0.6);
+            fall = Math.min(1, fall + dt / 0.3);
+            const drop = (c.y - 0.4) * fall * fall;
+            // About its own centre: one end first, then flat on the slabs.
+            m.makeTranslation(c.x, c.y - drop, c.z).multiply(tmp.makeRotationZ(0.12 * Math.sin(fall * Math.PI))).multiply(tmp.makeTranslation(-c.x, -c.y, -c.z)).multiply(rest);
+            member.matrix.copy(m);
+            member.matrixWorldNeedsUpdate = true;
+            if (fall >= 1) {
+              this.h.dust(f0.pos, 1, f0.fwd.clone().multiplyScalar(3));
+              this.h.shake(0.3);
+              this.h.sound('land_heavy', 0.9);
+            }
+          }
+          return ds > -30;
+        },
+        () => (fall < 0 ? f0.pos.y + w.clearance : null),
+      );
+      return true;
+    }
     const f = this.h.frameAt(at);
     const g = new THREE.Group();
     const mat = this.h.material('stoneB') ?? this.h.material('floor');
@@ -489,6 +608,53 @@ export class ObstacleDirector {
 
   private pillar(at: number): boolean {
     if (!this.h.clearRun(at - 3, at + 3)) return false;
+    const w = this.h.spawnWorld?.('pillar', at, this.h.rng().int(0, 9999));
+    if (w) {
+      // The world lays the column across the way; it starts standing at one parapet and topples
+      // into that pose (about its foot), the rubble appearing as it lands.
+      const side = this.h.rng().chance(0.5) ? 1 : -1;
+      const hw = PATH_HALF + 0.6;
+      const F = w.root.matrix.clone();
+      const kids = w.root.children as THREE.Mesh[];
+      const column = kids.find((k) => /pillar_topple|column_fallen/.test(k.name)) ?? kids[0]!;
+      for (const k of kids) if (k !== column) k.visible = false;
+      const tmp = new THREE.Matrix4();
+      const pose = (theta: number, lift: number) => {
+        w.root.matrix.copy(F).multiply(tmp.makeTranslation(side * hw, lift, 0)).multiply(new THREE.Matrix4().makeRotationZ(theta)).multiply(tmp.makeTranslation(-side * hw, 0, 0));
+        w.root.matrixWorldNeedsUpdate = true;
+      };
+      const stand = -side * (Math.PI / 2);
+      pose(stand, -0.45);
+      const f = this.h.frameAt(at);
+      const v = Math.max(4, this.h.speed());
+      let t = -Math.max(0.05, (at - this.h.s()) / v - 1.5);
+      let landed = false;
+      this.plan('vault', at, 2.25, {
+        onTake: () => this.h.sound('whoosh_jump', 0.5),
+        onLand: () => {
+          this.landDust(this.h.s(), 0.4);
+          this.h.sound('land_heavy', 0.45);
+        },
+      });
+      this.liveWorld('pillar', w, (dt, ds) => {
+        t += dt;
+        if (t > -0.25 && t - dt <= -0.25) this.h.sound('stone_split', 0.5);
+        if (t > 0 && !landed) {
+          const k = Math.min(1, (t / 0.8) ** 2);
+          // Standing, its foot sits at floor level; lying, the world's pose (axis 0.45 m up).
+          pose(stand * (1 - k), -0.45 * (1 - k));
+          if (k >= 1) {
+            landed = true;
+            for (const c of kids) c.visible = true;
+            this.h.dust(f.pos.clone().addScaledVector(f.right, side * 0.5), 1);
+            this.h.shake(0.3);
+            this.h.sound('tree_fall', 0.8);
+          }
+        } else if (landed && t < 1.1) pose(-side * 0.05 * Math.sin((t - 0.8) * 30) * Math.exp(-(t - 0.8) * 9), 0);
+        return ds > -30;
+      });
+      return true;
+    }
     const geo = this.h.geometry('pillar_0');
     const mat = this.h.material('stoneB');
     if (!geo || !mat) return false;
