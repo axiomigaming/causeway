@@ -50,7 +50,7 @@
    "webm": {
     "file": "step_stone.webm",
     "bytes": 24576,
-    "hash": "82eedde594"
+    "hash": "b1cfc0dab0"
    },
    "m4a": {
     "file": "step_stone.m4a",
@@ -101,7 +101,7 @@
    "webm": {
     "file": "step_wood.webm",
     "bytes": 24988,
-    "hash": "2b4ce1c938"
+    "hash": "ba09472f5a"
    },
    "m4a": {
     "file": "step_wood.m4a",
@@ -152,7 +152,7 @@
    "webm": {
     "file": "step_gravel.webm",
     "bytes": 23744,
-    "hash": "5307f5dcaa"
+    "hash": "f6b65b4e56"
    },
    "m4a": {
     "file": "step_gravel.m4a",
@@ -203,7 +203,7 @@
    "webm": {
     "file": "step_wet.webm",
     "bytes": 29576,
-    "hash": "e0d21aa09e"
+    "hash": "a1f40b6510"
    },
    "m4a": {
     "file": "step_wet.m4a",
@@ -225,7 +225,7 @@
    "webm": {
     "file": "breath.webm",
     "bytes": 45173,
-    "hash": "f6b57ff480"
+    "hash": "3a44ddd3d6"
    },
    "m4a": {
     "file": "breath.m4a",
@@ -246,7 +246,7 @@
    "webm": {
     "file": "pant.webm",
     "bytes": 9907,
-    "hash": "5e8866d999"
+    "hash": "ae4d36243e"
    },
    "m4a": {
     "file": "pant.m4a",
@@ -268,7 +268,7 @@
    "webm": {
     "file": "bed_jungle.webm",
     "bytes": 150502,
-    "hash": "955e484a9d"
+    "hash": "371879aa32"
    },
    "m4a": {
     "file": "bed_jungle.m4a",
@@ -290,7 +290,7 @@
    "webm": {
     "file": "bed_insects.webm",
     "bytes": 130879,
-    "hash": "1f73110e3e"
+    "hash": "22a6462241"
    },
    "m4a": {
     "file": "bed_insects.m4a",
@@ -312,7 +312,7 @@
    "webm": {
     "file": "bed_waterfall.webm",
     "bytes": 93982,
-    "hash": "0455109c43"
+    "hash": "dd5d4c8bb1"
    },
    "m4a": {
     "file": "bed_waterfall.m4a",
@@ -334,7 +334,7 @@
    "webm": {
     "file": "bed_river.webm",
     "bytes": 93997,
-    "hash": "148153b05d"
+    "hash": "3309ba0aac"
    },
    "m4a": {
     "file": "bed_river.m4a",
@@ -356,7 +356,7 @@
    "webm": {
     "file": "bed_wind.webm",
     "bytes": 79465,
-    "hash": "edc66dd92a"
+    "hash": "025695a542"
    },
    "m4a": {
     "file": "bed_wind.m4a",
@@ -387,7 +387,7 @@
    "webm": {
     "file": "gust.webm",
     "bytes": 49853,
-    "hash": "de569ebb37"
+    "hash": "1bebbac8f2"
    },
    "m4a": {
     "file": "gust.m4a",
@@ -433,7 +433,7 @@
    "webm": {
     "file": "impact.webm",
     "bytes": 23361,
-    "hash": "fbd3c79e04"
+    "hash": "84f4a1294b"
    },
    "m4a": {
     "file": "impact.m4a",
@@ -464,7 +464,7 @@
    "webm": {
     "file": "slam.webm",
     "bytes": 13005,
-    "hash": "1f67d5f0ad"
+    "hash": "8631e25209"
    },
    "m4a": {
     "file": "slam.m4a",
@@ -495,7 +495,7 @@
    "webm": {
     "file": "grind.webm",
     "bytes": 29087,
-    "hash": "804b7dbf99"
+    "hash": "f4dfc4c8f5"
    },
    "m4a": {
     "file": "grind.m4a",
@@ -526,7 +526,7 @@
    "webm": {
     "file": "rumble.webm",
     "bytes": 104497,
-    "hash": "0aba7759bb"
+    "hash": "6c3beacc8a"
    },
    "m4a": {
     "file": "rumble.m4a",
@@ -567,7 +567,7 @@
    "webm": {
     "file": "rockfall.webm",
     "bytes": 116686,
-    "hash": "ed33272d3e"
+    "hash": "dfcfc56537"
    },
    "m4a": {
     "file": "rockfall.m4a",
@@ -598,7 +598,7 @@
    "webm": {
     "file": "crumble.webm",
     "bytes": 60212,
-    "hash": "bf4fbf2bca"
+    "hash": "450a9ddea6"
    },
    "m4a": {
     "file": "crumble.m4a",
@@ -629,7 +629,7 @@
    "webm": {
     "file": "splash_big.webm",
     "bytes": 38098,
-    "hash": "2be19b9784"
+    "hash": "2b1a5e37bb"
    },
    "m4a": {
     "file": "splash_big.m4a",
@@ -655,7 +655,7 @@
    "webm": {
     "file": "splash_small.webm",
     "bytes": 8327,
-    "hash": "fa4186e4f7"
+    "hash": "bf36aefb23"
    },
    "m4a": {
     "file": "splash_small.m4a",
@@ -696,7 +696,7 @@
    "webm": {
     "file": "debris.webm",
     "bytes": 48297,
-    "hash": "0c621a9ce4"
+    "hash": "e0991ba748"
    },
    "m4a": {
     "file": "debris.m4a",
@@ -727,7 +727,7 @@
    "webm": {
     "file": "dust.webm",
     "bytes": 39852,
-    "hash": "66addcd3e3"
+    "hash": "0d0914d4a8"
    },
    "m4a": {
     "file": "dust.m4a",
@@ -763,7 +763,7 @@
    "webm": {
     "file": "whoosh.webm",
     "bytes": 15379,
-    "hash": "c70c5c5b9e"
+    "hash": "7deab102ff"
    },
    "m4a": {
     "file": "whoosh.m4a",
@@ -799,7 +799,7 @@
    "webm": {
     "file": "coins.webm",
     "bytes": 15991,
-    "hash": "f9407554e1"
+    "hash": "6f558a8dd8"
    },
    "m4a": {
     "file": "coins.m4a",
@@ -825,7 +825,7 @@
    "webm": {
     "file": "sparkle.webm",
     "bytes": 37627,
-    "hash": "9e0bf9ed3c"
+    "hash": "5d63a80538"
    },
    "m4a": {
     "file": "sparkle.m4a",
@@ -846,7 +846,7 @@
    "webm": {
     "file": "swell.webm",
     "bytes": 26605,
-    "hash": "266c33b062"
+    "hash": "5e3cd61134"
    },
    "m4a": {
     "file": "swell.m4a",
@@ -887,7 +887,7 @@
    "webm": {
     "file": "ui_tap.webm",
     "bytes": 13708,
-    "hash": "c26a97dfc7"
+    "hash": "25705d5e7d"
    },
    "m4a": {
     "file": "ui_tap.m4a",
@@ -913,7 +913,7 @@
    "webm": {
     "file": "ui_tick.webm",
     "bytes": 4947,
-    "hash": "3c0340fd67"
+    "hash": "fe610e0e5f"
    },
    "m4a": {
     "file": "ui_tick.m4a",
@@ -939,7 +939,7 @@
    "webm": {
     "file": "ui_slide.webm",
     "bytes": 13102,
-    "hash": "14747ee3f8"
+    "hash": "9ec602fc54"
    },
    "m4a": {
     "file": "ui_slide.m4a",
@@ -960,7 +960,7 @@
    "webm": {
     "file": "ui_toggle.webm",
     "bytes": 2095,
-    "hash": "e5428688b6"
+    "hash": "79542d63f5"
    },
    "m4a": {
     "file": "ui_toggle.m4a",
@@ -991,7 +991,7 @@
    "webm": {
     "file": "m_taiko.webm",
     "bytes": 14317,
-    "hash": "4afda133b2"
+    "hash": "506a2d3f32"
    },
    "m4a": {
     "file": "m_taiko.m4a",
@@ -1022,7 +1022,7 @@
    "webm": {
     "file": "m_taiko_hi.webm",
     "bytes": 10597,
-    "hash": "a18cf0675f"
+    "hash": "81e4a4aa93"
    },
    "m4a": {
     "file": "m_taiko_hi.m4a",
@@ -1053,7 +1053,7 @@
    "webm": {
     "file": "m_frame.webm",
     "bytes": 12865,
-    "hash": "934015fc0c"
+    "hash": "255d46e11f"
    },
    "m4a": {
     "file": "m_frame.m4a",
@@ -1089,7 +1089,7 @@
    "webm": {
     "file": "m_pulse.webm",
     "bytes": 10326,
-    "hash": "0f77c9115b"
+    "hash": "87a32e922a"
    },
    "m4a": {
     "file": "m_pulse.m4a",
@@ -1130,7 +1130,7 @@
    "webm": {
     "file": "m_shaker.webm",
     "bytes": 9640,
-    "hash": "955888a52c"
+    "hash": "b91297ca22"
    },
    "m4a": {
     "file": "m_shaker.m4a",
@@ -1156,7 +1156,7 @@
    "webm": {
     "file": "m_djembe_bass.webm",
     "bytes": 7703,
-    "hash": "1555b229aa"
+    "hash": "9d741c02c4"
    },
    "m4a": {
     "file": "m_djembe_bass.m4a",
@@ -1187,7 +1187,7 @@
    "webm": {
     "file": "m_djembe_tone.webm",
     "bytes": 8009,
-    "hash": "62afa29eaf"
+    "hash": "5ad450cb51"
    },
    "m4a": {
     "file": "m_djembe_tone.m4a",
@@ -1218,7 +1218,7 @@
    "webm": {
     "file": "m_djembe_slap.webm",
     "bytes": 8200,
-    "hash": "87cab1e796"
+    "hash": "0edc234d3c"
    },
    "m4a": {
     "file": "m_djembe_slap.m4a",
@@ -1244,7 +1244,7 @@
    "webm": {
     "file": "m_boom.webm",
     "bytes": 41692,
-    "hash": "b1f2e9bf1e"
+    "hash": "2ef0b957b6"
    },
    "m4a": {
     "file": "m_boom.m4a",
@@ -1265,7 +1265,7 @@
    "webm": {
     "file": "m_gong.webm",
     "bytes": 59486,
-    "hash": "e7825049ef"
+    "hash": "25b2b9486d"
    },
    "m4a": {
     "file": "m_gong.m4a",
@@ -1287,7 +1287,7 @@
    "webm": {
     "file": "m_drone.webm",
     "bytes": 68267,
-    "hash": "6af040c1c1"
+    "hash": "bc53bef5bb"
    },
    "m4a": {
     "file": "m_drone.m4a",
@@ -1309,7 +1309,7 @@
    "webm": {
     "file": "m_strings.webm",
     "bytes": 16797,
-    "hash": "8f9832c236"
+    "hash": "9d652ccbdd"
    },
    "m4a": {
     "file": "m_strings.m4a",
@@ -1330,7 +1330,7 @@
    "webm": {
     "file": "ir_room.webm",
     "bytes": 38948,
-    "hash": "3c6fae53b3"
+    "hash": "a0be7d62a5"
    },
    "m4a": {
     "file": "ir_room.m4a",
@@ -1536,7 +1536,7 @@
    "slices": [
     [
      0,
-     16.0,
+     16,
      0.89
     ]
    ],
@@ -1632,7 +1632,7 @@
    "slices": [
     [
      0,
-     4.0,
+     4,
      0.4803
     ]
    ],

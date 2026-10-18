@@ -80,4 +80,13 @@ in `public/audio/CREDITS.txt`, which ships with the game.
 | `m_drone.webm`, `m_drone.m4a` | Low cello bass note | aarrnnoo | CC BY 4.0 | https://freesound.org/people/aarrnnoo/sounds/516188 |
 | `m_strings.webm`, `m_strings.m4a` | Low cello bass note | aarrnnoo | CC BY 4.0 | https://freesound.org/people/aarrnnoo/sounds/516188 |
 | `ir_room.webm`, `ir_room.m4a` | Impulse Response Church | jmuehlhans | CC0 1.0 (public domain dedication) | https://freesound.org/people/jmuehlhans/sounds/220752 |
+
+### The theme
+
+The composed score (`public/audio/th_*.webm`, `th_*.m4a`) is rendered by `tools/score/compose.py` from the
+MuseScore_General.sf3 SoundFont, version 0.2 (MIT; FluidR3 by Frank Wen, FluidR3Mono by Michael Cowgill,
+adaptation by S. Christian Collins, Temple Blocks by Ethan Winer, Drumline Cymbals by Michael Schorsch),
+source https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/, together with the recorded
+percussion and impulse response above. The SoundFont's full notice and MIT licence text ship in
+`public/audio/CREDITS.txt`.
 <!-- audio:end -->
