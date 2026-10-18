@@ -282,6 +282,7 @@ export class Game {
       shake: (k) => this.rig.addTrauma(k),
       sound: (name, k) => this.sounds.event?.(name, k),
       cue: (name, k) => this.dangerCue(name, k, this.prog.intensity),
+      lensBack: () => this.lensAlong(),
     });
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
@@ -1653,7 +1654,15 @@ export class Game {
       const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
       this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
     }
-    this.ceilDrop += (this.ceilWant - this.ceilDrop) * (1 - Math.exp(-dt * (this.ceilWant > this.ceilDrop ? 10 : 2.5)));
+    // A set piece overhead (a lintel he slides under): looked for every frame, a third of a second
+    // ahead, since at speed it passes the lens in a blink.
+    const sCam = this.s - this.lensAlong();
+    let want = this.ceilWant;
+    for (const ahead of [0, 0.15, 0.3]) {
+      const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
+      if (y !== null) want = Math.max(want, cam.position.y + this.ceilDrop - (y - 0.4));
+    }
+    this.ceilDrop += (want - this.ceilDrop) * (1 - Math.exp(-dt * (want > this.ceilDrop ? 14 : 2.5)));
     if (this.ceilDrop < 1e-3) return;
     const p = cam.position;
     const floor = this.track.path.sample(this.s).pos.y + 0.5;
@@ -1665,6 +1674,14 @@ export class Game {
     look.y -= drop * 0.35;
     cam.lookAt(look);
     cam.updateMatrixWorld();
+  }
+
+  /** How far behind the runner, along his heading, the lens is (m; negative when it is ahead). */
+  private lensAlong(): number {
+    const p = this.rig.camera.position;
+    const r = this.runner.root.position;
+    const ry = this.runner.root.rotation.y;
+    return -((p.x - r.x) * -Math.sin(ry) + (p.z - r.z) * -Math.cos(ry));
   }
 
   private guardCamera(): void {

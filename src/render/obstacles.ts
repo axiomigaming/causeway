@@ -61,6 +61,21 @@ export function wrapCycle(err: number, period: number): number {
   return err - period * Math.round(err / period);
 }
 
+/** A box with UVs in metres / 1.5 (kit textures tile about every 1.5 m), not stretched per face. */
+function boxUV(w: number, h: number, d: number): THREE.BoxGeometry {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const uv = g.getAttribute('uv') as THREE.BufferAttribute;
+  // Face order: +x, −x, +y, −y, +z, −z (4 vertices each): (u, v) spans (d, h), (w, d), (w, h).
+  const dims: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++)
+    for (let k = 0; k < 4; k++) {
+      const i = f * 4 + k;
+      uv.setXY(i, (uv.getX(i) * dims[f]![0]) / 1.5, (uv.getY(i) * dims[f]![1]) / 1.5);
+    }
+  uv.needsUpdate = true;
+  return g;
+}
+
 export interface FrameAt {
   pos: THREE.Vector3;
   yaw: number;
@@ -99,6 +114,8 @@ export interface ObstacleHost {
   dust(at: THREE.Vector3, k: number, vel?: THREE.Vector3): void;
   shake(k: number): void;
   sound(name: string, k: number): void;
+  /** How far behind the runner (along the route) the lens is, metres. */
+  lensBack(): number;
   /** One of the game's run cues ('stones': rocks raining beside the way). */
   cue(name: 'stones', k: number): void;
 }
@@ -109,6 +126,8 @@ interface Live {
   objs: THREE.Object3D[];
   /** Per-frame animation; returns false when the piece is done (behind and settled). */
   tick: (dt: number, ds: number) => boolean;
+  /** An overhead piece: the world height of its underside while it stands (else null). */
+  ceil?: () => number | null;
 }
 
 /** A move the runner owes a set piece: `at` is where the middle of the move (the apex) must be. */
@@ -180,6 +199,17 @@ export class ObstacleDirector {
       }
       this.live.splice(i, 1);
     }
+  }
+
+  /** The lowest underside of a standing overhead piece within ~1 m of route distance `s`, or null. */
+  ceilingAt(s: number): number | null {
+    let best: number | null = null;
+    for (const l of this.live) {
+      if (!l.ceil || Math.abs(l.s - s) > 1.1) continue;
+      const y = l.ceil();
+      if (y !== null && (best === null || y < best)) best = y;
+    }
+    return best;
   }
 
   /** True while a move is lined up or in the air (other beats — hops, ducks, glances — hold off). */
@@ -265,7 +295,9 @@ export class ObstacleDirector {
     const apex = 0.5 * (T.takeoff + T.land);
     const period = 1 / Math.max(0.5, g.cadence);
     const from = OBSTACLES[p.name].from;
-    const wait = from < 0 ? 0 : (((from - g.phase + 1) % 1) + 1) % 1 * period;
+    let wait = from < 0 ? 0 : ((((from - g.phase + 1) % 1) + 1) % 1) * period;
+    // Mirror runner.obstacle(): a foot that has only just passed (or is about to) starts the move now.
+    if (wait < 0.01 || wait > 0.98 * period) wait = 0;
     const err = eta - apex - wait;
     if (err <= 0.5 * period && g.running) {
       const w = this.h.obstacle(p.name, p.dist);
@@ -409,11 +441,11 @@ export class ObstacleDirector {
     const mat = this.h.material('stoneB') ?? this.h.material('floor');
     // Underside at 1.22 m: the slide clears 1.05 m.
     const top = 1.47;
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.5, 0.7), mat);
+    const beam = new THREE.Mesh(boxUV(5.6, 0.5, 0.7), mat);
     beam.position.y = top;
     beam.rotation.z = this.h.rng().range(-0.05, 0.05);
     const posts = [-2.6, 2.6].map((x) => {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, top - 0.25, 0.6), mat);
+      const p = new THREE.Mesh(boxUV(0.55, top - 0.25, 0.6), mat);
       p.position.set(x, (top - 0.25) / 2, 0);
       return p;
     });
@@ -425,16 +457,15 @@ export class ObstacleDirector {
     this.h.add(g);
     const slam = this.tier >= 1 && this.h.rng().chance(0.65);
     let fall = -1;
-    this.plan('slide', at, 2.25, {
-      onTake: () => this.h.sound('slide_scrape', 0.6),
-      onLand: () => {
-        // Near miss: right after he is through, the lintel slams down onto the floor behind him.
-        if (slam) fall = 0;
-      },
-    });
+    this.plan('slide', at, 2.25, { onTake: () => this.h.sound('slide_scrape', 0.6) });
     this.live.push({
       kind: 'beam', s: at, objs: [g],
+      // While it stands, the lens (which follows a couple of metres behind him) must duck under it too.
+      ceil: () => (fall < 0 ? f.pos.y + top - 0.25 : null),
       tick: (dt, ds) => {
+        // Near miss: once the lens is through as well, the lintel slams down right behind it — the
+        // crack, the jolt and the dust rolling forward past the lens (it would crush the lens before).
+        if (slam && fall < 0 && ds < -(this.h.lensBack() + 0.9)) fall = 0;
         if (fall >= 0 && fall < 1) {
           if (fall === 0) this.h.sound('wood_crack', 0.6);
           fall = Math.min(1, fall + dt / 0.3);
@@ -442,8 +473,8 @@ export class ObstacleDirector {
           beam.rotation.z += dt * 0.5;
           for (const p of posts) p.rotation.z = (p.position.x > 0 ? -1 : 1) * 0.35 * fall;
           if (fall >= 1) {
-            this.h.dust(f.pos, 0.9);
-            this.h.shake(0.25);
+            this.h.dust(f.pos, 1, f.fwd.clone().multiplyScalar(3));
+            this.h.shake(0.3);
             this.h.sound('land_heavy', 0.9);
           }
         }
