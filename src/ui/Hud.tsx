@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { countUp, heatOf, milestoneCrossed, milestoneLabel, tierOf } from '../audio/feedback';
+import { TIER_PULSE_EVENT, type TierPulseDetail } from './pulse';
 import { formatCredits, formatMult } from '../engine/money';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
@@ -114,7 +115,35 @@ export function Hud() {
       if (st.phase === 'running' || st.phase === 'cashing') prev.current.m = Math.max(prev.current.m, m);
     };
     tick();
-    return () => cancelAnimationFrame(raf);
+    // Tier-up pulse (see ./pulse): the progression director calls tierPulse(); only a live run answers.
+    const onPulse = (e: Event) => {
+      const st = useStore.getState();
+      if (st.phase !== 'running' && st.phase !== 'cashing') return;
+      const el = glowRef.current;
+      if (!el) return;
+      const k = Math.max(0.3, Math.min(1.5, (e as CustomEvent<TierPulseDetail>).detail?.strength ?? 1));
+      if (full) {
+        el.classList.remove('tier-pulse');
+        void el.offsetWidth; // restart the ring
+        el.classList.add('tier-pulse');
+        window.setTimeout(() => el.classList.remove('tier-pulse'), 760);
+      }
+      el.animate(
+        full
+          ? [
+              { transform: 'scale(1)', filter: 'brightness(1)' },
+              { transform: `scale(${(1 + 0.09 * k).toFixed(3)})`, filter: `brightness(${(1 + 0.45 * k).toFixed(2)})`, offset: 0.22 },
+              { transform: 'scale(1)', filter: 'brightness(1)' },
+            ]
+          : [{ filter: 'brightness(1)' }, { filter: 'brightness(1.3)', offset: 0.3 }, { filter: 'brightness(1)' }],
+        { duration: 620, easing: EASE },
+      );
+    };
+    window.addEventListener(TIER_PULSE_EVENT, onPulse);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener(TIER_PULSE_EVENT, onPulse);
+    };
   }, [ctl, motion]);
 
   const held = phase === 'result' && hold && !!result;
