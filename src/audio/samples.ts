@@ -21,6 +21,9 @@ export interface ManifestSound {
   /** [start s, duration s, peak 0..1] per variant, in the source PCM before encoding. */
   slices: [number, number, number][];
   loop?: boolean;
+  /** Theme stems: tempo and length in bars (tools/score/compose.py). */
+  bpm?: number;
+  bars?: number;
   webm: ManifestFile;
   m4a: ManifestFile;
 }
@@ -151,6 +154,11 @@ export class SampleBank {
 
   has(name: string): boolean {
     return this.loaded.has(name);
+  }
+
+  /** Extra manifest fields of a sound (the theme's bpm and bars). */
+  meta(name: string): { bpm?: number; bars?: number } | undefined {
+    return this.manifest.sounds[name];
   }
 
   /** For tests and offline renders: put an already-decoded sound in the bank. */

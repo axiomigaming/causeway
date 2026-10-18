@@ -4,6 +4,7 @@
 //
 //   npx vite --port 5196 &   (or vite preview)
 //   URL=http://localhost:5196 SECONDS=60 node tools/capture-audio.mjs out/capture
+//   SEED=music-253 TARGETS=2.6,0,0 ...   (tools/score/find-seed.ts: a cash-out, a run through every tier, a fall)
 //
 // Writes <out>.webm (Opus, as recorded), <out>.cues.json ([{t, id, label}]) and <out>.log.json.
 // Rounds: enter, then RUN with cash-outs at varied points (some rounds are left to fall), mute and
@@ -22,12 +23,13 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${URL}/?q=low&seed=audio-capture&qa`);
+await page.goto(`${URL}/?q=low&seed=${process.env.SEED ?? 'audio-capture'}&qa`);
 await page.waitForSelector('.title-actions .btn-cta', { timeout: 300000 });
-await page.click('.title-actions .btn-cta');
+// The enter button animates continuously (never 'stable' for Playwright): click it through the DOM.
+await page.$eval('.title-actions .btn-cta', (b) => b.click());
 await page.waitForFunction(() => window.__store.getState().phase === 'setup', null, { timeout: 60000 });
 // Give the lazy groups (beds, score) time to arrive and decode, as a player reading the title would.
-await page.waitForFunction(() => window.__ctl.audio.hasSample('m_pulse') && window.__ctl.audio.hasSample('bed_jungle'), null, { timeout: 60000 }).catch(() => console.warn('beds/score not loaded: capture uses what is ready'));
+await page.waitForFunction(() => window.__ctl.audio.hasSample('m_pulse') && window.__ctl.audio.hasSample('bed_jungle') && window.__ctl.audio.nextDownbeat() !== null, null, { timeout: 90000 }).catch(() => console.warn('beds/score not loaded: capture uses what is ready'));
 
 await page.evaluate(() => {
   const a = window.__ctl.audio;
@@ -53,7 +55,9 @@ const t0 = Date.now();
 const elapsed = () => (Date.now() - t0) / 1000;
 const phase = () => page.evaluate(() => window.__store.getState().phase);
 const mark = (label) => page.evaluate((l) => window.__rec.cues.push({ t: +((performance.now() - window.__rec.t0) / 1000).toFixed(3), id: `qa:${window.__rec.cues.length}`, label: l }), label);
-const targets = [1.5, 1.3, 1.6, 0, 1.25, 2.2, 1.4, 0];
+// Cash-out targets per round (0 = let it fall); TARGETS=2.6,0,0 overrides.
+const QA = process.env.QA !== '0'; // mute/unmute and tab hide/show steps
+const targets = process.env.TARGETS ? process.env.TARGETS.split(',').map(Number) : [1.5, 1.3, 1.6, 0, 1.25, 2.2, 1.4, 0];
 let round = 0;
 while (elapsed() < SECONDS - 4) {
   const p = await phase();
@@ -67,7 +71,7 @@ while (elapsed() < SECONDS - 4) {
   const target = targets[round % targets.length];
   round++;
   await page.waitForFunction(() => ['running', 'result'].includes(window.__store.getState().phase), null, { timeout: 20000 }).catch(() => {});
-  if (round === 2) {
+  if (QA && round === 2) {
     await page.waitForTimeout(1200);
     await mark('mute');
     await page.evaluate(() => window.__store.getState().setSettings({ muted: true }));
@@ -86,7 +90,7 @@ while (elapsed() < SECONDS - 4) {
     await page.waitForTimeout(50);
   }
   await page.waitForFunction(() => window.__store.getState().phase === 'result', null, { timeout: 120000 }).catch(() => {});
-  if (round === 4) {
+  if (QA && round === 4) {
     // Tab hidden and back: the context suspends and resumes.
     await mark('hidden');
     await page.evaluate(() => {
