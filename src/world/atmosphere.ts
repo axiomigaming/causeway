@@ -39,9 +39,18 @@ export const ATMOSPHERE: AtmosphereOptions = {
 /** Shared by reference into every fogged program. Update the fields, never replace the objects. */
 export const atmosphereUniforms = {
   fogSunDir: { value: { x: 0.3, y: 0.35, z: -0.88 } },
-  /** x: time (s), y: mist density scale (0 = off), z, w: unused. */
+  /** x: time (s), y: mist density scale (0 = off), z: unused, w: overcast (0 clear .. 1: no warm sun glow in the haze). */
   fogMist: { value: { x: 0, y: 1, z: 0, w: 0 } },
+  /** Round 11 looks: the sky's final tint (xyz) and desaturation (w), e.g. a storm's slate overcast. */
+  skyLook: { value: { x: 1, y: 1, z: 1, w: 0 } },
 };
+
+export function setSkyLook(tint: readonly [number, number, number], desat: number, overcast = 0): void {
+  const v = atmosphereUniforms.skyLook.value;
+  [v.x, v.y, v.z] = tint;
+  v.w = desat;
+  atmosphereUniforms.fogMist.value.w = overcast;
+}
 
 let installed = false;
 
@@ -125,7 +134,7 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
     float fogSun = max(dot(fogDir, fogSunDir), 0.0);
     // Warm only close around the sun: a broad warm in-scatter laid a milky veil over every
     // sun-facing frame (round 5).
-    vec3 fogCol = mix(fogColor, ${glslVec3(sun)}, pow(fogSun, 18.0) * 0.35);
+    vec3 fogCol = mix(fogColor, ${glslVec3(sun)}, pow(fogSun, 18.0) * 0.35 * (1.0 - fogMist.w));
     // Far away the haze thickens to the sky's own horizon colour.
     gl_FragColor.rgb = mix(gl_FragColor.rgb, fogCol, clamp(fogFactor, 0.0, 0.86));
     if (fogMist.y > 0.0) {
@@ -136,7 +145,7 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
       vec3 fogP = cameraPosition + fogW;
       float bank = 0.55 + 0.45 * sin(fogP.x * 0.07 + fogMist.x * 0.11) * sin(fogP.z * 0.05 - fogMist.x * 0.07 + 1.3);
       float mist = (1.0 - exp(-mOpt * bank)) * 0.5;
-      vec3 mistCol = mix(vec3(0.84, 0.89, 0.87), ${glslVec3(sun)} * 1.05, pow(fogSun, 6.0) * 0.5);
+      vec3 mistCol = mix(mix(vec3(0.84, 0.89, 0.87), ${glslVec3(sun)} * 1.05, pow(fogSun, 6.0) * 0.5 * (1.0 - fogMist.w)), fogColor * 1.25, fogMist.w * 0.7);
       gl_FragColor.rgb = mix(gl_FragColor.rgb, mistCol, mist);
     }
   #else
@@ -161,8 +170,9 @@ function installSkyGrade(): void {
   const bc = THREE.ShaderLib.backgroundCube as { uniforms: Record<string, { value: unknown }>; fragmentShader: string };
   if (bc.uniforms.skySun) return;
   bc.uniforms.skySun = { value: atmosphereUniforms.fogSunDir.value };
+  bc.uniforms.skyLook = { value: atmosphereUniforms.skyLook.value };
   bc.fragmentShader = bc.fragmentShader
-    .replace('uniform float backgroundIntensity;', 'uniform float backgroundIntensity;\nuniform vec3 skySun;')
+    .replace('uniform float backgroundIntensity;', 'uniform float backgroundIntensity;\nuniform vec3 skySun;\nuniform vec4 skyLook;')
     .replace(
       'texColor.rgb *= backgroundIntensity;',
       `texColor.rgb *= backgroundIntensity;
@@ -175,6 +185,9 @@ function installSkyGrade(): void {
         // Round 10: further toward teal-blue (portrait frames are 35–45 % sky).
         texColor.rgb = mix(texColor.rgb, skyL * vec3(0.5, 0.9, 1.5), zen * 0.85) * (1.0 - zen * 0.2);
         texColor.rgb *= mix(vec3(1.0), vec3(1.07, 1.0, 0.88), pow(skyToSun, 3.0) * (1.0 - skyEl));
+        // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
+        float skyL2 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        texColor.rgb = mix(texColor.rgb, vec3(skyL2), skyLook.w) * skyLook.xyz;
       }`,
     );
 }

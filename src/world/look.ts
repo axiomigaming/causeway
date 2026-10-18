@@ -26,6 +26,18 @@ export interface Look {
   mist: number;
   /** Multiplier on the stone materials' albedo (a gentle per-look palette shift). */
   stoneTint: [number, number, number];
+  /** Sky panorama after its grade: rgb multiplier and how far it is drained of colour (0..1). */
+  skyTint?: [number, number, number];
+  skyDesat?: number;
+  /** Sun disc brightness (0: hidden behind cloud) and how dark the sun's shadows are (0..1). */
+  sunDisc?: number;
+  shadow?: number;
+  /** Multiplier on the wind in the foliage; rain-wet sheen on every stone (0..1); rain streaks (0..1). */
+  wind?: number;
+  wet?: number;
+  rain?: number;
+  /** Lightning flashes per minute (0: none). */
+  lightning?: number;
 }
 
 export const LOOKS: Look[] = [
@@ -53,11 +65,16 @@ export const LOOKS: Look[] = [
     stoneTint: [1.04, 0.98, 0.92],
   },
   {
-    // Storm light: a dim, grey-green sky, the sun breaking through weakly, the air heavy.
+    // Storm: an overcast slate-blue sky, no sun disc, a flat cool key with soft shadows, the jungle
+    // thrashing in the wind, every stone rain-dark and glossy, rain streaks and the odd flash of
+    // lightning. It must not read as the clear day with a filter.
     name: 'storm',
-    sun: 0xffe2bc, sunI: 7, fillI: 0.9,
-    hemiSky: 0x8aa6a4, hemiGround: 0x5a5044, hemiI: 0.6, envI: 0.24, skyI: 0.6,
-    fog: 0x687c80, fogDensity: 0.0044, mist: 1.8,
-    stoneTint: [0.93, 0.95, 0.96],
+    sun: 0xb9c8d8, sunI: 4.2, fillI: 0.7,
+    hemiSky: 0x7f93a6, hemiGround: 0x3e3a34, hemiI: 1.05, envI: 0.3, skyI: 0.5,
+    fog: 0x56677a, fogDensity: 0.0062, mist: 2.4,
+    stoneTint: [0.76, 0.81, 0.9],
+    skyTint: [0.62, 0.72, 0.86], skyDesat: 0.75,
+    sunDisc: 0, shadow: 0.35,
+    wind: 2.6, wet: 0.75, rain: 1, lightning: 5,
   },
 ];
