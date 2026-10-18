@@ -39,6 +39,7 @@ const VARIANTS: Record<SectionType, number> = {
   ledge: 2,
   turnL: 2,
   turnR: 2,
+  stepping: 2,
 };
 
 interface Variant {
@@ -460,6 +461,16 @@ export class Track {
       }
     }
     return out;
+  }
+
+  /**
+   * Round 11, for the obstacle director: the separable causeway slabs in [sFrom, sTo] (live 4 m floor
+   * tiles; not the plaza slabs or stairs). Each has its world matrix and s-span: hide it with
+   * hideTile() and animate a debris copy of `piece` from `world` (drifting apart, tilting, sinking).
+   * The 'stepping' sections are built for this: every slab on its own pier over open water.
+   */
+  slabsIn(sFrom: number, sTo: number): TileSlot[] {
+    return this.tilesIn(sFrom, sTo).filter((t) => t.piece !== 'floor_wide_0' && !t.piece.startsWith('stairs'));
   }
 
   /** The live tile under arc length `s`, if any. */

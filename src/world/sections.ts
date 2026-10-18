@@ -31,7 +31,8 @@ export type SectionType =
   | 'colossi'
   | 'ledge'
   | 'turnL'
-  | 'turnR';
+  | 'turnR'
+  | 'stepping';
 
 export interface Placement {
   piece: string;
@@ -565,6 +566,36 @@ function turnCorner(b: Builder): ReturnType<Build> {
 
 const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
   turnL: { lengths: [TURN_LEN], build: (b) => turnCorner(b) },
+  stepping: {
+    // Round 11: the causeway as separate slabs over open water — each 4 m slab on its own pier, no
+    // parapet, foam churning in every joint — so the obstacle director can set them drifting apart
+    // and sinking (Track.slabsIn).
+    lengths: [16, 20],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.1, 0);
+      for (let i = 0; i <= n; i++) {
+        const z = -TILE * i;
+        for (const side of [-1, 1]) {
+          if (i < n) b.foam(side, PATH_HALF + 0.3, z, TILE);
+          // A broken pier stump under each joint, a block or two tumbled into the water.
+          if (i < n) b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
+          if (b.rng.chance(0.35)) b.place(`rubble_${b.rng.int(0, 3)}`, side * b.rng.range(2.8, 4.2), WL + 0.1, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28));
+          if (b.rich && b.foliage(0.3)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 7), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
+        }
+        b.foamRing(0, z, 2.6);
+      }
+      for (let z = -b.rng.range(3, 6); z > -len; z -= b.rng.range(7, 10)) {
+        const side = b.rng.chance(0.5) ? -1 : 1;
+        const x = side * b.rng.range(3.4, 4.4);
+        b.place(`rock_mid_${b.rng.int(0, 2)}`, x, WL + 0.3, z, b.rng.range(0, 6.28), [0.5, 0.4, 0.5]);
+        b.foamRing(x, z, 1.1);
+      }
+      scenery(b, len, { minX: 9 });
+      vista(b, len, ['arch', 'guardians', 'towers', 'falls'], 0.5);
+      return { hazards: ['chasm'], walls: 'none' };
+    },
+  },
   turnR: { lengths: [TURN_LEN], build: (b) => turnCorner(b) },
   start: {
     lengths: [12],
@@ -1307,6 +1338,7 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['colossi', 1.1],
     ['ledge', 1.1 + 0.6 * intensity],
     // Real corners: more often as the run builds (the director's turns are part of the crescendo).
+    ['stepping', 0.8 + 0.6 * intensity],
     ['turnL', 0.9 + 0.6 * intensity],
     ['turnR', 0.9 + 0.6 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
