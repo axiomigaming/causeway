@@ -22,6 +22,7 @@ import { milestoneApproach, tierOf, type Tier } from './feedback';
 import { SampleBank, SamplePlayer, type PlayOpts, type Voice } from './samples';
 import { ScorePlayer } from './score';
 import { ThemePlayer } from './theme';
+import { worldMood } from '../world/mood';
 import { bedMix, mulberry32, resolveSfx, surfaceFor, voiceCap, type Bed } from './select';
 
 type Scene = 'title' | 'setup' | 'lead' | 'run' | 'escaped' | 'fallen';
@@ -128,6 +129,7 @@ export class AudioEngine implements WorldSounds {
   private strings: Voice | null = null;
   private windBed: Voice | null = null;
   private nextGust = 0;
+  private lastGust = 0;
   /** Cosmetic randomness for variation only (never game state). */
   private rnd = mulberry32((Date.now() ^ 0x5eed) >>> 0);
 
@@ -893,6 +895,9 @@ export class AudioEngine implements WorldSounds {
         this.nextGust = t + (running ? 5 : 9) + this.rnd() * (running ? 7 : 12);
       }
     }
+    // The world's tier-up gust (world/mood.ts: the foliage thrashes, leaves fly): a recorded gust with it.
+    if (worldMood.gust > 0.5 && this.lastGust <= 0.5) this.sample('gust', { strength: 0.5 + 0.5 * worldMood.gust, pan: this.rnd() * 0.6 - 0.3 });
+    this.lastGust = worldMood.gust;
     // Breathing: heavy once the run turns into a sprint (2× and up, the same tier the runner sprints at),
     // closer and louder with the multiplier on screen. Silent otherwise.
     const sprint = running && this.scene === 'run' && tierOf(this.mult) >= 1;
