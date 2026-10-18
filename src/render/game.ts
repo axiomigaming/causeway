@@ -305,6 +305,7 @@ export class Game {
     this.sunDisc.visible = (L.sunDisc ?? 1) > 0;
     this.sun.shadow.intensity = L.shadow ?? 1;
     causticUniforms.uRainWet.value = L.wet ?? 0;
+    this.post.lookExposure = L.name === 'storm' ? 1.14 : 1;
   }
 
   private moodSun = new THREE.Color();

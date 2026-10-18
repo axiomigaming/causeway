@@ -794,6 +794,12 @@ export class Post {
   private invVP = new THREE.Matrix4();
   private hasPrev = false;
   private flareOn = true;
+  /**
+   * Per time-of-day look (round 13): the overcast storm lands ~30 % darker than the clear looks
+   * (mean 0.24 vs 0.31–0.35 on desktop High, runner contrast 0.13 vs 0.21); a modest lift keeps it
+   * moody but readable, on phone Low too. Clear looks stay at 1 (none clips).
+   */
+  lookExposure = 1;
   private near = -1;
   private exposureK = 1;
 
@@ -919,7 +925,7 @@ export class Post {
     // The frame closes in as the multiplier climbs.
     this.vignette.darkness = 0.5 + p.speed * 0.2 + p.cold * 0.25 + tension * 0.3;
     this.vignette.offset = 0.28 - tension * 0.08;
-    if (this.lens) this.lens.uniforms.get('exposure')!.value = EXPOSURE * this.exposureK * (1 - 0.12 * p.cold);
+    if (this.lens) this.lens.uniforms.get('exposure')!.value = EXPOSURE * this.exposureK * this.lookExposure * (1 - 0.12 * p.cold);
   }
 
   /** Place the shafts and the flare on the sun disc (found by name in the scene), fading as it leaves the frame. */
