@@ -205,7 +205,9 @@ mats = {
     "flora": (MS.flora("flora"), 1024),
     "cliff": (MS.cliff("cliff"), 2048),
     "gold": (M.gold("gold"), 1024),
-    "temple": (M.stone("temple", moss=0.5, glyphs=False), 512),  # far pieces; keeps the High set under budget
+    # Round 11: 1024, not 512: at 512 the thousands of block faces of the pyramids and the face gate
+    # packed to islands smaller than a texel and baked to nothing (the gate shipped flat black, then white).
+    "temple": (M.stone("temple", moss=0.5, glyphs=False), 1024),
 }
 # The gate and stelae carry carved glyphs: give them their own small atlas.
 glyph_objs = [o for o in groups["stoneB"] if o.name.startswith(("gate_", "stele_"))]
