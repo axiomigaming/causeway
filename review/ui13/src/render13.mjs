@@ -8,7 +8,7 @@ const require = createRequire('/home/user/branchfall/.claude/worktrees/agent-aeb
 const { chromium } = require('playwright-core');
 const here = path.dirname(fileURLToPath(import.meta.url));
 const [C = '1', ...want] = process.argv.slice(2);
-const PHONE = ['setup', 'pressed', 'hover', 'focus', 'disabled', 'low', 'high', 'escaped', 'fell'];
+const PHONE = ['setup', 'pressed', 'hover', 'focus', 'disabled', 'low', 'high', 'huge', 'escaped', 'fell'];
 const DESK = ['setup', 'pressed', 'low', 'high', 'escaped', 'fell'];
 fs.mkdirSync(`${here}/out13`, { recursive: true });
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--allow-file-access-from-files'] });

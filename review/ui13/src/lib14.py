@@ -40,6 +40,7 @@ SAMPLES = int(os.environ.get("SAMPLES", "96"))
 def stage(w, h, pad=20, scale=S, catcher=True, world=True):
     """Fresh scene framing the CSS rect (0,0)-(w,h) plus `pad` on every side."""
     sc = reset()
+    _FONTS.clear()  # the factory reset frees every loaded font
     sc.cycles.samples = SAMPLES
     sc.cycles.use_denoising = True
     sc.cycles.denoiser = "OPENIMAGEDENOISE"
@@ -89,10 +90,10 @@ def sun(strength=2.2, el=55, az=135, angle=10, color=(1.0, 0.93, 0.82), name="ke
     return ob
 
 
-def rig(key=2.2, rim=0.9, fill=0.35):
+def rig(key=2.2, rim=0.9, fill=0.85):
     """Key from the upper left (casts the contact shadow), cool rim from the lower right that
     catches the far bevels, a weak warm fill so nothing goes black."""
-    sun(key, el=52, az=135, angle=9, name="key")
+    sun(key, el=58, az=135, angle=24, name="key")
     sun(rim, el=18, az=-45, angle=4, color=(0.80, 0.88, 1.0), name="rim")
     sun(fill, el=70, az=-120, angle=30, color=(1.0, 0.85, 0.65), name="fill")
 
@@ -116,6 +117,41 @@ def card(y_top, y_bot, stops, strength=1.0, z=36, extent=4000, x_c=0.0):
     L(nt, em.outputs[0], out.inputs["Surface"])
     ob = plane("card", x_c - extent, -extent, x_c + extent, extent, z, m)
     ob.location = (0, 0, 0)
+    ob.visible_camera = False
+    ob.visible_diffuse = False
+    ob.visible_shadow = False
+    ob.visible_volume_scatter = False
+    return ob
+
+
+def glint(x0, y0, x1, y1, z=24, strength=10.0, col=(1.0, 0.96, 0.88, 1)):
+    """A small hot strip seen only in reflections: the window-light streak on glossy obsidian and
+    the sparkle on the gold beads."""
+    m = bpy.data.materials.new("glint")
+    m.use_nodes = True
+    nt = m.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    out = N(nt, "ShaderNodeOutputMaterial")
+    em = N(nt, "ShaderNodeEmission")
+    em.inputs["Color"].default_value = col
+    # soft elliptical falloff: brightest at the centre, nothing at the plane's edges
+    tc = N(nt, "ShaderNodeTexCoord")
+    mp = N(nt, "ShaderNodeMapping")
+    cx, cy = (x0 + x1) / 2, -(y0 + y1) / 2
+    mp.inputs["Location"].default_value = (-cx * 2 / (x1 - x0), -cy * 2 / (y1 - y0), 0)
+    mp.inputs["Scale"].default_value = (2 / (x1 - x0), 2 / (y1 - y0), 1)
+    L(nt, tc.outputs["Object"], mp.inputs["Vector"])
+    ln = N(nt, "ShaderNodeVectorMath", _operation="LENGTH")
+    L(nt, mp.outputs["Vector"], ln.inputs[0])
+    fall = maprange(nt, ln.outputs["Value"], 0.15, 1.0, strength, 0.0)
+    L(nt, fall, em.inputs["Strength"])
+    tr = N(nt, "ShaderNodeBsdfTransparent")
+    add = N(nt, "ShaderNodeAddShader")
+    L(nt, tr.outputs[0], add.inputs[0])
+    L(nt, em.outputs[0], add.inputs[1])
+    L(nt, add.outputs[0], out.inputs["Surface"])
+    ob = plane("glint", x0, y0, x1, y1, z, m)
     ob.visible_camera = False
     ob.visible_diffuse = False
     ob.visible_shadow = False
@@ -242,6 +278,86 @@ OXBLOOD = ("#250b06", "#3a130a", "#4a1a0e")
 ASH = ("#2a2826", "#353230", "#423e3a")
 
 
+
+def carved(name="carved", palette=("#4d3d2d", "#7b6448", "#a88d68"), grime=1.0, wear=1.0, scale=1.0, pits=1.0):
+    """Carved stone with weight: tonal mottling, fine grain, pitting, strong grime in every crevice
+    (AO) and lighter worn convex edges (pointiness), so bevels and chips model in the light."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    bs = nt.nodes["Principled BSDF"]
+    tc = N(nt, "ShaderNodeTexCoord")
+    n1 = N(nt, "ShaderNodeTexNoise")
+    n1.inputs["Scale"].default_value = 0.035 / scale
+    n1.inputs["Detail"].default_value = 8
+    n1.inputs["Roughness"].default_value = 0.6
+    L(nt, tc.outputs["Object"], n1.inputs["Vector"])
+    n2 = N(nt, "ShaderNodeTexNoise")
+    n2.inputs["Scale"].default_value = 0.45 / scale
+    n2.inputs["Detail"].default_value = 10
+    n2.inputs["Roughness"].default_value = 0.7
+    L(nt, tc.outputs["Object"], n2.inputs["Vector"])
+    vo = N(nt, "ShaderNodeTexVoronoi")
+    vo.inputs["Scale"].default_value = 0.22 / scale
+    L(nt, tc.outputs["Object"], vo.inputs["Vector"])
+    pit = math_node(nt, "MULTIPLY", maprange(nt, vo.outputs["Distance"], 0.0, 0.12, 1.0, 0.0), pits)
+    tone = ramp(nt, n1.outputs["Fac"], [(0.28, hexcol(palette[0])), (0.52, hexcol(palette[1])), (0.76, hexcol(palette[2]))])
+    grain = maprange(nt, n2.outputs["Fac"], 0.3, 0.7, 0.78, 1.08)
+    col = N(nt, "ShaderNodeMix")
+    col.data_type = "RGBA"
+    col.blend_type = "MULTIPLY"
+    col.inputs[0].default_value = 1.0
+    L(nt, tone, col.inputs[6])
+    gcol = N(nt, "ShaderNodeCombineColor")
+    for i in range(3):
+        L(nt, grain, gcol.inputs[i])
+    L(nt, gcol.outputs[0], col.inputs[7])
+    c = col.outputs[2]
+    # pits darken
+    pm = N(nt, "ShaderNodeMix")
+    pm.data_type = "RGBA"
+    L(nt, math_node(nt, "MULTIPLY", pit, 0.55), pm.inputs[0])
+    L(nt, c, pm.inputs[6])
+    pm.inputs[7].default_value = hexcol("#1e160f")
+    c = pm.outputs[2]
+    # worn convex edges go lighter
+    geo = N(nt, "ShaderNodeNewGeometry")
+    edge = math_node(nt, "MULTIPLY", maprange(nt, geo.outputs["Pointiness"], 0.5, 0.58, 0.0, 1.0), 0.55 * wear)
+    em = N(nt, "ShaderNodeMix")
+    em.data_type = "RGBA"
+    L(nt, edge, em.inputs[0])
+    L(nt, c, em.inputs[6])
+    em.inputs[7].default_value = hexcol(palette[2])
+    c = em.outputs[2]
+    # grime in the crevices
+    ao = N(nt, "ShaderNodeAmbientOcclusion")
+    ao.inputs["Distance"].default_value = 5.0
+    ao.samples = 16
+    gm = N(nt, "ShaderNodeMix")
+    gm.data_type = "RGBA"
+    L(nt, maprange(nt, ao.outputs["AO"], 0.4, 0.97, 0.9 * grime, 0.0), gm.inputs[0])
+    L(nt, c, gm.inputs[6])
+    gm.inputs[7].default_value = hexcol("#1a120c")
+    L(nt, gm.outputs[2], bs.inputs["Base Color"])
+    bs.inputs["Roughness"].default_value = 0.86
+    bump = N(nt, "ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.9
+    bump.inputs["Distance"].default_value = 0.8
+    h = math_node(nt, "ADD", math_node(nt, "MULTIPLY", n2.outputs["Fac"], 0.5), math_node(nt, "MULTIPLY", n1.outputs["Fac"], 1.4))
+    h = math_node(nt, "SUBTRACT", h, math_node(nt, "MULTIPLY", pit, 0.6))
+    L(nt, h, bump.inputs["Height"])
+    L(nt, bump.outputs["Normal"], bs.inputs["Normal"])
+    return m
+
+
+SAND = ("#4a3a2a", "#6f5a42", "#97805f")
+SAND_DK = ("#2a231c", "#3e352b", "#54483a")
+SAND_COOL = ("#45403a", "#625b52", "#837a6e")
+BAS_W = ("#1a120e", "#2a1d16", "#3b2a20")
+OXB = ("#2a0c06", "#45160b", "#5e2210")
+ASH2 = ("#242220", "#2f2c29", "#3c3834")
+
+
 def glass_gem(name, col, ior=1.76, glow=0.0):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -308,9 +424,9 @@ def turquoise(name="turq"):
     return m
 
 
-def ember_stone(name="ember", palette=OXBLOOD, heat=1.0):
-    """Recessed stone whose crack network glows like coals (CASH OUT heat)."""
-    m = stone(name, palette)
+def ember_stone(name="ember", palette=None, heat=1.0):
+    """Recessed stone where a few seams glow like coals (CASH OUT heat)."""
+    m = carved(name, palette or OXB, grime=0.8, wear=0.4)
     nt = m.node_tree
     bs = nt.nodes["Principled BSDF"]
     tc = N(nt, "ShaderNodeTexCoord")
@@ -321,9 +437,9 @@ def ember_stone(name="ember", palette=OXBLOOD, heat=1.0):
     nz = N(nt, "ShaderNodeTexNoise")
     nz.inputs["Scale"].default_value = 0.04
     L(nt, tc.outputs["Object"], nz.inputs["Vector"])
-    crack = math_node(nt, "MULTIPLY", maprange(nt, vc.outputs["Distance"], 0.0, 0.05, 1.0, 0.0), maprange(nt, nz.outputs["Fac"], 0.4, 0.6, 0.15, 1.0))
+    crack = math_node(nt, "MULTIPLY", maprange(nt, vc.outputs["Distance"], 0.0, 0.022, 1.0, 0.0), maprange(nt, nz.outputs["Fac"], 0.52, 0.66, 0.0, 1.0))
     L(nt, ramp(nt, crack, [(0.0, (0.0, 0.0, 0.0, 1)), (0.35, (0.9, 0.12, 0.0, 1)), (0.8, (1.0, 0.45, 0.05, 1)), (1.0, (1.0, 0.8, 0.4, 1))]), bs.inputs["Emission Color"])
-    L(nt, math_node(nt, "MULTIPLY", crack, 6.0 * heat), bs.inputs["Emission Strength"])
+    L(nt, math_node(nt, "MULTIPLY", crack, 4.0 * heat), bs.inputs["Emission Strength"])
     return m
 
 

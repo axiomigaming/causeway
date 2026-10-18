@@ -65,10 +65,13 @@ body { position: relative; -webkit-font-smoothing: antialiased; }
 .c1 .cta .word { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .c1 .cta.pressed .lay.words { transform: translateY(1.5px); filter: brightness(0.9); }
 .c1 .cta .amt { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; }
-.c1 .cta .amt b { font: 700 32px/1 var(--ui); color: #fff4dc; letter-spacing: 0.005em;
+.c1 .cta .amt b { font: 700 28px/1 var(--ui); color: #fff4dc; letter-spacing: 0.005em;
   text-shadow: 0 -1px 0 rgba(0,0,0,0.6), 0 1px 0 rgba(255,220,170,0.18), 0 0 calc(var(--heat,0) * 16px) rgba(255,150,50, calc(var(--heat,0) * 0.7)); }
 .c1 .cta .lbl { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; }
-.c1 .cta .lbl small { font: 500 12px var(--ui); color: rgba(243,231,207,0.72); margin: 2px 0 0 10px; letter-spacing: 0.02em; }
+.c1 .cta .amt b[data-len='9'], .c1 .cta .amt b[data-len='10'] { font-size: 26px; }
+.c1 .cta .amt b[data-len='11'], .c1 .cta .amt b[data-len='12'] { font-size: 22px; }
+.c1 .cta .amt b[data-len='13'], .c1 .cta .amt b[data-len='14'] { font-size: 18px; }
+.c1 .cta .lbl small { font: 500 12px var(--ui); color: rgba(243,231,207,0.72); margin: 0 0 0 10px; letter-spacing: 0.02em; }
 .c1 .cta .lbl small b { color: var(--ivory); font-weight: 600; }
 .c1 .hint { position: absolute; left: 0; right: 0; text-align: center; font: 500 12px var(--ui); color: rgba(243,231,207,0.72); letter-spacing: 0.04em; text-shadow: 0 1px 3px #000; }
 .c1 .hint kbd { font: 600 11px var(--ui); color: var(--ivory); padding: 1px 6px; border-radius: 3px; background: rgba(30,22,17,0.9); box-shadow: inset 0 0 0 1px rgba(233,196,106,0.35); margin: 0 3px; }
@@ -125,6 +128,10 @@ body { position: relative; -webkit-font-smoothing: antialiased; }
 .c2 .disc .ctr { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .c2 .disc .ctr b { font: 800 24px/1 var(--ui); color: #fff6e0; letter-spacing: -0.01em; margin-top: 4px;
   text-shadow: 0 -1px 0 rgba(0,0,0,0.7), 0 0 calc(var(--heat,0) * 14px) rgba(255,150,50, calc(var(--heat,0) * 0.75)); }
+.c2 .disc .ctr b[data-len='9'], .c2 .disc .ctr b[data-len='10'] { font-size: 20px; }
+.c2 .disc .ctr b[data-len='11'], .c2 .disc .ctr b[data-len='12'] { font-size: 17px; }
+.c2 .disc .ctr b[data-len='13'], .c2 .disc .ctr b[data-len='14'] { font-size: 14px; }
+.c1 .hud .m[data-len='12'], .c2 .hud .m[data-len='12'] { font-size: 60px; }
 .c2 .disc .ctr small { font: 600 10px var(--ui); color: rgba(242,236,224,0.65); margin-top: 4px; letter-spacing: 0.04em; }
 .c2 .coin { position: absolute; width: 52px; height: 52px; display: grid; place-items: center; }
 .c2 .coin svg { position: relative; }
@@ -159,9 +166,10 @@ const C = Q.get('c') || '1', V = Q.get('v') || 'phone', S = Q.get('s') || 'setup
 const PH = V === 'phone';
 const W = PH ? 390 : 1440, H = PH ? 844 : 900;
 const SAFE_T = PH ? 47 : 0, SAFE_B = PH ? 34 : 0;
-const heat = S === 'high' ? 0.92 : S === 'low' ? 0.12 : 0;
-const amt = S === 'high' ? '31,250.00' : '31.00';
-const mult = S === 'high' ? '1,250.00' : '1.24';
+const heat = S === 'huge' ? 1 : S === 'high' ? 0.92 : S === 'low' ? 0.12 : 0;
+const amt = S === 'huge' ? '123,456,789.00' : S === 'high' ? '1,205.00' : '31.00';
+const mult = S === 'huge' ? '4,938,271.56' : S === 'high' ? '48.20' : '1.24';
+const alen = amt.length;
 const BAL = '1,000.00';
 // sprite: name, css box w×h, pad (shadow margin baked into the 2× png)
 const spr = (n, w, h, p, cls = '', extra = '') => `<img class="spr ${cls}" src="art/${n}.png" style="left:${-p}px;top:${-p}px;width:${w + 2 * p}px;height:${h + 2 * p}px;${extra}">`;
@@ -174,11 +182,11 @@ const svg = {
 const goldIcon = '#e9c46a';
 const histVals = ['2.41×', '1.07×', '5.88×', '1.52×', '12.30×', '3.04×'];
 let html = '';
-const bg = { setup: 'setup', pressed: 'setup', hover: 'setup', focus: 'setup', disabled: 'setup', low: 'run', high: 'run', escaped: 'run', fell: 'fell' }[S];
+const bg = { setup: 'setup', pressed: 'setup', hover: 'setup', focus: 'setup', disabled: 'setup', low: 'run', high: 'run', huge: 'run', escaped: 'run', fell: 'fell' }[S];
 const DIS = S === 'disabled', HOV = S === 'hover', FOC = S === 'focus';
 html += `<div class="scene" style="background-image:url(bg/${PH ? 'p' : 'd'}-${bg}.png)"></div>`;
 if (PH) html += `<div class="status"><span>9:41</span><i>●●● ▰</i></div><div class="home"></div>`;
-const running = S === 'low' || S === 'high';
+const running = S === 'low' || S === 'high' || S === 'huge';
 const result = S === 'escaped' || S === 'fell';
 
 if (C === '1') {
@@ -217,10 +225,10 @@ if (C === '1') {
   const plateName = 'c1-plate-' + pk + (pressed ? '-pressed' : DIS ? '-disabled' : '');
   let inner = '';
   if (running) {
-    const lx = 40 + 14, rx = 40 + 16;
+    const lx = 40 + 12, rx = 40 + 14;
     inner = `<div class="lay plate-l">${spr('c1-plate-' + pk, cw, ch, 14)}${spr('c1-plate-' + pk + '-hot', cw, ch, 14, 'hot-layer', `opacity:${heat.toFixed(2)}`)}</div>
-      <div class="lay words"><div class="lbl" style="left:${lx}px"><div style="position:relative;width:170px;height:36px;margin-left:-8px">${spr('c1-w-cash', 170, 36, 8)}</div><small>Stake <b class="num">25.00</b></small></div>
-      <div class="amt" style="right:${rx}px"><b class="num">${amt}</b></div></div>`;
+      <div class="lay words"><div class="lbl" style="left:${lx}px"><div style="position:relative;width:123px;height:26.24px;margin:0 0 0 -2px">${spr('c1-w-cash', 123, 26.24, 6.56)}</div><small>Stake <b class="num">25.00</b></small></div>
+      <div class="amt" style="right:${rx}px"><b class="num" data-len="${alen}">${amt}</b></div></div>`;
   } else {
     const word = result ? 'c1-w-again' : DIS ? 'c1-w-run-dis' : 'c1-w-run';
     const ww = result ? 230 : 150, wh = result ? 42 : 48;
@@ -230,7 +238,7 @@ if (C === '1') {
   html += `<div class="cta ${pressed ? 'pressed' : ''} ${FOC ? 'focus' : ''} ${heat > 0.5 ? 'heat-hi' : ''}" style="left:${cx}px;top:${cy}px;width:${cw}px;height:${ch}px">${inner}</div>`;
   if (!PH) html += `<div class="hint" style="top:${cy + ch + 12}px">Press <kbd>Space</kbd> to ${running ? 'cash out' : 'run'}</div>`;
   if (running) {
-    html += `<div class="hud" style="top:${PH ? 176 : 190}px;--heat:${heat}"><div class="m num">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;
+    html += `<div class="hud" style="top:${PH ? 176 : 190}px;--heat:${heat}"><div class="m num" data-len="${mult.length}">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;
   }
   if (result) {
     const rw = PH ? 358 : 440, rh = PH ? 196 : 204;
@@ -283,7 +291,7 @@ if (C === '2') {
   let lay;
   if (running) {
     lay = `<div class="lay base">${spr('c2-disc-cash', 200 * 0.88, 200 * 0.88, 16 * 0.88)}${spr('c2-disc-hot', 176, 176, 14.08, 'hot-layer', `opacity:${heat.toFixed(2)}`)}</div>
-      <div class="lay words"><div class="ctr"><div style="position:relative;width:100px;height:22px">${spr('c2-w-cash', 100, 22, 8)}</div><b class="num">${amt}</b><small>${mult}×</small></div></div>`;
+      <div class="lay words"><div class="ctr"><div style="position:relative;width:100px;height:22px">${spr('c2-w-cash', 100, 22, 8)}</div><b class="num" data-len="${alen}">${amt}</b><small>${mult}×</small></div></div>`;
   } else {
     const disc = pressed ? 'c2-disc-pressed' : DIS ? 'c2-disc-disabled' : 'c2-disc';
     const word = result ? 'c2-w-again' : DIS ? 'c2-w-run-dis' : 'c2-w-run';
@@ -292,7 +300,7 @@ if (C === '2') {
     lay = `<div class="lay base">${spr(disc, 176, 176, 14.08)}</div><div class="lay words"><div class="ctr"><div style="position:relative;width:${ww}px;height:${wh}px">${spr(word, ww, wh, 8)}${sweep}</div></div></div>`;
   }
   html += `<div class="disc ${pressed ? 'pressed' : ''} ${FOC ? 'focus' : ''} ${heat > 0.5 ? 'heat-hi' : ''}" style="left:${discC.x - 88}px;top:${discC.y - 88}px">${lay}</div>`;
-  if (running) html += `<div class="hud" style="top:${PH ? 180 : 200}px;--heat:${heat}"><div class="m num">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;
+  if (running) html += `<div class="hud" style="top:${PH ? 180 : 200}px;--heat:${heat}"><div class="m num" data-len="${mult.length}">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;
   if (!PH) html += `<div class="hint" style="top:${dy + dh + 10}px">Press <kbd>Space</kbd> to ${running ? 'cash out' : 'run'}</div>`;
   if (result) {
     const rw = PH ? 358 : 440, rh = PH ? 196 : 204;

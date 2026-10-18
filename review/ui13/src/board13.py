@@ -30,7 +30,11 @@ INFO = {
     ),
 }[C]
 
-F = lambda name, size: ImageFont.truetype(os.path.join(T, name), size)
+def F(name, size, wght=700):
+    f = ImageFont.truetype(os.path.join(T, name), size)
+    if name.endswith("VF.ttf"):
+        f.set_variation_by_axes([wght])
+    return f
 SANS_B = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 15)
 SANS = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
 BG = (16, 14, 13)
@@ -80,8 +84,8 @@ img = Image.new("RGB", (W, H), BG)
 d = ImageDraw.Draw(img)
 d.text((M, 40), INFO["title"], font=F(INFO["disp"][1], 44), fill=GOLD)
 y = 108
-for line in wrap(d, INFO["why"], F("Manrope-VF.ttf", 20), 1180):
-    d.text((M, y), line, font=F("Manrope-VF.ttf", 20), fill=INK)
+for line in wrap(d, INFO["why"], F("Manrope-VF.ttf", 20, 500), 1180):
+    d.text((M, y), line, font=F("Manrope-VF.ttf", 20, 500), fill=INK)
     y += 30
 # type specimen
 sx = M + 1260
@@ -126,7 +130,8 @@ cr = INFO["crops"]
 items = [
     ("setup", "cta", "RUN · idle"), ("hover", "cta", "RUN · hover (light sweep on the gold)"), ("pressed", "cta", "RUN · pressed (sinks, shadow tightens)"),
     ("focus", "cta", "RUN · keyboard focus"), ("disabled", "cta", "RUN · disabled (aged gold, cool stone)"), ("low", "cta", "CASH OUT · low heat"),
-    ("high", "cta", "CASH OUT · high heat (ember seams, warm bloom)"), ("setup", "dock", "Stake controls"), ("setup", "top", "Top bar · logo, balance, sound, menu, history"),
+    ("high", "cta", "CASH OUT · high heat (ember seams, warm bloom)"), ("huge", "cta", "CASH OUT · 9-digit amount (type steps down by length)"),
+    ("setup", "dock", "Stake controls"), ("setup", "top", "Top bar · logo, balance, sound, menu, history"),
     ("escaped", "res", "Result · escaped"), ("fell", "res", "Result · the way fell"),
 ]
 tiles = []
