@@ -1652,16 +1652,16 @@ def obstacle_clips():
     arm(D, "R", fwd=-0.35, elbow=1.0, out=0.3, curl=0.9)
     arm(D, "L", fwd=0.6, elbow=1.2, out=0.4, curl=0.9)
     zl = solve_root(D)
-    air(6, 15, [(0.0, T), (0.4, O), (0.75, O2), (1.0, D)], zt, zl, 0.42)
+    air(6, 17, [(0.0, T), (0.4, O), (0.75, O2), (1.0, D)], zt, zl, 0.36)
     A = {}
     torso(A, lean=0.45, look=0.45, hp=0.2)
     leg(A, "L", hip=0.5, knee=0.9, ankle=-0.2)
     leg(A, "R", hip=0.2, knee=1.4, ankle=0.35)
     arm(A, "R", fwd=0.3, elbow=1.3, out=0.25, curl=1.0)
     arm(A, "L", fwd=0.2, elbow=1.3, out=0.3, curl=1.0)
-    key(17, A)
-    gkey(20, 0.32, k=0.9)
-    gkey(23, 0.5)
+    key(19, A)
+    gkey(22, 0.32, k=0.9)
+    gkey(25, 0.5)
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":
