@@ -26,7 +26,13 @@ const FRAG = /* glsl */ `
   #include <fog_pars_fragment>
   varying float vShade;
   void main() {
-    gl_FragColor = vec4(mix(vec3(0.09, 0.075, 0.06), vec3(0.2, 0.15, 0.11), vShade), 1.0);
+    // Round 13: the birds were near-black (0.09) and the grade crushed them to pure black: against
+    // a dusk or storm sky a bird near the lens read as an opaque black blob. A dark brown that keeps
+    // its value, with a little of the air's colour in it (aerial perspective) even close by.
+    gl_FragColor = vec4(mix(vec3(0.17, 0.14, 0.11), vec3(0.3, 0.24, 0.18), vShade), 1.0);
+    #ifdef USE_FOG
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, 0.3);
+    #endif
     #include <fog_fragment>
   }`;
 
@@ -138,7 +144,9 @@ export class Flock {
       this.q.setFromRotationMatrix(this.look);
       // Fade out (shrink) within a few metres of the lens: a bird across the lens reads as a flat
       // grey star, not a bird.
-      const near = eye ? Math.min(1, Math.max(0, (b.pos.distanceTo(eye) - 4) / 4)) : 1;
+      // Round 13: from further out (7–14 m) — a bird a few metres from the lens filled a tenth of the
+      // frame as a black blob in the sky.
+      const near = eye ? Math.min(1, Math.max(0, (b.pos.distanceTo(eye) - 7) / 7)) : 1;
       const sc = Math.min(1, b.age * 6) * 1.15 * near;
       this.m.compose(b.pos, this.q, this.s.set(sc, sc, sc));
       this.mesh.setMatrixAt(i, this.m);
