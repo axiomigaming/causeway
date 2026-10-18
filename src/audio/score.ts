@@ -214,18 +214,6 @@ export class ScorePlayer {
     }
   }
 
-  /**
-   * [Progression director hook] Seconds from now to the next bar line (where tier changes, layers
-   * and the tier-up accent land), or null when the run's groove is not playing. The game lands a
-   * tier-up's visual punch on it.
-   */
-  secondsToBar(): number | null {
-    if (this.mode !== 'run') return null;
-    const sixteenth = 60 / this.bpm / 4;
-    const steps = (16 - this.step) % 16;
-    return Math.max(0, this.next + steps * sixteenth - this.ctx.currentTime);
-  }
-
   /** Cut every layer (a fall) or let it ring out (an escape). */
   silence(at: number, tc: number): void {
     for (let i = 0; i < 4; i++) {

@@ -52,6 +52,11 @@ export interface WorldSounds {
    * progression director lands a tier-up's visual punch on it, together with the music's accent.
    */
   nextDownbeat?(): number | null;
+  /**
+   * The tier change the music is about to land, if any: `in` seconds until the new layer's downbeat
+   * (its fill already rolling); null when none is pending or the theme is not playing.
+   */
+  tierLanding?(): { tier: number; in: number } | null;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -1439,8 +1444,6 @@ export class Game {
     } catch {
       /* no DOM (tests) */
     }
-    const d = this.sounds.nextDownbeat?.() ?? null;
-    const delay = d !== null && d >= 0 && d < 2.2 ? d : 0;
     const round = this.worldSeed;
     const land = () => {
       if (this.stage !== 'run' || round !== this.worldSeed) return;
@@ -1457,8 +1460,33 @@ export class Game {
       if (tier >= 3) this.later(0.3, () => this.stage === 'run' && this.dangerCue('rumble', strength, this.prog.intensity), CUE);
       if (tier >= 2) this.runner.glance(this.cosmetic.chance(0.5) ? 1 : -1);
     };
-    if (delay < 0.03) land();
-    else this.later(delay, land, CUE);
+    this.pendingPunch = { tier, land, waited: 0 };
+    this.syncPunch(0);
+  }
+
+  /**
+   * Land a pending tier-up punch on the music: the theme's pending tier landing (`tierLanding`, the
+   * new layer's downbeat) once the score has heard the tier (it hears it from the HUD's climb, so it
+   * may be a frame behind); else its next bar line; else (no theme: muted, still loading) at once.
+   * Never later than ~2.4 s (≈1.35 bars) after the tier change.
+   */
+  private pendingPunch: { tier: number; land: () => void; waited: number } | null = null;
+  private syncPunch(dt: number): void {
+    const p = this.pendingPunch;
+    if (!p) return;
+    p.waited += dt;
+    const go = (inSec: number) => {
+      this.pendingPunch = null;
+      const d = Math.min(Math.max(0, inSec), Math.max(0, 2.4 - p.waited));
+      if (d < 0.03) p.land();
+      else this.later(d, p.land, CUE);
+    };
+    const tl = this.sounds.tierLanding?.() ?? null;
+    if (tl && tl.tier >= p.tier) return go(tl.in);
+    // Give the score up to ~0.15 s to hear the new tier; then the next bar line, or now.
+    if (p.waited < 0.15 && this.sounds.nextDownbeat?.() != null) return;
+    const nd = this.sounds.nextDownbeat?.() ?? null;
+    go(nd ?? 0);
   }
 
   private duckScanIn = 0;
@@ -1663,6 +1691,8 @@ export class Game {
     const tierNow = this.stage === 'run' ? P.tier : 0;
     if (this.stage === 'run' && tierNow > this.lastRunTier) this.tierUp(tierNow);
     this.lastRunTier = tierNow;
+    if (this.stage === 'run') this.syncPunch(rawDt);
+    else this.pendingPunch = null;
     this.tierGlow = Math.max(0, this.tierGlow - rawDt / 1.4);
     this.scanOverhead(dt, tierNow);
     // Speed without blur: from the driven tier, grit and low dust lift off the floor and the wall
