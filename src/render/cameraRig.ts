@@ -370,7 +370,9 @@ export class CameraRig {
         // edge; there it comes in toward the axis (keepInFrame below enforces the margin).
         const narrow = Math.min(1, Math.max(0, (1 - this.camera.aspect) / 0.5));
         const lat = lerp(0.72, 0.36, narrow);
-        fov = this.shot(runnerPos, this.fitInBand(F(-dist, lat + drift, 1.34 - 0.16 * I - 0.06 * hi, 9, lerp(0.6, 0.3, narrow) + drift * 0.4, 1.0 + 0.08 * I, 60 + 18 * I + 3 * hi)));
+        // Round 13: tier 0 already a run for his life — a hand lower (the floor streams past the lens)
+        // and 4° wider from the go; the top of the climb is where it was.
+        fov = this.shot(runnerPos, this.fitInBand(F(-dist, lat + drift, 1.24 - 0.08 * I - 0.06 * hi, 9, lerp(0.6, 0.3, narrow) + drift * 0.4, 1.0 + 0.08 * I, 64 + 14 * I + 3 * hi)));
         break;
       }
       case 'crash': {

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Kit } from './assets';
 import { Rng } from '../engine/rng';
+import { causticUniforms } from './caustics';
+import { worldMood } from './mood';
 
 /**
  * Animation states. `run` is locomotion: the `run`, `sprint` and `dash` clips
@@ -22,7 +24,58 @@ export type RunnerAnim =
   | 'win'
   | 'win_cheer'
   | 'win_salute'
-  | 'win_leap';
+  | 'win_leap'
+  /** Payoffs for the biggest settled rounds (50x+), picked by the FX director. */
+  | 'win_slide'
+  | 'fall_ledge'
+  /** Escapes by multiplier (play() picks from win_cheer / win_leap): low, and the big one at 10×+. */
+  | 'win_pump'
+  | 'win_cheer_big'
+  | Obstacle;
+
+/** Moves for the obstacle director (see obstacle()). */
+export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L' | 'turn_cut_R' | 'stumble_land';
+
+/**
+ * Authored timings (clip seconds, at the 5 m/s run): the gait phase each starts on (0 = left strike;
+ * stumble_land starts at once, from a jump's landing) and hands back on, the length, and the takeoff and
+ * landing (slide: drop and rise; turn cuts: the plant). Real time divides by obstacleRate(); leap_gap's
+ * flight (takeoff → land, nominally 0.5 s) is stretched to the gap instead (obstacleTiming()).
+ */
+export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
+  jump_log: { from: 0, to: 0.68, duration: 23 / 30, takeoff: 5 / 30, land: 18 / 30 },
+  leap_gap: { from: 0, to: 0.5, duration: 34 / 30, takeoff: 6 / 30, land: 21 / 30 },
+  slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
+  vault: { from: 0, to: 0.5, duration: 24 / 30, takeoff: 5 / 30, land: 16 / 30 },
+  turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
+  turn_cut_R: { from: 0.5, to: 0.5, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
+  stumble_land: { from: -1, to: 0.6, duration: 19 / 30, takeoff: 0, land: 2 / 30 },
+};
+/** The run clip's cadence at the pace the moves were authored (5 m/s over its 2.571 m stride). */
+const OBST_CADENCE = 5 / 2.571;
+
+/** Clip seconds per real second for a move started at this cadence: it keeps step with the run. */
+export function obstacleRate(cadence: number): number {
+  return Math.min(1.45, Math.max(0.85, cadence / OBST_CADENCE));
+}
+
+/**
+ * Real-time timings of a move for a run cadence and speed (and, for leap_gap, the gap in metres):
+ * seconds from the clip's start (after obstacle()'s returned wait) to takeoff, landing and the end.
+ */
+export function obstacleTiming(name: Obstacle, cadence: number, speed: number, distance = 2.25): { takeoff: number; land: number; duration: number; flight: number } {
+  const O = OBSTACLES[name];
+  const r = obstacleRate(cadence);
+  if (name !== 'leap_gap') return { takeoff: O.takeoff / r, land: O.land / r, duration: O.duration / r, flight: (O.land - O.takeoff) / r };
+  const flight = leapFlight(distance, speed);
+  const takeoff = O.takeoff / r;
+  return { takeoff, land: takeoff + flight, duration: takeoff + flight + (O.duration - O.land) / r, flight };
+}
+
+/** leap_gap's time in the air for a gap at a speed (s), kept between a hop and a long bound. */
+export function leapFlight(distance: number, speed: number): number {
+  return Math.min(0.8, Math.max(0.3, distance / Math.max(1, speed)));
+}
 
 type Foot = 'L' | 'R';
 const GAITS = ['run', 'sprint', 'dash'] as const;
@@ -32,7 +85,7 @@ const GAITS = ['run', 'sprint', 'dash'] as const;
  * cadence to speed / S keeps the planted foot still on the floor. Keep in step with the clip builder
  * (it prints S for each gait).
  */
-export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.8, sprint: 3.911, dash: 4.842 };
+export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.571, sprint: 3.911, dash: 4.842 };
 
 /** Blend weights of the gait clips for a (continuous) run tier. */
 export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
@@ -43,7 +96,7 @@ export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
 
 /** Turnover ceiling (stride cycles per second): an elite sprinter's ~5 steps/s, a touch more all-out. */
 export function cadenceCap(drive: number): number {
-  return 2.45 + 0.1 * drive;
+  return 2.55 + 0.1 * drive;
 }
 
 /**
@@ -57,10 +110,10 @@ export function gaitCadence(speed: number, drive: number): number {
   return Math.min(Math.max(speed / stride, 1.1), cadenceCap(drive));
 }
 const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
-const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap']);
+const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
-  start: [[0.16, 'L', 0.45], [0.27, 'R', 0.8], [0.5, 'L', 0.7], [0.73, 'R', 0.65], [0.9, 'L', 0.6]],
+  start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.83, 'R', 0.65], [0.95, 'L', 0.6]],
   win: [[0.2, 'R', 0.5], [0.4, 'L', 0.35], [0.6, 'R', 0.25]],
   fall_chasm: [[0.12, 'L', 1], [0.28, 'R', 0.9]],
   fall_gate: [[0.13, 'L', 0.9], [0.5, 'R', 0.55], [0.7, 'L', 0.5], [0.9, 'R', 0.4]],
@@ -69,9 +122,20 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   fall_chasm_b: [[0.12, 'L', 1], [0.3, 'R', 0.9], [0.52, 'L', 0.6]],
   fall_gate_b: [[0.15, 'L', 0.9], [0.5, 'R', 0.6], [0.8, 'L', 0.5]],
   fall_rock_b: [[0.12, 'L', 0.8], [0.3, 'R', 0.6], [0.52, 'L', 0.7]],
-  win_cheer: [[0.2, 'R', 0.6], [0.37, 'L', 0.8], [0.6, 'R', 0.4]],
+  win_cheer: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.7, 'R', 0.2], [1.83, 'L', 0.2], [1.95, 'R', 0.2]],
+  win_pump: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.33, 'R', 0.2], [1.47, 'L', 0.2], [1.58, 'R', 0.2]],
+  win_cheer_big: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.5, 'R', 0.2], [1.63, 'L', 0.2], [1.75, 'R', 0.2], [2.77, 'L', 0.7], [2.78, 'R', 0.7], [3.33, 'L', 0.7], [3.34, 'R', 0.7]],
+  jump_log: [[0.167, 'L', 0.6], [0.6, 'R', 1]],
+  leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
+  slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
+  vault: [[0.167, 'L', 0.6], [0.533, 'L', 0.9]],
+  turn_cut_L: [[0.267, 'R', 0.85]],
+  turn_cut_R: [[0.267, 'L', 0.85]],
+  stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
   win_salute: [[0.27, 'R', 0.4], [0.5, 'L', 0.25], [1.1, 'R', 0.2], [1.27, 'L', 0.2], [1.43, 'R', 0.2]],
-  win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8]],
+  win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8], [2.63, 'R', 0.2], [2.77, 'L', 0.2], [2.88, 'R', 0.2]],
+  win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5]],
+  fall_ledge: [[0.17, 'L', 0.9]],
 };
 
 /** Spring-driven cloth bones (three strips the dots from the Blender names). */
@@ -93,6 +157,8 @@ export const RUNNER_FILL = 0.45;
 export const RUNNER_RIM = 0.4;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
 export const RUNNER_COOL_RIM = 0.22;
+/** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
+const runnerWet = { value: 0 };
 function liftRunner(m: THREE.MeshStandardMaterial): void {
   for (const t of [m.map, m.normalMap, m.roughnessMap]) {
     if (!t) continue;
@@ -105,8 +171,12 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     sh.uniforms.uRunnerFill = { value: RUNNER_FILL };
     sh.uniforms.uRunnerRim = { value: RUNNER_RIM };
     sh.uniforms.uRunnerCool = { value: RUNNER_COOL_RIM };
+    sh.uniforms.uRunnerWet = runnerWet;
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;')
+      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;')
+      // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, roughnessFactor * 0.45 + 0.08, uRunnerWet);')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 - 0.2 * uRunnerWet;')
       .replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>
@@ -185,6 +255,9 @@ export class Runner {
   private cadence = 1.35;
   /** A one-shot waiting for the next left strike (so it starts on the foot its first key expects). */
   private pending: { name: RunnerAnim; fade: number; offset: number; until: number } | null = null;
+  /** The obstacle move in play: its clip rate, and leap_gap's flight time (s). */
+  private obst: { name: Obstacle; rate: number; flight: number } | null = null;
+  private obstLift = 0;
   /** Which idle clip is playing (they alternate), and for how long. */
   private idleClip: string = 'idle';
   private idleT = 0;
@@ -196,11 +269,24 @@ export class Runner {
   private stumbleT = -1;
   private duckT = -1;
   private hopT = -1;
+  private shieldT = -1;
+  private shieldSide = 1;
+  private weatherRng = new Rng(0x5e17);
+  private gustPrev = 0;
+  private qa = new THREE.Quaternion();
+  private eu = new THREE.Euler(0, 0, 0, 'ZYX');
   /** Fading out an interrupted beat (see overlays). */
   private beatOut = false;
   private beatGain = 1;
   private eventT = 0;
   onFootstep: (foot: Foot, strength: number) => void = () => {};
+  /**
+   * What is underfoot. On 'wood' (rope bridges, plank walks) each footfall flexes the boards: the body
+   * sinks a touch more and springs back with a small overshoot. The world sets it (stone by default).
+   */
+  surface: 'stone' | 'wood' = 'stone';
+  private plankY = 0;
+  private plankV = 0;
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
   lean = 0;
   roll = 0;
@@ -247,6 +333,10 @@ export class Runner {
   /** A catch step (stairs): time since it began, and which way the grade goes. */
   private catchT = -1;
   private catchDir = 1;
+  /** Stairs seen from the grade under him: the onset fires the catch step; `stairW` eases the stance in. */
+  private slopePrev = 0;
+  private stairCool = 0;
+  private stairW = 0;
   private speedPrev = 0;
   private accel = 0;
   private t = 0;
@@ -330,6 +420,13 @@ export class Runner {
    */
   play(name: RunnerAnim, fade = 0.25, offset = 0): void {
     if (name === 'run' && this.current === 'ready' && this.actions.has('start')) name = 'start';
+    // The celebration scales with the multiplier (the run tier the escape came at, a public value):
+    // a fist pump below 2×, both fists up to 10×, the roar and jumping cheer above.
+    if (name === 'win_cheer' || name === 'win_leap') {
+      const lv = Math.max(this.drive, this.driveS);
+      if (lv < 0.98 && this.actions.has('win_pump')) name = 'win_pump';
+      else if (name === 'win_cheer' && lv >= 2.98 && this.actions.has('win_cheer_big')) name = 'win_cheer_big';
+    }
     if (name !== 'run' && !this.actions.has(name)) {
       const fallback = name.startsWith('win') ? 'win' : name.startsWith('fall_') ? name.replace(/_b$/, '').replace('fall_start', 'fall_gate') : null;
       if (!fallback || !this.actions.has(fallback)) return;
@@ -351,6 +448,8 @@ export class Runner {
   }
 
   private start(name: RunnerAnim, fade: number, offset: number) {
+    if (this.obst && this.obst.name !== name) this.obst = null;
+    this.obstLift = 0;
     this.current = name;
     this.fade = Math.max(0.001, fade);
     this.eventT = offset;
@@ -361,6 +460,7 @@ export class Runner {
       const clip = name === 'idle' ? this.idleClip : name;
       const a = this.actions.get(clip)!;
       a.reset();
+      a.timeScale = this.obst?.name === name ? this.obst.rate : 1;
       a.time = Math.min(offset, a.getClip().duration);
       a.play();
     }
@@ -411,9 +511,21 @@ export class Runner {
     return true;
   }
 
-  /** A reactive beat is playing (glance, stumble, duck, hop): the next one waits. */
+  /**
+   * A forearm up to shield the eyes from driving rain or a gust (cosmetic, ~1.1 s), the head ducked
+   * a touch. The runner fires it himself now and then when the weather turns (see weather()); the
+   * world may also call it on a gust. False if busy.
+   */
+  shield(side = 1): boolean {
+    if (this.current !== 'run' || this.busy()) return false;
+    this.shieldT = 0;
+    this.shieldSide = side >= 0 ? 1 : -1;
+    return true;
+  }
+
+  /** A reactive beat is playing (glance, stumble, duck, hop, shield): the next one waits. */
   busy(): boolean {
-    return this.glanceT >= 0 || this.stumbleT >= 0 || this.duckT >= 0 || this.hopT >= 0;
+    return this.glanceT >= 0 || this.stumbleT >= 0 || this.duckT >= 0 || this.hopT >= 0 || this.shieldT >= 0;
   }
 
   get stumbling(): number {
@@ -443,6 +555,26 @@ export class Runner {
       const p = this.pending;
       this.pending = null;
       this.start(p.name, p.fade, p.offset);
+    }
+    // Obstacle moves: keep step with the run; leap_gap's flight stretches to the gap and its arc with
+    // it; each hands back to the gait on the phase it ends on.
+    this.obstLift = 0;
+    if (this.obst && this.current === this.obst.name) {
+      const O = OBSTACLES[this.obst.name];
+      const a = this.actions.get(this.obst.name)!;
+      a.timeScale = this.obst.rate;
+      if (this.obst.name === 'leap_gap' && a.time >= O.takeoff && a.time < O.land) {
+        const nominal = O.land - O.takeoff;
+        a.timeScale = nominal / this.obst.flight;
+        const u = (a.time - O.takeoff) / nominal;
+        // The clip carries a 0.5 s arc; add the rest of a ballistic one for the actual flight.
+        this.obstLift = 4 * u * (1 - u) * (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+      }
+      if (a.time >= O.duration - 0.04) {
+        this.obst = null;
+        this.start('run', 0.1, 0);
+        this.phase = O.to;
+      }
     }
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
     if (this.current === 'start') {
@@ -476,7 +608,7 @@ export class Runner {
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
     this.cadence = cadence;
     const prevPhase = this.phase;
-    if (this.current === 'run') this.phase = (this.phase + dt * cadence) % 1;
+    if (this.current === 'run' || this.obst) this.phase = (this.phase + dt * cadence) % 1;
     if (dt > 0) {
       const a = (speed - this.speedPrev) / dt;
       this.accel += (THREE.MathUtils.clamp(a, -12, 12) - this.accel) * (1 - Math.exp(-dt * 4));
@@ -525,15 +657,15 @@ export class Runner {
     // Footfalls.
     const k = Math.min(1, speed / 10);
     if (this.current === 'run' && gaitW > 0.5) {
-      if (prevPhase > this.phase) this.onFootstep('L', k);
-      else if (prevPhase < 0.5 && this.phase >= 0.5) this.onFootstep('R', k);
+      if (prevPhase > this.phase) this.step('L', k);
+      else if (prevPhase < 0.5 && this.phase >= 0.5) this.step('R', k);
     } else {
       const ev = EVENTS[this.current];
       const a = this.actions.get(this.current);
       if (ev && a) {
         const t0 = this.eventT;
         const t1 = a.time;
-        for (const [at, foot, s] of ev) if (at > t0 && at <= t1) this.onFootstep(foot, s * Math.max(0.35, k));
+        for (const [at, foot, s] of ev) if (at > t0 && at <= t1) this.step(foot, s * Math.max(0.35, k));
         this.eventT = t1;
       }
     }
@@ -541,7 +673,18 @@ export class Runner {
     // Stairs: lean into a climb, sit back on a descent; bank into turns. Accelerating, the body tips
     // forward from the ankles (the drive phase of a sprint start); easing off, it straightens.
     const drivePhase = this.current === 'run' || this.current === 'start' ? THREE.MathUtils.clamp(this.accel * 0.022, -0.05, 0.16) : 0;
-    const lean = this.lean + drivePhase + THREE.MathUtils.clamp(this.slope, -0.5, 0.5) * 0.35;
+    // Reaching a flight (the grade under him crosses a few percent): a check of the stride, eyes to the
+    // treads. The world's own lip test only fires on steep flights; this catches the gentle ones too.
+    this.stairCool -= dt;
+    const sl = THREE.MathUtils.clamp(this.slope, -0.5, 0.5);
+    if (this.current === 'run' && Math.abs(sl) > 0.07 && Math.abs(this.slopePrev) <= 0.07 && this.stairCool <= 0) {
+      this.catchStep(sl);
+      this.stairCool = 2.5;
+    }
+    this.slopePrev = sl;
+    this.stairW += ((this.current === 'run' ? sl : 0) - this.stairW) * (1 - Math.exp(-dt * 5));
+    // Into a climb from the ankles, more than a descent sits back (which keeps the eyes on the treads).
+    const lean = this.lean + drivePhase + sl * (sl > 0 ? 0.6 : 0.45);
     this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, this.roll, 1 - Math.exp(-dt * 6));
     // The body faces −Z: a forward pitch is a negative rotation about X (positive tipped him back).
     this.body.rotation.x = THREE.MathUtils.lerp(this.body.rotation.x, -lean, 1 - Math.exp(-dt * 4));
@@ -549,10 +692,49 @@ export class Runner {
     // Exertion builds with running (faster in the high tiers) and recovers slowly at rest.
     if (this.current === 'run' || this.current === 'start') this.exertion = Math.min(1, this.exertion + dt * (0.03 + 0.012 * speed));
     else this.exertion = Math.max(0, this.exertion - dt * 0.035);
+    this.weather(dt);
     this.breathe(dt);
     this.lookLayer(dt);
     this.secondary(dt);
     this.plantFeet(dt);
+  }
+
+  /**
+   * An obstacle move (jump_log, leap_gap, slide, vault, turn_cut_L/R, stumble_land), blended out of the
+   * gait and back into it. It waits for its start foot (at most one stride) and returns that wait in
+   * seconds, or -1 if he is not running. `distance` (m) is leap_gap's gap: the flight and its arc scale
+   * to it. stumble_land replaces a jump's or leap's landing: call it at the landing (it starts at once).
+   * Timings: OBSTACLES / obstacleTiming(name, runner.cadence, speed, distance).
+   */
+  /**
+   * Hook for the obstacle director (cinematics, round 13): the gait phase and cadence, so a set piece
+   * can be placed where his start foot will land (read-only).
+   */
+  gait(): { phase: number; cadence: number; running: boolean } {
+    return { phase: this.phase, cadence: this.cadence, running: this.current === 'run' && !this.obst && !this.pending };
+  }
+
+  obstacle(name: Obstacle, opts: { distance?: number } = {}): number {
+    if (!this.actions.has(name)) return -1;
+    const fromAir = name === 'stumble_land' && this.obst !== null && this.current === this.obst.name && this.obst.name !== 'stumble_land';
+    if (this.current !== 'run' && !fromAir) return -1;
+    const rate = fromAir ? this.obst!.rate : obstacleRate(this.cadence);
+    this.obst = { name, rate, flight: name === 'leap_gap' ? leapFlight(opts.distance ?? 2.25, this.speed) : 0 };
+    const O = OBSTACLES[name];
+    const wait = O.from < 0 ? 0 : ((O.from - this.phase + 1) % 1) / Math.max(0.5, this.cadence);
+    if (wait < 0.01 || wait > 0.98 / Math.max(0.5, this.cadence)) {
+      this.pending = null;
+      this.start(name, fromAir ? 0.06 : 0.08, 0);
+      return 0;
+    }
+    this.pending = { name, fade: 0.08, offset: 0, until: this.t + wait };
+    return wait;
+  }
+
+  /** A footfall: on planks the boards give under it (see plank in overlays); then the world's cue. */
+  private step(foot: Foot, k: number): void {
+    if (this.surface === 'wood') this.plankV -= 0.32 * Math.min(1, k + 0.3);
+    this.onFootstep(foot, k);
   }
 
   /** A catch step at the lip of a flight of stairs: a check, eyes down to the steps, arms out a touch. */
@@ -570,7 +752,7 @@ export class Runner {
     if (this.beatOut) {
       this.beatGain = Math.max(0, this.beatGain - dt / 0.15);
       if (this.beatGain <= 0) {
-        this.glanceT = this.stumbleT = this.duckT = this.hopT = this.catchT = -1;
+        this.glanceT = this.stumbleT = this.duckT = this.hopT = this.catchT = this.shieldT = -1;
         this.beatOut = false;
         this.beatGain = 1;
       }
@@ -592,6 +774,15 @@ export class Runner {
       this.rotate(b.chest, 0, 0.025 * v[3]! * w, 0.02 * v[2]! * w);
       this.rotate(b.upper_armL, -0.05 * v[4]! * w, 0, 0.03 * v[3]! * w);
       this.rotate(b.upper_armR, 0.04 * v[4]! * w, 0, -0.03 * v[1]! * w);
+    }
+    if (Math.abs(this.stairW) > 0.005) {
+      const up = Math.max(0, this.stairW) * 6;
+      const dn = Math.max(0, -this.stairW) * 6;
+      this.rotate(b.neck, -0.08 * (up + 1.6 * dn), 0, 0);
+      this.rotate(b.head, -0.05 * (up + 1.6 * dn), 0, 0);
+      this.rotate(b.upper_armL, 0, 0, 0.12 * dn);
+      this.rotate(b.upper_armR, 0, 0, -0.12 * dn);
+      lift += -0.02 * dn;
     }
     if (this.catchT >= 0) {
       this.catchT += dt;
@@ -671,19 +862,65 @@ export class Runner {
       this.rotate(b.upper_armR, -0.2 * e, 0, -0.45 * e);
       lift += 0.8 * u * (1 - u) * (1 - smoothstep(0.85, 1, u) * 0.2);
       if (t0 < T && this.hopT >= T) {
-        this.onFootstep('L', 0.85);
-        this.onFootstep('R', 0.85);
+        this.step('L', 0.85);
+        this.step('R', 0.85);
       }
       if (this.hopT > T + 0.05) this.hopT = -1;
     }
+    if (this.shieldT >= 0) {
+      this.shieldT += dt;
+      const t = this.shieldT;
+      const e = (t < 0.2 ? smoothstep(0, 0.2, t) : 1 - smoothstep(0.8, 1.1, t)) * G;
+      // The shielding arm leaves the pump: its pose blends to a forearm across the brow.
+      const R = this.shieldSide > 0;
+      const ua = R ? b.upper_armR : b.upper_armL;
+      const fa = R ? b.forearmR : b.forearmL;
+      const sg = R ? -1 : 1;
+      if (ua && fa) {
+        ua.quaternion.slerp(this.qa.setFromEuler(this.eu.set(-1.5, 0.35 * sg, 0.3 * sg)), e);
+        fa.quaternion.slerp(this.qa.setFromEuler(this.eu.set(-2.05, 0, 0)), e);
+      }
+      this.rotate(b.neck, -0.1 * e, -0.15 * sg * e, 0);
+      this.rotate(b.head, -0.08 * e, -0.1 * sg * e, 0);
+      this.rotate(b.chest, -0.05 * e, 0.06 * sg * e, 0);
+      if (t > 1.1) this.shieldT = -1;
+    }
+    // Plank flex: a stiff, lightly damped spring (~6 Hz) kicked down at each footfall on wood, so the
+    // stride gets a soft give and a little rebound; on stone it settles to rest.
+    if (this.surface !== 'wood') this.plankV *= Math.exp(-dt * 20);
+    const w0 = 2 * Math.PI * 6;
+    const n = Math.ceil(Math.min(dt, 0.1) / (1 / 240));
+    for (let i = 0; i < n; i++) {
+      this.plankV += (-w0 * w0 * this.plankY - 2 * 0.35 * w0 * this.plankV) * (Math.min(dt, 0.1) / n);
+      this.plankY += this.plankV * (Math.min(dt, 0.1) / n);
+    }
+    this.plankY = THREE.MathUtils.clamp(this.plankY, -0.03, 0.015);
+    lift += this.plankY + this.obstLift;
+    this.rotate(b.chest, this.plankY * 2.5, 0, 0);
     this.body.position.y = lift;
+  }
+
+  /** Weather: wet through in the rain (slowly), and now and then a hand up against it or a gust. */
+  private weather(dt: number): void {
+    const wetTarget = Math.min(1, causticUniforms.uRainWet.value * 1.2);
+    const k = 1 - Math.exp(-dt * (wetTarget > runnerWet.value ? 0.35 : 0.08));
+    runnerWet.value += (wetTarget - runnerWet.value) * k;
+    if (this.current !== 'run' || this.busy() || dt <= 0) {
+      this.gustPrev = worldMood.gust;
+      return;
+    }
+    const gustHit = worldMood.gust > 0.55 && this.gustPrev <= 0.55;
+    this.gustPrev = worldMood.gust;
+    const rainy = runnerWet.value > 0.35 && worldMood.drive > 0.6;
+    if ((gustHit && this.weatherRng.chance(0.6)) || (rainy && this.weatherRng.chance(dt * 0.07))) this.shield(this.weatherRng.chance(0.5) ? 1 : -1);
   }
 
   /** Breathing: slow and shallow when fresh, quick and heaving when spent (visible at rest). */
   private breathe(dt: number): void {
     const x = this.exertion;
-    const rest = this.current === 'run' ? 0.25 : 1;
-    const rate = 0.28 + 0.75 * x;
+    // Running, the breath mostly hides in the stride, except at the top tiers where it heaves.
+    const rest = this.current === 'run' ? 0.25 + 0.55 * smoothstep(2.5, 4, this.driveS) : 1;
+    const rate = 0.28 + 0.75 * x + 0.25 * smoothstep(2.5, 4, this.driveS);
     this.breathPh += dt * rate * Math.PI * 2;
     const s = Math.sin(this.breathPh);
     // Inhale: chest lifts and opens, shoulders rise; a faster, sharper intake when winded.
@@ -866,7 +1103,8 @@ export class Runner {
   }
 
   /** Two-bone IK in world space, bending in the current knee plane. False if out of reach. */
-  private solveLeg(f: FootLock, target: THREE.Vector3): boolean {
+  private solveLeg(f: FootLock, targetIn: THREE.Vector3): boolean {
+    let target = targetIn;
     const thigh = f.thigh!;
     const shin = f.shin!;
     const foot = f.foot!;
@@ -877,8 +1115,16 @@ export class Runner {
     const a = H.distanceTo(K);
     const b = K.distanceTo(A);
     const toT = target.clone().sub(H);
-    const d = toT.length();
-    if (d > (a + b) * 0.995) return false;
+    let d = toT.length();
+    let reach = true;
+    if (d > (a + b) * 0.995) {
+      // Out of reach (the clip pulled the hip away): aim as far as the leg goes and report it, so the
+      // lock fades out over a few frames instead of snapping the foot back to the clip.
+      toT.multiplyScalar(((a + b) * 0.995) / d);
+      d = (a + b) * 0.995;
+      target = H.clone().add(toT);
+      reach = false;
+    }
     if (d < Math.abs(a - b) + 0.02) return true;
     const u = toT.divideScalar(d);
     // Bend direction: where the knee points now, made perpendicular to the hip→target line.
@@ -897,7 +1143,7 @@ export class Runner {
     const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
     foot.quaternion.copy(sq.multiply(footQ));
     foot.updateMatrixWorld(true);
-    return true;
+    return reach;
   }
 
   private rotate(b: THREE.Bone | undefined, x: number, y: number, z: number) {
@@ -913,6 +1159,11 @@ export class Runner {
     this.stumbleT = -1;
     this.duckT = -1;
     this.hopT = -1;
+    this.shieldT = -1;
+    this.plankY = this.plankV = 0;
+    this.slopePrev = this.stairW = 0;
+    this.stairCool = 0;
+    runnerWet.value = 0;
     this.beatOut = false;
     this.beatGain = 1;
     this.pending = null;
