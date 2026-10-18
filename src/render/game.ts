@@ -336,13 +336,20 @@ export class Game {
       fog.color.copy(this.moodFog.setHex(L.fog).lerp(OMINOUS_FOG, 0.5 * d));
       fog.density = L.fogDensity * (1 + 0.7 * d);
     }
-    // Weather: wind in the foliage (gusts on tier-ups), rain building late (from 75 % in the clear
-    // looks), the stone wetting with it, lightning more often.
-    wind.uStrength.value = (L.wind ?? 1) * (1 + 1.6 * d + 2.2 * g);
-    const rain = storm ? (L.rain ?? 0) * (0.55 + 0.45 * d) : Math.max(0, (d - 0.75) * 2.4) * 0.6;
+    // Weather is part of the drive: every run starts calm (no rain, light wind), so every look has
+    // headroom. The storm look opens as a still, overcast sky and breaks into wind, rain and lightning
+    // as the run climbs; the clear looks gather wind and, at the very top, a first rain.
+    const ss = (a: number, b: number) => {
+      const x = Math.min(1, Math.max(0, (d - a) / (b - a)));
+      return x * x * (3 - 2 * x);
+    };
+    const windBase = storm ? 1 + ((L.wind ?? 1) - 1) * ss(0.15, 0.7) : L.wind ?? 1;
+    wind.uStrength.value = windBase * (1 + 1.6 * d + 2.2 * g);
+    const rain = storm ? (L.rain ?? 0) * ss(0.3, 0.85) : ss(0.75, 1) * 0.6;
     this.rain.update(this.worldT, rain);
-    causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (0.7 + 0.3 * d) + rain * 0.5);
-    const f = Math.max(this.lightning(this.worldT, (L.lightning ?? 0) + (d > 0.8 ? 3 * (d - 0.8) / 0.2 : 0)), storm ? g * 0.8 : 0);
+    causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (storm ? 0.15 + 0.85 * ss(0.3, 0.9) : d) + rain * 0.5);
+    const bolts = (L.lightning ?? 0) * ss(0.55, 1) + (d > 0.8 ? (3 * (d - 0.8)) / 0.2 : 0);
+    const f = Math.max(this.lightning(this.worldT, bolts), storm ? g * 0.8 * ss(0.3, 0.8) : 0);
     this.hemi.intensity = L.hemiI * (1 - 0.25 * d) * (1 + f * 3.5);
     this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.25 * g);
     // Life in the air: more falling leaves as the run builds and on every gust.

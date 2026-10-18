@@ -67,7 +67,9 @@ export const LOOKS: Look[] = [
   {
     // Storm: an overcast slate-blue sky, no sun disc, a flat cool key with soft shadows, the jungle
     // thrashing in the wind, every stone rain-dark and glossy, rain streaks and the odd flash of
-    // lightning. It must not read as the clear day with a filter.
+    // lightning. It must not read as the clear day with a filter. Wind, rain, wet and lightning are the
+    // values at the top of the run: a run opens still and overcast and the storm breaks with the drive
+    // (game.ts applyMood).
     name: 'storm',
     sun: 0xb9c8d8, sunI: 4.2, fillI: 0.7,
     hemiSky: 0x7f93a6, hemiGround: 0x3e3a34, hemiI: 1.05, envI: 0.3, skyI: 0.5,
