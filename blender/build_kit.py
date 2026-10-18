@@ -248,7 +248,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11", "temple": "uvfit-r11"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:
@@ -328,6 +328,24 @@ def cache_group(key, digest):
         json.dump({"hash": digest, "objs": OBJ_DIGESTS.get(key, {})}, f)
 
 
+def fit_uvs(objs):
+    """With very many islands the packer can overflow the unit square (the temple group — face gate,
+    idols, pyramids — packed to 1.77 and baked to nothing, a flat white): scale the layout back in."""
+    import numpy as np
+    hi = 0.0
+    for o in objs:
+        uv = np.zeros(len(o.data.loops) * 2, np.float32)
+        o.data.uv_layers.active.data.foreach_get("uv", uv)
+        if len(uv):
+            hi = max(hi, float(uv.max()))
+    if hi > 1.0:
+        log(f"  UVs overflowed to {hi:.2f}: fitted back into the unit square")
+        for o in objs:
+            uv = np.zeros(len(o.data.loops) * 2, np.float32)
+            o.data.uv_layers.active.data.foreach_get("uv", uv)
+            o.data.uv_layers.active.data.foreach_set("uv", uv / hi)
+
+
 for key, (mat, size) in mats.items():
     objs = groups[key]
     if not objs:
@@ -335,6 +353,7 @@ for key, (mat, size) in mats.items():
     reuse = bool(REUSE) and key in REUSE_GROUPS and not FAST
     # Margins in texels of the shipped (optimized, halved) atlas stay at 3–4 px.
     ensure_uvs_packed_weighted(objs, size // Q, margin_px=max(2, (8 if size >= 4096 else 6 if size >= 2048 else 4) // Q))
+    fit_uvs(objs)
     if reuse:
         log(f"reuse {key} ({len(objs)} objects)")
         reuse_group(objs, key)
