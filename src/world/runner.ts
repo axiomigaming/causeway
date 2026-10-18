@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Kit } from './assets';
 import { Rng } from '../engine/rng';
+import { causticUniforms } from './caustics';
+import { worldMood } from './mood';
 
 /**
  * Animation states. `run` is locomotion: the `run`, `sprint` and `dash` clips
@@ -93,6 +95,8 @@ export const RUNNER_FILL = 0.45;
 export const RUNNER_RIM = 0.4;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
 export const RUNNER_COOL_RIM = 0.22;
+/** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
+const runnerWet = { value: 0 };
 function liftRunner(m: THREE.MeshStandardMaterial): void {
   for (const t of [m.map, m.normalMap, m.roughnessMap]) {
     if (!t) continue;
@@ -105,8 +109,12 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     sh.uniforms.uRunnerFill = { value: RUNNER_FILL };
     sh.uniforms.uRunnerRim = { value: RUNNER_RIM };
     sh.uniforms.uRunnerCool = { value: RUNNER_COOL_RIM };
+    sh.uniforms.uRunnerWet = runnerWet;
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;')
+      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;')
+      // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, roughnessFactor * 0.45 + 0.08, uRunnerWet);')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 - 0.2 * uRunnerWet;')
       .replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>
@@ -196,6 +204,12 @@ export class Runner {
   private stumbleT = -1;
   private duckT = -1;
   private hopT = -1;
+  private shieldT = -1;
+  private shieldSide = 1;
+  private weatherRng = new Rng(0x5e17);
+  private gustPrev = 0;
+  private qa = new THREE.Quaternion();
+  private eu = new THREE.Euler(0, 0, 0, 'ZYX');
   /** Fading out an interrupted beat (see overlays). */
   private beatOut = false;
   private beatGain = 1;
@@ -411,9 +425,21 @@ export class Runner {
     return true;
   }
 
-  /** A reactive beat is playing (glance, stumble, duck, hop): the next one waits. */
+  /**
+   * A forearm up to shield the eyes from driving rain or a gust (cosmetic, ~1.1 s), the head ducked
+   * a touch. The runner fires it himself now and then when the weather turns (see weather()); the
+   * world may also call it on a gust. False if busy.
+   */
+  shield(side = 1): boolean {
+    if (this.current !== 'run' || this.busy()) return false;
+    this.shieldT = 0;
+    this.shieldSide = side >= 0 ? 1 : -1;
+    return true;
+  }
+
+  /** A reactive beat is playing (glance, stumble, duck, hop, shield): the next one waits. */
   busy(): boolean {
-    return this.glanceT >= 0 || this.stumbleT >= 0 || this.duckT >= 0 || this.hopT >= 0;
+    return this.glanceT >= 0 || this.stumbleT >= 0 || this.duckT >= 0 || this.hopT >= 0 || this.shieldT >= 0;
   }
 
   get stumbling(): number {
@@ -549,6 +575,7 @@ export class Runner {
     // Exertion builds with running (faster in the high tiers) and recovers slowly at rest.
     if (this.current === 'run' || this.current === 'start') this.exertion = Math.min(1, this.exertion + dt * (0.03 + 0.012 * speed));
     else this.exertion = Math.max(0, this.exertion - dt * 0.035);
+    this.weather(dt);
     this.breathe(dt);
     this.lookLayer(dt);
     this.secondary(dt);
@@ -570,7 +597,7 @@ export class Runner {
     if (this.beatOut) {
       this.beatGain = Math.max(0, this.beatGain - dt / 0.15);
       if (this.beatGain <= 0) {
-        this.glanceT = this.stumbleT = this.duckT = this.hopT = this.catchT = -1;
+        this.glanceT = this.stumbleT = this.duckT = this.hopT = this.catchT = this.shieldT = -1;
         this.beatOut = false;
         this.beatGain = 1;
       }
@@ -676,14 +703,48 @@ export class Runner {
       }
       if (this.hopT > T + 0.05) this.hopT = -1;
     }
+    if (this.shieldT >= 0) {
+      this.shieldT += dt;
+      const t = this.shieldT;
+      const e = (t < 0.2 ? smoothstep(0, 0.2, t) : 1 - smoothstep(0.8, 1.1, t)) * G;
+      // The shielding arm leaves the pump: its pose blends to a forearm across the brow.
+      const R = this.shieldSide > 0;
+      const ua = R ? b.upper_armR : b.upper_armL;
+      const fa = R ? b.forearmR : b.forearmL;
+      const sg = R ? -1 : 1;
+      if (ua && fa) {
+        ua.quaternion.slerp(this.qa.setFromEuler(this.eu.set(-1.5, 0.35 * sg, 0.3 * sg)), e);
+        fa.quaternion.slerp(this.qa.setFromEuler(this.eu.set(-2.05, 0, 0)), e);
+      }
+      this.rotate(b.neck, -0.1 * e, -0.15 * sg * e, 0);
+      this.rotate(b.head, -0.08 * e, -0.1 * sg * e, 0);
+      this.rotate(b.chest, -0.05 * e, 0.06 * sg * e, 0);
+      if (t > 1.1) this.shieldT = -1;
+    }
     this.body.position.y = lift;
+  }
+
+  /** Weather: wet through in the rain (slowly), and now and then a hand up against it or a gust. */
+  private weather(dt: number): void {
+    const wetTarget = Math.min(1, causticUniforms.uRainWet.value * 1.2);
+    const k = 1 - Math.exp(-dt * (wetTarget > runnerWet.value ? 0.35 : 0.08));
+    runnerWet.value += (wetTarget - runnerWet.value) * k;
+    if (this.current !== 'run' || this.busy() || dt <= 0) {
+      this.gustPrev = worldMood.gust;
+      return;
+    }
+    const gustHit = worldMood.gust > 0.55 && this.gustPrev <= 0.55;
+    this.gustPrev = worldMood.gust;
+    const rainy = runnerWet.value > 0.35 && worldMood.drive > 0.6;
+    if ((gustHit && this.weatherRng.chance(0.6)) || (rainy && this.weatherRng.chance(dt * 0.07))) this.shield(this.weatherRng.chance(0.5) ? 1 : -1);
   }
 
   /** Breathing: slow and shallow when fresh, quick and heaving when spent (visible at rest). */
   private breathe(dt: number): void {
     const x = this.exertion;
-    const rest = this.current === 'run' ? 0.25 : 1;
-    const rate = 0.28 + 0.75 * x;
+    // Running, the breath mostly hides in the stride, except at the top tiers where it heaves.
+    const rest = this.current === 'run' ? 0.25 + 0.55 * smoothstep(2.5, 4, this.driveS) : 1;
+    const rate = 0.28 + 0.75 * x + 0.25 * smoothstep(2.5, 4, this.driveS);
     this.breathPh += dt * rate * Math.PI * 2;
     const s = Math.sin(this.breathPh);
     // Inhale: chest lifts and opens, shoulders rise; a faster, sharper intake when winded.
@@ -913,6 +974,8 @@ export class Runner {
     this.stumbleT = -1;
     this.duckT = -1;
     this.hopT = -1;
+    this.shieldT = -1;
+    runnerWet.value = 0;
     this.beatOut = false;
     this.beatGain = 1;
     this.pending = null;
