@@ -130,6 +130,16 @@
   .hud .mult .x { font-size: var(--t20); }
   .result .big { font-size: var(--t28); line-height: 32px; }
 }
+/* short phones: a compact card that stays clear of the dock */
+@media (max-width: 760px) and (max-height: 700px) {
+  .hud { --hud-top: 104px; }
+  .result { top: calc(96px + var(--safe-t)); padding: 16px 16px 4px; }
+  .result .big { margin-top: 8px; font-size: var(--t28); line-height: 32px; }
+  .result .big .unit { font-size: var(--t16); }
+  .result .line { margin-top: 4px; gap: 0 4px; font-size: var(--t12); line-height: 16px; }
+  .result .line b { font-size: var(--t12); }
+  .result .verify { margin-top: 4px; }
+}
 /* landscape phones: little height; the figure sits just under the top bar */
 @media (max-height: 520px) and (orientation: landscape) {
   .hud { --hud-top: 0px; top: calc(var(--safe-t) + 72px); }

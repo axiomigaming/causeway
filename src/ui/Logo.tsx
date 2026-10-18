@@ -7,7 +7,7 @@ import { Stair } from './icons';
  */
 export function Logo({ size = 'title' }: { size?: 'title' | 'compact' | 'mark' }) {
   return (
-    <span className={`logo ${size}`}>
+    <span className={`logo logo-${size}`}>
       <Stair className="logo-stair" />
       {size !== 'mark' && <span className="logo-word">Causeway</span>}
     </span>
