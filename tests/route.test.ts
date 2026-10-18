@@ -168,4 +168,43 @@ describe('route generation', () => {
     expect(high).toBeGreaterThan(20);
     expect(low).toBeLessThan(high * 0.45);
   });
+
+  it('keeps foliage out of the camera corridor (a lane ±1.6 m wide, 1.2–2.6 m up) in every section', () => {
+    // Piece origins, padded by a nominal radius per kind (the test has no kit geometry). Canopies are
+    // limbs arched across a straight lane: never on a corner (their arch would run along the exit leg),
+    // and on straights always turned across the way.
+    const FOLIAGE = /^(bush_|fern_|shrub_mass_|banana_|grass_|jungle_bank_|palm_\d_crown|tree_big_\d_crown|jungle_\d_crown|canopy_)/;
+    const pad = (piece: string) => (piece.startsWith('bush_') || piece.startsWith('shrub_mass') ? 0.35 : 0.2);
+    const p = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
+    const bad: string[] = [];
+    for (const t of SECTION_TYPES) {
+      for (let i = 0; i < 4; i++) {
+        const l = buildLayout(t, `${t}#${i}`, { foliage: 1, scenery: 1 }, undefined, i / 3);
+        const corner = l.turn !== 0;
+        // The lane's centre line, sampled in the section's frame.
+        const path = new Path();
+        path.reset({ pos: new THREE.Vector3(), yaw: 0 });
+        path.push(l.len, l.turn, l.dy);
+        const f = { pos: new THREE.Vector3(), yaw: 0 };
+        const lane: THREE.Vector3[] = [];
+        for (let s = 0; s <= l.len; s += 0.25) lane.push(path.sample(s, f).pos.clone());
+        for (const pl of l.props) {
+          if (!FOLIAGE.test(pl.piece)) continue;
+          pl.m.decompose(p, q, sc);
+          if (pl.piece.startsWith('canopy_')) {
+            const yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
+            if (corner || Math.abs(Math.sin(yaw)) > 0.35) bad.push(`${t}#${i} ${pl.piece} (canopy on a corner or along the lane)`);
+            continue;
+          }
+          const r = pad(pl.piece);
+          if (p.y + r < 1.2 || p.y - r > 2.6) continue;
+          const d = Math.min(...lane.map((c) => Math.hypot(p.x - c.x, p.z - c.z)));
+          if (d < 1.6 + r) bad.push(`${t}#${i} ${pl.piece} at (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
 });
