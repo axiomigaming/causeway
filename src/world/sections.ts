@@ -57,6 +57,8 @@ export interface Layout {
   hazards: ('chasm' | 'gate' | 'rockfall')[];
   /** Tall structures near the path (for rockfall sources and camera framing). */
   walls: 'none' | 'low' | 'tall' | 'cliff';
+  /** Round 11 crescendo: 0 intact .. 1 ruined (see Builder.ruin). */
+  ruin: number;
 }
 
 export const PATH_HALF = 2.2;
@@ -83,6 +85,11 @@ class Builder {
     readonly density: { foliage: number; scenery: number },
     /** Which variant of the section type this is (styles rotate through variants). */
     readonly variant = 0,
+    /**
+     * Round 11 crescendo: how far gone this variant is (0 intact, lush .. 1 ruined, dramatic). The
+     * track spawns variants whose ruin matches the CURRENT multiplier's intensity (presentation only).
+     */
+    readonly ruin = 0,
   ) {}
 
   /** Share of a section's parapet runs built as carved walls (glyph band, fret crest): a third of the
@@ -340,6 +347,8 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
 }
 
 function floorRun(b: Builder, z0: number, n: number, y = 0, broken = 0.12, medallion = 0.07) {
+  // Ruined variants: more cracked and broken slabs.
+  broken = Math.min(0.85, broken + 0.45 * b.ruin);
   for (let i = 0; i < n; i++) {
     const piece = b.rng.chance(broken) ? 'floor_2' : b.rng.chance(medallion) ? 'floor_medallion_0' : b.rng.pick(FLOORS.slice(0, 4));
     const flip = b.rng.chance(0.5);
@@ -351,7 +360,8 @@ function floorRun(b: Builder, z0: number, n: number, y = 0, broken = 0.12, medal
 }
 
 function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], opts: { gaps?: number; foundation?: boolean } = {}) {
-  const gaps = opts.gaps ?? 0.12;
+  // Ruined variants: more parapet stretches collapsed into rubble.
+  const gaps = (opts.gaps ?? 0.12) + 0.3 * b.ruin;
   for (const side of sides) {
     let carvedRun = false;
     for (let i = 0; i < n; i++) {
@@ -365,6 +375,7 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       b.edgeRubble(side, z);
       if (b.rng.chance(gaps)) {
         b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.6), 0, z - 2, b.rng.range(0, 6.28));
+        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.9), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
         continue;
       }
       if (b.rng.chance(b.carving)) {
@@ -1157,13 +1168,30 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
   },
 };
 
-export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number): Layout {
+/**
+ * Round 11 crescendo: in the ruined variants, towers in the distance lean and break, their fallen
+ * blocks heaped at their feet: the world falling apart as the multiplier climbs.
+ */
+function ruinedSkyline(b: Builder, len: number, ruin: number) {
+  const n = ruin > 0.8 ? 2 : 1;
+  for (let i = 0; i < n; i++) {
+    const side = b.rng.chance(0.5) ? -1 : 1;
+    const x = side * b.rng.range(30, 44);
+    const z = -b.rng.range(0.2, 0.8) * len;
+    const lean = b.rng.range(0.12, 0.26) * ruin;
+    b.place(b.rng.pick(['tower_0', 'tower_1']), x, WL - 1.2, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.25), [b.rng.range(-1, 1) * lean, side * lean]);
+    for (let k = 0; k < 3; k++) b.place(`rubble_${b.rng.int(0, 3)}`, x + b.rng.range(-4, 4), WL - 0.3, z + b.rng.range(-4, 4), b.rng.range(0, 6.28), b.rng.range(1.6, 2.6));
+  }
+}
+
+export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0): Layout {
   const rng = new Rng(seed);
   const def = BUILDERS[type];
   const L = len ?? rng.pick(def.lengths);
-  const b = new Builder(rng, density, Number(seed.split('#')[1] ?? 0) || 0);
+  const b = new Builder(rng, density, Number(seed.split('#')[1] ?? 0) || 0, ruin);
   const r = def.build(b, L);
-  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls };
+  if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel') ruinedSkyline(b, L, ruin);
+  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin };
 }
 
 export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];

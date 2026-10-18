@@ -6,7 +6,10 @@ import { loadKit, pickAssetSet, wind, type Kit } from '../world/assets';
 import { DynamicResolution, warmUp } from './perf';
 import { installShadowEdgeFade } from './shadows';
 import { ContactShadow } from './contact';
-import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun } from '../world/atmosphere';
+import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
+import { causticUniforms } from '../world/caustics';
+import { Rain } from './rain';
+import { resetMood, stepMood, worldMood } from '../world/mood';
 import { Debris } from '../world/debris';
 import { forward } from '../world/path';
 import { CRASH_CLIPS, crashStaging, escapeStaging, nextBeat, runDrive, runTier, type CrashKind, type CrashStaging, type EscapeStaging } from '../world/choreo';
@@ -47,6 +50,9 @@ export interface WorldSounds {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** Round 11 crescendo targets: a low, red dusk sun and a bruised slate haze. */
+const DUSK_SUN = new THREE.Color(0xff8a52);
+const OMINOUS_FOG = new THREE.Color(0x4f5866);
 const SHADOW_U = new THREE.Vector3();
 const SHADOW_V = new THREE.Vector3();
 
@@ -81,6 +87,7 @@ export class Game {
   private debris!: Debris;
   private particles = new Particles(1100);
   private motes = new Motes(420);
+  private rain = new Rain();
   private contact = new ContactShadow(); // grounds the runner on every tier
   private ambient = new Ambient(); // world art: birds, butterflies, leaves
   /** Cinematic effects: lit dust, water shockwaves, cracks, birds, sun shafts, escape rim. */
@@ -223,7 +230,7 @@ export class Game {
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
     scene.add(this.contact.mesh);
-    scene.add(this.particles.points, this.motes.points, this.ambient.root);
+    scene.add(this.particles.points, this.motes.points, this.ambient.root, this.rain.mesh);
     // Cinematic fx (before the fog patch and the program warm-up below).
     this.cine.attachRunner(this.runner.root);
     scene.add(this.cine.root);
@@ -279,6 +286,69 @@ export class Game {
       const m = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
       m?.color.setRGB(...L.stoneTint);
     }
+    // Round 11: what makes a storm a storm (overcast sky, no sun, soft shadows, rain-wet stone).
+    setSkyLook(L.skyTint ?? [1, 1, 1], L.skyDesat ?? 0, L.sunDisc === 0 ? 1 : 0);
+    this.sunDisc.visible = (L.sunDisc ?? 1) > 0;
+    this.sun.shadow.intensity = L.shadow ?? 1;
+    causticUniforms.uRainWet.value = L.wet ?? 0;
+  }
+
+  private moodSun = new THREE.Color();
+  private moodFog = new THREE.Color();
+  private moodLeaves = -1;
+  /**
+   * Round 11 crescendo, every frame: the look's light and air pushed toward a gathering storm (storm
+   * look) or a deepening, ominous dusk (the others) by the run's drive (0..1), punctuated by gusts.
+   */
+  private applyMood(d: number, g: number): void {
+    const L = this.lookApplied;
+    if (!L) return;
+    const storm = (L.rain ?? 0) > 0;
+    // Light: the sun sinks and reddens (or dims behind the cloud), the shade cools and deepens.
+    this.moodSun.setHex(L.sun);
+    if (!storm) this.moodSun.lerp(DUSK_SUN, 0.55 * d);
+    this.sun.color.copy(this.moodSun);
+    this.sun.intensity = L.sunI * (1 - (storm ? 0.3 : 0.38) * d);
+    this.fill.intensity = L.fillI * (1 - 0.3 * d);
+    // Sky and haze: darker, bruised slate; thicker air.
+    const t = L.skyTint ?? [1, 1, 1];
+    setSkyLook(
+      [t[0] * (1 - 0.3 * d), t[1] * (1 - 0.3 * d), t[2] * (1 - 0.16 * d)],
+      Math.min(1, (L.skyDesat ?? 0) + 0.35 * d),
+      L.sunDisc === 0 ? 1 : 0.6 * d,
+    );
+    const fog = this.scene.fog as THREE.FogExp2 | null;
+    if (fog) {
+      fog.color.copy(this.moodFog.setHex(L.fog).lerp(OMINOUS_FOG, 0.5 * d));
+      fog.density = L.fogDensity * (1 + 0.7 * d);
+    }
+    // Weather: wind in the foliage (gusts on tier-ups), rain building late (from 75 % in the clear
+    // looks), the stone wetting with it, lightning more often.
+    wind.uStrength.value = (L.wind ?? 1) * (1 + 1.6 * d + 2.2 * g);
+    const rain = storm ? (L.rain ?? 0) * (0.55 + 0.45 * d) : Math.max(0, (d - 0.75) * 2.4) * 0.6;
+    this.rain.update(this.worldT, rain);
+    causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (0.7 + 0.3 * d) + rain * 0.5);
+    const f = Math.max(this.lightning(this.worldT, (L.lightning ?? 0) + (d > 0.8 ? 3 * (d - 0.8) / 0.2 : 0)), storm ? g * 0.8 : 0);
+    this.hemi.intensity = L.hemiI * (1 - 0.25 * d) * (1 + f * 3.5);
+    this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.25 * g);
+    // Life in the air: more falling leaves as the run builds and on every gust.
+    const leaves = Math.min(1, d + g * 0.8);
+    if (Math.abs(leaves - this.moodLeaves) > 0.02) {
+      this.moodLeaves = leaves;
+      this.ambient.setLeafDensity(leaves);
+    }
+  }
+
+  /** Lightning: a brief double flash now and then (cosmetic; a function of world time only). */
+  private lightning(t: number, perMinute: number): number {
+    if (perMinute <= 0) return 0;
+    const period = 60 / perMinute;
+    const k = Math.floor(t / period);
+    const h = Math.sin(k * 12.9898) * 43758.5453;
+    const at = k * period + (h - Math.floor(h)) * period * 0.8;
+    const d = t - at;
+    if (d < 0 || d > 0.45) return 0;
+    return Math.max(Math.exp(-d * 18), d > 0.16 ? Math.exp(-(d - 0.16) * 14) * 0.8 : 0);
   }
 
   private onVisibility = () => {
@@ -350,6 +420,7 @@ export class Game {
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);
+    resetMood();
     this.debris.clear();
     this.particles.clear();
     this.cine.clear();
@@ -1681,11 +1752,14 @@ export class Game {
     this.fill.position.set(rp.x - this.sunDir.x * 10, rp.y + 7, rp.z - this.sunDir.z * 10);
     this.sun.target.position.copy(sh);
     this.sun.position.copy(sh).addScaledVector(this.sunDir, 55);
-    this.sunDisc.position.copy(cam.position).addScaledVector(this.sunDir, 900);
+    // Overcast (storm): no disc, and post's shafts and flare (which follow the disc) see it behind the lens.
+    this.sunDisc.position.copy(cam.position).addScaledVector(this.sunDir, this.sunDisc.visible ? 900 : -900);
     this.sunDisc.lookAt(cam.position);
 
     wind.uTime.value = this.worldT;
-    wind.uStrength.value = 1 + I * 0.8;
+    // Round 11 crescendo: the world's mood follows the run (src/world/mood.ts; presentation only).
+    const mood = stepMood(dt, I);
+    this.applyMood(mood.drive, mood.gust);
     this.water.update(this.worldT, cam);
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
@@ -1702,7 +1776,7 @@ export class Game {
     // it eases back once the round settles (the fall's cold and the escape's gold take over).
     const tensionTarget = this.stage === 'run' ? Math.min(1, Math.max(0, Math.log(this.live.mult) / Math.log(20))) : 0;
     this.tension += (tensionTarget - this.tension) * (1 - Math.exp(-rawDt * (this.stage === 'run' ? 1.5 : 0.8)));
-    this.motes.update(this.worldT, cam, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)), 1 + 1.3 * this.tension, this.sunDir);
+    this.motes.update(this.worldT, cam, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)), (1 + 1.3 * this.tension) * (1 + 1.2 * worldMood.drive + 1.5 * worldMood.gust), this.sunDir);
     this.ambient.update(this.worldT, cam);
 
     // Keep the runner sharp in the blur: the protected ellipse spans boots to crown. (It used to sit
