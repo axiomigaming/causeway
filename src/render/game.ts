@@ -13,6 +13,7 @@ import { CRASH_CLIPS, crashStaging, escapeStaging, nextBeat, runDrive, runTier, 
 import { Runner, type RunnerAnim } from '../world/runner';
 import { PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
+import type { Look } from '../world/look';
 import { WATER_Y, Water } from '../world/water';
 import { Ambient } from './ambient';
 import { CameraRig } from './cameraRig';
@@ -86,14 +87,18 @@ export class Game {
   private dangerIn = 3;
   private fxMotion: 'full' | 'reduced' | null = null;
   private post!: Post;
-  private sun = new THREE.DirectionalLight(0xffe0b8, 13);
+  // Round 11: a stronger, warmer golden-hour key (the references: low sun, deep shade, high contrast).
+  private sun = new THREE.DirectionalLight(0xffd29c, 15.5);
   private sunDir = new THREE.Vector3(0.4, 0.25, -0.8);
   /** The sun as rendered in the panorama; `sunDir` is this turned by `skyYaw`. */
   private sunBase = new THREE.Vector3(0.4, 0.25, -0.8);
   /** The sky, its light and the sun turn slowly with the route's heading, so the sun stays ahead. */
   private skyYaw = 0;
   private shadowExtent = 20;
-  private fill = new THREE.DirectionalLight(0xffe0bc, 1.7);
+  private fill = new THREE.DirectionalLight(0xffd8b0, 1.15);
+  private hemi = new THREE.HemisphereLight(0x9fd0c8, 0x8a5a3a, 0.4);
+  /** The world's time-of-day look last applied (round 11; see world/look.ts). */
+  private lookApplied: Look | null = null;
   private mistAmount = 1;
   private tmpHead = new THREE.Vector3(); // perf
   private tmpSize = new THREE.Vector2(); // perf
@@ -159,10 +164,10 @@ export class Game {
     scene.environment = pmrem.fromEquirectangular(kit.env).texture;
     // The sky fills the shade; sunlit sandstone bounces warm light back into it, so shade reads
     // warm umber (as in the references), never grey.
-    scene.environmentIntensity = 0.26;
+    scene.environmentIntensity = 0.2; // round 11: deeper shade
     // Round 5: the sky fill leans teal-green (the jungle canopy and the water) against the warm key, so
     // shade reads cool and deep instead of the whole frame going one terracotta tone.
-    scene.add(new THREE.HemisphereLight(0xa9d6c8, 0xa0704a, 0.55));
+    scene.add(this.hemi); // round 11: deeper, cooler shade against the warm key (the look sets it per world)
     // Bounce from the sunlit causeway behind the lens: the sun is ahead, so without it every face
     // the camera sees (the runner's back, the wall faces) would sit in flat shade.
     this.fill.position.set(0, 0.35, 1);
@@ -251,6 +256,30 @@ export class Game {
   }
 
   private sunDisc!: THREE.Mesh;
+
+  /** Round 11: light and air for the current world's time-of-day look (a few uniforms, once per world). */
+  private applyLook(): void {
+    const L = this.track.look;
+    if (L === this.lookApplied) return;
+    this.lookApplied = L;
+    this.sun.color.setHex(L.sun);
+    this.sun.intensity = L.sunI;
+    this.fill.intensity = L.fillI;
+    this.hemi.color.setHex(L.hemiSky);
+    this.hemi.groundColor.setHex(L.hemiGround);
+    this.hemi.intensity = L.hemiI;
+    this.scene.environmentIntensity = L.envI;
+    this.scene.backgroundIntensity = L.skyI;
+    const fog = this.scene.fog as THREE.FogExp2 | null;
+    if (fog) {
+      fog.color.setHex(L.fog);
+      fog.density = L.fogDensity;
+    }
+    for (const key of ['stoneA', 'stoneB', 'floor', 'statue', 'glyph', 'temple']) {
+      const m = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
+      m?.color.setRGB(...L.stoneTint);
+    }
+  }
 
   private onVisibility = () => {
     this.visible = document.visibilityState === 'visible';
@@ -1634,7 +1663,8 @@ export class Game {
     this.scene.environmentRotation.y = this.skyYaw;
     this.water.setSun(this.sunDir, this.skyYaw);
     setAtmosphereSun(this.sunDir);
-    setAtmosphereMist(this.worldT, this.mistAmount);
+    this.applyLook();
+    setAtmosphereMist(this.worldT, this.mistAmount * (this.lookApplied?.mist ?? 1));
     // Sun follows the runner so its shadow box stays tight: centred ahead (where the long shadows
     // fall toward the lens), snapped to whole shadow texels across the light.
     const ext = this.shadowExtent;

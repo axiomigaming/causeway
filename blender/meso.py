@@ -26,8 +26,9 @@ from common import add_block, finish_obj, hexcol, jitter_color
 from setpieces import _cyl, _merge
 
 # Weathered limestone (pale, a little grey-green), not the warm planks of the old temples.
-LIME = [hexcol(h) for h in ("#c9bb9a", "#bcad8c", "#d3c6a6", "#b0a283", "#c4b592", "#a99a7c")]
-LIME_DARK = [hexcol(h) for h in ("#8f8268", "#857a62", "#978a6e")]
+# Round 11: warm sandstone (the references are golden-orange stone in a low sun), not pale limestone.
+LIME = [hexcol(h) for h in ("#cfa47a", "#c09166", "#d8b085", "#b3875f", "#c99d70", "#ad8160")]
+LIME_DARK = [hexcol(h) for h in ("#7e5f44", "#74583f", "#86664a")]
 MOSS = [hexcol(h) for h in ("#6f7a44", "#5f6c3a", "#7c8248")]
 GOLD = hexcol("#e3ac3c")
 GOLD_DK = hexcol("#b07a22")

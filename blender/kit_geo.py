@@ -17,8 +17,10 @@ from common import add_block, add_stone, drop_faces_below, finish_obj, hexcol, j
 # Warm, saturated sandstone (round 3: the beige read dusty; the references are red-orange and cream).
 # Round 8: less brick-red. Weathered limestone and tan sandstone (the critic read the red bricks as
 # European ruins); the pavers are a warm grey-tan stone rather than terracotta.
-SAND = [hexcol(h) for h in ("#c39a6c", "#b58b60", "#d1aa7c", "#a8825c", "#bf9670", "#b9946c", "#cba57a", "#b5a080")]
-TERRA = [hexcol(h) for h in ("#b08a6a", "#a07c60", "#bc9878", "#987458", "#a98a70", "#b39072")]
+# Round 11: warm, saturated sandstone again (the references: golden-orange blocks, a few pale and a
+# few red-brown ones for variety); the pavers a warm red-tan.
+SAND = [hexcol(h) for h in ("#c4905e", "#b58251", "#d0a06c", "#a5744d", "#bf8b5f", "#bc976d", "#cfa676", "#9d6c48", "#cdb08a")]
+TERRA = [hexcol(h) for h in ("#b48766", "#a3785d", "#c09472", "#966d56", "#ab866c", "#b99270")]
 WOOD = [hexcol(h) for h in ("#8a6547", "#7a5a40", "#96714f", "#6d4f38")]
 # Weathered boards: warm honey-brown, bleached where the sun takes them (round 5: never grey).
 BOARDS = [hexcol(h) for h in ("#b8895c", "#a87a4e", "#c4986a", "#9e754e", "#c09c72", "#b08458")]
@@ -335,8 +337,16 @@ def arch(name, seed, span=6.8, pier_h=4.0, depth=1.3):
         z = -0.3
         while z < pier_h:
             h = rng.uniform(0.45, 0.7)
-            blk(bm, rng, (1.25, depth, h - 0.02), (side * (r + 0.62) + rng.uniform(-0.03, 0.03), 0, z + h / 2),
-                (0, 0, rng.uniform(-0.04, 0.04)), radius=0.35, erode=0.5)
+            # Round 11: some courses are two stones across the pier, not one identical box per course.
+            if rng.random() < 0.5:
+                a = rng.uniform(0.45, 0.8)
+                for x0, x1 in ((r, r + a), (r + a, r + 1.25)):
+                    blk(bm, rng, (x1 - x0 - 0.02, depth * rng.uniform(0.92, 1.0), h - 0.02 - rng.uniform(0, 0.04)),
+                        (side * (x0 + x1) / 2 + rng.uniform(-0.02, 0.02), rng.uniform(-0.04, 0.04), z + h / 2),
+                        (rng.uniform(-0.02, 0.02), 0, rng.uniform(-0.04, 0.04)), radius=0.3, erode=0.55)
+            else:
+                blk(bm, rng, (1.25, depth, h - 0.02), (side * (r + 0.62) + rng.uniform(-0.03, 0.03), 0, z + h / 2),
+                    (0, 0, rng.uniform(-0.04, 0.04)), radius=0.35, erode=0.5)
             z += h
     # Round 8: a corbel (Maya) vault instead of a Roman voussoir ring: courses step inward over the
     # opening until a capstone closes it, under a carved lintel band.
@@ -345,9 +355,20 @@ def arch(name, seed, span=6.8, pier_h=4.0, depth=1.3):
     while inner > 0.5:
         h = rng.uniform(0.5, 0.6)
         for side in (-1, 1):
-            w = r + 1.25 - inner + 0.15
-            blk(bm, rng, (w, depth, h - 0.02), (side * (inner + w / 2 - 0.15), 0, z + h / 2), (0, 0, rng.uniform(-0.02, 0.02)),
-                radius=0.2, erode=0.4, cuts=1)
+            # Round 11: each course is laid in two or three stones of uneven length (staggered joints,
+            # slightly different heights and depths), not one long slab per side: it read as Lego.
+            x0, x1 = inner - 0.15, r + 1.25
+            w = x1 - x0
+            n = max(1, min(3, round(w / rng.uniform(1.1, 1.7))))
+            cuts_x = sorted(x0 + w * (k + rng.uniform(-0.18, 0.18)) / n for k in range(1, n))
+            edges = [x0] + cuts_x + [x1]
+            for k, (a, b) in enumerate(zip(edges, edges[1:])):
+                inner_most = k == 0
+                hh = h - 0.02 - rng.uniform(0.0, 0.05)
+                blk(bm, rng, (b - a - 0.025, depth * rng.uniform(0.9, 1.0), hh),
+                    (side * (a + b) / 2, rng.uniform(-0.05, 0.05), z + hh / 2 + 0.01),
+                    (rng.uniform(-0.02, 0.02), side * rng.uniform(-0.025, 0.01) if inner_most else 0.0, rng.uniform(-0.03, 0.03)),
+                    radius=0.25, erode=0.7 if inner_most else 0.5, cuts=1)
         z += h
         inner -= r / 6.5
     blk(bm, rng, (2 * r + 2.6, depth * 1.06, 0.62), (0, 0, z + 0.31), radius=0.18, erode=0.35, cuts=1)
@@ -555,6 +576,9 @@ def planks(name, seed, width=3.6, length=4.0):
                 (warp, rng.uniform(-0.02, 0.02), rng.uniform(-0.008, 0.008)), color=jitter_color(rng.choice(BOARDS), rng, 0.12, 0.04),
                 radius=0.55, erode=0.25, cuts=1, pillow=0.0, taper=0.0, uvshrink=hid)
         x += pw
+    # Round 11: a dark sub-deck under the boards, so the joints between them read as shadow, not as
+    # bright turquoise slits of water.
+    add_block(bm, (width - 0.1, length - 0.04, 0.03), (0, length / 2, -0.115), bevel=0.0, rng=rng, color=hexcol("#2a1d14"), jit=0.0)
     for yb in (0.45, 2.0, 3.55):
         blk(bm, rng, (width + 0.4, 0.22, 0.22), (rng.uniform(-0.05, 0.05), yb, -0.22), (0, 0, rng.uniform(-0.03, 0.03)),
             color=jitter_color(WOOD[3], rng), radius=0.5, erode=0.3, cuts=1, taper=0.0, uvshrink={"bottom": 0.8})

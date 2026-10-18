@@ -3,10 +3,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Rng } from '../engine/rng';
 import type { Kit } from './assets';
 import { Path, frameMatrix, type Frame, type Segment } from './path';
-import { buildLayout, isWaterPiece, nextType, type Layout, type SectionType } from './sections';
+import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionType } from './sections';
+import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
-import { causticUniforms, patchWetStone, updateCaustics } from './caustics';
+import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { atmosphereUniforms } from './atmosphere';
 
@@ -27,6 +28,10 @@ const VARIANTS: Record<SectionType, number> = {
   boardwalk: 3,
   tunnel: 3,
   statues: 3,
+  sunken: 2,
+  roots: 2,
+  colossi: 2,
+  ledge: 2,
 };
 
 interface Variant {
@@ -159,6 +164,20 @@ export class Track {
   private fallMat = makeWaterfallMaterial();
   private density = { foliage: 1, scenery: 1 };
   viewDistance = 190;
+  private themeIndex = -1;
+  private lookIndex = -1;
+  /** The current world's theme (favoured scenarios) and time-of-day look. */
+  get theme(): string {
+    return THEMES[Math.max(0, this.themeIndex)]!.name;
+  }
+  get look(): Look {
+    return LOOKS[Math.max(0, this.lookIndex)]!;
+  }
+  /** QA: force the next world's look (by name). */
+  forceLook(name: string): void {
+    const i = LOOKS.findIndex((l) => l.name === name);
+    if (i >= 0) this.lookIndex = i;
+  }
   /** QA: section types to spawn next, in order, before the pacing rules resume. */
   forceNext: SectionType[] = [];
 
@@ -179,6 +198,7 @@ export class Track {
     this.density = density;
     // The lightest tier (phones) skips the detail normals: a few dozen ALU per stone pixel.
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
+    if (causticUniforms.uDetail.value > 0) ensureDetailMap();
     // Build into a fresh map and swap at the end: the route keeps spawning from the old
     // variants meanwhile, and their geometry is retired only when the world next resets.
     const next = new Map<SectionType, Variant[]>();
@@ -256,6 +276,15 @@ export class Track {
     for (const g of this.retired) disposeGroup(g);
     this.retired.length = 0;
     this.rng = new Rng(`world/${seed}`);
+    // Round 11: the run plan — a theme of favoured scenarios and a time-of-day look, from the world's
+    // own seed, each different from the last world's (so no two rounds in a row look alike).
+    const plan = new Rng(`plan/${seed}`);
+    const pick = (n: number, last: number) => {
+      const k = plan.int(0, n - 2);
+      return last < 0 ? plan.int(0, n - 1) : k >= last ? k + 1 : k;
+    };
+    this.themeIndex = pick(THEMES.length, this.themeIndex);
+    this.lookIndex = pick(LOOKS.length, this.lookIndex);
     this.elevation = 0;
     this.path.reset({ pos: new THREE.Vector3(0, 0, 0), yaw: 0 });
     this.spawn('start');
@@ -266,7 +295,7 @@ export class Track {
   /** Keep the route built ahead of `s` and cleared behind it. */
   update(s: number, intensity: number): void {
     while (this.path.length < s + this.viewDistance) {
-      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity);
+      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types);
       this.spawn(t);
       this.lastType = t;
     }

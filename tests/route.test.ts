@@ -5,7 +5,7 @@ import { Path } from '../src/world/path';
 import { buildLayout, nextType, PATH_HALF, SECTION_TYPES, type SectionType } from '../src/world/sections';
 
 describe('route generation', () => {
-  it('stays continuous, bounded and varied over 5 km', () => {
+  it('stays continuous, bounded and varied over 8 km', () => {
     const rng = new Rng('soak');
     const path = new Path();
     path.reset({ pos: new THREE.Vector3(), yaw: 0 });
@@ -16,7 +16,7 @@ describe('route generation', () => {
     const counts = new Map<SectionType, number>();
     let lastRun = 0;
     let maxRun = 0;
-    while (path.length < 5000) {
+    while (path.length < 8000) {
       const t = nextType(rng, prev, elevation, 0.5);
       const l = layouts.get(t)!;
       path.push(l.len, (rng.chance(0.5) ? 1 : -1) * l.turn, l.dy);

@@ -67,4 +67,20 @@ describe('walkable tiles', () => {
     }
     expect(mirrored).toBeGreaterThan(0);
   });
+
+  it('every new world gets a run plan (theme and look) that differs from the last one', async () => {
+    const track = new Track(fakeKit());
+    await track.prepare({ foliage: 1, scenery: 1 });
+    let prev = { theme: '', look: '' };
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      track.reset(`plan-${i}`);
+      const cur = { theme: track.theme, look: track.look.name };
+      expect(cur.theme).not.toBe(prev.theme);
+      expect(cur.look).not.toBe(prev.look);
+      seen.add(cur.look);
+      prev = cur;
+    }
+    expect(seen.size).toBe(4);
+  });
 });
