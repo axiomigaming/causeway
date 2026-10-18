@@ -11,6 +11,9 @@ import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from 
 import { upgradeLeafMaterial } from './foliage';
 import { atmosphereUniforms } from './atmosphere';
 
+// QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
+const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
+
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
   corridor: 6,
@@ -207,7 +210,8 @@ export class Track {
     for (const [type, n] of Object.entries(VARIANTS) as [SectionType, number][]) {
       const list: Variant[] = [];
       for (let i = 0; i < n; i++) {
-        const layout = buildLayout(type, `${type}#${i}`, density);
+        // Round 11 crescendo: variants run from intact (0) to ruined (1); see spawn().
+        const layout = buildLayout(type, `${type}#${i}`, density, undefined, n > 1 ? i / (n - 1) : 0);
         list.push({ layout, group: this.mergeProps(layout), inUse: 0 });
         onStep?.(++done, total);
         await new Promise((r) => setTimeout(r, 0));
@@ -296,7 +300,7 @@ export class Track {
   update(s: number, intensity: number): void {
     while (this.path.length < s + this.viewDistance) {
       const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types);
-      this.spawn(t);
+      this.spawn(t, intensity);
       this.lastType = t;
     }
     while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
@@ -305,11 +309,15 @@ export class Track {
     this.path.trim(s - 60);
   }
 
-  private spawn(type: SectionType): void {
+  private spawn(type: SectionType, intensity = 0): void {
     const list = this.variants.get(type)!;
-    // Prefer the least-used variant, with a random tiebreak, so repeats are spread out.
-    const min = Math.min(...list.map((v) => v.inUse));
-    const candidates = list.filter((v) => v.inUse === min);
+    // Round 11 crescendo: prefer the variants whose ruin matches the current multiplier's intensity
+    // (intact and lush early, broken and dramatic late; presentation only), then the least-used one,
+    // with a random tiebreak, so repeats are spread out.
+    const ruinTarget = Number.isFinite(QA_RUIN) ? QA_RUIN : Math.min(1, intensity * 1.25);
+    const score = (v: Variant) => Math.abs(v.layout.ruin - ruinTarget) * 3 + v.inUse;
+    const min = Math.min(...list.map(score));
+    const candidates = list.filter((v) => score(v) <= min + 0.35);
     const variant = this.rng.pick(candidates);
     variant.inUse++;
     const layout = variant.layout;
