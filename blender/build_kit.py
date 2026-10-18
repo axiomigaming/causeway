@@ -10,6 +10,11 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import bpy
+import detnoise
+
+# Every piece must come out the same on every run, or its group misses the bake cache: Blender's
+# noise_vector is not repeatable between processes (see detnoise.py).
+detnoise.install()
 from mathutils import Vector
 
 from common import reset, bake_group, ensure_uvs_packed_weighted, export_glb, textured_material, OUT, CACHE
@@ -34,9 +39,15 @@ def log(*a):
 
 
 reset()
+# KIT_HASH_ONLY=1: build and pack everything, print each group's cache hash and whether the cache holds
+# it, and stop before any rendering or baking (a quick determinism / cache check).
+HASH_ONLY = os.environ.get("KIT_HASH_ONLY") == "1"
 # Leaves are rendered first, while the scene is still empty.
-log("rendering foliage atlas")
-leaf_img = F.render_atlas(2048 // (2 if FAST else 1))
+if HASH_ONLY:
+    leaf_img = bpy.data.images.new("foliage_atlas", 4, 4, alpha=True)
+else:
+    log("rendering foliage atlas")
+    leaf_img = F.render_atlas(2048 // (2 if FAST else 1))
 
 groups = {"stoneA": [], "stoneB": [], "floor": [], "rock": [], "wood": [], "bark": [], "leaf": [], "statue": [], "flora": [],
           "relief": [], "cliff": [], "gold": [], "jungle": []}
@@ -379,6 +390,14 @@ for key, (mat, size) in mats.items():
     if over > {"cliff": 0.015}.get(key, 0.005) * covered:
         raise SystemExit(f"{key}: UV islands overlap ({over} of {covered} texels at 512 px); fix the packing before baking")
     digest = group_hash(objs, key, bake_size)
+    if HASH_ONLY:
+        try:
+            with open(os.path.join(CACHE, f"bake_{key}", "hash.json")) as f:
+                hit = json.load(f)["hash"] == digest
+        except (OSError, ValueError, KeyError):
+            hit = False
+        log(f"HASH {key} {digest[:16]} {'hit' if hit else 'MISS'}")
+        continue
     if cached_group(objs, key, digest):
         log(f"cached {key} ({len(objs)} objects)")
         continue
@@ -387,6 +406,9 @@ for key, (mat, size) in mats.items():
     cache_group(key, digest)
     log(f"cached {key} for reruns")
 
+if HASH_ONLY:
+    log("hash only: done")
+    sys.exit(0)
 leaf_mat = textured_material("leaf", leaf_img, None, None, alpha=True)
 for o in groups["leaf"]:
     o.data.materials.clear()
