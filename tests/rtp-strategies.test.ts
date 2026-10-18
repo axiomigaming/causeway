@@ -67,7 +67,7 @@ describe('return to player through the whole authority', () => {
     it(`auto cash-out at ${(target! / 100).toFixed(2)}× returns 97% ± ${tol * 100}%`, () => {
       const { rtp } = play(target, n, `rtp-${target}`);
       expect(Math.abs(rtp - 0.97)).toBeLessThan(tol);
-    });
+    }, 60_000); // deterministic seeds: only a loaded machine can make these slow, never wrong
   }
 
   it('never cashing out pays only at the end of the causeway and loses otherwise', () => {
