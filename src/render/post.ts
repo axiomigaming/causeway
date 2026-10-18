@@ -686,6 +686,7 @@ class GradeEffect extends Effect {
       uniform float fade;
       uniform float tension;
       uniform float coolTop;
+      uniform float finish;
       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
         vec3 c = inputColor.rgb;
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -709,6 +710,20 @@ class GradeEffect extends Effect {
         float kc = contrast + danger * 0.06 + cold * 0.1 + tension * 0.09;
         c = max(c, 0.0);
         c = c * kc - (kc - 1.0) * 0.5 * (c / (c + 0.15));
+        // Round 14 finish (world request): no grey veil. Haze, bloom and the lens lift the darkest
+        // values to a milky pedestal; a soft black toe takes it back out (about −20 % at 0.02, −4 % at
+        // 0.1, the whites kept), the shadows lean teal and the lights warm a touch. Subtle:
+        // 'finish' scales it (0 = the old grade, for before/after QA).
+        {
+          float pk = 0.005 * finish;
+          c = max(c, 0.0);
+          c = c * c / (c + pk) * (1.0 + pk);
+          float lf = dot(c, vec3(0.2126, 0.7152, 0.0722));
+          float shade = 1.0 - smoothstep(0.015, 0.22, lf);
+          float lights = smoothstep(0.35, 0.9, lf);
+          c *= mix(vec3(1.0), vec3(0.95, 1.0, 1.045), shade * 0.55 * finish);
+          c *= mix(vec3(1.0), vec3(1.025, 1.0, 0.965), lights * finish);
+        }
         c *= tint;
         // Tension (the live multiplier, nothing else): the light warms toward late afternoon and
         // the shade sinks, a little more with every doubling.
@@ -739,6 +754,7 @@ class GradeEffect extends Effect {
           ['fade', new THREE.Uniform(0)],
           ['tension', new THREE.Uniform(0)],
           ['coolTop', new THREE.Uniform(0)],
+          ['finish', new THREE.Uniform(1)],
         ]),
       },
     );
