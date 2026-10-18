@@ -19,6 +19,8 @@ export const causticUniforms = {
   uDetail: { value: 1 },
   uDetailReady: { value: 0 },
   uDetailMap: { value: null as THREE.Texture | null },
+  /** Rain: every surface wet (0..1), on top of the waterline and spray. */
+  uRainWet: { value: 0 },
   /** xyz: foot of a waterfall (world), w: reach of its spray (m). w = 0: unused. */
   uFeet: { value: Array.from({ length: MAX_FEET }, () => new THREE.Vector4(0, -1e4, 0, 0)) },
 };
@@ -45,6 +47,7 @@ varying vec3 vWetN;
 uniform float uCausticTime;
 uniform float uCausticStrength;
 uniform vec4 uFeet[${MAX_FEET}];
+uniform float uRainWet;
 // Iterated turbulence (after joltz0r's water shader): bright filaments that wander and merge.
 float causticAt(vec2 w, float t) {
   vec2 p = mod(w, 6.28318) - 250.0;
@@ -142,7 +145,8 @@ const FRAG_WET = /* glsl */ `
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.09, 0.14, 0.035) * (0.8 + ml), mk);
 }
 #endif
-float wetK = wetAt(vWetPos);
+// Rain wets everything: sky-facing faces most, walls in streaks.
+float wetK = max(wetAt(vWetPos), uRainWet * mix(0.55, 1.0, smoothstep(0.2, 0.8, vWetN.y)));
 diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 // Wet faces shine; flat ones less (a mirror-flat wet slab would just show the sky's blue).
 roughnessFactor = mix(roughnessFactor, mix(0.22, 0.45, abs(vWetN.y)), wetK);`;
