@@ -107,15 +107,18 @@ def feet_at(action, t):
     hz = (rig.matrix_world @ pb["hips"].head).z
     kz = [(rig.matrix_world @ pb[f"shin.{s}"].head).z for s in "LR"]
     az = [(rig.matrix_world @ pb[f"foot.{s}"].head).z for s in "LR"]
+    arm = [(rig.matrix_world @ pb[b].head) for b in ("upper_arm.R", "forearm.R", "hand.R")]
+    print(f"    {action} t={t:.3f}: R arm shoulder {tuple(round(c, 2) for c in arm[0])} elbow {tuple(round(c, 2) for c in arm[1])} wrist {tuple(round(c, 2) for c in arm[2])}", flush=True)
+    print(f"    {action} t={t:.3f}: ankles L {tuple(round(c, 2) for c in rig.matrix_world @ pb['foot.L'].head)} R {tuple(round(c, 2) for c in rig.matrix_world @ pb['foot.R'].head)}", flush=True)
     print(f"    {action} t={t:.3f}: body min {Z.min():.2f} max {Z.max():.2f} hips {hz:.2f} knees {kz[0]:.2f}/{kz[1]:.2f} ankles {az[0]:.2f}/{az[1]:.2f}", flush=True)
     return float(Z[feet].min())
 
 
 OB = {  # clip seconds, mirrors runner.ts OBSTACLES
-    "jump_log": (5 / 30, 18 / 30),
+    "jump_log": (5 / 30, 23 / 30),
     "leap_gap": (6 / 30, 21 / 30),
     "slide": (6 / 30, 20 / 30),
-    "vault": (5 / 30, 16 / 30),
+    "vault": (5 / 30, 21 / 30),
 }
 for name, (tk, ld) in OB.items():
     if name in bpy.data.actions:
@@ -131,6 +134,15 @@ check("vault", *OB["vault"], "pillar")
 check("slide", *OB["slide"], "lintel")
 check("slide", *OB["slide"], "bough")
 check("leap_gap", *OB["leap_gap"], "gap")
+# The vaulting hand: where the right palm is against the pillar top through the flight (5 m/s floor).
+tk, ld = OB["vault"]
+apex = 0.5 * (tk + ld)
+for i in range(int(round(tk * FPS)), int(round(ld * FPS)) + 1):
+    t = i / FPS
+    F, Z = verts("vault", t)
+    m = np.isin(dom, ["hand.R", "fingers.R"])
+    X = F - 5.0 * (apex - t)
+    print(f"    vault hand t={t:.3f}: palm low z {Z[m].min():.2f} at x {X[m][np.argmin(Z[m])]:+.2f} (pillar top 0.93, |x|<0.3 on top)", flush=True)
 for name in ("jump_log", "vault", "slide"):
     tk, ld = OB[name]
     print(f"  {name} lowest foot at the apex: {feet_at(name, 0.5 * (tk + ld)) * 100:.0f} cm", flush=True)

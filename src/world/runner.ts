@@ -43,10 +43,10 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
  * flight (takeoff → land, nominally 0.5 s) is stretched to the gap instead (obstacleTiming()).
  */
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
-  jump_log: { from: 0, to: 0.68, duration: 29 / 30, takeoff: 5 / 30, land: 24 / 30 },
+  jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
   leap_gap: { from: 0, to: 0.5, duration: 34 / 30, takeoff: 6 / 30, land: 21 / 30 },
   slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
-  vault: { from: 0, to: 0.5, duration: 30 / 30, takeoff: 5 / 30, land: 22 / 30 },
+  vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
   turn_cut_R: { from: 0.5, to: 0.5, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
   stumble_land: { from: -1, to: 0.6, duration: 19 / 30, takeoff: 0, land: 2 / 30 },
@@ -125,10 +125,10 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_cheer: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.7, 'R', 0.2], [1.83, 'L', 0.2], [1.95, 'R', 0.2]],
   win_pump: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.33, 'R', 0.2], [1.47, 'L', 0.2], [1.58, 'R', 0.2]],
   win_cheer_big: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.5, 'R', 0.2], [1.63, 'L', 0.2], [1.75, 'R', 0.2], [2.77, 'L', 0.7], [2.78, 'R', 0.7], [3.33, 'L', 0.7], [3.34, 'R', 0.7]],
-  jump_log: [[0.167, 'L', 0.6], [0.8, 'R', 1]],
+  jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
   leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
   slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
-  vault: [[0.167, 'L', 0.6], [0.733, 'L', 0.9]],
+  vault: [[0.167, 'L', 0.6], [0.4, 'R', 0.3], [0.7, 'L', 0.9]],
   turn_cut_L: [[0.267, 'R', 0.85]],
   turn_cut_R: [[0.267, 'L', 0.85]],
   stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
