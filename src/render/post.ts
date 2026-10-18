@@ -738,7 +738,7 @@ export class Post {
     const tension = p.tension ?? 0;
     g.get('tension')!.value = tension;
     // The frame closes in as the multiplier climbs.
-    this.vignette.darkness = 0.5 + p.speed * 0.2 + p.cold * 0.25 + tension * 0.22;
+    this.vignette.darkness = 0.5 + p.speed * 0.2 + p.cold * 0.25 + tension * 0.3;
     this.vignette.offset = 0.28 - tension * 0.08;
     if (this.lens) this.lens.uniforms.get('exposure')!.value = EXPOSURE * this.exposureK * (1 - 0.12 * p.cold);
   }

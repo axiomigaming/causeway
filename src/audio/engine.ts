@@ -659,6 +659,15 @@ export class AudioEngine implements WorldSounds {
     }
   }
 
+  /**
+   * [Progression director hook] WorldSounds.nextDownbeat: seconds until the score's next bar line,
+   * or null when no groove is running (muted output still counts: the clock runs).
+   */
+  nextDownbeat(): number | null {
+    if (!this.ctx || this.ctx.state !== 'running' || !this.scorePlayer?.ready()) return null;
+    return this.scorePlayer.secondsToBar();
+  }
+
   /** WorldSounds.event: named world events from the game (dust_burst, stones_skitter, tier_up, …). */
   event(name: string, strength: number): void {
     this.sfx(name, strength);

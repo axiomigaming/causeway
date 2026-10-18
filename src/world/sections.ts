@@ -1,3 +1,4 @@
+import { intensityOf } from './choreo';
 import * as THREE from 'three';
 import { Rng } from '../engine/rng';
 import { evalSeg, type Segment } from './path';
@@ -1176,9 +1177,10 @@ export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];
  * The beat's types get a strong bias; every type stays possible.
  */
 export const BIOMES: { until: number; types: SectionType[] }[] = [
-  { until: 0.22, types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots'] },
-  { until: 0.45, types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi'] },
-  { until: 0.7, types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots'] },
+  // [Progression director] the beats change exactly at the run tiers (2×, 5×, 10×), on the shared model.
+  { until: intensityOf(2), types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots'] },
+  { until: intensityOf(5), types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi'] },
+  { until: intensityOf(10), types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots'] },
   { until: 2, types: ['cliff', 'gorge', 'bridge', 'tunnel', 'ledge'] },
 ];
 
