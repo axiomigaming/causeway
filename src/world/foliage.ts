@@ -79,7 +79,12 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
         // Past the alpha test a leaf is opaque: the frame's alpha channel marks water for the
         // reflection pass, and a leaf left at its texel alpha (≤ 0.6 in the mips of a cluster)
         // was taken for water and painted over with the sky.
+        // With alpha-to-coverage (MSAA tiers) the alpha IS the coverage: three's alphatest chunk has
+        // already sharpened it to 1 inside the leaf and a ~1 px ramp at its edge, so it is left alone
+        // there (only those edge samples carry < 1, and they resolve over what lies behind).
+        #ifndef ALPHA_TO_COVERAGE
         diffuseColor.a = 1.0;
+        #endif
         {
           // Cards seen edge-on smear their texture into streaks: dissolve them as they turn away.
           vec3 ng = normalize(cross(dFdx(vLeafW), dFdy(vLeafW)));
