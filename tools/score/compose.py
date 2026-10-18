@@ -703,7 +703,35 @@ def encode(name, x, loop, extra, kbps):
     return ent
 
 
+# Opus bitrates (AAC gets 1.5x): the theme must stay within 3 MB of Opus.
+KBPS = {'stem': 72, 't4': 80, 'idle': 56}
+
+
+def reencode():
+    """--encode-only: re-encode the cached WAV renders (.cache/music/<name>.wav) at the current bitrates,
+    keeping every manifest field; for budget changes without a full render"""
+    mp = os.path.join(AUD, 'manifest.json')
+    man = json.load(open(mp))
+    for name, ent in man['sounds'].items():
+        if ent.get('group') != 'theme':
+            continue
+        kb = KBPS['t4'] if name.startswith('th_t4') else KBPS['stem'] if name.startswith('th_l') else KBPS['idle'] if name in ('th_calm', 'th_safe') else None
+        if kb is None:
+            continue
+        x, _ = sf.read(os.path.join(CACHE, f'{name}.wav'), dtype='float32', always_2d=True)
+        extra = {k: ent[k] for k in ('bpm', 'bars') if k in ent}
+        man['sounds'][name] = encode(name, x, bool(ent.get('loop')), extra, kb)
+    json.dump(man, open(mp, 'w'), indent=1)
+    open(mp, 'a').write('\n')
+    tot = sum(v['webm']['bytes'] for v in man['sounds'].values() if v.get('group') == 'theme')
+    print(f'theme: {tot / 1024:.0f} KB opus (budget 3 MB)')
+    if tot > 3e6:
+        sys.exit('theme over budget')
+
+
 def main():
+    if '--encode-only' in sys.argv:
+        return reencode()
     out = {}
     print('run stems ...', flush=True)
     stems = run_stems()
@@ -734,16 +762,16 @@ def main():
 
     bar_run, bar_calm = bar_len(BPM_RUN), bar_len(BPM_CALM)
     for name, x in stems.items():
-        out[name] = encode(name, x * g, True, {'bpm': BPM_RUN, 'bars': 8}, 72)
+        out[name] = encode(name, x * g, True, {'bpm': BPM_RUN, 'bars': 8}, KBPS['stem'])
     # Tier 4: one gain for its four sections (they keep their relative dynamics), 1 dB over the tier-3 mix.
     cat = np.concatenate(list(top.values())) * g
     g4 = 10 ** ((ref + 1.0 - lufs_m(cat)) / 20)
     g4 = min(g4, 0.89 / float(np.abs(cat).max()))
     for name, x in top.items():
-        out[name] = encode(name, x * g * g4, True, {'bpm': BPM_RUN, 'bars': 8}, 88)
+        out[name] = encode(name, x * g * g4, True, {'bpm': BPM_RUN, 'bars': 8}, KBPS['t4'])
     out['th_lift'] = encode('th_lift', fit(lf, 0.5), False, {'bpm': BPM_RUN, 'bars': 2}, 88)
-    out['th_calm'] = encode('th_calm', fit(calm, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, 72)
-    out['th_safe'] = encode('th_safe', fit(safe, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, 72)
+    out['th_calm'] = encode('th_calm', fit(calm, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, KBPS['idle'])
+    out['th_safe'] = encode('th_safe', fit(safe, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, KBPS['idle'])
     out['th_tense'] = encode('th_tense', fit(tense, -9.0), True, {'bpm': BPM_CALM, 'bars': 4}, 64)
     for i, x in enumerate(fan):
         out[f'th_win{i}'] = encode(f'th_win{i}', fit(x, -1.0 + 1.0 * i), False, {}, 96)
@@ -754,6 +782,10 @@ def main():
     for k in [k for k, v in man['sounds'].items() if v.get('group') == 'theme']:
         del man['sounds'][k]
     man['sounds'].update(out)
+    keep = {v[f]['file'] for v in out.values() for f in ('webm', 'm4a')}
+    for f in os.listdir(AUD):
+        if f.startswith('th_') and f.endswith(('.webm', '.m4a')) and f not in keep:
+            os.remove(os.path.join(AUD, f))  # a piece no longer rendered
     json.dump(man, open(mp, 'w'), indent=1)
     open(mp, 'a').write('\n')
     tot = sum(v['webm']['bytes'] for v in out.values())

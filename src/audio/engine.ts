@@ -310,8 +310,10 @@ export class AudioEngine implements WorldSounds {
 
   /**
    * The tier change the music is about to land, if any: `{ tier, in }` with `in` seconds until the new
-   * layer's downbeat (the fill is already rolling). A tier arriving now lands on the next bar line, or the
-   * one after if the next is less than a third of a bar away; at most ~1.35 bars after the tier change.
+   * layer's downbeat (the fill is already rolling). Tiers 1-3 land on the next bar line, or the one after if
+   * the next is less than a third of a bar away (at most ~1.35 bars after the tier change). Tier 4 is a key
+   * lift: it lands on the next 4-bar section line that leaves room for the two pivot bars (at most ~6 bars,
+   * about 13 s at 112 BPM) - the big visual moment belongs on that downbeat.
    */
   tierLanding(): { tier: Tier; in: number } | null {
     return this.themeOn ? (this.theme?.pendingLanding() ?? null) : null;
