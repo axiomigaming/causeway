@@ -706,6 +706,14 @@ export class Runner {
    * to it. stumble_land replaces a jump's or leap's landing: call it at the landing (it starts at once).
    * Timings: OBSTACLES / obstacleTiming(name, runner.cadence, speed, distance).
    */
+  /**
+   * Hook for the obstacle director (cinematics, round 13): the gait phase and cadence, so a set piece
+   * can be placed where his start foot will land (read-only).
+   */
+  gait(): { phase: number; cadence: number; running: boolean } {
+    return { phase: this.phase, cadence: this.cadence, running: this.current === 'run' && !this.obst && !this.pending };
+  }
+
   obstacle(name: Obstacle, opts: { distance?: number } = {}): number {
     if (!this.actions.has(name)) return -1;
     const fromAir = name === 'stumble_land' && this.obst !== null && this.current === this.obst.name && this.obst.name !== 'stumble_land';

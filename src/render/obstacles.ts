@@ -1,45 +1,64 @@
 import * as THREE from 'three';
 import type { Rng } from '../engine/rng';
+import { OBSTACLES, obstacleTiming, type Obstacle } from '../world/runner';
 
 /**
  * The obstacle director: set pieces on the way ahead that the runner always clears (presentation
  * only — the outcome is the server's). Which, when and how many come from the CURRENT multiplier's
- * tier and the cosmetic RNG only, never from the hidden fall point.
+ * tier and the cosmetic RNG only, never from the hidden fall point. Nothing here runs after the
+ * round settles (no near-miss staging after a cash-out): the game stops calling update() and
+ * reset() clears what is left.
  *
- * Pacing: a calm stretch, then a burst of 1–3 set pieces a few seconds apart; the calm shortens
- * and the bursts grow (and turn spectacular) with the tier.
+ * Pacing: a calm straight stretch, then a burst of 1–3 set pieces a couple of seconds apart; the
+ * calm shortens and the bursts grow (and turn spectacular) with the tier.
  *
- * Set pieces (each a placeholder built from kit materials until dedicated art and clips land):
- *   log      a fallen trunk across the way → he jumps it ('jump_log')
- *   blocks   the slabs ahead crack and drift apart over the water → he leaps the gaps ('leap_gap'),
- *            they tilt and sink behind him (tiers 2+)
- *   pillar   a pillar topples across the way ahead → he vaults it ('vault') (tiers 1+)
- *   beam     a low fallen beam → he slides under it ('slide'); at tier 2+ it slams down behind him
- *   boulder  near miss: a boulder rolls across the way just behind him (tiers 2+)
- *   tile     near miss: the slab he just left collapses into the water (tiers 1+)
+ * Set pieces (placeholders built from kit meshes until dedicated art lands):
+ *   log      a fallen trunk across the way → he jumps it (jump_log)
+ *   beam     a low fallen lintel on two posts → he slides under it (slide); at tier 1+ it often slams
+ *            down onto the floor right behind him
+ *   pillar   a column topples across the way ahead of him → he vaults it (vault) (tier 1+)
+ *   blocks   the slabs ahead crack loose and drift apart over the water → he leaps each gap
+ *            (leap_gap, 2–3 leaps); the loose slabs tilt and sink (tier 2+)
+ *   rocks    rocks rain down beside the way (the game's 'stones' cue) (tier 1+)
+ *   boulder  near miss: a boulder rolls across the way just behind him (tier 2+)
+ *   tile     near miss: the slab he just left drops into the water (tier 1+)
+ * And wherever the route bends hard, he cuts the corner on the outside foot (turn_cut_L/R).
+ *
+ * Timing: a move must take off where the piece is. Each piece is placed ~2.5 s ahead; the director
+ * then calls runner.obstacle() so that its start foot, the clip's takeoff and the piece line up, and
+ * nudges the route speed by a few percent while he approaches (sRate) so the residual error of up to
+ * half a stride closes smoothly instead of the move firing early or late.
  */
-export type SetPiece = 'log' | 'blocks' | 'pillar' | 'beam' | 'boulder' | 'tile';
+export type SetPiece = 'log' | 'blocks' | 'pillar' | 'beam' | 'boulder' | 'tile' | 'rocks';
 
 /** Weights per tier (0–4). */
 const TABLE: readonly (readonly (readonly [SetPiece, number])[])[] = [
-  [['log', 3], ['beam', 1]],
-  [['log', 3], ['beam', 2], ['pillar', 1], ['tile', 1]],
-  [['log', 2], ['beam', 2], ['pillar', 2], ['tile', 2], ['blocks', 2], ['boulder', 1]],
-  [['log', 1], ['beam', 2], ['pillar', 3], ['tile', 2], ['blocks', 3], ['boulder', 2]],
-  [['log', 1], ['beam', 2], ['pillar', 3], ['tile', 2], ['blocks', 4], ['boulder', 3]],
+  [['log', 3], ['beam', 2]],
+  [['log', 3], ['beam', 2], ['pillar', 2], ['tile', 1], ['rocks', 1]],
+  [['log', 2], ['beam', 2], ['pillar', 2], ['tile', 2], ['blocks', 3], ['boulder', 1], ['rocks', 1]],
+  [['log', 1], ['beam', 2], ['pillar', 3], ['tile', 2], ['blocks', 3], ['boulder', 2], ['rocks', 1]],
+  [['log', 1], ['beam', 2], ['pillar', 3], ['tile', 2], ['blocks', 4], ['boulder', 3], ['rocks', 1]],
 ];
 
 /** Pure pacing rule: the calm before the next burst (s) and the burst's size, by tier. */
 export function nextBurst(rng: Rng, tier: number): { calm: number; count: number; gap: number } {
   const t = Math.max(0, Math.min(4, tier));
-  const calm = [9, 6.5, 4.5, 3.2, 2.4][t]! * rng.range(0.7, 1.3);
-  const count = t === 0 ? 1 : rng.int(1, Math.min(3, 1 + t));
-  const gap = [3, 2.6, 2.2, 1.9, 1.6][t]! * rng.range(0.85, 1.2);
+  const calm = [6.5, 5, 4, 3, 2.4][t]! * rng.range(0.75, 1.3);
+  const count = t === 0 ? rng.int(1, 2) : rng.int(Math.min(2, t), Math.min(3, 1 + t));
+  const gap = [2.4, 2.2, 2.0, 1.8, 1.6][t]! * rng.range(0.9, 1.2);
   return { calm, count, gap };
 }
 
 export function pickPiece(rng: Rng, tier: number): SetPiece {
   return rng.weighted(TABLE[Math.max(0, Math.min(4, tier))]!);
+}
+
+/**
+ * The timing error (s) of starting a move now, wrapped to the nearest start foot: the move's start
+ * foot comes round once per gait cycle, so an error of a whole cycle is no error at all.
+ */
+export function wrapCycle(err: number, period: number): number {
+  return err - period * Math.round(err / period);
 }
 
 export interface FrameAt {
@@ -61,9 +80,9 @@ export interface ObstacleHost {
   s(): number;
   speed(): number;
   running(): boolean;
-  rng: () => Rng;
+  rng(): Rng;
   frameAt(s: number): FrameAt;
-  /** A stretch the obstacle can stand on: a plain run of floor with nothing scripted on it. */
+  /** A stretch the obstacle can stand on: plain floor, no stairs, nothing scripted on it. */
   clearRun(s0: number, s1: number): boolean;
   /** Collapsible floor tiles whose near edge lies in [s0, s1], in order. */
   tiles(s0: number, s1: number): Tile[];
@@ -72,30 +91,53 @@ export interface ObstacleHost {
   remove(o: THREE.Object3D): void;
   material(key: string): THREE.Material | undefined;
   geometry(piece: string): THREE.BufferGeometry | undefined;
-  /** The runner's move at the right moment: kind, seconds until his feet must clear, duration, height. */
-  move(kind: 'jump' | 'leap' | 'vault' | 'slide', t: number, dur: number, h: number): void;
-  debris(piece: string, m: THREE.Matrix4, vel: THREE.Vector3, spin: THREE.Vector3, opts?: { breakInto?: number; breakAfter?: number; mat?: string }): void;
+  /** The runner's gait (runner.gait()). */
+  gait(): { phase: number; cadence: number; running: boolean };
+  /** runner.obstacle(): the wait (s) before the move starts, or −1. */
+  obstacle(name: Obstacle, distance?: number): number;
+  debris(piece: string, m: THREE.Matrix4, vel: THREE.Vector3, spin: THREE.Vector3, opts?: { breakInto?: number; breakAfter?: number; mat?: string; scale?: number }): void;
   dust(at: THREE.Vector3, k: number, vel?: THREE.Vector3): void;
   shake(k: number): void;
   sound(name: string, k: number): void;
+  /** One of the game's run cues ('stones': rocks raining beside the way). */
+  cue(name: 'stones', k: number): void;
 }
 
 interface Live {
-  kind: SetPiece;
+  kind: SetPiece | 'turn';
   s: number;
   objs: THREE.Object3D[];
   /** Per-frame animation; returns false when the piece is done (behind and settled). */
   tick: (dt: number, ds: number) => boolean;
 }
 
+/** A move the runner owes a set piece: `at` is where the middle of the move (the apex) must be. */
+interface Plan {
+  name: Obstacle;
+  at: number;
+  dist: number;
+  /** After the call: seconds until the apex, takeoff and landing (counted down). */
+  called: boolean;
+  tApex: number;
+  tTake: number;
+  tLand: number;
+  onTake?: () => void;
+  onLand?: () => void;
+}
+
 export class ObstacleDirector {
   private live: Live[] = [];
-  private calmIn = 4;
+  private plans: Plan[] = [];
+  private calmIn = 3;
   private burstLeft = 0;
   private gapIn = 0;
+  private nextGap = 2;
+  /** Route distance of the last piece: pieces never crowd each other. */
   private lastS = -1e9;
-  /** Off for reduced motion? No: kept, the moves are gentler (the host scales them). */
+  private turnS = -1e9;
   enabled = true;
+  /** Route-speed correction (m/s) while a move lines up with its piece: add to the runner's ds/dt. */
+  sRate = 0;
   /** Count by kind (QA). */
   readonly fired: Record<string, number> = {};
 
@@ -104,12 +146,47 @@ export class ObstacleDirector {
   reset(): void {
     for (const l of this.live) for (const o of l.objs) this.h.remove(o);
     this.live.length = 0;
-    this.calmIn = 4;
+    this.plans.length = 0;
+    this.calmIn = 3;
     this.burstLeft = 0;
     this.gapIn = 0;
     this.lastS = -1e9;
+    this.turnS = -1e9;
+    this.sRate = 0;
   }
 
+  /**
+   * The round settled (cash-out or fall): no more moves, beats or near misses. Pieces still ahead
+   * crumble away in a puff of dust (they must not stand in the escape's way or the fall's staging);
+   * the ones behind stay where they lie.
+   */
+  settle(): void {
+    this.plans.length = 0;
+    this.sRate = 0;
+    this.burstLeft = 0;
+    const s = this.h.s();
+    for (let i = this.live.length - 1; i >= 0; i--) {
+      const l = this.live[i]!;
+      if (l.s < s - 1 || l.objs.length === 0) {
+        // Behind him: keep the objects, stop any animation (a slam or a roll would be staging).
+        if (l.objs.length) this.live[i] = { ...l, tick: (_dt, ds) => ds > -30 };
+        else this.live.splice(i, 1);
+        continue;
+      }
+      for (const o of l.objs) {
+        this.h.dust(new THREE.Vector3().setFromMatrixPosition(o.matrixWorld), 0.5);
+        this.h.remove(o);
+      }
+      this.live.splice(i, 1);
+    }
+  }
+
+  /** True while a move is lined up or in the air (other beats — hops, ducks, glances — hold off). */
+  get busy(): boolean {
+    return this.plans.length > 0;
+  }
+
+  /** Each frame while running (and only then). `tier` is the current multiplier's tier. */
   update(dt: number, tier: number, stageT: number): void {
     const s = this.h.s();
     for (let i = this.live.length - 1; i >= 0; i--) {
@@ -119,7 +196,9 @@ export class ObstacleDirector {
         this.live.splice(i, 1);
       }
     }
-    if (!this.enabled || !this.h.running() || stageT < 2.5) return;
+    this.steer(dt);
+    if (!this.enabled || !this.h.running() || stageT < 2.2) return;
+    this.turns();
     if (this.burstLeft > 0) {
       this.gapIn -= dt;
       if (this.gapIn <= 0) {
@@ -137,25 +216,86 @@ export class ObstacleDirector {
       this.gapIn = 0;
     }
   }
-  private nextGap = 2;
 
   /** Force one (QA): returns whether it was placed. */
-  force(kind: SetPiece, lead = 2.2): boolean {
+  force(kind: SetPiece, lead = 2.5): boolean {
     return this.place(kind, lead);
   }
 
+  // ---------------------------------------------------------------- timing
+
+  private plan(name: Obstacle, at: number, dist = 2.25, hooks: Pick<Plan, 'onTake' | 'onLand'> = {}): void {
+    this.plans.push({ name, at, dist, called: false, tApex: 0, tTake: 0, tLand: 0, ...hooks });
+    this.plans.sort((a, b) => a.at - b.at);
+  }
+
+  /** Line the next move up with its piece, call it on the right foot, fire its takeoff/landing beats. */
+  private steer(dt: number): void {
+    this.sRate = 0;
+    const p = this.plans[0];
+    if (!p) return;
+    const v = Math.max(1, this.h.speed());
+    const eta = (p.at - this.h.s()) / v;
+    if (p.called) {
+      p.tApex -= dt;
+      p.tTake -= dt;
+      p.tLand -= dt;
+      if (p.tTake <= 0 && p.onTake) {
+        p.onTake();
+        p.onTake = undefined;
+      }
+      if (p.tLand <= 0) {
+        p.onLand?.();
+        this.plans.shift();
+        return;
+      }
+      // The clip is committed: close what is left of the gap between the apex and the piece.
+      if (p.tApex > 0.05) this.sRate = THREE.MathUtils.clamp(((eta - p.tApex) * v) / Math.max(0.25, p.tApex), -0.2 * v, 0.2 * v);
+      return;
+    }
+    if (eta < -0.5) {
+      // Missed (he was busy): drop it rather than jump after the fact.
+      this.plans.shift();
+      return;
+    }
+    const g = this.h.gait();
+    const T = obstacleTiming(p.name, g.cadence, v, p.dist);
+    const apex = 0.5 * (T.takeoff + T.land);
+    const period = 1 / Math.max(0.5, g.cadence);
+    const from = OBSTACLES[p.name].from;
+    const wait = from < 0 ? 0 : (((from - g.phase + 1) % 1) + 1) % 1 * period;
+    const err = eta - apex - wait;
+    if (err <= 0.5 * period && g.running) {
+      const w = this.h.obstacle(p.name, p.dist);
+      if (w < 0) {
+        this.plans.shift();
+        return;
+      }
+      p.called = true;
+      p.tApex = w + apex;
+      p.tTake = w + T.takeoff;
+      p.tLand = w + T.land;
+      return;
+    }
+    // Approach: spread the error (wrapped to the nearest start foot) over the run-up.
+    this.sRate = THREE.MathUtils.clamp((wrapCycle(err, period) * v) / Math.max(0.6, eta - apex), -0.12 * v, 0.12 * v);
+  }
+
+  // ---------------------------------------------------------------- pacing
+
   private spawn(tier: number): boolean {
     const kind = pickPiece(this.h.rng(), tier);
-    // Seen from far enough to read (about 2 s ahead), never on top of another piece.
-    if (this.place(kind, 2.2)) return true;
-    return kind !== 'log' && this.place('log', 2.2);
+    if (this.place(kind, 2.5)) return true;
+    return kind !== 'log' && this.place('log', 2.5);
   }
 
   private place(kind: SetPiece, lead: number): boolean {
     const v = Math.max(4, this.h.speed());
     const s = this.h.s();
     const at = s + v * lead;
-    if (at - this.lastS < 9) return false;
+    // Room for the move and its recovery (and the near misses never on top of a move).
+    if (at - this.lastS < Math.max(10, v * 1.6)) return false;
+    if (this.plans.some((p) => Math.abs(p.at - at) < v * 1.4)) return false;
     let ok = false;
     switch (kind) {
       case 'log':
@@ -168,7 +308,7 @@ export class ObstacleDirector {
         ok = this.pillar(at);
         break;
       case 'blocks':
-        ok = this.blocks(s + v * 2.0);
+        ok = this.blocks(s + v * 2.2);
         break;
       case 'boulder':
         ok = this.boulder();
@@ -176,17 +316,33 @@ export class ObstacleDirector {
       case 'tile':
         ok = this.tile();
         break;
+      case 'rocks':
+        this.h.cue('stones', 0.6);
+        ok = true;
+        break;
     }
     if (ok) {
-      this.lastS = at;
+      if (kind !== 'boulder' && kind !== 'tile' && kind !== 'rocks') this.lastS = at;
       this.fired[kind] = (this.fired[kind] ?? 0) + 1;
     }
     return ok;
   }
 
-  /** Seconds until the runner reaches route distance `sAt` at his current speed. */
-  private eta(sAt: number): number {
-    return (sAt - this.h.s()) / Math.max(1, this.h.speed());
+  /** Hard bends ahead: he cuts the corner, planting the outside foot (turn_cut_L/R). */
+  private turns(): void {
+    const s = this.h.s();
+    const v = Math.max(4, this.h.speed());
+    const a = s + v * 1.2;
+    if (a - this.turnS < 14 || this.plans.length) return;
+    const y0 = this.h.frameAt(a).yaw;
+    const y1 = this.h.frameAt(a + 7).yaw;
+    let d = y1 - y0;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    if (Math.abs(d) < 0.45) return;
+    this.turnS = a;
+    // Positive yaw turns the forward vector to the left.
+    this.plan(d > 0 ? 'turn_cut_L' : 'turn_cut_R', a + 2, 2.25, { onTake: () => this.h.sound('whoosh_jump', 0.3) });
+    this.fired.turn = (this.fired.turn ?? 0) + 1;
   }
 
   private placeAcross(o: THREE.Object3D, f: FrameAt, y: number) {
@@ -194,29 +350,31 @@ export class ObstacleDirector {
     o.rotation.set(0, f.yaw, 0);
   }
 
+  private landDust(at: number, k: number): void {
+    const f = this.h.frameAt(at);
+    this.h.dust(f.pos, k, f.fwd.clone().multiplyScalar(1.5));
+  }
+
+  // ---------------------------------------------------------------- set pieces
+
   private log(at: number): boolean {
     if (!this.h.clearRun(at - 3, at + 3)) return false;
     const f = this.h.frameAt(at);
-    const geo = new THREE.CylinderGeometry(0.3, 0.34, 5.4, 10, 1).rotateZ(Math.PI / 2);
-    const m = new THREE.Mesh(geo, this.h.material('bark') ?? this.h.material('wood'));
+    const geo = new THREE.CylinderGeometry(0.3, 0.36, 5.6, 10, 1).rotateZ(Math.PI / 2);
+    const m = new THREE.Mesh(geo, this.h.material('bark') ?? this.h.material('wood') ?? this.h.material('floor'));
     m.castShadow = m.receiveShadow = true;
     this.placeAcross(m, f, 0.3);
     m.rotateY(this.h.rng().range(-0.15, 0.15));
     this.h.add(m);
-    this.h.move('jump', this.eta(at), 0.62, 0.85);
-    let landed = false;
-    this.live.push({
-      kind: 'log', s: at, objs: [m],
-      tick: (_dt, ds) => {
-        if (!landed && ds < -1.2) {
-          landed = true;
-          this.h.dust(this.h.frameAt(at + 1.6).pos, 0.5);
-          this.h.sound('land_heavy', 0.5);
-        }
-        return ds > -25;
+    this.plan('jump_log', at, 2.25, {
+      onTake: () => this.h.sound('whoosh_jump', 0.5),
+      onLand: () => {
+        this.landDust(this.h.s(), 0.5);
+        this.h.sound('land_heavy', 0.5);
+        this.h.shake(0.06);
       },
     });
-    this.h.sound('whoosh_jump', 0.5);
+    this.live.push({ kind: 'log', s: at, objs: [m], tick: (_dt, ds) => ds > -25 });
     return true;
   }
 
@@ -224,13 +382,15 @@ export class ObstacleDirector {
     if (!this.h.clearRun(at - 3, at + 3)) return false;
     const f = this.h.frameAt(at);
     const g = new THREE.Group();
-    const mat = this.h.material('stoneB') ?? this.h.material('statue');
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.5, 0.7), mat);
-    beam.position.y = 1.25;
-    beam.rotation.z = this.h.rng().range(-0.08, 0.08);
-    const posts = [-2.55, 2.55].map((x) => {
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.4, 0.6), mat);
-      p.position.set(x, 0.7, 0);
+    const mat = this.h.material('stoneB') ?? this.h.material('floor');
+    // Underside at 1.22 m: the slide clears 1.05 m.
+    const top = 1.47;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.5, 0.7), mat);
+    beam.position.y = top;
+    beam.rotation.z = this.h.rng().range(-0.05, 0.05);
+    const posts = [-2.6, 2.6].map((x) => {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, top - 0.25, 0.6), mat);
+      p.position.set(x, (top - 0.25) / 2, 0);
       return p;
     });
     for (const o of [beam, ...posts]) {
@@ -239,25 +399,28 @@ export class ObstacleDirector {
     }
     this.placeAcross(g, f, 0);
     this.h.add(g);
-    this.h.move('slide', this.eta(at), 0.95, 0.5);
-    const slam = this.h.rng().chance(0.6);
+    const slam = this.h.rng().chance(0.65);
     let fall = -1;
+    this.plan('slide', at, 2.25, {
+      onTake: () => this.h.sound('slide_scrape', 0.6),
+      onLand: () => {
+        // Near miss: right after he is through, the lintel slams down onto the floor behind him.
+        if (slam) fall = 0;
+      },
+    });
     this.live.push({
       kind: 'beam', s: at, objs: [g],
       tick: (dt, ds) => {
-        // Near miss: right after he is through, the beam slams down onto the floor behind him.
-        if (slam && fall < 0 && ds < -1.0) {
-          fall = 0;
-          this.h.sound('stone_split', 0.7);
-        }
         if (fall >= 0 && fall < 1) {
-          fall = Math.min(1, fall + dt / 0.28);
-          beam.position.y = 1.25 - 0.95 * fall * fall;
-          beam.rotation.z += dt * 0.4;
+          if (fall === 0) this.h.sound('wood_crack', 0.6);
+          fall = Math.min(1, fall + dt / 0.3);
+          beam.position.y = top - (top - 0.3) * fall * fall;
+          beam.rotation.z += dt * 0.5;
+          for (const p of posts) p.rotation.z = (p.position.x > 0 ? -1 : 1) * 0.35 * fall;
           if (fall >= 1) {
-            this.h.dust(f.pos, 0.8);
+            this.h.dust(f.pos, 0.9);
             this.h.shake(0.25);
-            this.h.sound('land_heavy', 0.8);
+            this.h.sound('land_heavy', 0.9);
           }
         }
         return ds > -30;
@@ -277,111 +440,139 @@ export class ObstacleDirector {
     pivot.position.copy(f.pos).addScaledVector(f.right, side * 2.7);
     pivot.rotation.set(0, f.yaw, 0);
     const col = new THREE.Mesh(geo, mat);
-    col.scale.set(0.55, 0.95, 0.55);
+    col.scale.set(0.5, 0.95, 0.5);
     col.castShadow = col.receiveShadow = true;
     pivot.add(col);
     this.h.add(pivot);
-    // It goes about 1.2 s before he arrives and lands ~0.5 s before he vaults it.
-    const startIn = Math.max(0.1, this.eta(at) - 1.3);
-    let t = -startIn;
+    // It goes about 1.5 s before he arrives and lands ~0.6 s before he vaults it: the danger is seen.
+    const v = Math.max(4, this.h.speed());
+    let t = -Math.max(0.05, (at - this.h.s()) / v - 1.5);
     let landed = false;
-    this.h.move('vault', this.eta(at), 0.7, 1.05);
+    this.plan('vault', at, 2.25, {
+      onTake: () => this.h.sound('whoosh_jump', 0.5),
+      onLand: () => {
+        this.landDust(this.h.s(), 0.4);
+        this.h.sound('land_heavy', 0.45);
+      },
+    });
     this.live.push({
       kind: 'pillar', s: at, objs: [pivot],
       tick: (dt, ds) => {
         t += dt;
+        if (t > -0.25 && t - dt <= -0.25) this.h.sound('stone_split', 0.5);
         if (t > 0 && !landed) {
-          // Topple about the base toward the path: an accelerating fall, a small bounce.
-          const k = Math.min(1, (t / 0.75) ** 2);
+          // Topple about the base toward the way: an accelerating fall, a small bounce.
+          const k = Math.min(1, (t / 0.8) ** 2);
           pivot.rotation.z = -side * (Math.PI / 2) * k;
           if (k >= 1) {
             landed = true;
-            this.h.dust(f.pos.clone().addScaledVector(f.right, side * 0.5), 0.9);
+            this.h.dust(f.pos.clone().addScaledVector(f.right, side * 0.5), 1);
             this.h.shake(0.3);
             this.h.sound('tree_fall', 0.8);
           }
-        }
+        } else if (landed && t < 1.1) pivot.rotation.z = -side * (Math.PI / 2 - 0.05 * Math.sin((t - 0.8) * 30) * Math.exp(-(t - 0.8) * 9));
         return ds > -30;
       },
     });
-    this.h.sound('stone_split', 0.4);
     return true;
   }
 
   private blocks(s0: number): boolean {
-    const tiles = this.h.tiles(s0, s0 + 16);
-    if (tiles.length < 4) return false;
-    // Every other slab cracks loose and drifts away (gaps of one slab), 2–3 gaps.
-    const gaps = tiles.filter((_, i) => i % 2 === 1).slice(0, this.h.rng().int(2, 3));
+    const tiles = this.h.tiles(s0, s0 + 34);
+    // Gaps far enough apart for leap, landing and the next run-up (a leap is ~1.1 s).
+    const v = Math.max(4, this.h.speed());
+    const want = this.h.rng().int(2, 3);
+    const gaps: Tile[] = [];
+    for (const t of tiles) {
+      if (gaps.length >= want) break;
+      const last = gaps[gaps.length - 1];
+      if (!last || t.near - last.far >= Math.max(9, v * 1.35)) gaps.push(t);
+    }
+    if (gaps.length < 2) return false;
+    const mat = this.h.material('floor');
     const objs: THREE.Object3D[] = [];
-    const moving: { o: THREE.Mesh; dir: number; spin: number; start: number; near: number }[] = [];
+    const moving: { o: THREE.Mesh; dir: number; spin: number; start: number; at: number; tile: Tile }[] = [];
+    for (const t of gaps) {
+      const geo = this.h.geometry(t.piece);
+      if (!geo || !mat) return false;
+    }
     for (const t of gaps) {
       this.h.hideTile(t);
-      const geo = this.h.geometry(t.piece);
-      const mat = this.h.material('floor');
-      if (!geo || !mat) continue;
-      const o = new THREE.Mesh(geo, mat);
+      const o = new THREE.Mesh(this.h.geometry(t.piece)!, mat);
       t.world.decompose(o.position, o.quaternion, o.scale);
       o.castShadow = o.receiveShadow = true;
       this.h.add(o);
       objs.push(o);
-      // Drift apart before he reaches them: sideways and down, opening the gap.
-      const eta = this.eta(t.near);
-      moving.push({ o, dir: this.h.rng().chance(0.5) ? 1 : -1, spin: this.h.rng().range(0.4, 0.9), start: Math.max(0, eta - 1.6), near: t.near });
-      this.h.move('leap', eta - 0.05, Math.max(0.42, (t.far - t.near + 0.6) / Math.max(4, this.h.speed())), 0.75);
+      const at = 0.5 * (t.near + t.far);
+      // Drift apart before he reaches them: sideways and down, opening the gap he must leap.
+      const eta = (t.near - this.h.s()) / v;
+      moving.push({ o, dir: this.h.rng().chance(0.5) ? 1 : -1, spin: this.h.rng().range(0.3, 0.7), start: Math.max(0, eta - 1.7), at, tile: t });
+      this.plan('leap_gap', at, t.far - t.near + 0.8, {
+        onTake: () => this.h.sound('whoosh_jump', 0.6),
+        onLand: () => {
+          this.landDust(this.h.s(), 0.55);
+          this.h.sound('land_heavy', 0.6);
+          this.h.shake(0.08);
+        },
+      });
     }
-    if (!moving.length) return false;
     let t = 0;
     this.h.sound('stone_split', 0.8);
     this.live.push({
-      kind: 'blocks', s: tiles[tiles.length - 1]!.far, objs,
+      kind: 'blocks', s: gaps[gaps.length - 1]!.far, objs,
       tick: (dt, ds) => {
         t += dt;
         for (const m of moving) {
           const k = t - m.start;
           if (k <= 0) continue;
-          const f = this.h.frameAt(m.near + 2);
-          // Out of the way first (sideways, tilting, sliding down), then sinking for good.
+          const f = this.h.frameAt(m.at);
+          if (k - dt <= 0) {
+            this.h.sound('stone_split', 0.6);
+            this.h.dust(f.pos, 0.6);
+          }
+          // Out of the way first (sideways, tilting), then sinking for good.
           const side = Math.min(1, k / 1.1);
-          m.o.position.addScaledVector(f.right, m.dir * dt * 2.4 * (1 - side * 0.5));
-          m.o.position.y -= dt * (0.6 + 2.2 * Math.max(0, k - 0.8));
+          m.o.position.addScaledVector(f.right, m.dir * dt * 2.6 * (1 - side * 0.5));
+          m.o.position.y -= dt * (0.4 + 2.4 * Math.max(0, k - 0.9) ** 1.5);
           m.o.rotateOnWorldAxis(f.fwd, m.dir * dt * m.spin);
-          if (k > 0 && k - dt <= 0) this.h.dust(f.pos, 0.6);
+          m.o.visible = m.o.position.y > f.pos.y - 6;
         }
-        return ds > -10 || t < 8;
+        return ds > -12 || t < 9;
       },
     });
-    // The slabs he lands on tilt and settle after him (cosmetic shudder via dust and shake).
-    for (const g of gaps) this.h.dust(this.h.frameAt(g.near).pos, 0.4);
     return true;
   }
 
   private boulder(): boolean {
     // Near miss: a boulder rolls across the way just behind him.
     const geo = this.h.geometry('rock_mid_0');
-    const mat = this.h.material('rock');
+    const mat = this.h.material('rock') ?? this.h.material('stoneA');
     if (!geo || !mat) return false;
-    const behind = this.h.s() - 2.2;
-    const f = this.h.frameAt(behind + this.h.speed() * 0.9);
+    const v = Math.max(4, this.h.speed());
+    const cross = this.h.s() + v * 0.9 - 2.4;
+    const f = this.h.frameAt(cross);
     const side = this.h.rng().chance(0.5) ? 1 : -1;
     const m = new THREE.Mesh(geo, mat);
-    m.scale.setScalar(0.8);
+    m.scale.setScalar(0.85);
     m.castShadow = true;
-    const start = f.pos.clone().addScaledVector(f.right, side * 5.5).setY(f.pos.y + 0.8);
+    const start = f.pos.clone().addScaledVector(f.right, side * 6).setY(f.pos.y + 0.8);
     m.position.copy(start);
     this.h.add(m);
-    let t = -0.9;
-    this.h.sound('tree_fall', 0.5);
+    // It crosses the centre line ~0.9 s from now, ~2.4 m behind him.
+    let t = -0.1;
+    this.h.sound('tree_fall', 0.45);
     this.live.push({
-      kind: 'boulder', s: behind, objs: [m],
+      kind: 'boulder', s: cross, objs: [m],
       tick: (dt) => {
         t += dt;
         if (t < 0) return true;
-        m.position.copy(start).addScaledVector(f.right, -side * 7.5 * t);
+        m.position.copy(start).addScaledVector(f.right, -side * 6.6 * t);
+        m.position.y = start.y + Math.abs(Math.sin(t * 7)) * 0.25 * Math.exp(-t);
         m.rotateOnWorldAxis(f.fwd, side * dt * 6.5);
-        if (t > 0.6 && t - dt <= 0.6) {
-          this.h.dust(m.position, 0.7, f.right.clone().multiplyScalar(-side * 2));
+        if (t > 0.9 && t - dt <= 0.9) {
+          this.h.dust(f.pos, 0.7, f.right.clone().multiplyScalar(-side * 2));
           this.h.shake(0.2);
+          this.h.sound('land_heavy', 0.5);
         }
         return t < 2.4;
       },
@@ -393,11 +584,9 @@ export class ObstacleDirector {
     // Near miss: the slab he has just left drops into the water.
     const s = this.h.s();
     const v = Math.max(4, this.h.speed());
-    const tiles = this.h.tiles(s + v * 0.2, s + v * 1.2);
-    const t = tiles[0];
+    const t = this.h.tiles(s + v * 0.2, s + v * 1.2)[0];
     if (!t) return false;
-    const eta = this.eta(t.far) + 0.12;
-    let k = -eta;
+    let k = -((t.far - s) / v + 0.1);
     let gone = false;
     this.live.push({
       kind: 'tile', s: t.far, objs: [],

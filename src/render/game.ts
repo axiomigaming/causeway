@@ -24,6 +24,7 @@ import { Motes, Particles } from './particles';
 import { Fx } from './fx';
 import { escapeScale, fallScale, nextDangerCue, revealHold, type DangerCue, type EscapeScale } from './fxScale';
 import { Post } from './post';
+import { ObstacleDirector } from './obstacles';
 
 export type Stage = 'title' | 'setup' | 'lead' | 'run' | 'crash' | 'cashout';
 
@@ -72,7 +73,9 @@ const nullSounds: WorldSounds = { footstep() {}, impact() {}, tremor() {}, run()
 export { intensityOf };
 
 export function speedOf(intensity: number): number {
-  return 5.0 + 7.6 * Math.pow(intensity, 0.85);
+  // Round 13: 5 m/s at tier 0 read as a jog. He sprints for his life from the first second (6.0 m/s,
+  // 2.33 strides/s, under the run clip's turnover cap so the feet never skate) and climbs to ~13 m/s.
+  return Math.max(6.0, 5.0 + 7.6 * Math.pow(intensity, 0.85));
 }
 
 const DUST = new THREE.Color('#d9b48a');
@@ -93,6 +96,8 @@ export class Game {
   private runner!: Runner;
   private water!: Water;
   private debris!: Debris;
+  /** Round 13: set pieces on the way (log jumps, slides, vaults, leaps, near misses). */
+  private obstacles!: ObstacleDirector;
   private particles = new Particles(1100);
   private motes = new Motes(420);
   private rain = new Rain();
@@ -237,6 +242,47 @@ export class Game {
     scene.add(this.debris.root);
     this.runner = new Runner(kit);
     this.runner.onFootstep = (foot, k) => this.footstep(foot, k);
+    this.obstacles = new ObstacleDirector({
+      s: () => this.s,
+      speed: () => this.speed,
+      running: () => this.stage === 'run',
+      rng: () => this.cosmetic,
+      frameAt: (s) => {
+        const f = this.track.path.sample(s);
+        return { pos: f.pos.clone(), yaw: f.yaw, fwd: forward(f.yaw), right: new THREE.Vector3(Math.cos(f.yaw), 0, -Math.sin(f.yaw)) };
+      },
+      clearRun: (s0, s1) => this.clearRun(s0, s1),
+      tiles: (s0, s1) => {
+        const out: { piece: string; world: THREE.Matrix4; near: number; far: number; slot: TileSlot }[] = [];
+        for (const sec of this.track.sections)
+          for (const t of sec.tiles) {
+            if (!this.collapsible(t)) continue;
+            const [near, far] = this.tileSpan(t);
+            if (near >= s0 && near <= s1) out.push({ piece: t.piece, world: t.world, near, far, slot: t });
+          }
+        return out.sort((a, b) => a.near - b.near);
+      },
+      hideTile: (t) => this.track.hideTile((t as unknown as { slot: TileSlot }).slot),
+      add: (o) => this.scene.add(o),
+      remove: (o) => {
+        this.scene.remove(o);
+        o.traverse((m) => {
+          // Only the director's own geometries (kit geometries are shared and stay).
+          const g = (m as THREE.Mesh).geometry;
+          if (g && ![...this.kit.geo.values()].includes(g)) g.dispose();
+        });
+      },
+      material: (key) => this.kit.mat.get(key),
+      geometry: (piece) => this.kit.geo.get(piece),
+      gait: () => this.runner.gait(),
+      obstacle: (name, distance) => this.runner.obstacle(name, { distance }),
+      debris: (piece, m, vel, spin, opts) => void this.debris.spawn(piece, m, vel, spin, () => null, opts),
+      dust: (at, k, vel) =>
+        this.cine.billows.puff(at.clone().setY(at.y + 0.2), { count: 2 + Math.round(3 * k), spread: 0.8 + k, jitter: 0.5, vel: (vel ?? new THREE.Vector3()).clone().setY(0.5 + k), size: [0.4, 1.4 + 1.6 * k], life: 1.2 + k, alpha: 0.3, tint: DUST_T, rise: 0.2, drag: 1.2, floor: at.y, group: CUE }),
+      shake: (k) => this.rig.addTrauma(k),
+      sound: (name, k) => this.sounds.event?.(name, k),
+      cue: (name, k) => this.dangerCue(name, k, this.prog.intensity),
+    });
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
     scene.add(this.contact.mesh);
@@ -434,6 +480,9 @@ export class Game {
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);
+    this.obstacles.reset();
+    this.runOn = false;
+    this.escapeGateAt = 0;
     resetMood();
     this.debris.clear();
     this.particles.clear();
@@ -543,6 +592,7 @@ export class Game {
     if (st.kind === 'chasm' && this.tileEdge(this.s + 1.4, this.s + (this.speed * 0.45) / 2 + 5) === null) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
     this.setStage('crash');
+    this.obstacles.settle();
     this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
     this.crashKind = st.kind;
     this.staging = st;
@@ -699,20 +749,47 @@ export class Game {
     this.epic = st.epic;
     this.escape = E;
     this.setStage('cashout');
-    // A clear payoff at every escape: the look-back (which ends turned side-on, arms down) gives way
-    // to the cheer, fists up toward the gate of light; salute and leap stand as they are.
+    // Round 13 — "made it": no set piece or near miss from here on (honesty: nothing staged after a
+    // cash-out); pieces still ahead crumble away, the way ahead is clear.
+    this.obstacles.settle();
     const clip = st.variant === 'lookback' ? 'win_cheer' : st.clip;
-    this.runner.play(clip as RunnerAnim, 0.2, st.offset);
-    // Run out of it: how long depends on the move.
     const T = { lookback: 0.72, cheer: 0.5, salute: 1.0, leap: 1.15 }[st.variant];
-    this.setStop(this.s + (v * T) / 2);
+    // He is still running: he carries on through the last strides to safe ground before the gate of
+    // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
+    // money is settled already; only the picture runs on.
+    const runOn = v > 3 && this.motion === 'full' ? 0.75 + 0.55 * E.g : 0;
+    const stop = this.s + v * runOn + (v * T) / 2;
+    const gateAt = stop + 3.4 + 1.6 * E.g;
+    const fg = this.track.path.sample(gateAt);
+    this.placeEscapeGate(fg.pos, fg.yaw);
+    this.escapeGateAt = gateAt;
     this.sounds.escape();
-    this.fx.flash = 0.16 + 0.12 * E.g;
-    this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
-    // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
-    if (v > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
-    this.stageEscape(E);
+    this.fx.flash = 0.08 + 0.06 * E.g;
+    const land = () => {
+      if (this.stage !== 'cashout' || this.escape !== E) return;
+      this.runOn = false;
+      this.runner.play(clip as RunnerAnim, 0.2, st.offset);
+      this.setStop(stop);
+      this.fx.flash = 0.16 + 0.12 * E.g;
+      this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
+      // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
+      if (this.speed > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
+      this.stageEscape(E);
+    };
+    if (runOn > 0) {
+      this.runOn = true;
+      // The chase lens stays on him (calming as the tier falls away) until he pulls up.
+      this.rig.setMode('run');
+      this.sounds.event?.('made_it', E.g);
+      // Relief: half a stride before he pulls up, a stumble of exhausted relief.
+      this.later(Math.max(0, runOn - 0.45), () => this.stage === 'cashout' && this.runOn && this.runner.stumble());
+      this.later(runOn, land);
+    } else land();
   }
+
+  /** The cash-out run-on is in progress (he keeps his speed to the gate). */
+  private runOn = false;
+  private escapeGateAt = 0;
 
   private escape: EscapeScale | null = null;
 
@@ -740,9 +817,10 @@ export class Game {
     const f0 = this.track.path.sample(s0);
     const fw = forward(f0.yaw);
     // A place to escape to: a carved gate stands on the way ahead with daylight pouring through it.
-    const gateAt = s0 + 10 + 3 * g;
+    // (Placed by cashout() as he starts his run-on, so he runs toward it.)
+    const gateAt = this.escapeGateAt > s0 ? this.escapeGateAt : s0 + 10 + 3 * g;
     const fg = this.track.path.sample(gateAt);
-    this.placeEscapeGate(fg.pos, fg.yaw);
+    if (!this.escapeGate) this.placeEscapeGate(fg.pos, fg.yaw);
     this.rig.gateAhead = gateAt - s0;
     const glory = fg.pos.clone().addScaledVector(forward(fg.yaw), 0.9).setY(fg.pos.y + 3.0);
     // Capped so the scene keeps its contrast (no bloom whiteout), a touch more for a big escape.
@@ -889,6 +967,26 @@ export class Game {
     const f = this.track.path.sample(mid);
     const sc = mid + (c.x - f.pos.x) * -Math.sin(f.yaw) + (c.z - f.pos.z) * -Math.cos(f.yaw);
     return [sc - 2, sc + 2];
+  }
+
+  /**
+   * A stretch a set piece can stand on: level, straight floor (no stairs, no bend), no crash
+   * staging, no reveal gate, and inside the built route.
+   */
+  private clearRun(s0: number, s1: number): boolean {
+    const a = this.track.path.sample(s0);
+    const y0 = a.pos.y;
+    const yaw0 = a.yaw;
+    for (let s = s0; s <= s1 + 1e-3; s += 1) {
+      const sec = this.track.sectionAt(s);
+      if (!sec) return false;
+      const f = this.track.path.sample(s);
+      if (Math.abs(f.pos.y - y0) > 0.12) return false;
+      const d = f.yaw - yaw0;
+      if (Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > 0.2) return false;
+      for (const t of sec.tiles) if (t.piece.startsWith('stairs') && Math.abs(this.tileSpan(t)[0] + 2 - s) < 2.5) return false;
+    }
+    return true;
   }
 
   private collapsible(t: { piece: string; alive: boolean }): boolean {
@@ -1345,7 +1443,7 @@ export class Game {
         this.rig.addTrauma(0.04 + 0.06 * k);
         this.sounds.event?.('dust_burst', k);
         // Debris landing beside him: now and then a stumble-and-recover, else a glance at the wall.
-        if (near) this.later(0.35, () => (c.chance(0.4) ? this.runner.stumble() : this.runner.glance(side)), CUE);
+        if (near) this.later(0.35, () => (this.obstacles.busy ? false : c.chance(0.4) ? this.runner.stumble() : this.runner.glance(side)), CUE);
         break;
       }
       case 'stones': {
@@ -1424,7 +1522,7 @@ export class Game {
     if (lead <= 0.05) return;
     this.later(lead * 0.6, () => {
       const t2 = (sAt - this.s) / Math.max(1, this.speed) - 0.2;
-      if (t2 > 0) this.later(t2, () => this.stage === 'run' && this.runner.hop(), CUE);
+      if (t2 > 0) this.later(t2, () => this.stage === 'run' && !this.obstacles.busy && this.runner.hop(), CUE);
     }, CUE);
   }
 
@@ -1457,6 +1555,8 @@ export class Game {
       this.onTierPulse(tier);
       try {
         window.dispatchEvent(new CustomEvent('causeway:tier', { detail: { tier, mult: this.live.mult } }));
+        // The UI's HUD pulse (src/ui/pulse.ts: TIER_PULSE_EVENT), as an event so the HUD can change freely.
+        window.dispatchEvent(new CustomEvent('causeway:tier-pulse', { detail: { tier, strength: 0.6 + 0.1 * tier } }));
       } catch {
         /* no DOM (tests) */
       }
@@ -1523,7 +1623,7 @@ export class Game {
     this.duckFrom.copy(f.pos).addScaledVector(rv, -0.6).setY(f.pos.y + 1.75);
     this.duckTo.copy(f.pos).addScaledVector(rv, 0.6).setY(f.pos.y + 1.75);
     const hit = this.occluder(this.duckFrom, this.duckTo) ?? this.occluder(this.duckTo, this.duckFrom);
-    if (hit !== null && this.runner.duck()) this.duckCool = 1.2;
+    if (hit !== null && !this.obstacles.busy && this.runner.duck()) this.duckCool = 1.2;
   }
 
   /** A distant rumble: camera tremor, grit off the walls, and a plume of dust far off over the jungle. */
@@ -1531,6 +1631,42 @@ export class Game {
    * Last line of defence for the lens: if the camera went non-finite, or sits inside a solid prop or
    * a heavy falling body (the door), cut to a safe shot behind and above the runner.
    */
+  /**
+   * Low ceilings (round 13): under an arcade, a tunnel or a fallen lintel the low chase lens rose into
+   * the soffit — the stone filled the top of the frame and cut the runner's head. An upward probe from
+   * the lens (a few times a second): with less than 0.75 m above it, the lens comes down (never below
+   * knee height) and leans a little toward the runner, eased in and out so it never pops.
+   */
+  private ceilT = 0;
+  private ceilWant = 0;
+  private ceilDrop = 0;
+  private ceilP = new THREE.Vector3();
+  private ceiling(dt: number): void {
+    const cam = this.rig.camera;
+    this.ceilT -= dt;
+    if (this.ceilT <= 0) {
+      this.ceilT = 0.12;
+      const p = cam.position;
+      // Probe from where the lens would be without the previous drop, so the drop does not undo itself.
+      this.ceilP.copy(p).setY(p.y + this.ceilDrop);
+      const top = this.ceilP.clone().setY(this.ceilP.y + 1.6);
+      const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
+      this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
+    }
+    this.ceilDrop += (this.ceilWant - this.ceilDrop) * (1 - Math.exp(-dt * (this.ceilWant > this.ceilDrop ? 10 : 2.5)));
+    if (this.ceilDrop < 1e-3) return;
+    const p = cam.position;
+    const floor = this.track.path.sample(this.s).pos.y + 0.5;
+    const drop = Math.min(this.ceilDrop, Math.max(0, p.y - floor));
+    p.y -= drop;
+    // Lean the view down by the same amount so the runner keeps his place in frame.
+    cam.updateMatrixWorld();
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
+    look.y -= drop * 0.35;
+    cam.lookAt(look);
+    cam.updateMatrixWorld();
+  }
+
   private guardCamera(): void {
     const cam = this.rig.camera;
     const p = cam.position;
@@ -1611,7 +1747,9 @@ export class Game {
     const ahead = new THREE.Vector3(-Math.sin(f.yaw), 0, -Math.cos(f.yaw)).multiplyScalar(this.stage === 'run' ? 0.2 : 0.1);
     const p = this.runner.root.position.clone().add(side).add(ahead);
     const secType = this.track.sectionAt(this.s)?.type;
-    const wood = secType === 'bridge';
+    const wood = secType === 'bridge' || secType === 'boardwalk';
+    // The boards give under each footfall (runner overlays); stone stays stone.
+    this.runner.surface = wood ? 'wood' : 'stone';
     this.sounds.setSection?.(secType);
     const skid = this.stage === 'crash';
     // Dust at each plant, a bigger, lower puff the harder they run; at the top tiers the push-off
@@ -1682,7 +1820,10 @@ export class Game {
     }
 
     // Kinematics. Crash and cash-out brake uniformly to a staged mark.
-    if (this.stage === 'crash' || this.stage === 'cashout') {
+    if (this.stage === 'cashout' && this.runOn) {
+      // The "made it" run-on: full stride to safe ground (see cashout()).
+      this.s += this.speed * dt;
+    } else if (this.stage === 'crash' || this.stage === 'cashout') {
       const rem = Math.max(0, this.stopAt - this.s);
       this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
       this.s = Math.min(this.stopAt, this.s + this.speed * dt);
@@ -1690,11 +1831,13 @@ export class Game {
       const target = this.stage === 'run' ? speedOf(I) : 0;
       const dv = target - this.speed;
       this.speed += Math.sign(dv) * Math.min(Math.abs(dv), 6 * dt * (this.stage === 'run' && this.stageT < 1 ? 1.4 : 1));
-      this.s += this.speed * dt;
+      // sRate: the few percent the obstacle director borrows so a move's takeoff meets its set piece.
+      this.s += (this.speed + (this.stage === 'run' ? this.obstacles.sRate : 0)) * dt;
     }
     this.live.speed = this.speed;
     this.live.distance = this.s;
     this.track.update(this.s, I);
+    if (this.stage === 'run') this.obstacles.update(dt, P.tier, this.stageT);
     this.placeRunner(dt);
     this.runner.lean = this.stage === 'run' ? 0.04 * I : 0;
     // Run tier from the current multiplier only: gait and camera escalate, with cosmetic beats.
@@ -1726,7 +1869,7 @@ export class Game {
     this.rig.drive = drive;
     if (this.stage === 'run' && this.stageT > 1.5) {
       this.beatIn -= dt;
-      if (this.beatIn <= 0) {
+      if (this.beatIn <= 0 && !this.obstacles.busy) {
         const nb = nextBeat(this.cosmetic, P.tier);
         this.beatIn = nb ? nb.wait : 2;
         if (nb?.beat === 'glance') this.runner.glance(this.cosmetic.chance(0.5) ? 1 : -1);
@@ -1817,6 +1960,7 @@ export class Game {
     }
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' ? I : 0);
     const cam = this.rig.camera;
+    this.ceiling(rawDt);
     this.guardCamera();
     if (this.debugPin) {
       const d = this.debugPin;
@@ -1967,6 +2111,12 @@ export class Game {
   }
 
   /** QA: the nearest mesh under each screen point ([x, y] in 0..1 from the top left), with its material. */
+  /** QA: place a set piece ahead now (log, beam, pillar, blocks, boulder, tile, rocks); and the counts so far. */
+  debugObstacle(kind?: string): { placed: boolean; fired: Record<string, number> } {
+    const placed = kind ? this.obstacles.force(kind as Parameters<ObstacleDirector['force']>[0]) : false;
+    return { placed, fired: { ...this.obstacles.fired } };
+  }
+
   debugPick(pts: [number, number][]): { name: string; mat: string; dist: number }[] {
     const rc = new THREE.Raycaster();
     const out: { name: string; mat: string; dist: number }[] = [];
