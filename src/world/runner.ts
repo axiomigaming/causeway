@@ -220,6 +220,13 @@ export class Runner {
   private beatGain = 1;
   private eventT = 0;
   onFootstep: (foot: Foot, strength: number) => void = () => {};
+  /**
+   * What is underfoot. On 'wood' (rope bridges, plank walks) each footfall flexes the boards: the body
+   * sinks a touch more and springs back with a small overshoot. The world sets it (stone by default).
+   */
+  surface: 'stone' | 'wood' = 'stone';
+  private plankY = 0;
+  private plankV = 0;
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
   lean = 0;
   roll = 0;
@@ -556,15 +563,15 @@ export class Runner {
     // Footfalls.
     const k = Math.min(1, speed / 10);
     if (this.current === 'run' && gaitW > 0.5) {
-      if (prevPhase > this.phase) this.onFootstep('L', k);
-      else if (prevPhase < 0.5 && this.phase >= 0.5) this.onFootstep('R', k);
+      if (prevPhase > this.phase) this.step('L', k);
+      else if (prevPhase < 0.5 && this.phase >= 0.5) this.step('R', k);
     } else {
       const ev = EVENTS[this.current];
       const a = this.actions.get(this.current);
       if (ev && a) {
         const t0 = this.eventT;
         const t1 = a.time;
-        for (const [at, foot, s] of ev) if (at > t0 && at <= t1) this.onFootstep(foot, s * Math.max(0.35, k));
+        for (const [at, foot, s] of ev) if (at > t0 && at <= t1) this.step(foot, s * Math.max(0.35, k));
         this.eventT = t1;
       }
     }
@@ -585,6 +592,12 @@ export class Runner {
     this.lookLayer(dt);
     this.secondary(dt);
     this.plantFeet(dt);
+  }
+
+  /** A footfall: on planks the boards give under it (see plank in overlays); then the world's cue. */
+  private step(foot: Foot, k: number): void {
+    if (this.surface === 'wood') this.plankV -= 0.32 * Math.min(1, k + 0.3);
+    this.onFootstep(foot, k);
   }
 
   /** A catch step at the lip of a flight of stairs: a check, eyes down to the steps, arms out a touch. */
@@ -703,8 +716,8 @@ export class Runner {
       this.rotate(b.upper_armR, -0.2 * e, 0, -0.45 * e);
       lift += 0.8 * u * (1 - u) * (1 - smoothstep(0.85, 1, u) * 0.2);
       if (t0 < T && this.hopT >= T) {
-        this.onFootstep('L', 0.85);
-        this.onFootstep('R', 0.85);
+        this.step('L', 0.85);
+        this.step('R', 0.85);
       }
       if (this.hopT > T + 0.05) this.hopT = -1;
     }
@@ -726,6 +739,18 @@ export class Runner {
       this.rotate(b.chest, -0.05 * e, 0.06 * sg * e, 0);
       if (t > 1.1) this.shieldT = -1;
     }
+    // Plank flex: a stiff, lightly damped spring (~6 Hz) kicked down at each footfall on wood, so the
+    // stride gets a soft give and a little rebound; on stone it settles to rest.
+    if (this.surface !== 'wood') this.plankV *= Math.exp(-dt * 20);
+    const w0 = 2 * Math.PI * 6;
+    const n = Math.ceil(Math.min(dt, 0.1) / (1 / 240));
+    for (let i = 0; i < n; i++) {
+      this.plankV += (-w0 * w0 * this.plankY - 2 * 0.35 * w0 * this.plankV) * (Math.min(dt, 0.1) / n);
+      this.plankY += this.plankV * (Math.min(dt, 0.1) / n);
+    }
+    this.plankY = THREE.MathUtils.clamp(this.plankY, -0.03, 0.015);
+    lift += this.plankY;
+    this.rotate(b.chest, this.plankY * 2.5, 0, 0);
     this.body.position.y = lift;
   }
 
@@ -980,6 +1005,7 @@ export class Runner {
     this.duckT = -1;
     this.hopT = -1;
     this.shieldT = -1;
+    this.plankY = this.plankV = 0;
     runnerWet.value = 0;
     this.beatOut = false;
     this.beatGain = 1;
