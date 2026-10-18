@@ -476,7 +476,7 @@ class DepthAOEffect extends Effect {
   private blurMat: THREE.ShaderMaterial;
   private camera: THREE.PerspectiveCamera;
 
-  constructor(samples: number, camera: THREE.Camera) {
+  constructor(samples: number, camera: THREE.Camera, private scale = 1) {
     super(
       'DepthAO',
       /* glsl */ `
@@ -587,10 +587,14 @@ class DepthAOEffect extends Effect {
   }
 
   override setSize(width: number, height: number): void {
-    this.rtA.setSize(width, height);
-    this.rtB.setSize(width, height);
-    this.occMat.uniforms.texel!.value.set(1 / width, 1 / height);
-    this.blurMat.uniforms.texel!.value.set(1 / width, 1 / height);
+    // Medium draws the occlusion at half resolution (a quarter of the cost); it is low-frequency
+    // after the blur, and the composite reads it filtered.
+    const w = Math.max(1, Math.round(width * this.scale));
+    const h = Math.max(1, Math.round(height * this.scale));
+    this.rtA.setSize(w, h);
+    this.rtB.setSize(w, h);
+    this.occMat.uniforms.texel!.value.set(1 / w, 1 / h);
+    this.blurMat.uniforms.texel!.value.set(1 / w, 1 / h);
   }
 
   override update(renderer: THREE.WebGLRenderer): void {
@@ -815,7 +819,7 @@ export class Post {
     this.composer.addPass(new EffectPass(this.camera, new NanGuardEffect()));
     if (this.ssr) this.composer.addPass(new EffectPass(this.camera, this.ssr));
     this.shafts = q.godRays > 0 ? new SunShaftsEffect(q.godRays) : null;
-    this.ao = q.ao > 0 ? new DepthAOEffect(q.ao, this.camera) : null;
+    this.ao = q.ao > 0 ? new DepthAOEffect(q.ao, this.camera, q.pixelRatioCap < 2 ? 0.5 : 1) : null;
     const lightFx = [this.ao, this.shafts].filter((e): e is DepthAOEffect | SunShaftsEffect => e !== null);
     if (lightFx.length) this.composer.addPass(new EffectPass(this.camera, ...lightFx));
     this.cameraBlur = q.motionBlur === 'camera';
