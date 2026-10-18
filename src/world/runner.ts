@@ -24,7 +24,10 @@ export type RunnerAnim =
   | 'win'
   | 'win_cheer'
   | 'win_salute'
-  | 'win_leap';
+  | 'win_leap'
+  /** Payoffs for the biggest settled rounds (50x+), picked by the FX director. */
+  | 'win_slide'
+  | 'fall_ledge';
 
 type Foot = 'L' | 'R';
 const GAITS = ['run', 'sprint', 'dash'] as const;
@@ -59,7 +62,7 @@ export function gaitCadence(speed: number, drive: number): number {
   return Math.min(Math.max(speed / stride, 1.1), cadenceCap(drive));
 }
 const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
-const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap']);
+const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
   start: [[0.16, 'L', 0.45], [0.27, 'R', 0.8], [0.5, 'L', 0.7], [0.73, 'R', 0.65], [0.9, 'L', 0.6]],
@@ -74,6 +77,8 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_cheer: [[0.2, 'R', 0.6], [0.37, 'L', 0.8], [0.6, 'R', 0.4]],
   win_salute: [[0.27, 'R', 0.4], [0.5, 'L', 0.25], [1.1, 'R', 0.2], [1.27, 'L', 0.2], [1.43, 'R', 0.2]],
   win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8]],
+  win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5]],
+  fall_ledge: [[0.17, 'L', 0.9]],
 };
 
 /** Spring-driven cloth bones (three strips the dots from the Blender names). */
