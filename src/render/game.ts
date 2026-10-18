@@ -1764,6 +1764,13 @@ export class Game {
     // Round 11 crescendo: the world's mood follows the run (src/world/mood.ts; presentation only).
     const mood = stepMood(dt, I);
     this.applyMood(mood.drive, mood.gust);
+    // Round 13: in a low, warm sun the runner wears a faint gold rim (the escape's rim, at a sliver of
+    // its strength), so his silhouette lifts off the stone; none in the flat light of morning or storm.
+    // The escape sets its own, stronger rim.
+    if (this.stage !== 'cashout') {
+      const ln = this.lookApplied?.name;
+      this.cine.rimLevelTarget = ln === 'golden' ? 0.16 : ln === 'afternoon' ? 0.1 : 0;
+    }
     this.water.update(this.worldT, cam);
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
