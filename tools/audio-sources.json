@@ -1,0 +1,2653 @@
+{
+ "_doc": "Picks for tools/build-audio.mjs. sources: Openverse results chosen per query by earshot rank (record locked by `node tools/fetch-audio.mjs lock`). sounds: trims (seconds in the source) from earshot find; z = how well the trim matched its description. See review/audio11/REPORT.md.",
+ "sources": [
+  {
+   "id": "83623c61-5c2a-4977-9f64-2665ae06ee44",
+   "query": "bass_drum",
+   "record": {
+    "title": "cinematic boom 130730_06.wav",
+    "creator": "klankbeeld",
+    "creator_url": "https://freesound.org/people/klankbeeld",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/klankbeeld/sounds/195790",
+    "url": "https://cdn.freesound.org/previews/195/195790_1648170-hq.mp3",
+    "attribution": "\"cinematic boom 130730_06.wav\" by klankbeeld is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 3581,
+    "filesize": 66840
+   }
+  },
+  {
+   "id": "fc0b44cc-e905-4791-aa06-ee6b4a7fe49d",
+   "query": "bass_drum",
+   "record": {
+    "title": "[Boom] Reverbed Kick 09",
+    "creator": "waveplaySFX",
+    "creator_url": "https://freesound.org/people/waveplaySFX",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/waveplaySFX/sounds/353391",
+    "url": "https://cdn.freesound.org/previews/353/353391_1676145-hq.mp3",
+    "attribution": "\"[Boom] Reverbed Kick 09\" by waveplaySFX is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 7469,
+    "filesize": 168966
+   }
+  },
+  {
+   "id": "bab5dcda-f3d3-4149-b3e0-3eddd0baa386",
+   "query": "breath",
+   "record": {
+    "title": "heavy breathing while running",
+    "creator": "florianreichelt",
+    "creator_url": "https://freesound.org/people/florianreichelt",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/florianreichelt/sounds/456037",
+    "url": "https://cdn.freesound.org/previews/456/456037_6253486-hq.mp3",
+    "attribution": "\"heavy breathing while running\" by florianreichelt is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 47680,
+    "filesize": 1092960
+   }
+  },
+  {
+   "id": "6a3aabe3-2b78-42ec-af38-2ae567ee3439",
+   "query": "breath",
+   "record": {
+    "title": "Men Pant.wav",
+    "creator": "nicklas3799",
+    "creator_url": "https://freesound.org/people/nicklas3799",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/nicklas3799/sounds/467369",
+    "url": "https://cdn.freesound.org/previews/467/467369_8477872-hq.mp3",
+    "attribution": "\"Men Pant.wav\" by nicklas3799 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 6489,
+    "filesize": 150271
+   }
+  },
+  {
+   "id": "6b689584-cecf-46b3-b65d-818be8e405aa",
+   "query": "coins",
+   "record": {
+    "title": "Coins Being Dropped-Assorted",
+    "creator": "TheWoodlandNomad",
+    "creator_url": "https://freesound.org/people/TheWoodlandNomad",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/TheWoodlandNomad/sounds/363090",
+    "url": "https://cdn.freesound.org/previews/363/363090_6612464-hq.mp3",
+    "attribution": "\"Coins Being Dropped-Assorted\" by TheWoodlandNomad is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 24417,
+    "filesize": 596579
+   }
+  },
+  {
+   "id": "1259dcb7-6fa4-4594-99c9-82e62317a0fb",
+   "query": "coins",
+   "record": {
+    "title": "20080928.coins.05.wav",
+    "creator": "dobroide",
+    "creator_url": "https://freesound.org/people/dobroide",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/dobroide/sounds/60769",
+    "url": "https://cdn.freesound.org/previews/60/60769_8043-hq.mp3",
+    "attribution": "\"20080928.coins.05.wav\" by dobroide is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 891,
+    "filesize": 23795
+   }
+  },
+  {
+   "id": "8e6a9316-96bc-4a95-88ce-b7047c23d094",
+   "query": "crumble",
+   "record": {
+    "title": "Breaking A Wall Down (With A Hammer)",
+    "creator": "scampsie",
+    "creator_url": "https://freesound.org/people/scampsie",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/scampsie/sounds/417091",
+    "url": "https://cdn.freesound.org/previews/417/417091_5811169-hq.mp3",
+    "attribution": "\"Breaking A Wall Down (With A Hammer)\" by scampsie is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 16057,
+    "filesize": 396480
+   }
+  },
+  {
+   "id": "a05521f1-c96e-4e01-a80c-4bbd36de4d44",
+   "query": "debris",
+   "record": {
+    "title": "Gravel Stone Dirt Debris Falling Small 1 3",
+    "creator": "Sheyvan",
+    "creator_url": "https://freesound.org/people/Sheyvan",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Sheyvan/sounds/569736",
+    "url": "https://cdn.freesound.org/previews/569/569736_3248005-hq.mp3",
+    "attribution": "\"Gravel Stone Dirt Debris Falling Small 1 3\" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 6938,
+    "filesize": 194256
+   }
+  },
+  {
+   "id": "259c2846-05e8-48dc-a0b3-65871360d1a5",
+   "query": "debris",
+   "record": {
+    "title": "Gravel Stone Dirt Debris Falling Small 1 4",
+    "creator": "Sheyvan",
+    "creator_url": "https://freesound.org/people/Sheyvan",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Sheyvan/sounds/569737",
+    "url": "https://cdn.freesound.org/previews/569/569737_3248005-hq.mp3",
+    "attribution": "\"Gravel Stone Dirt Debris Falling Small 1 4\" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5069,
+    "filesize": 148080
+   }
+  },
+  {
+   "id": "c670f811-ca58-4754-94d6-34d0c9e37948",
+   "query": "debris",
+   "record": {
+    "title": "Gravel Stone Dirt Debris Falling Small 1 6",
+    "creator": "Sheyvan",
+    "creator_url": "https://freesound.org/people/Sheyvan",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Sheyvan/sounds/569739",
+    "url": "https://cdn.freesound.org/previews/569/569739_3248005-hq.mp3",
+    "attribution": "\"Gravel Stone Dirt Debris Falling Small 1 6\" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 2147,
+    "filesize": 65616
+   }
+  },
+  {
+   "id": "a9bae93f-0bb5-4add-8afe-d20a3f603952",
+   "query": "debris",
+   "record": {
+    "title": "Gravel Stone Dirt Debris Falling Small 1 13",
+    "creator": "Sheyvan",
+    "creator_url": "https://freesound.org/people/Sheyvan",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Sheyvan/sounds/569746",
+    "url": "https://cdn.freesound.org/previews/569/569746_3248005-hq.mp3",
+    "attribution": "\"Gravel Stone Dirt Debris Falling Small 1 13\" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 4549,
+    "filesize": 127824
+   }
+  },
+  {
+   "id": "2687bb97-84de-4473-a151-877d3c91d327",
+   "query": "debris",
+   "record": {
+    "title": "Gravel Stone Dirt Debris Falling Small 1 12",
+    "creator": "Sheyvan",
+    "creator_url": "https://freesound.org/people/Sheyvan",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Sheyvan/sounds/569745",
+    "url": "https://cdn.freesound.org/previews/569/569745_3248005-hq.mp3",
+    "attribution": "\"Gravel Stone Dirt Debris Falling Small 1 12\" by Sheyvan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 3393,
+    "filesize": 100656
+   }
+  },
+  {
+   "id": "04abdade-802f-4105-b236-f709901bd459",
+   "query": "djembe",
+   "record": {
+    "title": "African Djembe Drum - 1.wav",
+    "creator": "SpaceJoe",
+    "creator_url": "https://freesound.org/people/SpaceJoe",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/SpaceJoe/sounds/505396",
+    "url": "https://cdn.freesound.org/previews/505/505396_6150892-hq.mp3",
+    "attribution": "\"African Djembe Drum - 1.wav\" by SpaceJoe is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 3047,
+    "filesize": 75143
+   }
+  },
+  {
+   "id": "222aa6e0-90ce-4ce3-9a6a-a275d89dce2a",
+   "query": "djembe",
+   "record": {
+    "title": "Djembe Hit 2 Center.wav",
+    "creator": "carlmartin",
+    "creator_url": "https://freesound.org/people/carlmartin",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/carlmartin/sounds/158959",
+    "url": "https://cdn.freesound.org/previews/158/158959_2394766-hq.mp3",
+    "attribution": "\"Djembe Hit 2 Center.wav\" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 333,
+    "filesize": 6755
+   }
+  },
+  {
+   "id": "8cd32c8b-a198-4d83-919b-c25ce0328ac7",
+   "query": "djembe",
+   "record": {
+    "title": "Djembe Hit 5 Center.wav",
+    "creator": "carlmartin",
+    "creator_url": "https://freesound.org/people/carlmartin",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/carlmartin/sounds/158962",
+    "url": "https://cdn.freesound.org/previews/158/158962_2394766-hq.mp3",
+    "attribution": "\"Djembe Hit 5 Center.wav\" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 333,
+    "filesize": 6937
+   }
+  },
+  {
+   "id": "d5eb13f0-aed4-45d9-994b-9cec15cef354",
+   "query": "djembe",
+   "record": {
+    "title": "120-Djembe-Mute.wav",
+    "creator": "klemmy",
+    "creator_url": "https://freesound.org/people/klemmy",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/klemmy/sounds/203347",
+    "url": "https://cdn.freesound.org/previews/203/203347_356312-hq.mp3",
+    "attribution": "\"120-Djembe-Mute.wav\" by klemmy is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 567,
+    "filesize": 14506
+   }
+  },
+  {
+   "id": "069d61e6-f56f-4bfa-9ba0-0d291dbd7212",
+   "query": "djembe",
+   "record": {
+    "title": "Djembe Hit 6 Rim.wav",
+    "creator": "carlmartin",
+    "creator_url": "https://freesound.org/people/carlmartin",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/carlmartin/sounds/158968",
+    "url": "https://cdn.freesound.org/previews/158/158968_2394766-hq.mp3",
+    "attribution": "\"Djembe Hit 6 Rim.wav\" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 213,
+    "filesize": 5165
+   }
+  },
+  {
+   "id": "181614dd-a0c8-4f7a-8685-996753f07fc0",
+   "query": "djembe",
+   "record": {
+    "title": "Djembe Hit 6 Hi Rim.wav",
+    "creator": "carlmartin",
+    "creator_url": "https://freesound.org/people/carlmartin",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/carlmartin/sounds/158969",
+    "url": "https://cdn.freesound.org/previews/158/158969_2394766-hq.mp3",
+    "attribution": "\"Djembe Hit 6 Hi Rim.wav\" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 124,
+    "filesize": 3392
+   }
+  },
+  {
+   "id": "d24b9702-65c4-4170-b5af-6a7ecc9b74b0",
+   "query": "djembe",
+   "record": {
+    "title": "121-Djembe-Slap.wav",
+    "creator": "klemmy",
+    "creator_url": "https://freesound.org/people/klemmy",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/klemmy/sounds/203350",
+    "url": "https://cdn.freesound.org/previews/203/203350_356312-hq.mp3",
+    "attribution": "\"121-Djembe-Slap.wav\" by klemmy is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 706,
+    "filesize": 17741
+   }
+  },
+  {
+   "id": "e35a3307-198c-48f3-a23f-62692e70c145",
+   "query": "drone",
+   "record": {
+    "title": "Low cello bass note",
+    "creator": "aarrnnoo",
+    "creator_url": "https://freesound.org/people/aarrnnoo",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/aarrnnoo/sounds/516188",
+    "url": "https://cdn.freesound.org/previews/516/516188_3242998-hq.mp3",
+    "attribution": "\"Low cello bass note\" by aarrnnoo is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 29229,
+    "filesize": 545712
+   }
+  },
+  {
+   "id": "3d4a4c00-13e6-4506-8e59-7e3838b3c7c7",
+   "query": "dust",
+   "record": {
+    "title": "sand pour on sand FF662.aif",
+    "creator": "martinimeniscus",
+    "creator_url": "https://freesound.org/people/martinimeniscus",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/martinimeniscus/sounds/199332",
+    "url": "https://cdn.freesound.org/previews/199/199332_2320755-hq.mp3",
+    "attribution": "\"sand pour on sand FF662.aif\" by martinimeniscus is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 21955,
+    "filesize": 557184
+   }
+  },
+  {
+   "id": "928d4c85-529b-406a-9cdd-e58548d19694",
+   "query": "dust",
+   "record": {
+    "title": "sand pour on slate FF670.aif",
+    "creator": "martinimeniscus",
+    "creator_url": "https://freesound.org/people/martinimeniscus",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/martinimeniscus/sounds/199331",
+    "url": "https://cdn.freesound.org/previews/199/199331_2320755-hq.mp3",
+    "attribution": "\"sand pour on slate FF670.aif\" by martinimeniscus is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 9876,
+    "filesize": 254160
+   }
+  },
+  {
+   "id": "1addd31a-40a5-4099-9eea-480ba79f5287",
+   "query": "frame_drum",
+   "record": {
+    "title": "Shaman Hand Frame Drum 04_02",
+    "creator": "Jagadamba",
+    "creator_url": "https://freesound.org/people/Jagadamba",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Jagadamba/sounds/257160",
+    "url": "https://cdn.freesound.org/previews/257/257160_4062622-hq.mp3",
+    "attribution": "\"Shaman Hand Frame Drum 04_02\" by Jagadamba is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 5599,
+    "filesize": 127828
+   }
+  },
+  {
+   "id": "6275bdbf-98c8-4051-bcee-f5ff1196979a",
+   "query": "frame_drum",
+   "record": {
+    "title": "Shaman Hand Frame Drum 04_03",
+    "creator": "Jagadamba",
+    "creator_url": "https://freesound.org/people/Jagadamba",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Jagadamba/sounds/257159",
+    "url": "https://cdn.freesound.org/previews/257/257159_4062622-hq.mp3",
+    "attribution": "\"Shaman Hand Frame Drum 04_03\" by Jagadamba is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 7474,
+    "filesize": 170767
+   }
+  },
+  {
+   "id": "3a3aae80-dba4-4902-ae3c-1635d11a97b4",
+   "query": "frame_drum",
+   "record": {
+    "title": "Shaman Hand Frame Drum 03",
+    "creator": "Jagadamba",
+    "creator_url": "https://freesound.org/people/Jagadamba",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Jagadamba/sounds/257158",
+    "url": "https://cdn.freesound.org/previews/257/257158_4062622-hq.mp3",
+    "attribution": "\"Shaman Hand Frame Drum 03\" by Jagadamba is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 3724,
+    "filesize": 84260
+   }
+  },
+  {
+   "id": "c9cde97a-b87f-42a2-830b-6be353507d4a",
+   "query": "frame_drum",
+   "record": {
+    "title": "detuned frame drum bass.WAV",
+    "creator": "HarpDave",
+    "creator_url": "https://freesound.org/people/HarpDave",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/HarpDave/sounds/518943",
+    "url": "https://cdn.freesound.org/previews/518/518943_10582804-hq.mp3",
+    "attribution": "\"detuned frame drum bass.WAV\" by HarpDave is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 22291,
+    "filesize": 509967
+   }
+  },
+  {
+   "id": "c8d52a28-a204-48f5-a8df-1b2b71ad601b",
+   "query": "gong",
+   "record": {
+    "title": "low gong bash",
+    "creator": "hiddenpersuader",
+    "creator_url": "https://freesound.org/people/hiddenpersuader",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/hiddenpersuader/sounds/155460",
+    "url": "https://cdn.freesound.org/previews/155/155460_1138047-hq.mp3",
+    "attribution": "\"low gong bash\" by hiddenpersuader is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 23572,
+    "filesize": 558944
+   }
+  },
+  {
+   "id": "69c2c5b1-10bb-45fe-bf34-0d758dc149b3",
+   "query": "grind",
+   "record": {
+    "title": "large stone rubs grinds on stone",
+    "creator": "Garuda1982",
+    "creator_url": "https://freesound.org/people/Garuda1982",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Garuda1982/sounds/560304",
+    "url": "https://cdn.freesound.org/previews/560/560304_2061858-hq.mp3",
+    "attribution": "\"large stone rubs grinds on stone\" by Garuda1982 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 4048,
+    "filesize": 92640
+   }
+  },
+  {
+   "id": "9d1d6827-89e8-4a11-b150-c98c15f10f59",
+   "query": "grind",
+   "record": {
+    "title": "stone_on_stone.aif",
+    "creator": "thanvannispen",
+    "creator_url": "https://freesound.org/people/thanvannispen",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/thanvannispen/sounds/29986",
+    "url": "https://cdn.freesound.org/previews/29/29986_13258-hq.mp3",
+    "attribution": "\"stone_on_stone.aif\" by thanvannispen is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 5000,
+    "filesize": 124608
+   }
+  },
+  {
+   "id": "35725a9a-a3c8-415b-b2dd-09fb8ed72a65",
+   "query": "grind",
+   "record": {
+    "title": "stone door close.wav",
+    "creator": "patchytherat",
+    "creator_url": "https://freesound.org/people/patchytherat",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/patchytherat/sounds/530987",
+    "url": "https://cdn.freesound.org/previews/530/530987_5911297-hq.mp3",
+    "attribution": "\"stone door close.wav\" by patchytherat is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 2551,
+    "filesize": 58728
+   }
+  },
+  {
+   "id": "7321f6ea-4270-4d50-bafa-4e6160ebe47a",
+   "query": "insects",
+   "record": {
+    "title": "Cicadas euroblues.wav",
+    "creator": "euroblues",
+    "creator_url": "https://freesound.org/people/euroblues",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/euroblues/sounds/20064",
+    "url": "https://cdn.freesound.org/previews/20/20064_97596-hq.mp3",
+    "attribution": "\"Cicadas euroblues.wav\" by euroblues is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 59968,
+    "filesize": 1341043
+   }
+  },
+  {
+   "id": "8121d525-929b-4329-8fe1-b35714c510da",
+   "query": "ir",
+   "record": {
+    "title": "Impulse Response Church",
+    "creator": "jmuehlhans",
+    "creator_url": "https://freesound.org/people/jmuehlhans",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/jmuehlhans/sounds/220752",
+    "url": "https://cdn.freesound.org/previews/220/220752_3847866-hq.mp3",
+    "attribution": "\"Impulse Response Church\" by jmuehlhans is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5158,
+    "filesize": 116313
+   }
+  },
+  {
+   "id": "a326bb43-cdf5-4010-b7bd-0f7b1d44d339",
+   "query": "jungle",
+   "record": {
+    "title": "Bukit_Dinding_rainforest_jungle_01.wav",
+    "creator": "wanna73",
+    "creator_url": "https://freesound.org/people/wanna73",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/wanna73/sounds/20291",
+    "url": "https://cdn.freesound.org/previews/20/20291_43485-hq.mp3",
+    "attribution": "\"Bukit_Dinding_rainforest_jungle_01.wav\" by wanna73 is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 30000,
+    "filesize": 686266
+   }
+  },
+  {
+   "id": "aa8bb5a6-80ee-4128-93e4-f3b5f1511205",
+   "query": "river",
+   "record": {
+    "title": "River, stream, creek, sound of waves, moving water",
+    "creator": "kentspublicdomain",
+    "creator_url": "https://freesound.org/people/kentspublicdomain",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/kentspublicdomain/sounds/325182",
+    "url": "https://cdn.freesound.org/previews/325/325182_5583936-hq.mp3",
+    "attribution": "\"River, stream, creek, sound of waves, moving water\" by kentspublicdomain is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 30551,
+    "filesize": 690634
+   }
+  },
+  {
+   "id": "092104cb-efc7-4b0d-97fb-7d7daa22731e",
+   "query": "rockfall",
+   "record": {
+    "title": "LandslideSeriousExtraCred.mp3",
+    "creator": "tayingalive",
+    "creator_url": "https://freesound.org/people/tayingalive",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/tayingalive/sounds/442552",
+    "url": "https://cdn.freesound.org/previews/442/442552_5458397-hq.mp3",
+    "attribution": "\"LandslideSeriousExtraCred.mp3\" by tayingalive is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 42550,
+    "filesize": 1059911
+   }
+  },
+  {
+   "id": "732ad4d5-1167-47dc-bc39-751f4933401c",
+   "query": "rockfall",
+   "record": {
+    "title": "Rockslide 2.wav",
+    "creator": "juskiddink",
+    "creator_url": "https://freesound.org/people/juskiddink",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/juskiddink/sounds/79783",
+    "url": "https://cdn.freesound.org/previews/79/79783_649468-hq.mp3",
+    "attribution": "\"Rockslide 2.wav\" by juskiddink is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 19035,
+    "filesize": 434469
+   }
+  },
+  {
+   "id": "c46895b8-a8b8-4d19-9753-9f4296732173",
+   "query": "rockfall",
+   "record": {
+    "title": "rockfall 07.flac",
+    "creator": "tim.kahn",
+    "creator_url": "https://freesound.org/people/tim.kahn",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/tim.kahn/sounds/49622",
+    "url": "https://cdn.freesound.org/previews/49/49622_7037-hq.mp3",
+    "attribution": "\"rockfall 07.flac\" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 3211,
+    "filesize": 90240
+   }
+  },
+  {
+   "id": "9f6ac934-e79a-4c5c-8f64-85753b09d7cc",
+   "query": "rumble",
+   "record": {
+    "title": "Large Earthquake",
+    "creator": "LoafDV",
+    "creator_url": "https://freesound.org/people/LoafDV",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/LoafDV/sounds/148002",
+    "url": "https://cdn.freesound.org/previews/148/148002_1554038-hq.mp3",
+    "attribution": "\"Large Earthquake\" by LoafDV is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 23952,
+    "filesize": 574392
+   }
+  },
+  {
+   "id": "0df533cb-29fb-433d-b7e7-eb1f76d9bfe5",
+   "query": "rumble",
+   "record": {
+    "title": "earthquake.aif",
+    "creator": "dingus23",
+    "creator_url": "https://freesound.org/people/dingus23",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/dingus23/sounds/275809",
+    "url": "https://cdn.freesound.org/previews/275/275809_3295139-hq.mp3",
+    "attribution": "\"earthquake.aif\" by dingus23 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 5454,
+    "filesize": 68135
+   }
+  },
+  {
+   "id": "d535a4ce-da30-4263-8106-332b053af3a4",
+   "query": "shaker",
+   "record": {
+    "title": "Egg Shaker 1",
+    "creator": "kramsttop",
+    "creator_url": "https://freesound.org/people/kramsttop",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/kramsttop/sounds/170905",
+    "url": "https://cdn.freesound.org/previews/170/170905_1779544-hq.mp3",
+    "attribution": "\"Egg Shaker 1\" by kramsttop is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 187,
+    "filesize": 6679
+   }
+  },
+  {
+   "id": "001f8b26-1577-46af-b96f-39db4aee738f",
+   "query": "shaker",
+   "record": {
+    "title": "Egg SHaker 2",
+    "creator": "kramsttop",
+    "creator_url": "https://freesound.org/people/kramsttop",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/kramsttop/sounds/170911",
+    "url": "https://cdn.freesound.org/previews/170/170911_1779544-hq.mp3",
+    "attribution": "\"Egg SHaker 2\" by kramsttop is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 187,
+    "filesize": 7515
+   }
+  },
+  {
+   "id": "98c3adb3-2f52-4a88-a69e-0d99830879a9",
+   "query": "shaker",
+   "record": {
+    "title": "Shaker Riff.wav",
+    "creator": "HUMANOISEMAKER",
+    "creator_url": "https://freesound.org/people/HUMANOISEMAKER",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/HUMANOISEMAKER/sounds/148935",
+    "url": "https://cdn.freesound.org/previews/148/148935_2259717-hq.mp3",
+    "attribution": "\"Shaker Riff.wav\" by HUMANOISEMAKER is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1647,
+    "filesize": 33702
+   }
+  },
+  {
+   "id": "498e2e3e-8007-4048-b68d-18f3fc018cef",
+   "query": "slam",
+   "record": {
+    "title": "Kicking Large Stones Down Shoreline on Stony Beach 5.wav",
+    "creator": "F.M.Audio",
+    "creator_url": "https://freesound.org/people/F.M.Audio",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/F.M.Audio/sounds/574445",
+    "url": "https://cdn.freesound.org/previews/574/574445_7805242-hq.mp3",
+    "attribution": "\"Kicking Large Stones Down Shoreline on Stony Beach 5.wav\" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 816,
+    "filesize": 22560
+   }
+  },
+  {
+   "id": "d211449a-bd0e-4679-ba01-df65fe452cbd",
+   "query": "slam",
+   "record": {
+    "title": "Laying Down Large Stone on Pile of Large Stones 1.wav",
+    "creator": "F.M.Audio",
+    "creator_url": "https://freesound.org/people/F.M.Audio",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/F.M.Audio/sounds/570534",
+    "url": "https://cdn.freesound.org/previews/570/570534_7805242-hq.mp3",
+    "attribution": "\"Laying Down Large Stone on Pile of Large Stones 1.wav\" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 526,
+    "filesize": 15264
+   }
+  },
+  {
+   "id": "628b7341-40d8-4335-b83b-6ab37a3484e5",
+   "query": "slam",
+   "record": {
+    "title": "Pushing Large Stones Down Shoreline on Stony Beach 1.wav",
+    "creator": "F.M.Audio",
+    "creator_url": "https://freesound.org/people/F.M.Audio",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/F.M.Audio/sounds/574450",
+    "url": "https://cdn.freesound.org/previews/574/574450_7805242-hq.mp3",
+    "attribution": "\"Pushing Large Stones Down Shoreline on Stony Beach 1.wav\" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 623,
+    "filesize": 18240
+   }
+  },
+  {
+   "id": "25e65384-10e6-4d58-b940-dde655a55c49",
+   "query": "slam",
+   "record": {
+    "title": "two large cobblestone blocks",
+    "creator": "jobel0092",
+    "creator_url": "https://freesound.org/people/jobel0092",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/jobel0092/sounds/268055",
+    "url": "https://cdn.freesound.org/previews/268/268055_2795042-hq.mp3",
+    "attribution": "\"two large cobblestone blocks\" by jobel0092 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 18132,
+    "filesize": 424964
+   }
+  },
+  {
+   "id": "02a9c0e3-bba9-4754-951e-b31f35b874a0",
+   "query": "slam",
+   "record": {
+    "title": "impact-stone-heavy.wav",
+    "creator": "kasparsj",
+    "creator_url": "https://freesound.org/people/kasparsj",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/kasparsj/sounds/513694",
+    "url": "https://cdn.freesound.org/previews/513/513694_914915-hq.mp3",
+    "attribution": "\"impact-stone-heavy.wav\" by kasparsj is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1100,
+    "filesize": 29327
+   }
+  },
+  {
+   "id": "00b052aa-0fa9-4fda-8cce-afcc0c1ca27f",
+   "query": "slam",
+   "record": {
+    "title": "Stone dropping to ground_northern87",
+    "creator": "northern87",
+    "creator_url": "https://freesound.org/people/northern87",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/northern87/sounds/369981",
+    "url": "https://cdn.freesound.org/previews/369/369981_1196518-hq.mp3",
+    "attribution": "\"Stone dropping to ground_northern87\" by northern87 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 27109,
+    "filesize": 587013
+   }
+  },
+  {
+   "id": "04542d8c-9a7a-4d7a-82e8-9740f8558e0a",
+   "query": "sparkle",
+   "record": {
+    "title": "GLEAM-GLOW-SFX-CHIME.wav",
+    "creator": "newagesoup",
+    "creator_url": "https://freesound.org/people/newagesoup",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/newagesoup/sounds/351408",
+    "url": "https://cdn.freesound.org/previews/351/351408_4067257-hq.mp3",
+    "attribution": "\"GLEAM-GLOW-SFX-CHIME.wav\" by newagesoup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5381,
+    "filesize": 93984
+   }
+  },
+  {
+   "id": "bdb80941-3468-4e42-ad7f-014aeb7db30c",
+   "query": "sparkle",
+   "record": {
+    "title": "Glimmer.wav",
+    "creator": "opticaillusions",
+    "creator_url": "https://freesound.org/people/opticaillusions",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/opticaillusions/sounds/521873",
+    "url": "https://cdn.freesound.org/previews/521/521873_7363906-hq.mp3",
+    "attribution": "\"Glimmer.wav\" by opticaillusions is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 4801,
+    "filesize": 111657
+   }
+  },
+  {
+   "id": "a396d20d-cdf5-4ded-8c84-f81dfbb7a1e6",
+   "query": "splash",
+   "record": {
+    "title": "Splash, Jumping, H.wav",
+    "creator": "InspectorJ",
+    "creator_url": "https://freesound.org/people/InspectorJ",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/InspectorJ/sounds/352102",
+    "url": "https://cdn.freesound.org/previews/352/352102_5121236-hq.mp3",
+    "attribution": "\"Splash, Jumping, H.wav\" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 5166,
+    "filesize": 124919
+   }
+  },
+  {
+   "id": "d8e0b0ec-02d5-4972-835b-135c4a65dc46",
+   "query": "splash",
+   "record": {
+    "title": "Splash, Jumping, D.wav",
+    "creator": "InspectorJ",
+    "creator_url": "https://freesound.org/people/InspectorJ",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/InspectorJ/sounds/352098",
+    "url": "https://cdn.freesound.org/previews/352/352098_5121236-hq.mp3",
+    "attribution": "\"Splash, Jumping, D.wav\" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 3146,
+    "filesize": 78791
+   }
+  },
+  {
+   "id": "c50ca52d-6dc4-4cf8-ae76-3eefe75a4d52",
+   "query": "splash",
+   "record": {
+    "title": "Splash, Jumping, C.wav",
+    "creator": "InspectorJ",
+    "creator_url": "https://freesound.org/people/InspectorJ",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/InspectorJ/sounds/352099",
+    "url": "https://cdn.freesound.org/previews/352/352099_5121236-hq.mp3",
+    "attribution": "\"Splash, Jumping, C.wav\" by InspectorJ is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 3392,
+    "filesize": 80613
+   }
+  },
+  {
+   "id": "5b58e432-4078-4b2f-88e5-93a6b32f667f",
+   "query": "splash",
+   "record": {
+    "title": "Splash",
+    "creator": "swordofkings128",
+    "creator_url": "https://freesound.org/people/swordofkings128",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/swordofkings128/sounds/398032",
+    "url": "https://cdn.freesound.org/previews/398/398032_7586736-hq.mp3",
+    "attribution": "\"Splash\" by swordofkings128 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1331,
+    "filesize": 28123
+   }
+  },
+  {
+   "id": "8ce6b356-adfa-4284-ab69-6c51823c2ca8",
+   "query": "splash",
+   "record": {
+    "title": "Splash-eau-goudron1.wav",
+    "creator": "rombart",
+    "creator_url": "https://freesound.org/people/rombart",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/rombart/sounds/186748",
+    "url": "https://cdn.freesound.org/previews/186/186748_2591786-hq.mp3",
+    "attribution": "\"Splash-eau-goudron1.wav\" by rombart is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 770,
+    "filesize": 22080
+   }
+  },
+  {
+   "id": "3c2c2253-f7ca-4271-af5b-4302633d950e",
+   "query": "step_gravel",
+   "record": {
+    "title": "Footstep gravel sneakers",
+    "creator": "xkeril",
+    "creator_url": "https://freesound.org/people/xkeril",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/xkeril/sounds/639085",
+    "url": "https://cdn.freesound.org/previews/639/639085_13504080-hq.mp3",
+    "attribution": "\"Footstep gravel sneakers\" by xkeril is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 8226,
+    "filesize": 211632
+   }
+  },
+  {
+   "id": "8dd17c4f-6d81-4e52-a4e2-eab2c2bf98b8",
+   "query": "step_gravel",
+   "record": {
+    "title": "Footsteps Gravel Running-Stop",
+    "creator": "KikeVilaplana",
+    "creator_url": "https://freesound.org/people/KikeVilaplana",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/KikeVilaplana/sounds/436525",
+    "url": "https://cdn.freesound.org/previews/436/436525_8938826-hq.mp3",
+    "attribution": "\"Footsteps Gravel Running-Stop\" by KikeVilaplana is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5905,
+    "filesize": 152352
+   }
+  },
+  {
+   "id": "584fd08b-3a50-4093-ac69-54b292fb684b",
+   "query": "step_stone",
+   "record": {
+    "title": "Footsteps Stone sequence.wav",
+    "creator": "Wdomino",
+    "creator_url": "https://freesound.org/people/Wdomino",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Wdomino/sounds/517141",
+    "url": "https://cdn.freesound.org/previews/517/517141_5026978-hq.mp3",
+    "attribution": "\"Footsteps Stone sequence.wav\" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 6541,
+    "filesize": 180991
+   }
+  },
+  {
+   "id": "b199d5a4-7f58-4e03-8b0f-c6726ffbea04",
+   "query": "step_stone",
+   "record": {
+    "title": "Footsteps Stone (5).wav",
+    "creator": "Wdomino",
+    "creator_url": "https://freesound.org/people/Wdomino",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Wdomino/sounds/517125",
+    "url": "https://cdn.freesound.org/previews/517/517125_5026978-hq.mp3",
+    "attribution": "\"Footsteps Stone (5).wav\" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 484,
+    "filesize": 15657
+   }
+  },
+  {
+   "id": "873b1613-8c45-4263-b067-da27da5b57c8",
+   "query": "step_stone",
+   "record": {
+    "title": "Footsteps Stone (9).wav",
+    "creator": "Wdomino",
+    "creator_url": "https://freesound.org/people/Wdomino",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Wdomino/sounds/517134",
+    "url": "https://cdn.freesound.org/previews/517/517134_5026978-hq.mp3",
+    "attribution": "\"Footsteps Stone (9).wav\" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 517,
+    "filesize": 15971
+   }
+  },
+  {
+   "id": "6725a0fe-adc1-475b-8f9f-05a1781c7169",
+   "query": "step_stone",
+   "record": {
+    "title": "Footsteps Stone (11).wav",
+    "creator": "Wdomino",
+    "creator_url": "https://freesound.org/people/Wdomino",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Wdomino/sounds/517124",
+    "url": "https://cdn.freesound.org/previews/517/517124_5026978-hq.mp3",
+    "attribution": "\"Footsteps Stone (11).wav\" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 438,
+    "filesize": 14405
+   }
+  },
+  {
+   "id": "5a3750e4-3190-4446-9ec9-2dcb956abc14",
+   "query": "step_stone",
+   "record": {
+    "title": "Footsteps Stone (7).wav",
+    "creator": "Wdomino",
+    "creator_url": "https://freesound.org/people/Wdomino",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Wdomino/sounds/517136",
+    "url": "https://cdn.freesound.org/previews/517/517136_5026978-hq.mp3",
+    "attribution": "\"Footsteps Stone (7).wav\" by Wdomino is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 544,
+    "filesize": 16074
+   }
+  },
+  {
+   "id": "c8f20917-bd07-4a5d-9ebc-dd8c76ba2701",
+   "query": "step_wet",
+   "record": {
+    "title": "puddlewalk.wav",
+    "creator": "j1987",
+    "creator_url": "https://freesound.org/people/j1987",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/j1987/sounds/106395",
+    "url": "https://cdn.freesound.org/previews/106/106395_367313-hq.mp3",
+    "attribution": "\"puddlewalk.wav\" by j1987 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 7045,
+    "filesize": 173039
+   }
+  },
+  {
+   "id": "c586cd67-13c8-4c57-9fd4-07acf938979a",
+   "query": "step_wet",
+   "record": {
+    "title": "MUDDY AND WET FOOTSTEPS.wav",
+    "creator": "Alex_hears_things",
+    "creator_url": "https://freesound.org/people/Alex_hears_things",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Alex_hears_things/sounds/376809",
+    "url": "https://cdn.freesound.org/previews/376/376809_2309965-hq.mp3",
+    "attribution": "\"MUDDY AND WET FOOTSTEPS.wav\" by Alex_hears_things is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 46117,
+    "filesize": 869616
+   }
+  },
+  {
+   "id": "0c3de6b7-098d-4a6e-95e9-6703c096cf38",
+   "query": "step_wood",
+   "record": {
+    "title": "Footstep - wood - parquet - flooring - squeak - RUNNING.wav",
+    "creator": "ValentinPetiteau",
+    "creator_url": "https://freesound.org/people/ValentinPetiteau",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/ValentinPetiteau/sounds/557200",
+    "url": "https://cdn.freesound.org/previews/557/557200_10443988-hq.mp3",
+    "attribution": "\"Footstep - wood - parquet - flooring - squeak - RUNNING.wav\" by ValentinPetiteau is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 23410,
+    "filesize": 584064
+   }
+  },
+  {
+   "id": "5779fa58-dfe4-4a1b-b4d8-23bdd953db21",
+   "query": "step_wood",
+   "record": {
+    "title": "footsteps - wood & stairs 02.wav",
+    "creator": "Anthousai",
+    "creator_url": "https://freesound.org/people/Anthousai",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Anthousai/sounds/398781",
+    "url": "https://cdn.freesound.org/previews/398/398781_5923045-hq.mp3",
+    "attribution": "\"footsteps - wood & stairs 02.wav\" by Anthousai is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 12218,
+    "filesize": 298848
+   }
+  },
+  {
+   "id": "bd9b8a06-534d-4038-8fff-5a708b022a9e",
+   "query": "swell",
+   "record": {
+    "title": "Movie Swell 2",
+    "creator": "jordivburgel",
+    "creator_url": "https://freesound.org/people/jordivburgel",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/jordivburgel/sounds/218524",
+    "url": "https://cdn.freesound.org/previews/218/218524_2806019-hq.mp3",
+    "attribution": "\"Movie Swell 2\" by jordivburgel is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5000,
+    "filesize": 112947
+   }
+  },
+  {
+   "id": "13be9211-558f-4e86-9401-1cb809e0dfe8",
+   "query": "taiko",
+   "record": {
+    "title": "TAIKO DRUM 001.wav",
+    "creator": "sandyrb",
+    "creator_url": "https://freesound.org/people/sandyrb",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/sandyrb/sounds/82712",
+    "url": "https://cdn.freesound.org/previews/82/82712_14771-hq.mp3",
+    "attribution": "\"TAIKO DRUM 001.wav\" by sandyrb is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 2438,
+    "filesize": 49566
+   }
+  },
+  {
+   "id": "4c37cb33-2194-46cd-989c-0e4edd682e5d",
+   "query": "taiko",
+   "record": {
+    "title": "Taiko Drumloop 002 [With Ending] (120)",
+    "creator": "Xinematix",
+    "creator_url": "https://freesound.org/people/Xinematix",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Xinematix/sounds/491278",
+    "url": "https://cdn.freesound.org/previews/491/491278_4882128-hq.mp3",
+    "attribution": "\"Taiko Drumloop 002 [With Ending] (120)\" by Xinematix is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 10000,
+    "filesize": 246243
+   }
+  },
+  {
+   "id": "974f0972-9103-447e-90b2-3321eb76f335",
+   "query": "taiko",
+   "record": {
+    "title": "Taiko Drumloop 003 [With Ending Variation] (120)",
+    "creator": "Xinematix",
+    "creator_url": "https://freesound.org/people/Xinematix",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Xinematix/sounds/491279",
+    "url": "https://cdn.freesound.org/previews/491/491279_4882128-hq.mp3",
+    "attribution": "\"Taiko Drumloop 003 [With Ending Variation] (120)\" by Xinematix is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 10000,
+    "filesize": 247181
+   }
+  },
+  {
+   "id": "a493eecd-8c92-45f6-81b3-c7461967b961",
+   "query": "taiko",
+   "record": {
+    "title": "123-Taiko-Open.wav",
+    "creator": "klemmy",
+    "creator_url": "https://freesound.org/people/klemmy",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/klemmy/sounds/203344",
+    "url": "https://cdn.freesound.org/previews/203/203344_356312-hq.mp3",
+    "attribution": "\"123-Taiko-Open.wav\" by klemmy is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 792,
+    "filesize": 19412
+   }
+  },
+  {
+   "id": "f454fd72-e807-4897-b3f0-95b85e232caa",
+   "query": "ui_click",
+   "record": {
+    "title": "Wooden Click",
+    "creator": "BenjaminNelan",
+    "creator_url": "https://freesound.org/people/BenjaminNelan",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/BenjaminNelan/sounds/321083",
+    "url": "https://cdn.freesound.org/previews/321/321083_1196020-hq.mp3",
+    "attribution": "\"Wooden Click\" by BenjaminNelan is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 86,
+    "filesize": 3696
+   }
+  },
+  {
+   "id": "bd1e7dfa-7c64-46a3-9d0f-a7062856e202",
+   "query": "ui_click",
+   "record": {
+    "title": "Wooden hit short soft",
+    "creator": "jorickhoofd",
+    "creator_url": "https://freesound.org/people/jorickhoofd",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/jorickhoofd/sounds/161595",
+    "url": "https://cdn.freesound.org/previews/161/161595_2888453-hq.mp3",
+    "attribution": "\"Wooden hit short soft\" by jorickhoofd is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 182,
+    "filesize": 7307
+   }
+  },
+  {
+   "id": "ea4a5255-dded-46de-8615-5022919914a5",
+   "query": "ui_slide",
+   "record": {
+    "title": "concrete1.mp3",
+    "creator": "Faceonmars",
+    "creator_url": "https://freesound.org/people/Faceonmars",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Faceonmars/sounds/106258",
+    "url": "https://cdn.freesound.org/previews/106/106258_924429-hq.mp3",
+    "attribution": "\"concrete1.mp3\" by Faceonmars is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 9130,
+    "filesize": 208292
+   }
+  },
+  {
+   "id": "2792a57d-b0bb-47ec-8e9b-511b6b37bb4b",
+   "query": "ui_stone",
+   "record": {
+    "title": "patting stone wall.wav",
+    "creator": "vestibule-door",
+    "creator_url": "https://freesound.org/people/vestibule-door",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/vestibule-door/sounds/669723",
+    "url": "https://cdn.freesound.org/previews/669/669723_14100561-hq.mp3",
+    "attribution": "\"patting stone wall.wav\" by vestibule-door is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 8146,
+    "filesize": 177922
+   }
+  },
+  {
+   "id": "fa561a95-91d9-4134-a190-cb6e129c8f89",
+   "query": "ui_stone",
+   "record": {
+    "title": "Fireplace Granite Drum.WAV",
+    "creator": "RayGunV",
+    "creator_url": "https://freesound.org/people/RayGunV",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/RayGunV/sounds/628971",
+    "url": "https://cdn.freesound.org/previews/628/628971_3676827-hq.mp3",
+    "attribution": "\"Fireplace Granite Drum.WAV\" by RayGunV is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 397,
+    "filesize": 8736
+   }
+  },
+  {
+   "id": "88d6dd16-dea4-4709-bd5e-b1813e4046d9",
+   "query": "ui_switch",
+   "record": {
+    "title": "Switch click 4.wav",
+    "creator": "deleted_user_2104797",
+    "creator_url": "https://freesound.org/people/deleted_user_2104797",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/deleted_user_2104797/sounds/164549",
+    "url": "https://cdn.freesound.org/previews/164/164549_2104797-hq.mp3",
+    "attribution": "\"Switch click 4.wav\" by deleted_user_2104797 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 749,
+    "filesize": 19392
+   }
+  },
+  {
+   "id": "0cb46bfa-2ca8-4068-a20c-6bc3f8c7355d",
+   "query": "waterfall",
+   "record": {
+    "title": "waterfall",
+    "creator": "LXX.70",
+    "creator_url": "https://freesound.org/people/LXX.70",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/LXX.70/sounds/165108",
+    "url": "https://cdn.freesound.org/previews/165/165108_1402427-hq.mp3",
+    "attribution": "\"waterfall\" by LXX.70 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 53539,
+    "filesize": 1224031
+   }
+  },
+  {
+   "id": "416a411f-c8e5-4279-a985-466c19f21794",
+   "query": "whoosh",
+   "record": {
+    "title": "13th Whoosh Swing Sound",
+    "creator": "qubodup",
+    "creator_url": "https://freesound.org/people/qubodup",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/qubodup/sounds/60000",
+    "url": "https://cdn.freesound.org/previews/60/60000_71257-hq.mp3",
+    "attribution": "\"13th Whoosh Swing Sound\" by qubodup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 522,
+    "filesize": 14401
+   }
+  },
+  {
+   "id": "b7ae7822-8ec5-4a82-b6f8-d539b51caa61",
+   "query": "whoosh",
+   "record": {
+    "title": "Swipe Whoosh",
+    "creator": "qubodup",
+    "creator_url": "https://freesound.org/people/qubodup",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/qubodup/sounds/60007",
+    "url": "https://cdn.freesound.org/previews/60/60007_71257-hq.mp3",
+    "attribution": "\"Swipe Whoosh\" by qubodup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 447,
+    "filesize": 12211
+   }
+  },
+  {
+   "id": "f1dc6045-7965-41de-87f8-4731d2583fd2",
+   "query": "whoosh",
+   "record": {
+    "title": "Swosh swoosh whoosh air sound, free, high quality",
+    "creator": "qubodup",
+    "creator_url": "https://freesound.org/people/qubodup",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/qubodup/sounds/60026",
+    "url": "https://cdn.freesound.org/previews/60/60026_71257-hq.mp3",
+    "attribution": "\"Swosh swoosh whoosh air sound, free, high quality\" by qubodup is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 490,
+    "filesize": 13358
+   }
+  },
+  {
+   "id": "eab8a6e2-0ac8-4615-9e0d-ebde30523783",
+   "query": "whoosh",
+   "record": {
+    "title": "Deep Whoosh #1",
+    "creator": "Kinoton",
+    "creator_url": "https://freesound.org/people/Kinoton",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Kinoton/sounds/351256",
+    "url": "https://cdn.freesound.org/previews/351/351256_2247456-hq.mp3",
+    "attribution": "\"Deep Whoosh #1\" by Kinoton is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 3155,
+    "filesize": 69196
+   }
+  },
+  {
+   "id": "11d4d056-a3eb-4ec2-88f0-7a5cbd96798b",
+   "query": "wind",
+   "record": {
+    "title": "Braddons Lookout Wind Gusts #1.m4a",
+    "creator": "guyburns",
+    "creator_url": "https://freesound.org/people/guyburns",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/guyburns/sounds/474894",
+    "url": "https://cdn.freesound.org/previews/474/474894_5454234-hq.mp3",
+    "attribution": "\"Braddons Lookout Wind Gusts #1.m4a\" by guyburns is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 34605,
+    "filesize": 775291
+   }
+  },
+  {
+   "id": "72f441df-45a6-493d-bd7d-1fbea6c9a30b",
+   "query": "wind",
+   "record": {
+    "title": "Wind gust",
+    "creator": "wintuh",
+    "creator_url": "https://freesound.org/people/wintuh",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/wintuh/sounds/471854",
+    "url": "https://cdn.freesound.org/previews/471/471854_9930452-hq.mp3",
+    "attribution": "\"Wind gust\" by wintuh is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5390,
+    "filesize": 123041
+   }
+  },
+  {
+   "id": "4f781da3-e6e8-4081-b746-071491edb74a",
+   "query": "wind",
+   "record": {
+    "title": "Braddons Lookout Wind Gusts #2.m4a",
+    "creator": "guyburns",
+    "creator_url": "https://freesound.org/people/guyburns",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/guyburns/sounds/474895",
+    "url": "https://cdn.freesound.org/previews/474/474895_5454234-hq.mp3",
+    "attribution": "\"Braddons Lookout Wind Gusts #2.m4a\" by guyburns is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 32393,
+    "filesize": 738969
+   }
+  }
+ ],
+ "sounds": {
+  "step_stone": {
+   "group": "core",
+   "hp": 60,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "873b1613-8c45-4263-b067-da27da5b57c8",
+     "start": 0.136,
+     "end": 0.517,
+     "z": 4.91
+    },
+    {
+     "src": "5a3750e4-3190-4446-9ec9-2dcb956abc14",
+     "start": 0.154,
+     "end": 0.46,
+     "z": 4.77
+    },
+    {
+     "src": "584fd08b-3a50-4093-ac69-54b292fb684b",
+     "start": 5.747,
+     "end": 6.167,
+     "z": 4.71
+    },
+    {
+     "src": "584fd08b-3a50-4093-ac69-54b292fb684b",
+     "start": 3.191,
+     "end": 3.35,
+     "z": 4.52
+    },
+    {
+     "src": "584fd08b-3a50-4093-ac69-54b292fb684b",
+     "start": 2.075,
+     "end": 2.495,
+     "z": 4.52
+    },
+    {
+     "src": "584fd08b-3a50-4093-ac69-54b292fb684b",
+     "start": 4.733,
+     "end": 5.153,
+     "z": 4.33
+    },
+    {
+     "src": "b199d5a4-7f58-4e03-8b0f-c6726ffbea04",
+     "start": 0.209,
+     "end": 0.43,
+     "z": 4.32
+    },
+    {
+     "src": "6725a0fe-adc1-475b-8f9f-05a1781c7169",
+     "start": 0.126,
+     "end": 0.36,
+     "z": 4.26
+    }
+   ],
+   "fadeOut": 0.126
+  },
+  "step_wood": {
+   "group": "core",
+   "hp": 60,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "5779fa58-dfe4-4a1b-b4d8-23bdd953db21",
+     "start": 10.356,
+     "end": 10.6,
+     "z": 5.05
+    },
+    {
+     "src": "0c3de6b7-098d-4a6e-95e9-6703c096cf38",
+     "start": 4.586,
+     "end": 5.036,
+     "z": 5.03
+    },
+    {
+     "src": "0c3de6b7-098d-4a6e-95e9-6703c096cf38",
+     "start": 14.692,
+     "end": 15.142,
+     "z": 4.93
+    },
+    {
+     "src": "5779fa58-dfe4-4a1b-b4d8-23bdd953db21",
+     "start": 5.84,
+     "end": 6.29,
+     "z": 4.85
+    },
+    {
+     "src": "5779fa58-dfe4-4a1b-b4d8-23bdd953db21",
+     "start": 10.866,
+     "end": 11.316,
+     "z": 4.84
+    },
+    {
+     "src": "5779fa58-dfe4-4a1b-b4d8-23bdd953db21",
+     "start": 0.678,
+     "end": 1.128,
+     "z": 4.79
+    },
+    {
+     "src": "5779fa58-dfe4-4a1b-b4d8-23bdd953db21",
+     "start": 9.015,
+     "end": 9.465,
+     "z": 4.77
+    }
+   ],
+   "fadeOut": 0.135
+  },
+  "step_gravel": {
+   "group": "core",
+   "hp": 60,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "3c2c2253-f7ca-4271-af5b-4302633d950e",
+     "start": 0.63,
+     "end": 0.93,
+     "z": 7.12
+    },
+    {
+     "src": "3c2c2253-f7ca-4271-af5b-4302633d950e",
+     "start": 4.239,
+     "end": 4.689,
+     "z": 6.8
+    },
+    {
+     "src": "3c2c2253-f7ca-4271-af5b-4302633d950e",
+     "start": 6.605,
+     "end": 7.055,
+     "z": 6.5
+    },
+    {
+     "src": "8dd17c4f-6d81-4e52-a4e2-eab2c2bf98b8",
+     "start": 2.413,
+     "end": 2.863,
+     "z": 4.74
+    },
+    {
+     "src": "3c2c2253-f7ca-4271-af5b-4302633d950e",
+     "start": 1.245,
+     "end": 1.472,
+     "z": 4.55
+    },
+    {
+     "src": "8dd17c4f-6d81-4e52-a4e2-eab2c2bf98b8",
+     "start": 0.708,
+     "end": 1.158,
+     "z": 4.46
+    },
+    {
+     "src": "8dd17c4f-6d81-4e52-a4e2-eab2c2bf98b8",
+     "start": 4.168,
+     "end": 4.329,
+     "z": 2.5
+    }
+   ],
+   "fadeOut": 0.135
+  },
+  "step_wet": {
+   "group": "core",
+   "hp": 60,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "c8f20917-bd07-4a5d-9ebc-dd8c76ba2701",
+     "start": 1.347,
+     "end": 1.847,
+     "z": 5.8
+    },
+    {
+     "src": "c8f20917-bd07-4a5d-9ebc-dd8c76ba2701",
+     "start": 3.506,
+     "end": 3.715,
+     "z": 5.15
+    },
+    {
+     "src": "c586cd67-13c8-4c57-9fd4-07acf938979a",
+     "start": 28.803,
+     "end": 29.303,
+     "z": 4.89
+    },
+    {
+     "src": "c586cd67-13c8-4c57-9fd4-07acf938979a",
+     "start": 21.709,
+     "end": 22.209,
+     "z": 4.81
+    },
+    {
+     "src": "c8f20917-bd07-4a5d-9ebc-dd8c76ba2701",
+     "start": 3.842,
+     "end": 4.305,
+     "z": 4.3
+    },
+    {
+     "src": "c8f20917-bd07-4a5d-9ebc-dd8c76ba2701",
+     "start": 4.711,
+     "end": 5.211,
+     "z": 4.24
+    },
+    {
+     "src": "c8f20917-bd07-4a5d-9ebc-dd8c76ba2701",
+     "start": 0.05,
+     "end": 0.45,
+     "z": 4.23
+    }
+   ],
+   "fadeOut": 0.15
+  },
+  "breath": {
+   "group": "core",
+   "loop": true,
+   "xfade": 0.6,
+   "lufs": -20,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "bab5dcda-f3d3-4149-b3e0-3eddd0baa386",
+     "start": 16,
+     "end": 24,
+     "z": 6.13
+    }
+   ]
+  },
+  "pant": {
+   "group": "core",
+   "lufs": -18,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "6a3aabe3-2b78-42ec-af38-2ae567ee3439",
+     "start": 4.867,
+     "end": 5.949,
+     "z": 6.16
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "bed_jungle": {
+   "group": "beds",
+   "channels": 2,
+   "loop": true,
+   "xfade": 3,
+   "kbps": 56,
+   "variants": [
+    {
+     "src": "a326bb43-cdf5-4010-b7bd-0f7b1d44d339",
+     "start": 0,
+     "end": 22,
+     "z": 5.85
+    }
+   ]
+  },
+  "bed_insects": {
+   "group": "beds",
+   "channels": 2,
+   "loop": true,
+   "xfade": 3,
+   "kbps": 48,
+   "variants": [
+    {
+     "src": "7321f6ea-4270-4d50-bafa-4e6160ebe47a",
+     "start": 10,
+     "end": 31
+    }
+   ]
+  },
+  "bed_waterfall": {
+   "group": "beds",
+   "channels": 2,
+   "loop": true,
+   "xfade": 3,
+   "kbps": 48,
+   "variants": [
+    {
+     "src": "0cb46bfa-2ca8-4068-a20c-6bc3f8c7355d",
+     "start": 0,
+     "end": 20,
+     "z": 5.46
+    }
+   ]
+  },
+  "bed_river": {
+   "group": "beds",
+   "channels": 2,
+   "loop": true,
+   "xfade": 3,
+   "kbps": 48,
+   "variants": [
+    {
+     "src": "aa8bb5a6-80ee-4128-93e4-f3b5f1511205",
+     "start": 0,
+     "end": 20,
+     "z": 6.35
+    }
+   ]
+  },
+  "bed_wind": {
+   "group": "beds",
+   "channels": 2,
+   "loop": true,
+   "xfade": 3,
+   "kbps": 40,
+   "variants": [
+    {
+     "src": "11d4d056-a3eb-4ec2-88f0-7a5cbd96798b",
+     "start": 0,
+     "end": 20,
+     "z": 3.28
+    }
+   ]
+  },
+  "gust": {
+   "group": "beds",
+   "channels": 1,
+   "variants": [
+    {
+     "src": "72f441df-45a6-493d-bd7d-1fbea6c9a30b",
+     "start": 0.18,
+     "end": 1.88,
+     "z": 4.69
+    },
+    {
+     "src": "72f441df-45a6-493d-bd7d-1fbea6c9a30b",
+     "start": 3.97,
+     "end": 5.02,
+     "z": 4.17
+    },
+    {
+     "src": "4f781da3-e6e8-4081-b746-071491edb74a",
+     "start": 10.025,
+     "end": 14.525,
+     "z": 2.23
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "impact": {
+   "group": "core",
+   "hp": 35,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "d211449a-bd0e-4679-ba01-df65fe452cbd",
+     "start": 0.079,
+     "end": 0.435,
+     "z": 4.28
+    },
+    {
+     "src": "25e65384-10e6-4d58-b940-dde655a55c49",
+     "start": 6.753,
+     "end": 7.3,
+     "z": 3.7
+    },
+    {
+     "src": "25e65384-10e6-4d58-b940-dde655a55c49",
+     "start": 1.536,
+     "end": 2.02,
+     "z": 3.61
+    },
+    {
+     "src": "25e65384-10e6-4d58-b940-dde655a55c49",
+     "start": 0.139,
+     "end": 0.62,
+     "z": 3.56
+    },
+    {
+     "src": "498e2e3e-8007-4048-b68d-18f3fc018cef",
+     "start": 0.175,
+     "end": 0.81,
+     "z": 3.2
+    },
+    {
+     "src": "628b7341-40d8-4335-b83b-6ab37a3484e5",
+     "start": 0.094,
+     "end": 0.624,
+     "z": 3.15
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "slam": {
+   "group": "core",
+   "hp": 25,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "02a9c0e3-bba9-4754-951e-b31f35b874a0",
+     "start": 0.095,
+     "end": 0.975,
+     "z": 4.18
+    },
+    {
+     "src": "00b052aa-0fa9-4fda-8cce-afcc0c1ca27f",
+     "start": 13.096,
+     "end": 13.345,
+     "z": 3.07
+    },
+    {
+     "src": "00b052aa-0fa9-4fda-8cce-afcc0c1ca27f",
+     "start": 9.514,
+     "end": 10.215,
+     "z": 2.64
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "grind": {
+   "group": "core",
+   "hp": 40,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "69c2c5b1-10bb-45fe-bf34-0d758dc149b3",
+     "start": 1.5,
+     "end": 2.5,
+     "z": 6.79
+    },
+    {
+     "src": "9d1d6827-89e8-4a11-b150-c98c15f10f59",
+     "start": 0.381,
+     "end": 2.053,
+     "z": 5.33
+    },
+    {
+     "src": "35725a9a-a3c8-415b-b2dd-09fb8ed72a65",
+     "start": 0,
+     "end": 1.6
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "rumble": {
+   "group": "core",
+   "hp": 25,
+   "integrated": true,
+   "lufs": -20,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "9f6ac934-e79a-4c5c-8f64-85753b09d7cc",
+     "start": 3,
+     "end": 9,
+     "z": 4
+    },
+    {
+     "src": "9f6ac934-e79a-4c5c-8f64-85753b09d7cc",
+     "start": 9,
+     "end": 15,
+     "z": 3.89
+    },
+    {
+     "src": "0df533cb-29fb-433d-b7e7-eb1f76d9bfe5",
+     "start": 0.455,
+     "end": 5.455,
+     "z": 4.05
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "rockfall": {
+   "group": "core",
+   "hp": 30,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "c46895b8-a8b8-4d19-9753-9f4296732173",
+     "start": 0.036,
+     "end": 1.97,
+     "z": 4.92
+    },
+    {
+     "src": "092104cb-efc7-4b0d-97fb-7d7daa22731e",
+     "start": 38,
+     "end": 41.815,
+     "z": 4.89
+    },
+    {
+     "src": "092104cb-efc7-4b0d-97fb-7d7daa22731e",
+     "start": 20,
+     "end": 24,
+     "z": 4.5
+    },
+    {
+     "src": "092104cb-efc7-4b0d-97fb-7d7daa22731e",
+     "start": 13.995,
+     "end": 17.995,
+     "z": 4.26
+    },
+    {
+     "src": "732ad4d5-1167-47dc-bc39-751f4933401c",
+     "start": 1.95,
+     "end": 5.95,
+     "z": 2.34
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "crumble": {
+   "group": "core",
+   "hp": 30,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "8e6a9316-96bc-4a95-88ce-b7047c23d094",
+     "start": 1.5,
+     "end": 4.5,
+     "z": 4.74
+    },
+    {
+     "src": "8e6a9316-96bc-4a95-88ce-b7047c23d094",
+     "start": 12,
+     "end": 15,
+     "z": 4.64
+    },
+    {
+     "src": "8e6a9316-96bc-4a95-88ce-b7047c23d094",
+     "start": 7.5,
+     "end": 10.5,
+     "z": 4.47
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "splash_big": {
+   "group": "core",
+   "hp": 40,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "a396d20d-cdf5-4ded-8c84-f81dfbb7a1e6",
+     "start": 0,
+     "end": 2.2
+    },
+    {
+     "src": "d8e0b0ec-02d5-4972-835b-135c4a65dc46",
+     "start": 0.149,
+     "end": 2.075,
+     "z": 5.05
+    },
+    {
+     "src": "c50ca52d-6dc4-4cf8-ae76-3eefe75a4d52",
+     "start": 0.233,
+     "end": 2.155,
+     "z": 4.81
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "splash_small": {
+   "group": "core",
+   "hp": 80,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "5b58e432-4078-4b2f-88e5-93a6b32f667f",
+     "start": 0.555,
+     "end": 0.865,
+     "z": 3.42
+    },
+    {
+     "src": "8ce6b356-adfa-4284-ab69-6c51823c2ca8",
+     "start": 0.011,
+     "end": 0.7,
+     "z": 3.06
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "debris": {
+   "group": "core",
+   "hp": 80,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "a05521f1-c96e-4e01-a80c-4bbd36de4d44",
+     "start": 5.782,
+     "end": 6.939,
+     "z": 4.03
+    },
+    {
+     "src": "259c2846-05e8-48dc-a0b3-65871360d1a5",
+     "start": 0,
+     "end": 1,
+     "z": 4.42
+    },
+    {
+     "src": "c670f811-ca58-4754-94d6-34d0c9e37948",
+     "start": 0,
+     "end": 1,
+     "z": 4.5
+    },
+    {
+     "src": "a9bae93f-0bb5-4add-8afe-d20a3f603952",
+     "start": 2.5,
+     "end": 3.5,
+     "z": 4.4
+    },
+    {
+     "src": "2687bb97-84de-4473-a151-877d3c91d327",
+     "start": 1.821,
+     "end": 3.375,
+     "z": 4.21
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "dust": {
+   "group": "core",
+   "hp": 150,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "3d4a4c00-13e6-4506-8e59-7e3838b3c7c7",
+     "start": 3,
+     "end": 4.6,
+     "z": 3.9
+    },
+    {
+     "src": "3d4a4c00-13e6-4506-8e59-7e3838b3c7c7",
+     "start": 10,
+     "end": 11.6,
+     "z": 3.61
+    },
+    {
+     "src": "928d4c85-529b-406a-9cdd-e58548d19694",
+     "start": 7,
+     "end": 8.6,
+     "z": 3.68
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "whoosh": {
+   "group": "core",
+   "hp": 60,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "416a411f-c8e5-4279-a985-466c19f21794",
+     "start": 0.091,
+     "end": 0.425,
+     "z": 4.66
+    },
+    {
+     "src": "b7ae7822-8ec5-4a82-b6f8-d539b51caa61",
+     "start": 0.023,
+     "end": 0.3,
+     "z": 5.12
+    },
+    {
+     "src": "f1dc6045-7965-41de-87f8-4731d2583fd2",
+     "start": 0.019,
+     "end": 0.385,
+     "z": 4.81
+    },
+    {
+     "src": "eab8a6e2-0ac8-4615-9e0d-ebde30523783",
+     "start": 0.193,
+     "end": 1.393,
+     "z": 4.26
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "coins": {
+   "group": "core",
+   "hp": 200,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "6b689584-cecf-46b3-b65d-818be8e405aa",
+     "start": 4.775,
+     "end": 5.165,
+     "z": 5.49
+    },
+    {
+     "src": "6b689584-cecf-46b3-b65d-818be8e405aa",
+     "start": 18.896,
+     "end": 19.365,
+     "z": 5.39
+    },
+    {
+     "src": "6b689584-cecf-46b3-b65d-818be8e405aa",
+     "start": 3.478,
+     "end": 3.775,
+     "z": 5.38
+    },
+    {
+     "src": "1259dcb7-6fa4-4594-99c9-82e62317a0fb",
+     "start": 0.011,
+     "end": 0.845,
+     "z": 5.35
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "sparkle": {
+   "group": "core",
+   "hp": 300,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "04542d8c-9a7a-4d7a-82e8-9740f8558e0a",
+     "start": 1.403,
+     "end": 3.168,
+     "z": 3.75
+    },
+    {
+     "src": "bdb80941-3468-4e42-ad7f-014aeb7db30c",
+     "start": 0,
+     "end": 3
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "swell": {
+   "group": "core",
+   "hp": 50,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "bd9b8a06-534d-4038-8fff-5a708b022a9e",
+     "start": 0.1,
+     "end": 4.6
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "ui_tap": {
+   "group": "core",
+   "hp": 120,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "fa561a95-91d9-4134-a190-cb6e129c8f89",
+     "start": 0.011,
+     "end": 0.34,
+     "z": 3.91
+    },
+    {
+     "src": "2792a57d-b0bb-47ec-8e9b-511b6b37bb4b",
+     "start": 3.785,
+     "end": 4.135,
+     "z": 3.24
+    },
+    {
+     "src": "2792a57d-b0bb-47ec-8e9b-511b6b37bb4b",
+     "start": 3.1,
+     "end": 3.45,
+     "z": 3.13
+    },
+    {
+     "src": "2792a57d-b0bb-47ec-8e9b-511b6b37bb4b",
+     "start": 7.312,
+     "end": 7.662,
+     "z": 3.09
+    },
+    {
+     "src": "2792a57d-b0bb-47ec-8e9b-511b6b37bb4b",
+     "start": 6.934,
+     "end": 7.284,
+     "z": 2.84
+    }
+   ],
+   "fadeOut": 0.105
+  },
+  "ui_tick": {
+   "group": "core",
+   "hp": 200,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "f454fd72-e807-4897-b3f0-95b85e232caa",
+     "start": 0.011,
+     "end": 0.086,
+     "z": 2.23
+    },
+    {
+     "src": "bd1e7dfa-7c64-46a3-9d0f-a7062856e202",
+     "start": 0.011,
+     "end": 0.17,
+     "z": 3.02
+    }
+   ],
+   "fadeOut": 0.06
+  },
+  "ui_slide": {
+   "group": "core",
+   "hp": 120,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "ea4a5255-dded-46de-8615-5022919914a5",
+     "start": 1.52,
+     "end": 2.42,
+     "z": 5.28
+    },
+    {
+     "src": "ea4a5255-dded-46de-8615-5022919914a5",
+     "start": 7.598,
+     "end": 8.498,
+     "z": 5.23
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "ui_toggle": {
+   "group": "core",
+   "hp": 200,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "88d6dd16-dea4-4709-bd5e-b1813e4046d9",
+     "start": 0.333,
+     "end": 0.43,
+     "z": 2.83
+    }
+   ],
+   "fadeOut": 0.075
+  },
+  "m_taiko": {
+   "group": "music",
+   "hp": 30,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "13be9211-558f-4e86-9401-1cb809e0dfe8",
+     "start": 0.011,
+     "end": 1.611,
+     "z": 4.79
+    },
+    {
+     "src": "4c37cb33-2194-46cd-989c-0e4edd682e5d",
+     "start": 6.976,
+     "end": 7.243,
+     "z": 3.68
+    },
+    {
+     "src": "974f0972-9103-447e-90b2-3321eb76f335",
+     "start": 4.642,
+     "end": 4.83,
+     "z": 4.25
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "m_taiko_hi": {
+   "group": "music",
+   "hp": 60,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "a493eecd-8c92-45f6-81b3-c7461967b961",
+     "start": 0.011,
+     "end": 0.68,
+     "z": 4.22
+    },
+    {
+     "src": "4c37cb33-2194-46cd-989c-0e4edd682e5d",
+     "start": 3.992,
+     "end": 4.363,
+     "z": 3.25
+    },
+    {
+     "src": "974f0972-9103-447e-90b2-3321eb76f335",
+     "start": 3.959,
+     "end": 4.363,
+     "z": 3.38
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "m_frame": {
+   "group": "music",
+   "hp": 50,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "1addd31a-40a5-4099-9eea-480ba79f5287",
+     "start": 0.011,
+     "end": 0.346,
+     "z": 5.42
+    },
+    {
+     "src": "6275bdbf-98c8-4051-bcee-f5ff1196979a",
+     "start": 0.011,
+     "end": 0.671,
+     "z": 5.4
+    },
+    {
+     "src": "3a3aae80-dba4-4902-ae3c-1635d11a97b4",
+     "start": 0.011,
+     "end": 1.011,
+     "z": 6.08
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "m_pulse": {
+   "group": "music",
+   "hp": 25,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "c9cde97a-b87f-42a2-830b-6be353507d4a",
+     "start": 13.18,
+     "end": 13.415,
+     "z": 2.75
+    },
+    {
+     "src": "c9cde97a-b87f-42a2-830b-6be353507d4a",
+     "start": 14.007,
+     "end": 14.185,
+     "z": 2.71
+    },
+    {
+     "src": "c9cde97a-b87f-42a2-830b-6be353507d4a",
+     "start": 16.486,
+     "end": 16.705,
+     "z": 2.68
+    },
+    {
+     "src": "c9cde97a-b87f-42a2-830b-6be353507d4a",
+     "start": 12.33,
+     "end": 12.515,
+     "z": 2.64
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "m_shaker": {
+   "group": "music",
+   "hp": 300,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "d535a4ce-da30-4263-8106-332b053af3a4",
+     "start": 0.011,
+     "end": 0.18,
+     "z": 7.25
+    },
+    {
+     "src": "001f8b26-1577-46af-b96f-39db4aee738f",
+     "start": 0.032,
+     "end": 0.188,
+     "z": 6.69
+    },
+    {
+     "src": "98c3adb3-2f52-4a88-a69e-0d99830879a9",
+     "start": 0.515,
+     "end": 0.73,
+     "z": 7.06
+    },
+    {
+     "src": "98c3adb3-2f52-4a88-a69e-0d99830879a9",
+     "start": 0.091,
+     "end": 0.31,
+     "z": 6.97
+    },
+    {
+     "src": "98c3adb3-2f52-4a88-a69e-0d99830879a9",
+     "start": 1.035,
+     "end": 1.145,
+     "z": 6.83
+    }
+   ],
+   "fadeOut": 0.105
+  },
+  "m_djembe_bass": {
+   "group": "music",
+   "hp": 30,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "04abdade-802f-4105-b236-f709901bd459",
+     "start": 1.504,
+     "end": 2.227,
+     "z": 5.91
+    },
+    {
+     "src": "04abdade-802f-4105-b236-f709901bd459",
+     "start": 0.036,
+     "end": 0.455,
+     "z": 4.51
+    }
+   ],
+   "fadeOut": 0.24
+  },
+  "m_djembe_tone": {
+   "group": "music",
+   "hp": 50,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "222aa6e0-90ce-4ce3-9a6a-a275d89dce2a",
+     "start": 0.041,
+     "end": 0.31,
+     "z": 6.37
+    },
+    {
+     "src": "8cd32c8b-a198-4d83-919b-c25ce0328ac7",
+     "start": 0.014,
+     "end": 0.26,
+     "z": 6.92
+    },
+    {
+     "src": "d5eb13f0-aed4-45d9-994b-9cec15cef354",
+     "start": 0.011,
+     "end": 0.486,
+     "z": 7.04
+    }
+   ],
+   "fadeOut": 0.18
+  },
+  "m_djembe_slap": {
+   "group": "music",
+   "hp": 80,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "069d61e6-f56f-4bfa-9ba0-0d291dbd7212",
+     "start": 0.024,
+     "end": 0.18,
+     "z": 6.74
+    },
+    {
+     "src": "181614dd-a0c8-4f7a-8685-996753f07fc0",
+     "start": 0.026,
+     "end": 0.124,
+     "z": 5.79
+    },
+    {
+     "src": "d24b9702-65c4-4170-b5af-6a7ecc9b74b0",
+     "start": 0.011,
+     "end": 0.511,
+     "z": 6.58
+    }
+   ],
+   "fadeOut": 0.15
+  },
+  "m_boom": {
+   "group": "music",
+   "hp": 20,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "83623c61-5c2a-4977-9f64-2665ae06ee44",
+     "start": 0,
+     "end": 3.4
+    },
+    {
+     "src": "fc0b44cc-e905-4791-aa06-ee6b4a7fe49d",
+     "start": 0,
+     "end": 4.5
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "m_gong": {
+   "group": "music",
+   "hp": 30,
+   "kbps": 56,
+   "channels": 1,
+   "variants": [
+    {
+     "src": "c8d52a28-a204-48f5-a8df-1b2b71ad601b",
+     "start": 10.6,
+     "end": 19.6
+    }
+   ],
+   "fadeOut": 0.25
+  },
+  "m_drone": {
+   "group": "music",
+   "channels": 2,
+   "loop": true,
+   "xfade": 2.5,
+   "kbps": 56,
+   "lufs": -24,
+   "variants": [
+    {
+     "src": "e35a3307-198c-48f3-a23f-62692e70c145",
+     "start": 6,
+     "end": 18,
+     "z": 4.61
+    }
+   ]
+  },
+  "m_strings": {
+   "group": "music",
+   "channels": 2,
+   "loop": true,
+   "xfade": 1.5,
+   "kbps": 56,
+   "lufs": -24,
+   "pitch": 12,
+   "variants": [
+    {
+     "src": "e35a3307-198c-48f3-a23f-62692e70c145",
+     "start": 15,
+     "end": 23
+    }
+   ]
+  },
+  "ir_room": {
+   "group": "music",
+   "channels": 2,
+   "kbps": 96,
+   "lufs": -20,
+   "fadeOut": 1,
+   "variants": [
+    {
+     "src": "8121d525-929b-4329-8fe1-b35714c510da",
+     "start": 0,
+     "end": 5
+    }
+   ]
+  }
+ }
+}
