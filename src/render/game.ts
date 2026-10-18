@@ -9,10 +9,10 @@ import { ContactShadow } from './contact';
 import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
 import { causticUniforms } from '../world/caustics';
 import { Rain } from './rain';
-import { resetMood, stepMood, worldMood } from '../world/mood';
+import { resetMood, setWorldDrive, stepMood, worldMood, worldTierUp } from '../world/mood';
 import { Debris } from '../world/debris';
 import { forward } from '../world/path';
-import { CRASH_CLIPS, crashStaging, escapeStaging, nextBeat, runDrive, runTier, type CrashKind, type CrashStaging, type EscapeStaging } from '../world/choreo';
+import { CRASH_CLIPS, crashStaging, escapeStaging, intensityOf, nextBeat, progression, type CrashKind, type CrashStaging, type EscapeStaging, type Progression } from '../world/choreo';
 import { Runner, type RunnerAnim } from '../world/runner';
 import { PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
@@ -47,6 +47,16 @@ export interface WorldSounds {
    * into the water already sound through impact(size, true).
    */
   event?(name: string, strength: number): void;
+  /**
+   * Seconds until the score's next bar line (downbeat), or null when no score is running. The
+   * progression director lands a tier-up's visual punch on it, together with the music's accent.
+   */
+  nextDownbeat?(): number | null;
+  /**
+   * The tier change the music is about to land, if any: `in` seconds until the new layer's downbeat
+   * (its fill already rolling); null when none is pending or the theme is not playing.
+   */
+  tierLanding?(): { tier: number; in: number } | null;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -58,10 +68,8 @@ const SHADOW_V = new THREE.Vector3();
 
 const nullSounds: WorldSounds = { footstep() {}, impact() {}, tremor() {}, run() {}, crash() {}, escape() {}, whoosh() {}, slam() {} };
 
-/** Presentation intensity from the multiplier: 0 at 1.00x, 1 at 30x and beyond. */
-export function intensityOf(mult: number): number {
-  return Math.min(1, Math.max(0, Math.log(mult) / Math.log(30)));
-}
+/** Presentation intensity from the multiplier (see world/choreo: the progression model). */
+export { intensityOf };
 
 export function speedOf(intensity: number): number {
   return 5.0 + 7.6 * Math.pow(intensity, 0.85);
@@ -137,7 +145,9 @@ export class Game {
   motion: 'full' | 'reduced' = 'full';
 
   /** Live readout for the HUD (read by rAF in the UI, never through React state). */
-  readonly live = { mult: 1, intensity: 0, speed: 0, distance: 0 };
+  readonly live = { mult: 1, intensity: 0, speed: 0, distance: 0, tier: 0, drive: 0, heat: 0 };
+  /** The run's progression (choreo.progression of the multiplier on screen); updated every frame. */
+  private prog: Progression = progression(1);
 
   private constructor(
     private canvas: HTMLCanvasElement,
@@ -1379,6 +1389,22 @@ export class Game {
         this.tremor(I, k);
         if (k > 0.55) this.runner.glance(c.chance(0.5) ? 1 : -1);
         break;
+      case 'collapse': {
+        // Far off, a stretch of parapet or a ruin gives way into the water: a column of dust, blocks
+        // tumbling, a dull roar. The world itself is coming apart as the run goes on.
+        const g = this.track.path.sample(this.s + c.range(28, 48));
+        const gr = new THREE.Vector3(Math.cos(g.yaw), 0, -Math.sin(g.yaw));
+        const side = c.chance(0.5) ? 1 : -1;
+        const at = g.pos.clone().addScaledVector(gr, side * c.range(PATH_HALF + 1.5, PATH_HALF + 6)).setY(g.pos.y + c.range(2, 4));
+        for (let i = 0; i < 2 + Math.round(3 * k); i++) {
+          const p = at.clone().add(new THREE.Vector3(c.range(-1.5, 1.5), c.range(0, 2), c.range(-1.5, 1.5)));
+          this.later(i * 0.12, () => this.debris.spawn(c.chance(0.5) ? 'rubble_2' : 'rubble_3', new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(c.range(0, 6), c.range(0, 6), 0)), new THREE.Vector3(0.7, 0.7, 0.7)), gr.clone().multiplyScalar(side * c.range(0.5, 2)), new THREE.Vector3(c.range(-2, 2), c.range(-2, 2), c.range(-2, 2)), () => null, { breakInto: 3, breakAfter: c.range(0.4, 0.8) }), CUE);
+        }
+        B.puff(at, { count: 4 + Math.round(4 * k), spread: 4, jitter: 0.8, vel: new THREE.Vector3(0, 2, 0), size: [2, 7 + 4 * k], life: 4, alpha: 0.38, tint: DUST_T, rise: 0.3, drag: 0.7, group: CUE });
+        this.sounds.tremor(0.3 + 0.4 * k);
+        this.rig.addTrauma(0.05 + 0.08 * k);
+        break;
+      }
       case 'birds': {
         // Birds burst out of the trees off to one side and wheel away from the noise.
         const side = c.chance(0.5) ? 1 : -1;
@@ -1400,6 +1426,79 @@ export class Game {
       const t2 = (sAt - this.s) / Math.max(1, this.speed) - 0.2;
       if (t2 > 0) this.later(t2, () => this.stage === 'run' && this.runner.hop(), CUE);
     }, CUE);
+  }
+
+  /**
+   * The HUD's tier pulse: called ON the tier-up's downbeat (with the camera punch and the music's
+   * accent), from the multiplier on screen only. The UI sets it; `game.live.tier` changes at once.
+   */
+  onTierPulse: (tier: number) => void = () => {};
+
+  /** 0..1, decays over ~1.4 s after a tier-up: a warm lift in the grade and a gust in the leaves. */
+  private tierGlow = 0;
+
+  /**
+   * A tier arrives (the multiplier on screen crossed 2, 5, 10 or 25×). At once (within the frame):
+   * the grade steps warmer and harder (progression.heat steps, tierGlow lifts), game.live.tier
+   * changes and the score is told (it lands an accent on its next bar line). ON that bar line (the
+   * HUD pulse via onTierPulse / 'causeway:tier', and (sounds.nextDownbeat, if the score runs and it is within a
+   * bar; else at once): the lens punch and jolt, a gust through the leaves, a burst of world events
+   * (dust from both walls, birds, a rumble), and from the sprint tier a glance back. A cash-out or a
+   * fall before the downbeat cancels the punch. Reduced motion keeps it, gentler.
+   */
+  private tierUp(tier: number): void {
+    this.tierGlow = 1;
+    this.sounds.event?.('tier_up', tier / 4);
+    const round = this.worldSeed;
+    const land = () => {
+      if (this.stage !== 'run' || round !== this.worldSeed) return;
+      const k = this.motion === 'full' ? 1 : 0.4;
+      // The HUD's pulse lands with it: `game.onTierPulse` (for the UI) and a 'causeway:tier' window event.
+      this.onTierPulse(tier);
+      try {
+        window.dispatchEvent(new CustomEvent('causeway:tier', { detail: { tier, mult: this.live.mult } }));
+      } catch {
+        /* no DOM (tests) */
+      }
+      // The world's own tier-up: a gust, leaves and dust, a flicker in the sky (world/mood.ts).
+      worldTierUp(Math.min(1, 0.4 + 0.15 * tier));
+      this.rig.kick((3 + 1.5 * tier) * k);
+      this.rig.addTrauma((0.08 + 0.04 * tier) * k);
+      this.rig.jolt(0.25 + 0.1 * tier, 0);
+      // A burst of world events: the walls breathe out dust, birds lift, the ground answers.
+      const strength = Math.min(1, 0.45 + 0.13 * tier);
+      this.dangerCue('burst', strength, this.prog.intensity);
+      if (tier >= 2) this.later(0.12, () => this.stage === 'run' && this.dangerCue('birds', strength, this.prog.intensity), CUE);
+      if (tier >= 3) this.later(0.3, () => this.stage === 'run' && this.dangerCue('rumble', strength, this.prog.intensity), CUE);
+      if (tier >= 2) this.runner.glance(this.cosmetic.chance(0.5) ? 1 : -1);
+    };
+    this.pendingPunch = { tier, land, waited: 0 };
+    this.syncPunch(0);
+  }
+
+  /**
+   * Land a pending tier-up punch on the music: the theme's pending tier landing (`tierLanding`, the
+   * new layer's downbeat) once the score has heard the tier (it hears it from the HUD's climb, so it
+   * may be a frame behind); else its next bar line; else (no theme: muted, still loading) at once.
+   * Never later than ~2.4 s (≈1.35 bars) after the tier change.
+   */
+  private pendingPunch: { tier: number; land: () => void; waited: number } | null = null;
+  private syncPunch(dt: number): void {
+    const p = this.pendingPunch;
+    if (!p) return;
+    p.waited += dt;
+    const go = (inSec: number) => {
+      this.pendingPunch = null;
+      const d = Math.min(Math.max(0, inSec), Math.max(0, 2.4 - p.waited));
+      if (d < 0.03) p.land();
+      else this.later(d, p.land, CUE);
+    };
+    const tl = this.sounds.tierLanding?.() ?? null;
+    if (tl && tl.tier >= p.tier) return go(tl.in);
+    // Give the score up to ~0.15 s to hear the new tier; then the next bar line, or now.
+    if (p.waited < 0.15 && this.sounds.nextDownbeat?.() != null) return;
+    const nd = this.sounds.nextDownbeat?.() ?? null;
+    go(nd ?? 0);
   }
 
   private duckScanIn = 0;
@@ -1571,10 +1670,15 @@ export class Game {
       }
     }
     if (this.stage === 'cashout' || this.stage === 'crash') mult = this.live.mult;
-    const I = intensityOf(mult);
+    // THE PROGRESSION: one model for every system (camera, grade, effects, runner, world, score).
+    const P = (this.prog = progression(mult));
+    const I = P.intensity;
     if (this.stage === 'run' || this.stage === 'lead') {
       this.live.mult = mult;
       this.live.intensity = I;
+      this.live.tier = this.stage === 'run' ? P.tier : 0;
+      this.live.drive = this.stage === 'run' ? P.drive : 0;
+      this.live.heat = this.stage === 'run' ? P.heat : 0;
     }
 
     // Kinematics. Crash and cash-out brake uniformly to a staged mark.
@@ -1594,15 +1698,14 @@ export class Game {
     this.placeRunner(dt);
     this.runner.lean = this.stage === 'run' ? 0.04 * I : 0;
     // Run tier from the current multiplier only: gait and camera escalate, with cosmetic beats.
-    const drive = this.stage === 'run' ? runDrive(mult) : 0;
-    // A lens punch as each run tier arrives (2, 5, 10, 25×): from the current multiplier only.
-    const tierNow = this.stage === 'run' ? runTier(mult) : 0;
-    if (this.stage === 'run' && tierNow > this.lastRunTier) {
-      this.rig.kick(3 + 1.5 * tierNow);
-      this.sounds.event?.('tier_up', tierNow / 4);
-      this.rig.addTrauma(0.06 + 0.03 * tierNow);
-    }
+    const drive = this.stage === 'run' ? P.drive : 0;
+    // Tier-ups (2, 5, 10, 25×): every system changes together (see tierUp).
+    const tierNow = this.stage === 'run' ? P.tier : 0;
+    if (this.stage === 'run' && tierNow > this.lastRunTier) this.tierUp(tierNow);
     this.lastRunTier = tierNow;
+    if (this.stage === 'run') this.syncPunch(rawDt);
+    else this.pendingPunch = null;
+    this.tierGlow = Math.max(0, this.tierGlow - rawDt / 1.4);
     this.scanOverhead(dt, tierNow);
     // Speed without blur: from the driven tier, grit and low dust lift off the floor and the wall
     // feet just ahead and either side of him; the lens rushes through them (parallax), denser with
@@ -1624,7 +1727,7 @@ export class Game {
     if (this.stage === 'run' && this.stageT > 1.5) {
       this.beatIn -= dt;
       if (this.beatIn <= 0) {
-        const nb = nextBeat(this.cosmetic, runTier(mult));
+        const nb = nextBeat(this.cosmetic, P.tier);
         this.beatIn = nb ? nb.wait : 2;
         if (nb?.beat === 'glance') this.runner.glance(this.cosmetic.chance(0.5) ? 1 : -1);
         else if (nb?.beat === 'stumble' && this.runner.stumble()) {
@@ -1672,7 +1775,7 @@ export class Game {
       }
     }
     if (this.fxMotion !== this.motion) this.applyFxBudget();
-    const dangerTarget = this.stage === 'run' ? Math.max(0, (I - 0.35) / 0.65) * 0.55 : 0;
+    const dangerTarget = this.stage === 'run' ? Math.max(0, (P.heat - 0.35) / 0.65) * 0.55 : 0;
     this.fx.danger += (dangerTarget - this.fx.danger) * (1 - Math.exp(-dt * 2));
     // The fall's grade: cold, but capped so the runner and the hazard stay readable.
     const coldTarget = this.stage === 'crash' ? Math.min(0.55, this.stageT * 0.6) : 0;
@@ -1761,7 +1864,9 @@ export class Game {
     this.sunDisc.lookAt(cam.position);
 
     wind.uTime.value = this.worldT;
-    // Round 11 crescendo: the world's mood follows the run (src/world/mood.ts; presentation only).
+    // Round 11 crescendo: the world's mood follows the run (src/world/mood.ts; presentation only),
+    // driven by the progression's heat (the same model as the grade, camera, cues and score).
+    setWorldDrive(this.stage === 'run' || this.stage === 'crash' || this.stage === 'cashout' ? this.prog.heat : 0);
     const mood = stepMood(dt, I);
     this.applyMood(mood.drive, mood.gust);
     this.water.update(this.worldT, cam);
@@ -1778,8 +1883,9 @@ export class Game {
     this.cine.update(dt, rawDt, cam, this.sunDir, this.worldT, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)));
     // Tension ramp (grade, vignette, dust in the air): from the live multiplier only, while running;
     // it eases back once the round settles (the fall's cold and the escape's gold take over).
-    const tensionTarget = this.stage === 'run' ? Math.min(1, Math.max(0, Math.log(this.live.mult) / Math.log(20))) : 0;
-    this.tension += (tensionTarget - this.tension) * (1 - Math.exp(-rawDt * (this.stage === 'run' ? 1.5 : 0.8)));
+    // The grade follows the progression's heat; a tier's step arrives within a frame or two.
+    const tensionTarget = this.stage === 'run' ? this.prog.heat : 0;
+    this.tension += (tensionTarget - this.tension) * (1 - Math.exp(-rawDt * (this.stage === 'run' ? (tensionTarget > this.tension ? 8 : 1.5) : 0.8)));
     this.motes.update(this.worldT, cam, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)), (1 + 1.3 * this.tension) * (1 + 1.2 * worldMood.drive + 1.5 * worldMood.gust), this.sunDir);
     this.ambient.update(this.worldT, cam);
 
@@ -1800,7 +1906,7 @@ export class Game {
       danger: this.fx.danger,
       cold: this.fx.cold,
       gold: this.fx.gold,
-      flash: this.fx.flash,
+      flash: this.fx.flash + 0.05 * this.tierGlow * this.tierGlow,
       fade: this.fx.fade,
       bloomBoost: this.fx.bloom,
       tension: this.tension,

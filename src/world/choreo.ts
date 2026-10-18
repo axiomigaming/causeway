@@ -40,6 +40,49 @@ export function runDrive(mult: number): number {
   return anchors.length - 1;
 }
 
+/** Presentation intensity from the multiplier: 0 at 1.00×, 1 at 30× and beyond (log scale). */
+export function intensityOf(mult: number): number {
+  return Math.min(1, Math.max(0, Math.log(Math.max(1, mult)) / Math.log(30)));
+}
+
+/** Sub-steps inside the tiers: small beats (a gust, a bird flight) between the tier-ups. */
+export const STEP_AT = [1.5, 3, 7, 15, 50, 100] as const;
+
+/**
+ * THE PROGRESSION: one model of how far into the crescendo the run is, read by every system — the
+ * camera, the grade, the effects and danger cues, the runner, the world and the score. A pure
+ * function of the current multiplier only (never the fall point). See README "Presentation by
+ * multiplier" for what each system does per tier.
+ */
+export interface Progression {
+  /** 0..4: composed, driven, sprint, all-out, desperate (at 2×, 5×, 10×, 25×). */
+  tier: number;
+  /** Continuous 0..4: the tier plus how far through it (log-linear). Gait, camera, cue strength. */
+  drive: number;
+  /** 0..1 through the current tier (1 at the top tier from 25×, approaching 1 near 100×). */
+  within: number;
+  /** 0..1 log intensity (30× = 1): run speed, lens width, world biome. */
+  intensity: number;
+  /**
+   * 0..1 grade and atmosphere heat: mostly continuous, with a step at each tier so a tier-up is felt
+   * at once (warmth, contrast, vignette, dust, vegetation).
+   */
+  heat: number;
+  /** How many of STEP_AT have been passed (0..6). */
+  step: number;
+}
+
+export function progression(mult: number): Progression {
+  const m = Math.max(1, mult);
+  const tier = runTier(m);
+  const drive = runDrive(m);
+  const within = tier >= 4 ? Math.min(1, Math.log(m / 25) / Math.log(4)) : drive - tier;
+  const heat = Math.min(1, 0.55 * (drive / 4) + 0.35 * (tier / 4) + (tier >= 4 ? 0.1 * within : 0));
+  let step = 0;
+  for (const s of STEP_AT) if (m >= s) step++;
+  return { tier, drive, within, intensity: intensityOf(m), heat, step };
+}
+
 /** How grand a settled moment should be: 0 at ≤1.5×, 1 at ≥10× (log scale). */
 export function epicOf(mult: number): number {
   const x = Math.log(Math.max(1, mult) / 1.5) / Math.log(10 / 1.5);
