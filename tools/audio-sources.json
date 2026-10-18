@@ -2648,6 +2648,49 @@
      "end": 5
     }
    ]
+  },
+  "riser": {
+   "group": "core",
+   "channels": 1,
+   "hp": 40,
+   "lufs": -17,
+   "limit": 0,
+   "variants": [
+    {
+     "src": "c8d52a28-a204-48f5-a8df-1b2b71ad601b",
+     "start": 10.6,
+     "end": 14.6,
+     "reverse": true,
+     "fadeIn": 0.002,
+     "fadeOut": 0.6
+    },
+    {
+     "src": "fc0b44cc-e905-4791-aa06-ee6b4a7fe49d",
+     "start": 0.0,
+     "end": 3.6,
+     "reverse": true,
+     "fadeIn": 0.002,
+     "fadeOut": 0.5
+    }
+   ]
+  },
+  "sub_swell": {
+   "group": "core",
+   "channels": 1,
+   "hp": 25,
+   "lp": 220,
+   "lufs": -18,
+   "limit": 0,
+   "variants": [
+    {
+     "src": "83623c61-5c2a-4977-9f64-2665ae06ee44",
+     "start": 0.0,
+     "end": 3.4,
+     "reverse": true,
+     "fadeIn": 0.002,
+     "fadeOut": 0.6
+    }
+   ]
   }
  }
 }
