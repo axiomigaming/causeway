@@ -122,6 +122,10 @@ describe('slices, formats, world mapping', () => {
     expect(resolveSfx('dust', 0.5)).toEqual({ sound: 'dust', strength: 0.5 });
     expect(resolveSfx('splash', 0.9)!.sound).toBe('splash_big');
     expect(resolveSfx('splash', 0.2)!.sound).toBe('splash_small');
+    // The FX round's world events (game.ts → sounds.event): tier_up is handled by the score, not here.
+    expect(resolveSfx('dust_burst', 1)).toEqual({ sound: 'dust', strength: 1 });
+    expect(resolveSfx('stones_skitter', 0)!.sound).toBe('debris');
+    expect(resolveSfx('tier_up', 0.5)).toBeNull();
     expect(resolveSfx('no-such-sound', 1)).toBeNull();
     expect(resolveSfx('toString', 1)).toBeNull();
     expect(resolveSfx('debris', NaN)!.strength).toBe(0.5);
