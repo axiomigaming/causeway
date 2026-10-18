@@ -6,7 +6,9 @@ import { loadKit, pickAssetSet, wind, type Kit } from '../world/assets';
 import { DynamicResolution, warmUp } from './perf';
 import { installShadowEdgeFade } from './shadows';
 import { ContactShadow } from './contact';
-import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun } from '../world/atmosphere';
+import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
+import { causticUniforms } from '../world/caustics';
+import { Rain } from './rain';
 import { Debris } from '../world/debris';
 import { forward } from '../world/path';
 import { CRASH_CLIPS, crashStaging, escapeStaging, nextBeat, runDrive, runTier, type CrashKind, type CrashStaging, type EscapeStaging } from '../world/choreo';
@@ -79,6 +81,7 @@ export class Game {
   private debris!: Debris;
   private particles = new Particles(1100);
   private motes = new Motes(420);
+  private rain = new Rain();
   private contact = new ContactShadow(); // grounds the runner on every tier
   private ambient = new Ambient(); // world art: birds, butterflies, leaves
   /** Cinematic effects: lit dust, water shockwaves, cracks, birds, sun shafts, escape rim. */
@@ -221,7 +224,7 @@ export class Game {
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
     scene.add(this.contact.mesh);
-    scene.add(this.particles.points, this.motes.points, this.ambient.root);
+    scene.add(this.particles.points, this.motes.points, this.ambient.root, this.rain.mesh);
     // Cinematic fx (before the fog patch and the program warm-up below).
     this.cine.attachRunner(this.runner.root);
     scene.add(this.cine.root);
@@ -277,6 +280,23 @@ export class Game {
       const m = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
       m?.color.setRGB(...L.stoneTint);
     }
+    // Round 11: what makes a storm a storm (overcast sky, no sun, soft shadows, rain-wet stone).
+    setSkyLook(L.skyTint ?? [1, 1, 1], L.skyDesat ?? 0, L.sunDisc === 0 ? 1 : 0);
+    this.sunDisc.visible = (L.sunDisc ?? 1) > 0;
+    this.sun.shadow.intensity = L.shadow ?? 1;
+    causticUniforms.uRainWet.value = L.wet ?? 0;
+  }
+
+  /** Lightning: a brief double flash now and then (cosmetic; a function of world time only). */
+  private lightning(t: number, perMinute: number): number {
+    if (perMinute <= 0) return 0;
+    const period = 60 / perMinute;
+    const k = Math.floor(t / period);
+    const h = Math.sin(k * 12.9898) * 43758.5453;
+    const at = k * period + (h - Math.floor(h)) * period * 0.8;
+    const d = t - at;
+    if (d < 0 || d > 0.45) return 0;
+    return Math.max(Math.exp(-d * 18), d > 0.16 ? Math.exp(-(d - 0.16) * 14) * 0.8 : 0);
   }
 
   private onVisibility = () => {
@@ -1677,11 +1697,19 @@ export class Game {
     this.fill.position.set(rp.x - this.sunDir.x * 10, rp.y + 7, rp.z - this.sunDir.z * 10);
     this.sun.target.position.copy(sh);
     this.sun.position.copy(sh).addScaledVector(this.sunDir, 55);
-    this.sunDisc.position.copy(cam.position).addScaledVector(this.sunDir, 900);
+    // Overcast (storm): no disc, and post's shafts and flare (which follow the disc) see it behind the lens.
+    this.sunDisc.position.copy(cam.position).addScaledVector(this.sunDir, this.sunDisc.visible ? 900 : -900);
     this.sunDisc.lookAt(cam.position);
 
     wind.uTime.value = this.worldT;
-    wind.uStrength.value = 1 + I * 0.8;
+    const look = this.lookApplied;
+    wind.uStrength.value = (1 + I * 0.8) * (look?.wind ?? 1);
+    if (look) {
+      this.rain.update(this.worldT, look.rain ?? 0);
+      const f = this.lightning(this.worldT, look.lightning ?? 0);
+      this.hemi.intensity = look.hemiI * (1 + f * 3.5);
+      this.scene.backgroundIntensity = look.skyI * (1 + f * 2.5);
+    }
     this.water.update(this.worldT, cam);
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
