@@ -1424,14 +1424,20 @@ export class Game {
     }, CUE);
   }
 
+  /**
+   * The HUD's tier pulse: called ON the tier-up's downbeat (with the camera punch and the music's
+   * accent), from the multiplier on screen only. The UI sets it; `game.live.tier` changes at once.
+   */
+  onTierPulse: (tier: number) => void = () => {};
+
   /** 0..1, decays over ~1.4 s after a tier-up: a warm lift in the grade and a gust in the leaves. */
   private tierGlow = 0;
 
   /**
    * A tier arrives (the multiplier on screen crossed 2, 5, 10 or 25×). At once (within the frame):
-   * the grade steps warmer and harder (progression.heat steps, tierGlow lifts), the HUD hears it
-   * ('causeway:tier' window event, game.live.tier) and the score is told (it lands an accent on its
-   * next bar line). ON that bar line (sounds.nextDownbeat, if the score runs and it is within a
+   * the grade steps warmer and harder (progression.heat steps, tierGlow lifts), game.live.tier
+   * changes and the score is told (it lands an accent on its next bar line). ON that bar line (the
+   * HUD pulse via onTierPulse / 'causeway:tier', and (sounds.nextDownbeat, if the score runs and it is within a
    * bar; else at once): the lens punch and jolt, a gust through the leaves, a burst of world events
    * (dust from both walls, birds, a rumble), and from the sprint tier a glance back. A cash-out or a
    * fall before the downbeat cancels the punch. Reduced motion keeps it, gentler.
@@ -1439,15 +1445,17 @@ export class Game {
   private tierUp(tier: number): void {
     this.tierGlow = 1;
     this.sounds.event?.('tier_up', tier / 4);
-    try {
-      window.dispatchEvent(new CustomEvent('causeway:tier', { detail: { tier, mult: this.live.mult } }));
-    } catch {
-      /* no DOM (tests) */
-    }
     const round = this.worldSeed;
     const land = () => {
       if (this.stage !== 'run' || round !== this.worldSeed) return;
       const k = this.motion === 'full' ? 1 : 0.4;
+      // The HUD's pulse lands with it: `game.onTierPulse` (for the UI) and a 'causeway:tier' window event.
+      this.onTierPulse(tier);
+      try {
+        window.dispatchEvent(new CustomEvent('causeway:tier', { detail: { tier, mult: this.live.mult } }));
+      } catch {
+        /* no DOM (tests) */
+      }
       // The world's own tier-up: a gust, leaves and dust, a flicker in the sky (world/mood.ts).
       worldTierUp(Math.min(1, 0.4 + 0.15 * tier));
       this.rig.kick((3 + 1.5 * tier) * k);

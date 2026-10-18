@@ -185,15 +185,17 @@ score's tier are the same functions (`audio/feedback.ts` delegates to it).
 | 3 all-out | 10–25× | ≈2 m, ≈76°, more shake | hot, dusty air, darker edges | + far collapses (ruins falling into the water), bursts beside him from both walls | sprint → dash | chasm country; the jungle thrashes | + drive layer |
 | 4 desperate | 25×+ | ≈1.9 m, ≈81°, low | hottest, heaviest vignette | densest: bursts, collapses, stones every second or two | desperate dash | cliffs, gorges, rope bridges | everything doubled up |
 
-**Tier-up moment.** When the multiplier crosses 2, 5, 10 or 25×: within the frame
+**Tier-up moment.** When the multiplier crosses 2, 5, 10 or 25×, within the frame
 the grade steps warmer and harder (heat steps, plus a short warm lift), the
-leaves gust, the HUD hears a `causeway:tier` window event (and `game.live.tier`)
-and the score is told (`tier_up`). On the score's next bar line
-(`sounds.nextDownbeat()`, where the score's accent and new layer land) the lens
-punches and jolts, both walls breathe out dust, birds lift (from 5×), the ground
-rumbles (from 10×) and he glances back (from 5×). A cash-out or a fall before
-that bar line cancels the punch; reduced motion keeps it, gentler; Low keeps it
-with smaller particle budgets.
+leaves gust, `game.live.tier` changes and the score is told (`tier_up`; it rolls
+its fill). On the music's landing (`sounds.tierLanding()`, the new layer's
+downbeat, at most ~1.35 bars away; else its next bar line; with no theme
+playing, at once) the lens punches and jolts, the HUD pulses
+(`game.onTierPulse`, `causeway:tier` window event), the world gusts and
+flickers (`worldTierUp`), both walls breathe out dust, birds lift (from 5×),
+the ground rumbles (from 10×) and he glances back (from 5×). A cash-out or a
+fall before the landing cancels the punch; reduced motion keeps it, gentler;
+Low keeps it with smaller particle budgets.
 
 Milestones flare at 2, 5, 10, 25, 50 and 100×. A fall stages one of two variants
 per hazard (chasm, gate, rockfall), a cash-out one of four escapes (look back,
