@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MANIFEST, SampleBank, type Loaded } from '../src/audio/samples';
 import { mulberry32 } from '../src/audio/select';
-import { ORDERS, THEME_SOUNDS, ThemePlayer, fanfareFor, nextBar, phrasePlan } from '../src/audio/theme';
+import { ORDERS, THEME_SOUNDS, ThemePlayer, fanfareFor, landingPlan, nextBar, phrasePlan } from '../src/audio/theme';
 
 // A minimal AudioContext: records every source start and every gain automation.
 class P {
@@ -29,7 +29,7 @@ class N {
   disconnect() {}
 }
 function fake() {
-  const starts: { name: string; at: number }[] = [];
+  const starts: { name: string; at: number; offset: number }[] = [];
   const ctx = {
     currentTime: 0,
     createGain: () => new N(),
@@ -39,7 +39,7 @@ function fake() {
         loop: false,
         onended: null,
         connect: <T>(n: T) => n,
-        start: (at: number) => starts.push({ name: s.buffer.name, at }),
+        start: (at: number, offset = 0) => starts.push({ name: s.buffer.name, at, offset }),
         stop: () => {},
       };
       return s;
@@ -64,6 +64,25 @@ describe('theme form', () => {
     }
     expect(plans.size).toBeGreaterThan(10);
     for (const o of ORDERS) expect(o[0]).toBe('a');
+  });
+
+  it('a tier change lands within about 1.35 bars, never without a lead-in', () => {
+    const bar = 2;
+    for (let now = 0.01; now < 8; now += 0.13) {
+      const p = landingPlan(0, bar, now);
+      expect(p.at - now).toBeGreaterThanOrEqual(bar / 3 - 1e-9);
+      expect(p.at - now).toBeLessThanOrEqual(bar * 4 / 3 + 0.03);
+      expect((p.at / bar) % 1).toBeCloseTo(0, 6);
+      expect(p.fillOffset).toBeGreaterThanOrEqual(0);
+      expect(p.fillOffset).toBeLessThan(bar * 2 / 3 + 1e-9);
+    }
+    // just before a downbeat: the following one, with the whole fill
+    expect(landingPlan(0, 2, 1.9)).toEqual({ at: 4, fillAt: 2, fillOffset: 0 });
+    // in every case the fill's own downbeat (one bar into its file) is the landing
+    for (let now = 0.01; now < 8; now += 0.07) {
+      const p = landingPlan(0, 2, now);
+      expect(p.fillAt + (2 - p.fillOffset)).toBeCloseTo(p.at, 6);
+    }
   });
 
   it('bar lines and fanfare sizes', () => {
@@ -96,7 +115,7 @@ describe('theme player', () => {
     expect(second[0]!.at).toBeCloseTo(1 + 8 * (240 / 112));
   });
 
-  it('a tier-up plays one fill on the next bar line and lands on the bar after; jumps share one fill', () => {
+  it('a tier-up lands on the next bar line with a pickup fill whose downbeat is that bar; jumps share one fill', () => {
     const { ctx, starts, th } = mk();
     th.startRun(0);
     ctx.currentTime = 3.0;
@@ -105,7 +124,10 @@ describe('theme player', () => {
     const fills = starts.filter((s) => s.name === 'th_fill');
     expect(fills.length).toBe(1);
     const bar = 240 / 112;
-    expect(fills[0]!.at).toBeCloseTo(2 * bar);
+    // the fill's own downbeat (one bar into the file) falls on the landing bar line
+    expect(fills[0]!.at + (bar - fills[0]!.offset)).toBeCloseTo(2 * bar, 5);
+    expect(th.pendingLanding()!.in).toBeCloseTo(2 * bar - 3.0, 5);
+    expect(th.nextDownbeat()).toBeCloseTo(2 * bar - 3.0, 5);
     expect(th.state().landed).toBe(2);
     // tier 4: the lifted loop starts on a downbeat
     ctx.currentTime = 20;

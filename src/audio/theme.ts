@@ -47,6 +47,18 @@ export function fanfareFor(tier: Tier): 0 | 1 | 2 {
   return tier >= 3 ? 2 : tier >= 1 ? 1 : 0;
 }
 
+/**
+ * When a tier change that arrives at `now` lands, and how far into the one-bar fill to start so the fill's
+ * downbeat (one bar into its file) falls on the landing. The landing is the next bar line, approached with a
+ * pickup (the end of the roll); if that bar line is less than a third of a bar away, the following one with
+ * the whole fill. So a new tier is never more than about 1.35 bars late, and never lands without a lead-in.
+ */
+export function landingPlan(t0: number, bar: number, now: number): { at: number; fillAt: number; fillOffset: number } {
+  const nb = nextBar(t0, bar, now + 0.02);
+  const at = nb - now < bar / 3 ? nb + bar : nb;
+  return { at, fillAt: Math.max(now, at - bar), fillOffset: Math.max(0, bar - (at - now)) };
+}
+
 /** First bar line at or after `t` on a grid that started at `t0`. */
 export function nextBar(t0: number, bar: number, t: number): number {
   return t0 + Math.max(0, Math.ceil((t - t0) / bar - 1e-6)) * bar;
@@ -64,6 +76,8 @@ export class ThemePlayer {
   private topGain: GainNode;
   private run: { t0: number; bar: number; next: number; seg: number; plan: ('a' | 'b')[]; srcs: AudioBufferSourceNode[] } | null = null;
   private top: AudioBufferSourceNode | null = null;
+  private topStart: number | null = null;
+  private idleStart: number | null = null;
   private idle: (Src & { name: string }) | null = null;
   private tier: Tier = 0;
   /** When the pending tier change lands (AudioContext time), so repeated tier-ups share one fill. */
@@ -103,7 +117,7 @@ export class ThemePlayer {
   }
 
   /** A one-shot or loop, from the start of its buffer, at `at`. */
-  private source(name: string, dest: AudioNode, at: number, loop = false, gain = 1): Src | null {
+  private source(name: string, dest: AudioNode, at: number, loop = false, gain = 1, offset = 0): Src | null {
     const b = this.buf(name);
     if (!b) return null;
     const src = this.ctx.createBufferSource();
@@ -112,7 +126,7 @@ export class ThemePlayer {
     const g = this.ctx.createGain();
     g.gain.value = gain;
     src.connect(g).connect(dest);
-    src.start(Math.max(this.ctx.currentTime, at));
+    src.start(Math.max(this.ctx.currentTime, at), offset);
     src.onended = () => g.disconnect();
     return { src, gain: g };
   }
@@ -142,6 +156,7 @@ export class ThemePlayer {
     s.gain.gain.setValueAtTime(0, at);
     s.gain.gain.linearRampToValueAtTime(level, at + fadeIn);
     this.idle = { ...s, name };
+    this.idleStart = Math.max(this.ctx.currentTime, at);
     if (this.mode === 'off') this.mode = 'idle';
   }
 
@@ -159,6 +174,7 @@ export class ThemePlayer {
     if (this.idle) {
       this.fadeOut(this.idle, at, 0.15);
       this.idle = null;
+      this.idleStart = null;
     }
     const bar = (4 * 60) / this.bpm('th_l0_a');
     this.run = { t0: at, bar, next: at, seg: 0, plan: phrasePlan(8, this.rnd), srcs: [] };
@@ -179,6 +195,7 @@ export class ThemePlayer {
 
   /** Keep the next segment scheduled ahead. Call every ~25 ms. */
   update(): void {
+    this.tickBars();
     const r = this.run;
     if (!r || this.top) return;
     const now = this.ctx.currentTime;
@@ -221,11 +238,59 @@ export class ThemePlayer {
       this.land(t, this.landing);
       return;
     }
-    const fillAt = nextBar(r.t0, r.bar, now + 0.08);
-    const at = fillAt + r.bar;
-    this.source('th_fill', this.sting, fillAt, false, 0.85);
-    this.landing = at;
-    this.land(t, at);
+    const st = now + 0.01;
+    const plan = landingPlan(r.t0, r.bar, st);
+    // The fill's cymbal sits exactly one bar into the file: start it so that bar ends on the landing,
+    // entering part-way through the roll when the landing is near (a pickup).
+    this.source('th_fill', this.sting, plan.fillAt, false, 0.85, plan.fillOffset);
+    this.landing = plan.at;
+    this.land(t, plan.at);
+  }
+
+  /** Where a tier change that arrives now lands, and the pending one if any (for the visual punch). */
+  pendingLanding(): { tier: Tier; in: number } | null {
+    const now = this.ctx.currentTime;
+    return this.landing > now ? { tier: this.landed, in: this.landing - now } : null;
+  }
+
+  /** The grid the music is on now: [start, bar length] (run, lifted loop or idle loop), or null. */
+  private grid(): [number, number] | null {
+    if (this.top && this.topStart !== null) return [this.topStart, (4 * 60) / this.bpm('th_top')];
+    if (this.run) return [this.run.t0, this.run.bar];
+    if (this.idle && this.idleStart !== null) return [this.idleStart, (4 * 60) / this.bpm(this.idle.name)];
+    return null;
+  }
+
+  /** Seconds until the next bar line of the music playing now, or null when no theme music plays. */
+  nextDownbeat(): number | null {
+    const g = this.grid();
+    if (!g) return null;
+    const now = this.ctx.currentTime;
+    return nextBar(g[0], g[1], now) - now;
+  }
+
+  private barListeners = new Set<(bar: number, inSeconds: number) => void>();
+  private lastBar = -1;
+
+  /**
+   * Called on every bar line of the theme (a little ahead: `inSeconds` is the time left until it), with the
+   * bar index on the current grid. Returns an unsubscribe function.
+   */
+  onBar(cb: (bar: number, inSeconds: number) => void): () => void {
+    this.barListeners.add(cb);
+    return () => this.barListeners.delete(cb);
+  }
+
+  private tickBars() {
+    const g = this.grid();
+    if (!g || !this.barListeners.size) return;
+    const now = this.ctx.currentTime;
+    // Announce each bar line up to 60 ms ahead, once.
+    const idx = Math.floor((now + 0.06 - g[0]) / g[1] + 1e-6);
+    if (idx === this.lastBar || idx < 0) return;
+    this.lastBar = idx;
+    const at = g[0] + idx * g[1];
+    for (const cb of this.barListeners) cb(idx, Math.max(0, at - now));
   }
 
   private land(t: Tier, at: number) {
@@ -241,7 +306,10 @@ export class ThemePlayer {
       }
       if (!this.top) {
         const s = this.source('th_top', this.topGain, at, true);
-        if (s) this.top = s.src;
+        if (s) {
+          this.top = s.src;
+          this.topStart = at;
+        }
       }
       return;
     }
@@ -276,6 +344,7 @@ export class ThemePlayer {
       }
     }
     this.top = null;
+    this.topStart = null;
     this.run = null;
     this.landing = 0;
   }
@@ -316,6 +385,7 @@ export class ThemePlayer {
     this.stopRun(t, 0.1);
     this.fadeOut(this.idle, t, 0.2);
     this.idle = null;
+    this.idleStart = null;
     this.mode = 'off';
   }
 

@@ -271,6 +271,50 @@ export class AudioEngine implements WorldSounds {
     return d;
   }
 
+  /**
+   * Seconds until the next bar line of the music playing now (the run, the lifted loop, or the calm and
+   * tense loops), or null when the composed theme is not playing (still loading, muted context, no
+   * AudioContext yet). Audio time runs with the game clock; use it to land visual punches on the downbeat.
+   */
+  nextDownbeat(): number | null {
+    if (!this.ctx || this.ctx.state !== 'running' || !this.themeOn) return null;
+    return this.theme?.nextDownbeat() ?? null;
+  }
+
+  /**
+   * Subscribe to the theme's bar lines: `cb(bar, inSeconds)` fires once per bar, up to ~60 ms ahead of it
+   * (`inSeconds` = time left). Returns an unsubscribe function. Safe to call before the theme loads.
+   */
+  onBar(cb: (bar: number, inSeconds: number) => void): () => void {
+    const pending = new Set<() => void>();
+    let off: (() => void) | null = null;
+    const attach = () => {
+      if (off || !this.theme) return;
+      off = this.theme.onBar(cb);
+    };
+    attach();
+    if (!off) {
+      const id = setInterval(() => {
+        attach();
+        if (off) clearInterval(id);
+      }, 250);
+      pending.add(() => clearInterval(id));
+    }
+    return () => {
+      for (const p of pending) p();
+      off?.();
+    };
+  }
+
+  /**
+   * The tier change the music is about to land, if any: `{ tier, in }` with `in` seconds until the new
+   * layer's downbeat (the fill is already rolling). A tier arriving now lands on the next bar line, or the
+   * one after if the next is less than a third of a bar away; at most ~1.35 bars after the tier change.
+   */
+  tierLanding(): { tier: Tier; in: number } | null {
+    return this.themeOn ? (this.theme?.pendingLanding() ?? null) : null;
+  }
+
   /** Voices playing in the pool (QA). */
   voices(): number {
     return this.sp?.active() ?? 0;
