@@ -59,6 +59,8 @@ export function barHits(tier: Tier, bar: number, rnd: Rng): Hit[] {
   if (rnd() < 0.35) add('m_frame', 7, 0.3, 0);
   if (rnd() < 0.35) add('m_frame', 14, 0.28, 0);
   if (fill && tier === 0) add('m_frame', 15, 0.45, 0);
+  // A soft shaker on the off-beats from the first stride, so even 1× has a groove, not just a pulse.
+  for (const st of [2, 6, 10, 14]) add('m_shaker', st, 0.3 + rnd() * 0.08, 0);
   // Layer 1, hands: shaker sixteenths with a lilt, a djembe pattern chosen per bar.
   for (let s = 0; s < 16; s++) {
     if (rnd() < 0.06 && s % 4 !== 2) continue; // the player breathes: the odd sixteenth dropped

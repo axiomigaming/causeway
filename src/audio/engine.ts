@@ -155,9 +155,13 @@ export class AudioEngine implements WorldSounds {
     shelf.type = 'highshelf';
     shelf.frequency.value = 7000;
     shelf.gain.value = -3;
+    // The WebAudio compressor has no look-ahead, so fast transients overshoot its threshold a little:
+    // a fixed trim after it keeps true peaks under -1 dBTP (measured with earshot on captured play).
+    const trim = ctx.createGain();
+    trim.gain.value = 0.8;
     this.master = ctx.createGain();
-    this.master.connect(shelf).connect(comp).connect(limit).connect(ctx.destination);
-    this.out = limit;
+    this.master.connect(shelf).connect(comp).connect(limit).connect(trim).connect(ctx.destination);
+    this.out = trim;
     this.music = ctx.createGain();
     this.score = ctx.createGain();
     this.sfxBus = ctx.createGain();
@@ -259,7 +263,7 @@ export class AudioEngine implements WorldSounds {
     const t = this.ctx.currentTime;
     const m = this.levels.muted ? 0 : this.levels.master;
     this.master.gain.setTargetAtTime(m, t, 0.05);
-    this.music.gain.setTargetAtTime(this.levels.music * 0.6, t, 0.05);
+    this.music.gain.setTargetAtTime(this.levels.music * 0.95, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(this.levels.sfx, t, 0.05);
   }
 
@@ -943,7 +947,8 @@ export class AudioEngine implements WorldSounds {
       this.sample('coins', { strength: 0.8 + 0.05 * g, when: t + 0.02 });
       this.sample('sparkle', { strength: 0.7 + 0.07 * g, when: t + 0.12 });
       this.sample('pant', { strength: 0.8, when: t + 0.9 });
-      if (g >= 1) this.sample('m_taiko', { strength: 0.8, dest: this.sting, when: t + 0.02 });
+      // Every escape lands on a struck taiko with the gold (louder from 2×), so the moment reads over the beds.
+      this.sample('m_taiko', { strength: g >= 1 ? 0.9 : 0.7, dest: this.sting, when: t + 0.02, priority: 3 });
       if (g >= 2) this.sample('m_boom', { strength: 0.5 + 0.08 * g, when: t });
       if (g >= 3) {
         for (const [i, dt] of [0.24, 0.36, 0.48].entries()) this.sample('m_taiko_hi', { strength: 0.6 + i * 0.15, dest: this.sting, when: t + dt });
@@ -1141,7 +1146,7 @@ export class AudioEngine implements WorldSounds {
       }, 4000);
     }
     if (this.drone) {
-      const d = s === 'run' ? 0.85 : s === 'lead' ? 0.75 : s === 'fallen' ? 0 : s === 'escaped' ? 0.3 : 0.5;
+      const d = s === 'run' ? 0.8 : s === 'lead' ? 0.6 : s === 'fallen' ? 0 : s === 'escaped' ? 0.2 : 0.3;
       if (s !== 'fallen') {
         this.drone.src.playbackRate.setTargetAtTime(1, t, 0.4);
         this.drone.gain.gain.setTargetAtTime(d, t, s === 'run' ? 0.5 : 1.5);
