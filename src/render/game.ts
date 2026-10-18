@@ -352,6 +352,7 @@ export class Game {
     this.sunDisc.visible = (L.sunDisc ?? 1) > 0;
     this.sun.shadow.intensity = L.shadow ?? 1;
     causticUniforms.uRainWet.value = L.wet ?? 0;
+    this.post.lookExposure = L.name === 'storm' ? 1.14 : 1;
   }
 
   private moodSun = new THREE.Color();
@@ -2030,6 +2031,13 @@ export class Game {
     setWorldDrive(this.stage === 'run' || this.stage === 'crash' || this.stage === 'cashout' ? this.prog.heat : 0);
     const mood = stepMood(dt, I);
     this.applyMood(mood.drive, mood.gust);
+    // Round 13: in a low, warm sun the runner wears a faint gold rim (the escape's rim, at a sliver of
+    // its strength), so his silhouette lifts off the stone; none in the flat light of morning or storm.
+    // The escape sets its own, stronger rim.
+    if (this.stage !== 'cashout') {
+      const ln = this.lookApplied?.name;
+      this.cine.rimLevelTarget = ln === 'golden' ? 0.16 : ln === 'afternoon' ? 0.1 : 0;
+    }
     this.water.update(this.worldT, cam);
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
