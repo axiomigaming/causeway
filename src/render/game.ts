@@ -357,6 +357,7 @@ export class Game {
     if (Math.abs(leaves - this.moodLeaves) > 0.02) {
       this.moodLeaves = leaves;
       this.ambient.setLeafDensity(leaves);
+      this.ambient.setGlow(0.3 + 0.7 * Math.max(d, storm ? 0.4 : 0));
     }
   }
 

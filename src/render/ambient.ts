@@ -69,6 +69,7 @@ export class Ambient {
   private birds;
   private butterflies;
   private leaves;
+  private flies;
 
   constructor() {
     let s = 7;
@@ -183,7 +184,49 @@ export class Ambient {
       }`,
       rnd,
     );
-    this.root.add(this.birds.mesh, this.butterflies.mesh, this.leaves.mesh);
+    // Round 11 detail: fireflies and midges over the water by the causeway: tiny glowing motes that
+    // wander and blink low over the surface (the glow is faint by day, brighter as the light goes).
+    const fly = new THREE.PlaneGeometry(1, 1);
+    fly.setAttribute('aWing', new THREE.Float32BufferAttribute(new Float32Array(4), 1));
+    this.flies = makeField(
+      fly,
+      70,
+      /* glsl */ `
+      uniform float uGlow;
+      varying vec2 vUv;
+      varying float vA;
+      void main() {
+        // Hover in loose swarms 0.2–2 m over the water (y = -2.2), 3–18 m to the sides of the camera.
+        vec3 base = vec3(aSeed.x * 36.0, 0.0, aSeed.w * 36.0);
+        base.x += sin(uTime * (0.3 + aSeed.y * 0.4) + aSeed.z * 30.0) * 1.6;
+        base.z += cos(uTime * (0.25 + aSeed.z * 0.4) + aSeed.y * 30.0) * 1.6;
+        vec3 pos = wrapAround(base, vec3(36.0, 1.0, 36.0));
+        pos.y = -2.0 + aSeed.y * 1.8 + sin(uTime * (1.1 + aSeed.x) + aSeed.w * 20.0) * 0.25;
+        float side = abs(pos.x - uCenter.x);
+        float blink = smoothstep(0.35, 0.9, sin(uTime * (1.3 + aSeed.z * 2.0) + aSeed.x * 50.0) * 0.5 + 0.5);
+        vA = blink * uGlow * smoothstep(2.5, 4.0, length(pos.xz - uCenter.xz));
+        vUv = uv;
+        vec4 mv = viewMatrix * vec4(pos, 1.0);
+        mv.xy += position.xy * (0.05 + 0.04 * aSeed.w);
+        gl_Position = projectionMatrix * mv;
+      }`,
+      /* glsl */ `
+      varying vec2 vUv;
+      varying float vA;
+      void main() {
+        float d = length(vUv - 0.5) * 2.0;
+        float g = exp(-d * d * 5.0);
+        gl_FragColor = vec4(vec3(0.85, 1.0, 0.45) * g * vA * 2.2, 1.0);
+      }`,
+      rnd,
+      { uGlow: { value: 0.35 } },
+    );
+    const fm = this.flies.mat;
+    fm.transparent = true;
+    fm.depthWrite = false;
+    fm.blending = THREE.AdditiveBlending;
+    fm.fog = false;
+    this.root.add(this.birds.mesh, this.butterflies.mesh, this.leaves.mesh, this.flies.mesh);
   }
 
   /** 0 hides ambient life, 1 is the full count. */
@@ -193,6 +236,7 @@ export class Ambient {
     };
     set(this.birds, 8);
     set(this.butterflies, 4);
+    set(this.flies, 0);
     this.leafBudget = k >= 0.5 ? Math.min(1, k) : 0;
     this.leaves.mesh.visible = k >= 0.5;
     this.setLeafDensity(this.leafDensity);
@@ -201,6 +245,11 @@ export class Ambient {
   private leafBudget = 1;
   private leafDensity = 0;
   /** Round 11 crescendo: 0 calm (a third of the leaves) .. 1 the air full of falling leaves. */
+  /** Firefly glow (0..1): faint by day, brighter as the light goes. */
+  setGlow(g: number): void {
+    this.flies.mat.uniforms.uGlow!.value = g;
+  }
+
   setLeafDensity(d: number): void {
     this.leafDensity = d;
     const n = Math.round(this.leaves.max * this.leafBudget * (0.33 + 0.67 * Math.min(1, Math.max(0, d))));
@@ -208,7 +257,7 @@ export class Ambient {
   }
 
   update(t: number, cam: THREE.Camera): void {
-    for (const f of [this.birds, this.butterflies, this.leaves]) {
+    for (const f of [this.birds, this.butterflies, this.leaves, this.flies]) {
       f.mat.uniforms.uTime!.value = t;
       f.mat.uniforms.uCenter!.value.copy(cam.position);
     }

@@ -534,7 +534,7 @@ function stageKit(kit: Kit): void {
     const m = kit.mat.get(key);
     // Detail normals strongest underfoot, where the camera is closest.
     const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' ? 0.8 : key === 'wood' ? 0.4 : 0.6;
-    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail);
+    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor');
   }
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {
