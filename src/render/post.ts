@@ -336,6 +336,7 @@ class WaterReflectEffect extends Effect {
       uniform mat4 viewProj;
       uniform vec3 camPos;
       uniform float waterTime;
+      uniform float aspect;
       void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
         outputColor = inputColor;
         if (inputColor.a > 0.6 || depth > 0.99999) return;
@@ -349,13 +350,18 @@ class WaterReflectEffect extends Effect {
         vec3 N = normalize(vec3(g.x, 1.0, g.y));
         vec3 R = reflect(V, N);
         float s0 = 0.35 + dist * 0.035;
-        float jitter = ignL(gl_FragCoord.xy);
-        vec2 hitUV = vec2(0.0);
+        // A small dither (a quarter of a step): the bisection below finds the true crossing, so the
+        // jitter only has to hide the step pattern, not stand in for precision. The full 0..1 jitter
+        // printed a dotted mosaic over the far water.
+        float jitter = 0.5 + (ignL(gl_FragCoord.xy) - 0.5) * 0.25;
+        float t0 = 0.0;
+        float t1 = 0.0;
         float hit = 0.0;
         float fi = 0.0;
         for (int i = 0; i < ${steps}; i++) {
           fi = float(i) + jitter;
-          vec3 Q = P + R * s0 * fi * (1.0 + fi * 0.18);
+          float t = s0 * fi * (1.0 + fi * 0.18);
+          vec3 Q = P + R * t;
           vec4 cq = viewProj * vec4(Q, 1.0);
           if (cq.w <= 0.01) break;
           vec3 n = cq.xyz / cq.w;
@@ -364,19 +370,52 @@ class WaterReflectEffect extends Effect {
           float sd = readDepth(q);
           float rd = n.z * 0.5 + 0.5;
           if (sd < 0.99999 && rd > sd) {
-            float gap = getViewZ(sd) - getViewZ(rd);
-            if (gap < 1.2 + s0 * fi * 0.35) {
-              hitUV = q;
-              hit = 1.0;
-            }
+            t1 = t;
+            hit = 1.0;
             break;
           }
+          t0 = t;
         }
         if (hit < 0.5) return;
+        // Bisect between the last step in front of the surface and the first behind it: the hit is
+        // found to a fraction of a step, so reflected edges are smooth lines, not a staircase of
+        // step-sized patches.
+        vec2 hitUV = vec2(0.0);
+        float gap = 0.0;
+        for (int k = 0; k < 6; k++) {
+          float tm = 0.5 * (t0 + t1);
+          vec4 cq = viewProj * vec4(P + R * tm, 1.0);
+          vec3 n = cq.xyz / cq.w;
+          vec2 q = n.xy * 0.5 + 0.5;
+          float sd = readDepth(q);
+          float rd = n.z * 0.5 + 0.5;
+          if (sd < 0.99999 && rd > sd) {
+            t1 = tm;
+            hitUV = q;
+            gap = getViewZ(sd) - getViewZ(rd);
+          } else t0 = tm;
+        }
+        if (hitUV == vec2(0.0)) {
+          vec4 cq = viewProj * vec4(P + R * t1, 1.0);
+          hitUV = cq.xy / cq.w * 0.5 + 0.5;
+        }
+        // Thickness: a ray passing well behind a surface (a thin pillar seen past its edge) fades out
+        // instead of cutting off.
+        float thick = 1.2 + t1 * 0.12;
+        float solid = 1.0 - smoothstep(thick * 0.5, thick, abs(gap));
         vec2 e = smoothstep(vec2(0.0), vec2(0.08), hitUV) * smoothstep(vec2(1.0), vec2(0.92), hitUV);
-        float fade = e.x * e.y * (1.0 - fi / float(${steps}));
-        vec4 hc = texture2D(inputBuffer, hitUV);
-        if (hc.a < 0.6) return; // a reflection of the water itself: keep the panorama
+        float fade = e.x * e.y * (1.0 - smoothstep(0.55, 1.0, fi / float(${steps}))) * solid;
+        // Glossy, not mirror-sharp: the ripples blur the reflection more the further it travels
+        // (a cheap cone: five taps across a footprint that grows with the reflected distance).
+        float rough = 0.0015 + t1 * 0.0007 + length(g) * 0.12;
+        vec2 px = vec2(rough / aspect, rough);
+        vec4 hc = texture2D(inputBuffer, hitUV) * 0.4;
+        hc += texture2D(inputBuffer, hitUV + vec2(px.x, 0.0)) * 0.15;
+        hc += texture2D(inputBuffer, hitUV - vec2(px.x, 0.0)) * 0.15;
+        hc += texture2D(inputBuffer, hitUV + vec2(0.0, px.y)) * 0.15;
+        hc += texture2D(inputBuffer, hitUV - vec2(0.0, px.y)) * 0.15;
+        // A reflection of the water itself keeps the panorama (fade, not a cut).
+        fade *= smoothstep(0.45, 0.75, hc.a);
         float fres = 0.04 + 0.96 * pow(1.0 - max(dot(-V, N), 0.0), 5.0);
         vec3 refl = hc.rgb * vec3(0.82, 0.92, 0.9);
         outputColor = vec4(mix(inputColor.rgb, refl, clamp(fres * 1.15, 0.0, 0.92) * fade), inputColor.a);
@@ -388,6 +427,7 @@ class WaterReflectEffect extends Effect {
           ['viewProj', new THREE.Uniform(new THREE.Matrix4())],
           ['camPos', new THREE.Uniform(new THREE.Vector3())],
           ['waterTime', new THREE.Uniform(0)],
+          ['aspect', new THREE.Uniform(1.6)],
         ]),
       },
     );
@@ -395,62 +435,198 @@ class WaterReflectEffect extends Effect {
 }
 
 /**
- * Ambient occlusion from the depth buffer alone (no normal pass, no extra draw calls): view-space
- * positions are rebuilt from depth, the normal from the nearer neighbour on each axis, and a short
- * spiral of taps measures how much the surrounding geometry closes over each point. It darkens the
- * seams where stones meet the floor, the undersides of ledges and the feet of walls in the water.
+ * Ambient occlusion from the depth buffer alone (no normal pass, no extra scene draws), in three
+ * screen passes of its own, then multiplied over the frame:
+ *  1. occlusion: view-space positions rebuilt from depth (through the inverse projection, so the
+ *     rig's view offset is honoured), the normal from the nearer neighbour on each axis, and a spiral
+ *     of taps measuring how far the surrounding geometry closes over the point, at two scales (the
+ *     seams between blocks, and the depth of a wall course or a ledge);
+ *  2–3. a depth-aware 4×4 blur. The spiral's rotation follows a 4×4 interleaved pattern, so the blur
+ *     cancels it exactly (the single-pass version printed that pattern as a hatched moiré over every
+ *     floor), and taps across a depth edge are rejected, so nothing bleeds round the runner (no halo).
  * Fades out with distance, and never touches the sky.
  */
+const AO_VERT = /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+const AO_DEPTH = /* glsl */ `
+  #include <packing>
+  uniform sampler2D tDepth;
+  uniform mat4 projInv;
+  uniform float cNear;
+  uniform float cFar;
+  float rawDepth(vec2 p) {
+    #if DEPTH_RGBA
+      return unpackRGBAToDepth(texture2D(tDepth, p));
+    #else
+      return texture2D(tDepth, p).r;
+    #endif
+  }
+  vec3 viewPos(vec2 p) {
+    float d = rawDepth(p);
+    vec4 v = projInv * vec4(p * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+    return v.xyz / v.w;
+  }`;
+
 class DepthAOEffect extends Effect {
-  constructor(samples: number) {
+  private rtA = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false, type: THREE.HalfFloatType, format: THREE.RGBAFormat });
+  private rtB = this.rtA.clone();
+  private quad: THREE.Mesh;
+  private cam2 = new THREE.Camera();
+  private scene2 = new THREE.Scene();
+  private occMat: THREE.ShaderMaterial;
+  private blurMat: THREE.ShaderMaterial;
+  private camera: THREE.PerspectiveCamera;
+
+  constructor(samples: number, camera: THREE.Camera, private scale = 1) {
     super(
       'DepthAO',
       /* glsl */ `
-      uniform vec2 projInfo;
-      uniform float aoRadius;
+      uniform sampler2D tAO;
       uniform float aoStrength;
-      vec3 aoPos(vec2 p) {
-        float z = getViewZ(readDepth(p));
-        return vec3((p * 2.0 - 1.0) * projInfo * (-z), z);
-      }
-      float ign3(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
       void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
-        if (depth > 0.9999 || aoStrength < 0.001) { outputColor = inputColor; return; }
-        vec3 P = aoPos(uv);
-        float dist = -P.z;
-        float fade = 1.0 - smoothstep(35.0, 80.0, dist);
-        if (fade < 0.01) { outputColor = inputColor; return; }
-        vec3 px = aoPos(uv + vec2(texelSize.x, 0.0)) - P;
-        vec3 nx = P - aoPos(uv - vec2(texelSize.x, 0.0));
-        vec3 py = aoPos(uv + vec2(0.0, texelSize.y)) - P;
-        vec3 ny = P - aoPos(uv - vec2(0.0, texelSize.y));
-        vec3 dx = abs(px.z) < abs(nx.z) ? px : nx;
-        vec3 dy = abs(py.z) < abs(ny.z) ? py : ny;
-        vec3 N = normalize(cross(dx, dy));
-        if (dot(N, P) > 0.0) N = -N;
-        float rPx = clamp(aoRadius / (dist * projInfo.y) * resolution.y * 0.5, 2.0, 70.0);
-        float a0 = ign3(gl_FragCoord.xy) * 6.2831853;
-        float occ = 0.0;
-        for (int i = 0; i < ${samples}; i++) {
-          float t = (float(i) + 0.5) / float(${samples});
-          float a = a0 + t * 15.4; // ~2.5 turns of spiral
-          vec2 o = vec2(cos(a), sin(a)) * t * rPx * texelSize;
-          vec3 v = aoPos(uv + o) - P;
-          float l = length(v);
-          occ += max(dot(N, v / max(l, 1e-4)) - 0.12, 0.0) * (1.0 - smoothstep(aoRadius * 0.7, aoRadius * 1.8, l));
-        }
-        occ = clamp(occ / float(${samples}) * 1.9, 0.0, 1.0);
-        outputColor = vec4(inputColor.rgb * (1.0 - occ * aoStrength * fade), inputColor.a);
+        float ao = texture2D(tAO, uv).r;
+        outputColor = vec4(inputColor.rgb * mix(1.0, ao, aoStrength), inputColor.a);
       }`,
       {
         attributes: EffectAttribute.DEPTH,
         uniforms: new Map<string, THREE.Uniform>([
+          ['tAO', new THREE.Uniform(null)],
+          ['aoStrength', new THREE.Uniform(0.85)],
           ['projInfo', new THREE.Uniform(new THREE.Vector2(1, 1))],
-          ['aoRadius', new THREE.Uniform(0.9)],
-          ['aoStrength', new THREE.Uniform(0.75)],
         ]),
       },
     );
+    this.camera = camera as THREE.PerspectiveCamera;
+    const common = { tDepth: { value: null }, projInv: { value: new THREE.Matrix4() }, cNear: { value: 0.1 }, cFar: { value: 2400 }, texel: { value: new THREE.Vector2(1, 1) }, pxPerM: { value: 1 } };
+    this.occMat = new THREE.ShaderMaterial({
+      defines: { SAMPLES: samples, DEPTH_RGBA: 0 },
+      uniforms: { ...common },
+      vertexShader: AO_VERT,
+      fragmentShader: /* glsl */ `
+        ${AO_DEPTH}
+        uniform vec2 texel;
+        uniform float pxPerM;
+        varying vec2 vUv;
+        void main() {
+          float d = rawDepth(vUv);
+          if (d > 0.99999) { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); return; }
+          vec3 P = viewPos(vUv);
+          float dist = -P.z;
+          float fade = 1.0 - smoothstep(30.0, 70.0, dist);
+          if (fade < 0.01) { gl_FragColor = vec4(1.0, dist, 0.0, 1.0); return; }
+          vec3 px = viewPos(vUv + vec2(texel.x, 0.0)) - P;
+          vec3 nx = P - viewPos(vUv - vec2(texel.x, 0.0));
+          vec3 py = viewPos(vUv + vec2(0.0, texel.y)) - P;
+          vec3 ny = P - viewPos(vUv - vec2(0.0, texel.y));
+          vec3 N = normalize(cross(abs(px.z) < abs(nx.z) ? px : nx, abs(py.z) < abs(ny.z) ? py : ny));
+          if (dot(N, P) > 0.0) N = -N;
+          // 4×4 interleaved rotation (cancelled exactly by the 4×4 blur).
+          vec2 cell = mod(floor(gl_FragCoord.xy), 4.0);
+          float a0 = (cell.x * 4.0 + cell.y) * (6.2831853 / 16.0) + mod(cell.y, 2.0) * 0.2;
+          float occ = 0.0;
+          float wsum = 0.0;
+          for (int s = 0; s < 2; s++) {
+            // Two radii: the joints between blocks, and a wall course or a ledge.
+            float R = s == 0 ? 0.35 : 1.25;
+            float rPx = clamp(R * pxPerM / dist, 2.0, 90.0);
+            for (int i = 0; i < SAMPLES; i++) {
+              float t = (float(i) + 0.5) / float(SAMPLES);
+              float a = a0 + t * 13.7 + float(s) * 1.3;
+              vec2 o = vec2(cos(a), sin(a)) * (t * t * 0.85 + 0.15) * rPx * texel;
+              vec3 v = viewPos(vUv + o) - P;
+              float l = length(v);
+              float w = 1.0 - smoothstep(R * 0.6, R * 1.6, l);
+              occ += max(dot(N, v / max(l, 1e-4)) - 0.1, 0.0) * w;
+              wsum += 1.0;
+            }
+          }
+          occ = clamp(occ / wsum * 2.2, 0.0, 1.0) * fade;
+          gl_FragColor = vec4(1.0 - occ, dist, 0.0, 1.0);
+        }`,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.blurMat = new THREE.ShaderMaterial({
+      uniforms: { tAO: { value: null }, texel: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) } },
+      vertexShader: AO_VERT,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D tAO;
+        uniform vec2 texel;
+        uniform vec2 dir;
+        varying vec2 vUv;
+        void main() {
+          vec4 c = texture2D(tAO, vUv);
+          if (c.g <= 0.0) { gl_FragColor = c; return; }
+          float sum = 0.0;
+          float w = 0.0;
+          // Four taps, -1.5..+1.5 texels: with the 4-cell rotation pattern this is an exact average.
+          for (int i = 0; i < 4; i++) {
+            float k = float(i) - 1.5;
+            vec4 s = texture2D(tAO, vUv + dir * texel * k);
+            float wd = s.g > 0.0 ? exp(-abs(s.g - c.g) / (0.03 * c.g + 0.02) ) : 0.0;
+            sum += s.r * wd;
+            w += wd;
+          }
+          gl_FragColor = vec4(w > 1e-4 ? sum / w : c.r, c.g, 0.0, 1.0);
+        }`,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.occMat);
+    this.quad.frustumCulled = false;
+    this.scene2.add(this.quad);
+    this.uniforms.get('tAO')!.value = this.rtA.texture;
+  }
+
+  override setDepthTexture(depthTexture: THREE.Texture, depthPacking: THREE.DepthPackingStrategies = THREE.BasicDepthPacking): void {
+    this.occMat.uniforms.tDepth!.value = depthTexture;
+    const rgba = depthPacking === THREE.RGBADepthPacking ? 1 : 0;
+    if (this.occMat.defines.DEPTH_RGBA !== rgba) {
+      this.occMat.defines.DEPTH_RGBA = rgba;
+      this.occMat.needsUpdate = true;
+    }
+  }
+
+  override setSize(width: number, height: number): void {
+    // Medium draws the occlusion at half resolution (a quarter of the cost); it is low-frequency
+    // after the blur, and the composite reads it filtered.
+    const w = Math.max(1, Math.round(width * this.scale));
+    const h = Math.max(1, Math.round(height * this.scale));
+    this.rtA.setSize(w, h);
+    this.rtB.setSize(w, h);
+    this.occMat.uniforms.texel!.value.set(1 / w, 1 / h);
+    this.blurMat.uniforms.texel!.value.set(1 / w, 1 / h);
+  }
+
+  override update(renderer: THREE.WebGLRenderer): void {
+    const cam = this.camera;
+    const u = this.occMat.uniforms;
+    u.projInv!.value.copy(cam.projectionMatrixInverse);
+    u.cNear!.value = cam.near;
+    u.cFar!.value = cam.far;
+    // Pixels per metre at 1 m from the lens.
+    u.pxPerM!.value = (cam.projectionMatrix.elements[5]! * 0.5) / u.texel!.value.y;
+    const prev = renderer.getRenderTarget();
+    this.quad.material = this.occMat;
+    renderer.setRenderTarget(this.rtA);
+    renderer.render(this.scene2, this.cam2);
+    this.quad.material = this.blurMat;
+    this.blurMat.uniforms.tAO!.value = this.rtA.texture;
+    this.blurMat.uniforms.dir!.value.set(1, 0);
+    renderer.setRenderTarget(this.rtB);
+    renderer.render(this.scene2, this.cam2);
+    this.blurMat.uniforms.tAO!.value = this.rtB.texture;
+    this.blurMat.uniforms.dir!.value.set(0, 1);
+    renderer.setRenderTarget(this.rtA);
+    renderer.render(this.scene2, this.cam2);
+    renderer.setRenderTarget(prev);
+  }
+
+  override dispose(): void {
+    super.dispose();
+    this.rtA.dispose();
+    this.rtB.dispose();
+    this.occMat.dispose();
+    this.blurMat.dispose();
   }
 }
 
@@ -634,6 +810,8 @@ export class Post {
 
   build(q: QualityProfile): void {
     this.composer.removeAllPasses();
+    // Ultra: 4× MSAA on the scene render (geometric edges: wall courses, pillars, the runner).
+    this.composer.multisampling = Math.min(q.msaa, this.renderer.capabilities.maxSamples);
     this.composer.addPass(this.renderPass);
     this.ssr = q.waterReflections > 0 ? new WaterReflectEffect(q.waterReflections) : null;
     // The guard runs first, on the raw render, so nothing downstream ever sees a NaN pixel.
@@ -641,7 +819,7 @@ export class Post {
     this.composer.addPass(new EffectPass(this.camera, new NanGuardEffect()));
     if (this.ssr) this.composer.addPass(new EffectPass(this.camera, this.ssr));
     this.shafts = q.godRays > 0 ? new SunShaftsEffect(q.godRays) : null;
-    this.ao = q.ao > 0 ? new DepthAOEffect(q.ao) : null;
+    this.ao = q.ao > 0 ? new DepthAOEffect(q.ao, this.camera, q.pixelRatioCap < 2 ? 0.5 : 1) : null;
     const lightFx = [this.ao, this.shafts].filter((e): e is DepthAOEffect | SunShaftsEffect => e !== null);
     if (lightFx.length) this.composer.addPass(new EffectPass(this.camera, ...lightFx));
     this.cameraBlur = q.motionBlur === 'camera';
@@ -675,6 +853,7 @@ export class Post {
     const up = (globalThis.devicePixelRatio || 1) / Math.max(0.25, this.renderer.getPixelRatio());
     this.sharpen.uniforms.get('sharpness')!.value = Math.min(1, this.sharpenBase + 0.35 * Math.min(1.5, Math.max(0, up - 1)));
     for (const e of [this.blur, this.shafts, this.lens]) if (e) e.uniforms.get('aspectRatio')!.value = w / h;
+    if (this.ssr) this.ssr.uniforms.get('aspect')!.value = w / h;
     // Portrait: sun glare and shafts are sized by the short side and toned down (see the shaders).
     const a = w / h;
     for (const e of [this.shafts, this.lens]) {
@@ -812,10 +991,6 @@ export class Post {
     if (cam.near !== this.near) {
       this.near = cam.near;
       for (const p of this.composer.passes) (p.fullscreenMaterial as { copyCameraSettings?: (c: THREE.Camera) => void } | null)?.copyCameraSettings?.(cam);
-    }
-    if (this.ao) {
-      const pm = (this.camera as THREE.PerspectiveCamera).projectionMatrix.elements;
-      this.ao.uniforms.get('projInfo')!.value.set(1 / pm[0]!, 1 / pm[5]!);
     }
     this.composer.render(dt);
   }

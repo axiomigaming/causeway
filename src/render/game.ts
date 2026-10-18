@@ -3,7 +3,7 @@ import { QUALITY, type QualityLevel } from '../config/quality';
 import { multiplierAtSmooth } from '../engine/curve';
 import { Rng, hashString } from '../engine/rng';
 import { loadKit, pickAssetSet, wind, type Kit } from '../world/assets';
-import { DynamicResolution, warmUp } from './perf';
+import { DynamicResolution, tuneTextures, warmUp } from './perf';
 import { installShadowEdgeFade } from './shadows';
 import { ContactShadow } from './contact';
 import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
@@ -251,6 +251,8 @@ export class Game {
     const probe = this.debris.spawn('gate_0', new THREE.Matrix4().makeTranslation(0, -50, 0), new THREE.Vector3(), new THREE.Vector3(), () => null);
     this.debris.spawn('rock_mid_0', new THREE.Matrix4().makeTranslation(0, -50, 0), new THREE.Vector3(), new THREE.Vector3(), () => null);
     this.debris.spawn('shard_0', new THREE.Matrix4().makeTranslation(0, -50, 0), new THREE.Vector3(), new THREE.Vector3(), () => null, { mat: 'floor' });
+    // Full anisotropy, trilinear mips and the right colour space on every world texture.
+    this.textureReport = tuneTextures(this.renderer, [scene, ...this.track.variantGroups()], this.kit.mat.values());
     await this.renderer.compileAsync(scene, this.rig.camera);
     // perf: upload every section variant's geometry and every kit texture now, not mid-run.
     warmUp(this.renderer, [scene, ...this.track.variantGroups()], this.kit.mat.values());
@@ -263,6 +265,8 @@ export class Game {
   }
 
   private sunDisc!: THREE.Mesh;
+  /** QA: what tuneTextures changed, and any colour-space mismatches it saw. */
+  textureReport: { changed: number; mismatches: string[] } = { changed: 0, mismatches: [] };
 
   /** Round 11: light and air for the current world's time-of-day look (a few uniforms, once per world). */
   private applyLook(): void {

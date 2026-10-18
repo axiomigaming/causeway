@@ -97,3 +97,50 @@ export function warmUp(renderer: THREE.WebGLRenderer, roots: THREE.Object3D[], m
   plain.dispose();
   return { geometries: geos.size, textures: textures.size };
 }
+
+/**
+ * Texture sampling for every world material (clarity, round 12): the GPU's full anisotropy (up to
+ * 16×) so floor planks and wall courses seen at a grazing angle keep their detail instead of
+ * shimmering into a dotted moiré, and trilinear mips. Colour spaces are only checked, never
+ * changed: the loader already marks base colour / emissive sRGB and data maps linear, and one image
+ * can sit in two slots (a leaf atlas used as `map` and as `alphaMap`). Forcing the data slot linear
+ * there undid the colour slot's sRGB decode and washed the jungle out to a pale grey (round 12 fix).
+ * Returns the textures changed and any colour-space mismatches (for QA).
+ */
+export function tuneTextures(renderer: THREE.WebGLRenderer, roots: THREE.Object3D[], materials: Iterable<THREE.Material> = []): { changed: number; mismatches: string[] } {
+  const maxAniso = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+  const SLOTS = ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap', 'alphaMap'];
+  const COLOR = new Set(['map', 'emissiveMap']);
+  const seenM = new Set<THREE.Material>();
+  const seenT = new Set<THREE.Texture>();
+  const mismatches: string[] = [];
+  let changed = 0;
+  const tune = (m: THREE.Material) => {
+    if (seenM.has(m)) return;
+    seenM.add(m);
+    const rec = m as unknown as Record<string, THREE.Texture | null | undefined>;
+    for (const k of SLOTS) {
+      const t = rec[k];
+      if (!t?.isTexture || (t as THREE.DataTexture).isDataTexture) continue;
+      if (COLOR.has(k) !== (t.colorSpace === THREE.SRGBColorSpace)) mismatches.push(`${m.name || m.type}.${k}: ${t.colorSpace || 'none'}`);
+      if (seenT.has(t)) continue;
+      seenT.add(t);
+      let dirty = false;
+      if (t.anisotropy < maxAniso) ((t.anisotropy = maxAniso), (dirty = true));
+      if (t.minFilter === THREE.LinearFilter || t.minFilter === THREE.NearestFilter || t.minFilter === THREE.LinearMipmapNearestFilter) {
+        t.minFilter = THREE.LinearMipmapLinearFilter;
+        t.generateMipmaps = true;
+        dirty = true;
+      }
+      if (dirty) ((t.needsUpdate = true), changed++);
+    }
+  };
+  for (const m of materials) tune(m);
+  for (const root of roots)
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) tune(m);
+    });
+  return { changed, mismatches };
+}
