@@ -857,7 +857,8 @@ def build(rig):
             for kp in fc.keyframe_points:
                 kp.interpolation = "LINEAR" if gait else "BEZIER"
     for act in bpy.data.actions:
-        if act.name == "start" or act.name.startswith(("fall_", "win", "jump_", "leap_", "slide", "vault", "turn_cut", "stumble_")):
+        # (Not the vault: its support arm is baked to the stone.)
+        if act.name == "start" or act.name.startswith(("fall_", "win", "jump_", "leap_", "slide", "turn_cut", "stumble_")):
             follow_through(act)
     rig.animation_data.action = bpy.data.actions["run"]
 
@@ -1504,50 +1505,98 @@ def gkey(fr, ph, G=None, k=1.0, **mods):
     return P
 
 
-JL_LAND, JL_H = 25, 0.6
-V_LAND, V_H = 23, 0.7
+JL_LAND, JL_H = 24, 0.52
+V_LAND, V_H = 22, 0.28
+V_PLANT = (10, 16)  # frames the palm is on the stone
+VY = 1.75  # the legs swing round to his left (thigh yaw)
+VL = (2.2, 2.35, 2.1)  # and up (thigh flexion) through the plant
+VA = (1.0, 0.85, 0.1, -0.65, -1.1)  # the support arm: reach, plant start, over it, plant end, shove
 SLIDE_Z = -0.55
+
+
+def plant_hand(action, side, f0, f1, where, ramp=1):
+    """Hold a wrist on a world point through frames f0..f1 with an IK constraint, baked into the action."""
+    rig = RIG
+    pb = rig.pose.bones
+    emp = bpy.data.objects.new(f"plant_{action}", None)
+    bpy.context.scene.collection.objects.link(emp)
+    for f in range(f0 - ramp, f1 + ramp + 1):
+        emp.location = where((f - 1) / FPS)
+        emp.keyframe_insert("location", frame=f)
+    c = pb[f"forearm.{side}"].constraints.new("IK")
+    c.target = emp
+    c.chain_count = 2
+    for f, w in ((f0 - ramp - 1, 0.0), (f0, 1.0), (f1, 1.0), (f1 + ramp + 1, 0.0)):
+        c.influence = w
+        c.keyframe_insert("influence", frame=f)
+    bpy.context.view_layer.objects.active = rig
+    rig.select_set(True)
+    bpy.ops.object.mode_set(mode="POSE")
+    for b in rig.data.bones:
+        b.select = b.name in (f"forearm.{side}", f"upper_arm.{side}")
+    bpy.ops.nla.bake(frame_start=f0 - ramp - 1, frame_end=f1 + ramp + 1, only_selected=True, visual_keying=True,
+                     clear_constraints=True, use_current_action=True, bake_types={"POSE"})
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.data.objects.remove(emp)
+    if rig.animation_data.action.name != action:
+        print(f"  plant_hand: bake wrote to {rig.animation_data.action.name}", flush=True)
 
 
 def obstacle_clips():
     """Moves over, under and around the course, authored at run pace (5 m/s); each starts on a left strike
     (gait phase 0) and hands back to the gait at the phase noted (runner.ts OBSTACLES)."""
-    # ---------------------------------------------------------- jump_log: a tuck jump over the fallen trunk
-    # (log_fallen_0: Ø 0.84 m, top ~0.8 m). Takeoff off the left foot ~1.1 m short of it; the hips rise
-    # ~0.5 m, both knees come up to the chest fast (the trailing leg first, so it clears the near face), the
-    # feet are ~0.95 m up over the top; the right foot reaches for the far side.
+    # ---------------------------------------------------------- jump_log: a running hurdle stride over the trunk
+    # (log_fallen_0: Ø 0.84 m, top ~0.8 m). Off the left foot; the right leg reaches over nearly straight,
+    # heel leading, the trunk dips toward it and the left arm reaches along it while the right swings
+    # back; the left (trail) leg folds and comes over high and out to the side, then pulls through to
+    # become the next stride. The right foot takes the landing and he is straight back into the run.
     new_action("jump_log")
     run_in()
     gkey(4, 0.2)
     T = {}
-    torso(T, lean=0.32, look=0.42, hp=0.16)
-    leg(T, "L", hip=-0.4, knee=0.25, ankle=0.75, toe=0.7)
-    leg(T, "R", hip=1.5, knee=1.85, ankle=0.15)
-    arm(T, "L", fwd=1.5, elbow=1.1, out=0.15, curl=1.0)
-    arm(T, "R", fwd=0.4, elbow=1.2, out=0.25, curl=1.0)
+    torso(T, lean=0.38, look=0.4, hp=0.18, yaw=0.08, hyaw=-0.06)
+    leg(T, "L", hip=-0.42, knee=0.25, ankle=0.8, toe=0.75)
+    leg(T, "R", hip=1.5, knee=1.6, ankle=0.0)
+    arm(T, "L", fwd=1.1, elbow=1.2, out=0.15, curl=0.45)
+    arm(T, "R", fwd=-0.75, elbow=1.1, out=0.22, curl=0.45)
     zt = solve_root(T)
-    U = {}
-    torso(U, lean=0.42, look=0.55, hp=0.3)
-    leg(U, "L", hip=1.8, knee=2.5, ankle=-0.45, out=0.08)
-    leg(U, "R", hip=1.9, knee=2.35, ankle=-0.4, out=0.06)
-    arm(U, "L", fwd=1.55, elbow=0.9, out=0.35, curl=1.0)
-    arm(U, "R", fwd=1.35, elbow=0.9, out=0.4, curl=1.0)
-    D = {}
-    torso(D, lean=0.3, look=0.45, hp=0.15)
-    leg(D, "R", hip=0.8, knee=0.3, ankle=0.05)
-    leg(D, "L", hip=0.55, knee=1.7, ankle=0.3)
-    arm(D, "L", fwd=0.9, elbow=1.3, out=0.3, curl=1.0)
-    arm(D, "R", fwd=0.2, elbow=1.2, out=0.35, curl=1.0)
-    zl = solve_root(D)
-    air(6, JL_LAND, [(0.0, T), (0.25, U), (0.78, U), (1.0, D)], zt, zl, JL_H)
-    A = {}
-    torso(A, lean=0.42, look=0.45, hp=0.2)
-    leg(A, "R", hip=0.55, knee=0.9, ankle=-0.15)
-    leg(A, "L", hip=0.2, knee=1.35, ankle=0.35)
-    arm(A, "L", fwd=0.6, elbow=1.4, out=0.25, curl=1.0)
-    arm(A, "R", fwd=-0.2, elbow=1.3, out=0.25, curl=1.0)
-    key(JL_LAND + 2, A, lift=-0.01)
-    gkey(JL_LAND + 5, 0.68)
+    # Rising: the lead knee unfolds, the trail leg leaves the floor folding.
+    U1 = {}
+    torso(U1, lean=0.55, look=0.5, hp=0.22, yaw=0.12, hyaw=-0.1)
+    leg(U1, "R", hip=2.05, knee=0.75, ankle=-0.25)
+    leg(U1, "L", hip=-0.15, knee=1.6, ankle=0.4, out=0.25)
+    arm(U1, "L", fwd=1.45, elbow=0.6, out=0.1, wrist=0.1, curl=0.35)
+    arm(U1, "R", fwd=-0.75, elbow=1.25, out=0.35, curl=0.4)
+    # Over the top: lead leg out straight, heel first; chest down to the knee; the trail knee comes up and
+    # round at the side, foot tucked to the seat, high.
+    U2 = {}
+    torso(U2, lean=0.82, look=0.75, hp=0.25, yaw=0.18, hyaw=-0.2, roll=0.05)
+    leg(U2, "R", hip=1.9, knee=0.15, ankle=-0.3)
+    leg(U2, "L", hip=0.55, knee=2.2, ankle=-0.1, out=1.15, yaw=-0.3)
+    arm(U2, "L", fwd=1.55, elbow=0.35, out=0.05, wrist=0.15, curl=0.3)
+    arm(U2, "R", fwd=-0.45, elbow=1.35, out=0.45, curl=0.4)
+    # Coming down: the lead leg cuts down for the floor, the trail knee pulls through in front, high, the
+    # arms start to swap.
+    U3 = {}
+    torso(U3, lean=0.6, look=0.55, hp=0.22, yaw=0.0, hyaw=0.05)
+    leg(U3, "R", hip=1.35, knee=0.2, ankle=-0.15)
+    leg(U3, "L", hip=1.05, knee=2.1, ankle=0.0, out=0.55, yaw=-0.15)
+    arm(U3, "L", fwd=0.9, elbow=0.9, out=0.15, curl=0.4)
+    arm(U3, "R", fwd=0.1, elbow=1.3, out=0.3, curl=0.4)
+    # Touchdown on the right (the run's right strike), the left knee driving on.
+    D, _ = loco(0.5, RUN)
+    torso(D, lean=0.42, look=0.45, hp=0.2, yaw=-0.06, hyaw=0.05)
+    leg(D, "L", hip=1.15, knee=1.75, ankle=0.05, out=0.15)
+    arm(D, "R", fwd=0.85, elbow=1.4, out=0.2, curl=0.45)
+    arm(D, "L", fwd=-0.55, elbow=1.15, out=0.25, curl=0.45)
+    zl = gait_root(0.5, RUN)
+    air(6, JL_LAND, [(0.0, T), (0.17, U1), (0.5, U2), (0.78, U3), (1.0, D)], zt, zl, JL_H)
+    # No pause: a slightly deeper first stance (soaking the drop), then the stride rolls on.
+    P, x = loco(0.6, RUN)
+    nudge(P, "shin.R", dx=0.12)
+    nudge(P, "thigh.R", dx=-0.06)
+    key(JL_LAND + 2, P, z=gait_root(0.6, RUN) - 0.025, x=x)
+    gkey(JL_LAND + 4, 0.7)
 
     # ---------------------------------------------------------- leap_gap: bound across a 1.5–3 m gap
     # (nominal 0.5 s flight; the runtime stretches the flight and its arc to the actual gap)
@@ -1631,53 +1680,74 @@ def obstacle_clips():
     gkey(27, 0.25, k=0.9)
     gkey(30, 0.45)
 
-    # ---------------------------------------------------------- vault: a speed vault over the toppled pillar
-    # (pillar_topple_0: Ø 0.95 m, top ~0.93 m): the right hand plants on top, the hips rise over it and
-    # turn, both legs swing through sideways above it, the hand pushes off, land on the left foot.
+    # ---------------------------------------------------------- vault: a one-hand speed vault over the toppled pillar
+    # (pillar_topple_0: Ø 0.95 m, top ~0.93 m). Off the left foot, the right hand plants on top; the body
+    # leans out over it while both legs swing round to the left, near level, knees soft; the hand stays
+    # put as he passes over it (it slides back with the floor), then shoves off; the left foot lands.
     new_action("vault")
     run_in()
     gkey(4, 0.2)
     T = {}
-    torso(T, lean=0.55, look=0.5, hp=0.22)
-    leg(T, "L", hip=-0.3, knee=0.3, ankle=0.7, toe=0.6)
-    leg(T, "R", hip=1.65, knee=2.05, ankle=-0.2)
-    arm(T, "R", fwd=1.35, elbow=0.2, out=0.1, wrist=-0.6, curl=0.2)
-    arm(T, "L", fwd=0.9, elbow=1.0, out=0.4, curl=0.8)
+    torso(T, lean=0.55, look=0.45, hp=0.2, yaw=-0.1)
+    leg(T, "L", hip=-0.35, knee=0.3, ankle=0.75, toe=0.65)
+    leg(T, "R", hip=1.75, knee=2.15, ankle=-0.1)
+    arm(T, "R", fwd=VA[0], elbow=0.25, out=0.12, wrist=-0.9, curl=0.25)
+    arm(T, "L", fwd=0.5, elbow=1.0, out=0.45, curl=0.4)
     zt = solve_root(T)
-    # The push-off leg folds heel-to-seat as it comes through, so it clears the pillar's near face.
+    # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
-    torso(T2, lean=0.45, look=0.5, hp=0.18, yaw=0.2, hyaw=0.85, roll=-0.1)
-    leg(T2, "L", hip=0.35, knee=2.4, ankle=-0.2)
-    leg(T2, "R", hip=1.8, knee=2.4, ankle=-0.3, out=-0.1)
-    O = {}
-    torso(O, lean=0.3, look=0.45, hp=0.1, yaw=0.3, hyaw=1.2, roll=-0.15)
-    leg(O, "L", hip=1.75, knee=1.5, ankle=-0.3, out=0.05)
-    leg(O, "R", hip=1.7, knee=1.75, ankle=-0.3, out=-0.1)
-    arm(O, "R", fwd=0.55, elbow=0.0, out=0.05, wrist=-1.0, curl=0.2)
-    arm(O, "L", fwd=0.9, elbow=0.5, out=1.2, curl=0.6)
-    O2 = {}
-    torso(O2, lean=0.3, look=0.45, hp=0.12, yaw=0.15, hyaw=0.6, roll=-0.08)
-    leg(O2, "L", hip=1.3, knee=0.5, ankle=-0.1, out=0.0)
-    leg(O2, "R", hip=1.2, knee=1.3, ankle=0.0, out=-0.05)
-    arm(O2, "R", fwd=0.2, elbow=0.3, out=0.3, wrist=-0.6, curl=0.4)
-    arm(O2, "L", fwd=0.9, elbow=0.6, out=0.9, curl=0.6)
+    torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)
+    leg(T2, "L", hip=0.9, knee=2.3, ankle=-0.2, yaw=VY)
+    leg(T2, "R", hip=1.7, knee=2.1, ankle=-0.2, yaw=VY * 0.7)
+    arm(T2, "R", fwd=0.95, elbow=0.1, out=0.1, wrist=-1.1, curl=0.2)
+    # Plant (u 0.2 → 0.72): the arm sweeps from ahead of the shoulder to behind it as he passes over the
+    # hand (world angle ≈ fwd − trunk pitch), so the palm keeps its place on the stone.
+    P1 = {}
+    torso(P1, lean=1.1, look=0.75, hp=0.2, yaw=0.0, hyaw=0.3, roll=0.3, hroll=-0.2)
+    leg(P1, "L", hip=VL[0], knee=0.9, ankle=-0.25, yaw=VY * 1.05)
+    leg(P1, "R", hip=VL[0] + 0.1, knee=1.2, ankle=-0.25, yaw=VY)
+    arm(P1, "R", fwd=VA[1], elbow=0.05, out=0.08, wrist=-1.2, curl=0.15)
+    arm(P1, "L", fwd=0.7, elbow=0.7, out=0.9, curl=0.35)
+    P2 = {}
+    torso(P2, lean=1.15, look=0.75, hp=0.2, yaw=0.0, hyaw=0.4, roll=0.4, hroll=-0.3)
+    leg(P2, "L", hip=VL[1], knee=0.2, ankle=-0.25, yaw=VY)
+    leg(P2, "R", hip=VL[1] - 0.05, knee=0.4, ankle=-0.25, yaw=VY)
+    arm(P2, "R", fwd=VA[2], elbow=0.0, out=0.1, wrist=-1.35, curl=0.15)
+    arm(P2, "L", fwd=0.9, elbow=0.4, out=1.3, curl=0.35)
+    P3 = {}
+    torso(P3, lean=1.0, look=0.7, hp=0.2, yaw=0.0, hyaw=0.3, roll=0.3, hroll=-0.2)
+    leg(P3, "L", hip=VL[2], knee=0.3, ankle=-0.2, yaw=VY * 0.6)
+    leg(P3, "R", hip=VL[2] - 0.1, knee=0.9, ankle=-0.15, yaw=VY * 0.6)
+    arm(P3, "R", fwd=VA[3], elbow=0.05, out=0.15, wrist=-1.1, curl=0.2)
+    arm(P3, "L", fwd=0.9, elbow=0.5, out=1.1, curl=0.35)
+    # Shove off: the hand leaves the stone, the left leg reaches down for the floor.
+    P4 = {}
+    torso(P4, lean=0.45, look=0.45, hp=0.15, yaw=0.05, hyaw=0.45, roll=-0.05)
+    leg(P4, "L", hip=1.0, knee=0.25, ankle=-0.1)
+    leg(P4, "R", hip=1.3, knee=1.4, ankle=0.0)
+    arm(P4, "R", fwd=VA[4], elbow=0.4, out=0.25, wrist=-0.6, curl=0.35)
+    arm(P4, "L", fwd=0.7, elbow=0.7, out=0.8, curl=0.4)
     D = {}
-    torso(D, lean=0.35, look=0.45, hp=0.15, hyaw=0.15)
-    leg(D, "L", hip=0.65, knee=0.35, ankle=0.0)
-    leg(D, "R", hip=0.35, knee=1.4, ankle=0.3)
-    arm(D, "R", fwd=-0.3, elbow=1.0, out=0.3, curl=0.9)
-    arm(D, "L", fwd=0.6, elbow=1.2, out=0.4, curl=0.9)
+    torso(D, lean=0.38, look=0.45, hp=0.15, hyaw=0.15)
+    leg(D, "L", hip=0.6, knee=0.3, ankle=0.0)
+    leg(D, "R", hip=0.7, knee=1.6, ankle=0.2)
+    arm(D, "R", fwd=0.4, elbow=1.2, out=0.3, curl=0.45)
+    arm(D, "L", fwd=-0.1, elbow=1.1, out=0.45, curl=0.45)
     zl = solve_root(D)
-    air(6, V_LAND, [(0.0, T), (0.1, T2), (0.26, O), (0.74, O), (0.88, O2), (1.0, D)], zt, zl, V_H)
+    air(6, V_LAND, [(0.0, T), (0.06, T2), (0.17, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
     A = {}
-    torso(A, lean=0.45, look=0.45, hp=0.2)
-    leg(A, "L", hip=0.5, knee=0.9, ankle=-0.2)
-    leg(A, "R", hip=0.2, knee=1.4, ankle=0.35)
-    arm(A, "R", fwd=0.3, elbow=1.3, out=0.25, curl=1.0)
-    arm(A, "L", fwd=0.2, elbow=1.3, out=0.3, curl=1.0)
+    torso(A, lean=0.45, look=0.45, hp=0.2, hyaw=0.05)
+    leg(A, "L", hip=0.45, knee=0.75, ankle=-0.15)
+    leg(A, "R", hip=0.75, knee=1.6, ankle=0.15)
+    arm(A, "R", fwd=0.7, elbow=1.3, out=0.25, curl=0.45)
+    arm(A, "L", fwd=-0.4, elbow=1.2, out=0.3, curl=0.45)
     key(V_LAND + 2, A)
-    gkey(V_LAND + 5, 0.32, k=0.9)
+    gkey(V_LAND + 5, 0.3, k=0.9)
     gkey(V_LAND + 8, 0.5)
+    # The palm on the stone: through the plant the right wrist is held (IK, baked) on the pillar's top,
+    # which slides back past him with the floor at run pace (5 m/s in clip time).
+    apex = 0.5 * (5 / 30 + (V_LAND - 1) / 30)
+    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.99))
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":
