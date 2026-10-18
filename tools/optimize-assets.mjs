@@ -29,9 +29,17 @@ const DIR = join(ROOT, 'public', 'assets');
 /** Max texture edge per set, by texture name. */
 const SETS = {
   // Roughness (ORM) carries low-frequency detail: half the colour resolution is indistinguishable.
-  high: { simplify: null, cap: (name) => (/_(orm|normal)$/.test(name) ? 1024 : 2048), quality: { color: 76, normal: 62, orm: 60 } },
+  // Round 11: the photoscanned atlases carry far more fine detail (and bytes); the small groups'
+  // normal/ORM (moss mounds, lilies, bark) and the boulders'/statues' ORM drop to 512 to stay in budget.
+  high: {
+    simplify: null,
+    cap: (name) => (/^(flora|bark)_(orm|normal)$/.test(name) || /^(rock|statue)_orm$/.test(name) ? 512 : /_(orm|normal)$/.test(name) ? 1024 : 2048),
+    quality: { color: 74, normal: 62, orm: 60 },
+  },
   // Phones also get lighter geometry: at most 0.2 % of a piece's radius of deviation (≈1 cm on a 5 m wall).
-  mobile: { simplify: { ratio: 0.5, error: 0.002 }, cap: (name) => (/^(wood|bark|flora)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 72, normal: 62, orm: 60 } },
+  // Round 11: the far temple atlas (pyramids, face gate) at 512 and colour q68 keep phones in budget
+  // with the near detail map (≈0.28 MB, fetched on Medium) on top.
+  mobile: { simplify: { ratio: 0.5, error: 0.002 }, cap: (name) => (/^(wood|bark|flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
 };
 /**
  * The runner is the one thing always in the middle of the frame, a metre or two from the lens: its

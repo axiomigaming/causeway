@@ -14,6 +14,10 @@ const common = /* glsl */ `
   mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
   mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
   mat3 rotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
+  // The fields wrap round the camera, so now and then an instance lands right at the lens and fills
+  // a corner of the frame as one big flat quad (round 13: the pale-yellow sliver beside the runner).
+  // Shrink anything nearer than ~2.5 m to nothing.
+  float nearScale(vec3 wp) { return smoothstep(1.2, 2.6, length(wp - cameraPosition)); }
 `;
 
 function seeds(n: number, rnd: () => number): THREE.InstancedBufferAttribute {
@@ -69,6 +73,7 @@ export class Ambient {
   private birds;
   private butterflies;
   private leaves;
+  private flies;
 
   constructor() {
     let s = 7;
@@ -129,7 +134,7 @@ export class Ambient {
         vec3 p = position;
         float ang = flap * sign(aWing);
         p = vec3(p.x * cos(ang), abs(p.x) * sin(abs(ang)) , p.z);
-        vec3 wp = pos + rotY(t * 0.9 + aSeed.y * 6.0) * p;
+        vec3 wp = pos + rotY(t * 0.9 + aSeed.y * 6.0) * p * nearScale(pos);
         vShade = 0.65 + 0.35 * abs(cos(flap));
         float k = floor(aSeed.w * 3.0);
         vCol = k < 1.0 ? vec3(1.0, 0.55, 0.12) : k < 2.0 ? vec3(0.25, 0.55, 1.0) : vec3(1.0, 0.92, 0.55);
@@ -157,6 +162,7 @@ export class Ambient {
       /* glsl */ `
       varying vec3 vCol;
       varying float vShade;
+      varying vec2 vLeafUv;
       #include <fog_pars_vertex>
       void main() {
         float fall = uTime * (0.55 + aSeed.z * 0.4);
@@ -166,7 +172,8 @@ export class Ambient {
         pos.y = uCenter.y - 3.0 + mod(aSeed.y * 9.0 - fall + 9.0 * 50.0, 9.0);
         float spin = uTime * (2.0 + aSeed.x * 3.0) + aSeed.y * 10.0;
         mat3 r = rotY(aSeed.w * 6.28 + uTime * 0.5) * rotX(spin) * rotZ(sin(spin * 0.7) * 0.8);
-        vec3 wp = pos + r * position;
+        vec3 wp = pos + r * position * nearScale(pos);
+        vLeafUv = uv;
         vShade = 0.55 + 0.45 * abs((r * vec3(0.0, 0.0, 1.0)).y);
         vCol = mix(vec3(0.34, 0.42, 0.12), vec3(0.72, 0.52, 0.16), aSeed.z);
         vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
@@ -176,14 +183,62 @@ export class Ambient {
       /* glsl */ `
       varying vec3 vCol;
       varying float vShade;
+      varying vec2 vLeafUv;
       #include <fog_pars_fragment>
       void main() {
-        gl_FragColor = vec4(vCol * vShade, 1.0);
+        // A leaf, not a card: a pointed oval with a darker midrib.
+        vec2 q = vLeafUv * 2.0 - 1.0;
+        float w = 1.0 - q.x * q.x;
+        if (abs(q.y) > w * w * 0.95 + 0.02) discard;
+        float rib = 1.0 - 0.25 * smoothstep(0.08, 0.0, abs(q.y));
+        gl_FragColor = vec4(vCol * vShade * rib, 1.0);
         #include <fog_fragment>
       }`,
       rnd,
     );
-    this.root.add(this.birds.mesh, this.butterflies.mesh, this.leaves.mesh);
+    // Round 11 detail: fireflies and midges over the water by the causeway: tiny glowing motes that
+    // wander and blink low over the surface (the glow is faint by day, brighter as the light goes).
+    const fly = new THREE.PlaneGeometry(1, 1);
+    fly.setAttribute('aWing', new THREE.Float32BufferAttribute(new Float32Array(4), 1));
+    this.flies = makeField(
+      fly,
+      70,
+      /* glsl */ `
+      uniform float uGlow;
+      varying vec2 vUv;
+      varying float vA;
+      void main() {
+        // Hover in loose swarms 0.2–2 m over the water (y = -2.2), 3–18 m to the sides of the camera.
+        vec3 base = vec3(aSeed.x * 36.0, 0.0, aSeed.w * 36.0);
+        base.x += sin(uTime * (0.3 + aSeed.y * 0.4) + aSeed.z * 30.0) * 1.6;
+        base.z += cos(uTime * (0.25 + aSeed.z * 0.4) + aSeed.y * 30.0) * 1.6;
+        vec3 pos = wrapAround(base, vec3(36.0, 1.0, 36.0));
+        pos.y = -2.0 + aSeed.y * 1.8 + sin(uTime * (1.1 + aSeed.x) + aSeed.w * 20.0) * 0.25;
+        float side = abs(pos.x - uCenter.x);
+        float blink = smoothstep(0.35, 0.9, sin(uTime * (1.3 + aSeed.z * 2.0) + aSeed.x * 50.0) * 0.5 + 0.5);
+        vA = blink * uGlow * smoothstep(2.5, 4.0, length(pos.xz - uCenter.xz));
+        vUv = uv;
+        vec4 mv = viewMatrix * vec4(pos, 1.0);
+        mv.xy += position.xy * (0.05 + 0.04 * aSeed.w);
+        gl_Position = projectionMatrix * mv;
+      }`,
+      /* glsl */ `
+      varying vec2 vUv;
+      varying float vA;
+      void main() {
+        float d = length(vUv - 0.5) * 2.0;
+        float g = exp(-d * d * 5.0);
+        gl_FragColor = vec4(vec3(0.85, 1.0, 0.45) * g * vA * 2.2, 1.0);
+      }`,
+      rnd,
+      { uGlow: { value: 0.35 } },
+    );
+    const fm = this.flies.mat;
+    fm.transparent = true;
+    fm.depthWrite = false;
+    fm.blending = THREE.AdditiveBlending;
+    fm.fog = false;
+    this.root.add(this.birds.mesh, this.butterflies.mesh, this.leaves.mesh, this.flies.mesh);
   }
 
   /** 0 hides ambient life, 1 is the full count. */
@@ -193,6 +248,7 @@ export class Ambient {
     };
     set(this.birds, 8);
     set(this.butterflies, 4);
+    set(this.flies, 0);
     this.leafBudget = k >= 0.5 ? Math.min(1, k) : 0;
     this.leaves.mesh.visible = k >= 0.5;
     this.setLeafDensity(this.leafDensity);
@@ -201,6 +257,11 @@ export class Ambient {
   private leafBudget = 1;
   private leafDensity = 0;
   /** Round 11 crescendo: 0 calm (a third of the leaves) .. 1 the air full of falling leaves. */
+  /** Firefly glow (0..1): faint by day, brighter as the light goes. */
+  setGlow(g: number): void {
+    this.flies.mat.uniforms.uGlow!.value = g;
+  }
+
   setLeafDensity(d: number): void {
     this.leafDensity = d;
     const n = Math.round(this.leaves.max * this.leafBudget * (0.33 + 0.67 * Math.min(1, Math.max(0, d))));
@@ -208,7 +269,7 @@ export class Ambient {
   }
 
   update(t: number, cam: THREE.Camera): void {
-    for (const f of [this.birds, this.butterflies, this.leaves]) {
+    for (const f of [this.birds, this.butterflies, this.leaves, this.flies]) {
       f.mat.uniforms.uTime!.value = t;
       f.mat.uniforms.uCenter!.value.copy(cam.position);
     }

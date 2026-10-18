@@ -80,6 +80,8 @@ in `public/audio/CREDITS.txt`, which ships with the game.
 | `m_drone.webm`, `m_drone.m4a` | Low cello bass note | aarrnnoo | CC BY 4.0 | https://freesound.org/people/aarrnnoo/sounds/516188 |
 | `m_strings.webm`, `m_strings.m4a` | Low cello bass note | aarrnnoo | CC BY 4.0 | https://freesound.org/people/aarrnnoo/sounds/516188 |
 | `ir_room.webm`, `ir_room.m4a` | Impulse Response Church | jmuehlhans | CC0 1.0 (public domain dedication) | https://freesound.org/people/jmuehlhans/sounds/220752 |
+| `riser.webm`, `riser.m4a` | low gong bash<br>[Boom] Reverbed Kick 09 | hiddenpersuader<br>waveplaySFX | CC0 1.0 (public domain dedication)<br>CC BY 4.0 | https://freesound.org/people/hiddenpersuader/sounds/155460<br>https://freesound.org/people/waveplaySFX/sounds/353391 |
+| `sub_swell.webm`, `sub_swell.m4a` | cinematic boom 130730_06.wav | klankbeeld | CC BY 4.0 | https://freesound.org/people/klankbeeld/sounds/195790 |
 
 ### The theme
 

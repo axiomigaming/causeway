@@ -66,6 +66,12 @@ float causticAt(vec2 w, float t) {
   c = 1.17 - pow(c, 1.4);
   return min(pow(abs(c), 8.0), 8.0);
 }
+float pdH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float pdN(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(pdH(i), pdH(i + vec2(1, 0)), f.x), mix(pdH(i + vec2(0, 1)), pdH(i + vec2(1, 1)), f.x), f.y);
+}
 float wetAt(vec3 p) {
   float h = p.y - (${WATER_Y.toFixed(3)});
   float wet = smoothstep(0.5, 0.04, h) * step(-1.5, h);
@@ -149,7 +155,22 @@ const FRAG_WET = /* glsl */ `
 float wetK = max(wetAt(vWetPos), uRainWet * mix(0.55, 1.0, smoothstep(0.2, 0.8, vWetN.y)));
 diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 // Wet faces shine; flat ones less (a mirror-flat wet slab would just show the sky's blue).
-roughnessFactor = mix(roughnessFactor, mix(0.22, 0.45, abs(vWetN.y)), wetK);`;
+roughnessFactor = mix(roughnessFactor, mix(0.22, 0.45, abs(vWetN.y)), wetK);
+{
+#ifdef WET_PUDDLES
+  // Round 11 detail: puddles standing in the hollows of the slabs (a few when dry, spreading with
+  // the rain): dark, still, mirror-smooth, with a damp rim.
+  float up = smoothstep(0.92, 0.98, vWetN.y);
+  if (up > 0.0) {
+    float pn = pdN(vWetPos.xz * 0.42) * 0.65 + pdN(vWetPos.xz * 1.3 + 4.1) * 0.35;
+    float lvl = mix(0.74, 0.56, uRainWet);
+    float pud = smoothstep(lvl, lvl + 0.03, pn) * up;
+    float rim = smoothstep(lvl - 0.08, lvl, pn) * up;
+    diffuseColor.rgb *= mix(1.0, 0.8, rim) * mix(1.0, 0.55, pud);
+    roughnessFactor = mix(mix(roughnessFactor, 0.4, rim * 0.6), 0.04, pud);
+  }
+#endif
+}`;
 
 const FRAG_CAUSTIC = /* glsl */ `
 {
@@ -165,7 +186,7 @@ const FRAG_CAUSTIC = /* glsl */ `
 }`;
 
 /** Patch a standard material (once). Chains any existing onBeforeCompile. */
-export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0): void {
+export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false): void {
   const sm = m as THREE.MeshStandardMaterial;
   if (!sm.isMeshStandardMaterial || sm.userData.wetStone) return;
   sm.userData.wetStone = true;
@@ -175,6 +196,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
     prev?.call(sm, shader, renderer);
     Object.assign(shader.uniforms, causticUniforms);
     if (moss) shader.fragmentShader = '#define WET_MOSS\n' + shader.fragmentShader;
+    if (puddles) shader.fragmentShader = '#define WET_PUDDLES\n' + shader.fragmentShader;
     if (detail > 0) shader.fragmentShader = `#define DETAIL_AMP ${detail.toFixed(3)}\n` + shader.fragmentShader;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
@@ -185,7 +207,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${detail}`;
   sm.needsUpdate = true;
 }
 

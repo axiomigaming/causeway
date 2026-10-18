@@ -1,0 +1,102 @@
+[
+ {
+  "t": 0.0767,
+  "what": "idle th_calm"
+ },
+ {
+  "t": 11.1013,
+  "what": "run start"
+ },
+ {
+  "t": 11.1013,
+  "what": "phrase a"
+ },
+ {
+  "t": 23.9585,
+  "what": "land 1"
+ },
+ {
+  "t": 28.2442,
+  "what": "phrase a"
+ },
+ {
+  "t": 38.9585,
+  "what": "land 2"
+ },
+ {
+  "t": 45.387,
+  "what": "phrase b"
+ },
+ {
+  "t": 60.387,
+  "what": "break"
+ },
+ {
+  "t": 49.6728,
+  "what": "land 3"
+ },
+ {
+  "t": 62.5299,
+  "what": "phrase a"
+ },
+ {
+  "t": 77.5299,
+  "what": "break"
+ },
+ {
+  "t": 66.8156,
+  "what": "lift pivot"
+ },
+ {
+  "t": 71.1013,
+  "what": "lift lands"
+ },
+ {
+  "t": 71.1013,
+  "what": "t4 a"
+ },
+ {
+  "t": 76.1906,
+  "what": "fanfare 2 (E)"
+ },
+ {
+  "t": 79.1756,
+  "what": "idle th_safe"
+ },
+ {
+  "t": 86.05,
+  "what": "idle th_calm"
+ },
+ {
+  "t": 93.1013,
+  "what": "run start"
+ },
+ {
+  "t": 93.1013,
+  "what": "phrase a"
+ },
+ {
+  "t": 105.9585,
+  "what": "land 1"
+ },
+ {
+  "t": 110.2442,
+  "what": "phrase a"
+ },
+ {
+  "t": 125.2442,
+  "what": "break"
+ },
+ {
+  "t": 120.9585,
+  "what": "land 2"
+ },
+ {
+  "t": 124.1728,
+  "what": "loss"
+ },
+ {
+  "t": 129.6043,
+  "what": "idle th_tense"
+ }
+]

@@ -86,7 +86,7 @@ def wall(name, seed, length=4.0, height=1.5, depth=0.7, ruin=0.4, tall=False):
     crests = []
     k = 1.35 if tall else 1.0
     base_h = height * (rng.uniform(0.28, 0.42) if not tall else rng.uniform(0.4, 0.55))
-    back = {"bottom": 0.9, "end": 0.55}
+    back = {"bottom": 0.45 if tall else 0.9, "end": 0.55}
     z = -0.3
     while z < base_h - 0.06:
         ch = rng.uniform(0.24, 0.36) * k
@@ -131,7 +131,7 @@ def wall(name, seed, length=4.0, height=1.5, depth=0.7, ruin=0.4, tall=False):
             oy += rng.uniform(-0.03, 0.03) + lean[1] * ch
             blk(bm, rng, (d, bw - 0.03, ch - 0.015), (ox, yc + oy, zc + ch / 2),
                 (rng.uniform(-0.04, 0.04) + lean[1] * 0.6, rng.uniform(-0.04, 0.04) - lean[0] * 0.6, rng.uniform(-0.12, 0.12)),
-                erode=0.6 + 0.3 * (zc / max(prof, 0.5)), cuts=2 if zc + ch >= prof - 0.1 else 1, uvshrink={"bottom": 0.9})
+                erode=0.6 + 0.3 * (zc / max(prof, 0.5)), cuts=2 if zc + ch >= prof - 0.1 else 1, uvshrink={"bottom": 0.45 if tall else 0.9})
             zc += ch
             n += 1
         # A cap: now and then a loose block lying askew on top.
@@ -685,7 +685,7 @@ def vault(name, seed, length=4.0, half=2.9, spring=3.2, thick=0.75):
                 if y1 - y0 > 0.2:
                     blk(bm, rng, (wall_d, y1 - y0 - 0.03, ch - 0.025), (side * (half + wall_d / 2) + rng.uniform(-0.04, 0.04), (y0 + y1) / 2, z + ch / 2),
                         (0, 0, rng.uniform(-0.03, 0.03)), color=c, radius=0.4, erode=0.6, cuts=1, taper=0.0,
-                        uvshrink={"bottom": 0.95, "top": 0.8, "end": 0.6})
+                        uvshrink={"bottom": 0.35, "top": 0.8, "end": 0.6})  # round 11: the undersides show from the path (slivers)
                 y = y1
             z += ch
     _kerb(bm, rng, half, 0.0, length)

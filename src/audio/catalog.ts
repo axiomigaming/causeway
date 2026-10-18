@@ -35,7 +35,7 @@ export const SOUNDS: Record<string, SoundSpec> = {
   step_wood: { bus: 'foley', db: -11, cents: 80, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
   step_gravel: { bus: 'foley', db: -12, cents: 70, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
   step_wet: { bus: 'foley', db: -12, cents: 70, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
-  breath: { bus: 'foley', db: -28, cents: 0, vary: 0, priority: 1, max: 1 },
+  breath: { bus: 'foley', db: -30, cents: 0, vary: 0, priority: 1, max: 1 },
   pant: { bus: 'foley', db: -15, cents: 40, vary: 1, priority: 1, max: 1 },
   // The world under strain and coming down.
   impact: { bus: 'sfx', db: -3, cents: 150, vary: 2, priority: 2, max: 4, pan: 0.35, floor: -16, dull: true },
@@ -50,6 +50,9 @@ export const SOUNDS: Record<string, SoundSpec> = {
   splash_small: { bus: 'sfx', db: -10, cents: 200, vary: 2.5, priority: 1, max: 4, pan: 0.4, floor: -12, dull: true },
   whoosh: { bus: 'sfx', db: -12, cents: 150, vary: 2, priority: 1, max: 2, pan: 0.2 },
   gust: { bus: 'amb', db: -14, cents: 150, vary: 3, priority: 0, max: 2, pan: 0.6 },
+  // Tier-ups: a reversed gong / boom swelling into the impact, and a sub-bass swell under tiers 3-4.
+  riser: { bus: 'sting', db: -7, cents: 0, vary: 0.5, priority: 3, max: 2 },
+  sub_swell: { bus: 'sfx', db: -3, cents: 30, vary: 0.5, priority: 2, max: 1 },
   // Escape and cash-out.
   coins: { bus: 'ui', db: 0, cents: 60, vary: 1, priority: 3, max: 2, pan: 0.1 },
   sparkle: { bus: 'ui', db: -7, cents: 50, vary: 1, priority: 2, max: 2, pan: 0.25 },

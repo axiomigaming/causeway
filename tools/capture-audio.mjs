@@ -27,7 +27,7 @@ await page.goto(`${URL}/?q=low&seed=${process.env.SEED ?? 'audio-capture'}&qa`);
 await page.waitForSelector('.title-actions .btn-cta', { timeout: 300000 });
 // The enter button animates continuously (never 'stable' for Playwright): click it through the DOM.
 await page.$eval('.title-actions .btn-cta', (b) => b.click());
-await page.waitForFunction(() => window.__store.getState().phase === 'setup', null, { timeout: 60000 });
+await page.waitForFunction(() => window.__store.getState().phase === 'setup', null, { timeout: 180000 });
 // Give the lazy groups (beds, score) time to arrive and decode, as a player reading the title would.
 await page.waitForFunction(() => window.__ctl.audio.hasSample('m_pulse') && window.__ctl.audio.hasSample('bed_jungle') && window.__ctl.audio.nextDownbeat() !== null, null, { timeout: 90000 }).catch(() => console.warn('beds/score not loaded: capture uses what is ready'));
 

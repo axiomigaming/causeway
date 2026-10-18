@@ -29,7 +29,7 @@ describe('walkable tiles', () => {
       for (const t of sec.tiles) {
         const len = t.sFar - t.sNear;
         expect(len).toBeGreaterThan(3.9);
-        expect(len).toBeLessThan(9);
+        expect(len).toBeLessThan(t.piece === 'floor_wide_0' ? 10 : 9); // a corner's plaza spans its 7.1 m bend
         if (t.piece === 'floor_wide_0') continue; // the plaza slab is laid on the chord of an arc
         // The tile's own centre (4 m along its −Z) sits on the path at the middle of its s-range.
         const flip = new THREE.Vector3(0, 0, -2).applyMatrix4(t.world);
@@ -82,5 +82,62 @@ describe('walkable tiles', () => {
       prev = cur;
     }
     expect(seen.size).toBe(4);
+  });
+
+  it('places obstacles across the route with honest clearances', async () => {
+    const kit = fakeKit();
+    // Stand-ins shaped like the kit's: trunks tall along y, fallen columns long along z.
+    for (const n of ['jungle_0_trunk', 'jungle_1_trunk']) kit.geo.set(n, new THREE.CylinderGeometry(0.75, 0.75, 8, 12));
+    for (const n of ['column_fallen_0', 'column_fallen_1']) kit.geo.set(n, new THREE.BoxGeometry(1, 1, 6, 1, 1, 6));
+    kit.geo.set('pillar_2', new THREE.BoxGeometry(1, 3, 1));
+    const track = new Track(kit);
+    await track.prepare({ foliage: 0.4, scenery: 0.4 });
+    track.reset('obstacles');
+    track.update(0, 0);
+    const want = { log: ['jump', 0.5, 1.0], pillar: ['jump', 0.5, 1.0], beam: ['slide', 1.1, 1.6], bough: ['slide', 0.9, 1.8] } as const;
+    for (const [kind, [action, lo, hi]] of Object.entries(want)) {
+      const o = track.spawnObstacle(kind as keyof typeof want, 30, 1);
+      expect(o.action).toBe(action);
+      expect(o.clearance).toBeGreaterThan(lo);
+      expect(o.clearance).toBeLessThan(hi);
+      expect(o.sNear).toBeLessThan(30);
+      expect(o.sFar).toBeGreaterThan(30);
+      expect(o.rest.length).toBe(o.root.children.length);
+    }
+    expect(track.obstacles.within(29, 31).length).toBe(4);
+    track.update(200, 0);
+    expect(track.obstacles.list.length).toBe(0);
+  });
+
+  it('takes real 90° corners that alternate, stand apart and never double back', async () => {
+    const track = new Track(fakeKit());
+    await track.prepare({ foliage: 0.4, scenery: 0.4 });
+    track.reset('corners');
+    const types: string[] = [];
+    let s = 0;
+    let seen = 0;
+    while (s < 6000) {
+      s += 50;
+      track.update(s, 0.6);
+      for (const sec of track.sections) if (sec.s0 >= seen) ((seen = sec.s0 + 1e-6), types.push(sec.type));
+    }
+    let heading = 0;
+    let since = 99;
+    let corners = 0;
+    for (const t of types) {
+      if (t === 'turnL' || t === 'turnR') {
+        heading += t === 'turnL' ? 1 : -1;
+        expect(Math.abs(heading)).toBeLessThanOrEqual(1);
+        expect(since).toBeGreaterThanOrEqual(3);
+        since = 0;
+        corners++;
+      } else since++;
+    }
+    expect(corners).toBeGreaterThan(5);
+    // Every corner is a quarter turn, whichever way.
+    for (const sec of track.sections) {
+      if (sec.type === 'turnL') expect(sec.seg.turn).toBeCloseTo(Math.PI / 2, 6);
+      if (sec.type === 'turnR') expect(sec.seg.turn).toBeCloseTo(-Math.PI / 2, 6);
+    }
   });
 });

@@ -3,16 +3,16 @@ import { QUALITY, type QualityLevel } from '../config/quality';
 import { multiplierAtSmooth } from '../engine/curve';
 import { Rng, hashString } from '../engine/rng';
 import { loadKit, pickAssetSet, wind, type Kit } from '../world/assets';
-import { DynamicResolution, warmUp } from './perf';
+import { DynamicResolution, tuneTextures, warmUp } from './perf';
 import { installShadowEdgeFade } from './shadows';
 import { ContactShadow } from './contact';
 import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
 import { causticUniforms } from '../world/caustics';
 import { Rain } from './rain';
-import { resetMood, stepMood, worldMood } from '../world/mood';
+import { resetMood, setWorldDrive, stepMood, worldMood, worldTierUp } from '../world/mood';
 import { Debris } from '../world/debris';
 import { forward } from '../world/path';
-import { CRASH_CLIPS, crashStaging, escapeStaging, nextBeat, runDrive, runTier, type CrashKind, type CrashStaging, type EscapeStaging } from '../world/choreo';
+import { CRASH_CLIPS, crashStaging, escapeStaging, intensityOf, nextBeat, progression, type CrashKind, type CrashStaging, type EscapeStaging, type Progression } from '../world/choreo';
 import { Runner, type RunnerAnim } from '../world/runner';
 import { PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
@@ -24,6 +24,7 @@ import { Motes, Particles } from './particles';
 import { Fx } from './fx';
 import { escapeScale, fallScale, nextDangerCue, revealHold, type DangerCue, type EscapeScale } from './fxScale';
 import { Post } from './post';
+import { ObstacleDirector } from './obstacles';
 
 export type Stage = 'title' | 'setup' | 'lead' | 'run' | 'crash' | 'cashout';
 
@@ -47,6 +48,16 @@ export interface WorldSounds {
    * into the water already sound through impact(size, true).
    */
   event?(name: string, strength: number): void;
+  /**
+   * Seconds until the score's next bar line (downbeat), or null when no score is running. The
+   * progression director lands a tier-up's visual punch on it, together with the music's accent.
+   */
+  nextDownbeat?(): number | null;
+  /**
+   * The tier change the music is about to land, if any: `in` seconds until the new layer's downbeat
+   * (its fill already rolling); null when none is pending or the theme is not playing.
+   */
+  tierLanding?(): { tier: number; in: number } | null;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -58,13 +69,13 @@ const SHADOW_V = new THREE.Vector3();
 
 const nullSounds: WorldSounds = { footstep() {}, impact() {}, tremor() {}, run() {}, crash() {}, escape() {}, whoosh() {}, slam() {} };
 
-/** Presentation intensity from the multiplier: 0 at 1.00x, 1 at 30x and beyond. */
-export function intensityOf(mult: number): number {
-  return Math.min(1, Math.max(0, Math.log(mult) / Math.log(30)));
-}
+/** Presentation intensity from the multiplier (see world/choreo: the progression model). */
+export { intensityOf };
 
 export function speedOf(intensity: number): number {
-  return 5.0 + 7.6 * Math.pow(intensity, 0.85);
+  // Round 13: 5 m/s at tier 0 read as a jog. He sprints for his life from the first second (6.0 m/s,
+  // 2.33 strides/s, under the run clip's turnover cap so the feet never skate) and climbs to ~13 m/s.
+  return Math.max(6.0, 5.0 + 7.6 * Math.pow(intensity, 0.85));
 }
 
 const DUST = new THREE.Color('#d9b48a');
@@ -85,6 +96,8 @@ export class Game {
   private runner!: Runner;
   private water!: Water;
   private debris!: Debris;
+  /** Round 13: set pieces on the way (log jumps, slides, vaults, leaps, near misses). */
+  private obstacles!: ObstacleDirector;
   private particles = new Particles(1100);
   private motes = new Motes(420);
   private rain = new Rain();
@@ -137,7 +150,9 @@ export class Game {
   motion: 'full' | 'reduced' = 'full';
 
   /** Live readout for the HUD (read by rAF in the UI, never through React state). */
-  readonly live = { mult: 1, intensity: 0, speed: 0, distance: 0 };
+  readonly live = { mult: 1, intensity: 0, speed: 0, distance: 0, tier: 0, drive: 0, heat: 0 };
+  /** The run's progression (choreo.progression of the multiplier on screen); updated every frame. */
+  private prog: Progression = progression(1);
 
   private constructor(
     private canvas: HTMLCanvasElement,
@@ -227,6 +242,48 @@ export class Game {
     scene.add(this.debris.root);
     this.runner = new Runner(kit);
     this.runner.onFootstep = (foot, k) => this.footstep(foot, k);
+    this.obstacles = new ObstacleDirector({
+      s: () => this.s,
+      speed: () => this.speed,
+      running: () => this.stage === 'run',
+      rng: () => this.cosmetic,
+      frameAt: (s) => {
+        const f = this.track.path.sample(s);
+        return { pos: f.pos.clone(), yaw: f.yaw, fwd: forward(f.yaw), right: new THREE.Vector3(Math.cos(f.yaw), 0, -Math.sin(f.yaw)) };
+      },
+      clearRun: (s0, s1) => this.clearRun(s0, s1),
+      tiles: (s0, s1) => {
+        const out: { piece: string; world: THREE.Matrix4; near: number; far: number; slot: TileSlot }[] = [];
+        for (const sec of this.track.sections)
+          for (const t of sec.tiles) {
+            if (!this.collapsible(t)) continue;
+            const [near, far] = this.tileSpan(t);
+            if (near >= s0 && near <= s1) out.push({ piece: t.piece, world: t.world, near, far, slot: t });
+          }
+        return out.sort((a, b) => a.near - b.near);
+      },
+      hideTile: (t) => this.track.hideTile((t as unknown as { slot: TileSlot }).slot),
+      add: (o) => this.scene.add(o),
+      remove: (o) => {
+        this.scene.remove(o);
+        o.traverse((m) => {
+          // Only the director's own geometries (kit geometries are shared and stay).
+          const g = (m as THREE.Mesh).geometry;
+          if (g && ![...this.kit.geo.values()].includes(g)) g.dispose();
+        });
+      },
+      material: (key) => this.kit.mat.get(key),
+      geometry: (piece) => this.kit.geo.get(piece),
+      gait: () => this.runner.gait(),
+      obstacle: (name, distance) => this.runner.obstacle(name, { distance }),
+      debris: (piece, m, vel, spin, opts) => void this.debris.spawn(piece, m, vel, spin, () => null, opts),
+      dust: (at, k, vel) =>
+        this.cine.billows.puff(at.clone().setY(at.y + 0.2), { count: 2 + Math.round(3 * k), spread: 0.8 + k, jitter: 0.5, vel: (vel ?? new THREE.Vector3()).clone().setY(0.5 + k), size: [0.4, 1.4 + 1.6 * k], life: 1.2 + k, alpha: 0.3, tint: DUST_T, rise: 0.2, drag: 1.2, floor: at.y, group: CUE }),
+      shake: (k) => this.rig.addTrauma(k),
+      sound: (name, k) => this.sounds.event?.(name, k),
+      cue: (name, k) => this.dangerCue(name, k, this.prog.intensity),
+      lensBack: () => this.lensAlong(),
+    });
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
     scene.add(this.contact.mesh);
@@ -251,6 +308,8 @@ export class Game {
     const probe = this.debris.spawn('gate_0', new THREE.Matrix4().makeTranslation(0, -50, 0), new THREE.Vector3(), new THREE.Vector3(), () => null);
     this.debris.spawn('rock_mid_0', new THREE.Matrix4().makeTranslation(0, -50, 0), new THREE.Vector3(), new THREE.Vector3(), () => null);
     this.debris.spawn('shard_0', new THREE.Matrix4().makeTranslation(0, -50, 0), new THREE.Vector3(), new THREE.Vector3(), () => null, { mat: 'floor' });
+    // Full anisotropy, trilinear mips and the right colour space on every world texture.
+    this.textureReport = tuneTextures(this.renderer, [scene, ...this.track.variantGroups()], this.kit.mat.values());
     await this.renderer.compileAsync(scene, this.rig.camera);
     // perf: upload every section variant's geometry and every kit texture now, not mid-run.
     warmUp(this.renderer, [scene, ...this.track.variantGroups()], this.kit.mat.values());
@@ -263,6 +322,8 @@ export class Game {
   }
 
   private sunDisc!: THREE.Mesh;
+  /** QA: what tuneTextures changed, and any colour-space mismatches it saw. */
+  textureReport: { changed: number; mismatches: string[] } = { changed: 0, mismatches: [] };
 
   /** Round 11: light and air for the current world's time-of-day look (a few uniforms, once per world). */
   private applyLook(): void {
@@ -291,6 +352,7 @@ export class Game {
     this.sunDisc.visible = (L.sunDisc ?? 1) > 0;
     this.sun.shadow.intensity = L.shadow ?? 1;
     causticUniforms.uRainWet.value = L.wet ?? 0;
+    this.post.lookExposure = L.name === 'storm' ? 1.14 : 1;
   }
 
   private moodSun = new THREE.Color();
@@ -322,13 +384,20 @@ export class Game {
       fog.color.copy(this.moodFog.setHex(L.fog).lerp(OMINOUS_FOG, 0.5 * d));
       fog.density = L.fogDensity * (1 + 0.7 * d);
     }
-    // Weather: wind in the foliage (gusts on tier-ups), rain building late (from 75 % in the clear
-    // looks), the stone wetting with it, lightning more often.
-    wind.uStrength.value = (L.wind ?? 1) * (1 + 1.6 * d + 2.2 * g);
-    const rain = storm ? (L.rain ?? 0) * (0.55 + 0.45 * d) : Math.max(0, (d - 0.75) * 2.4) * 0.6;
+    // Weather is part of the drive: every run starts calm (no rain, light wind), so every look has
+    // headroom. The storm look opens as a still, overcast sky and breaks into wind, rain and lightning
+    // as the run climbs; the clear looks gather wind and, at the very top, a first rain.
+    const ss = (a: number, b: number) => {
+      const x = Math.min(1, Math.max(0, (d - a) / (b - a)));
+      return x * x * (3 - 2 * x);
+    };
+    const windBase = storm ? 1 + ((L.wind ?? 1) - 1) * ss(0.15, 0.7) : L.wind ?? 1;
+    wind.uStrength.value = windBase * (1 + 1.6 * d + 2.2 * g);
+    const rain = storm ? (L.rain ?? 0) * ss(0.3, 0.85) : ss(0.75, 1) * 0.6;
     this.rain.update(this.worldT, rain);
-    causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (0.7 + 0.3 * d) + rain * 0.5);
-    const f = Math.max(this.lightning(this.worldT, (L.lightning ?? 0) + (d > 0.8 ? 3 * (d - 0.8) / 0.2 : 0)), storm ? g * 0.8 : 0);
+    causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (storm ? 0.15 + 0.85 * ss(0.3, 0.9) : d) + rain * 0.5);
+    const bolts = (L.lightning ?? 0) * ss(0.55, 1) + (d > 0.8 ? (3 * (d - 0.8)) / 0.2 : 0);
+    const f = Math.max(this.lightning(this.worldT, bolts), storm ? g * 0.8 * ss(0.3, 0.8) : 0);
     this.hemi.intensity = L.hemiI * (1 - 0.25 * d) * (1 + f * 3.5);
     this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.25 * g);
     // Life in the air: more falling leaves as the run builds and on every gust.
@@ -336,6 +405,7 @@ export class Game {
     if (Math.abs(leaves - this.moodLeaves) > 0.02) {
       this.moodLeaves = leaves;
       this.ambient.setLeafDensity(leaves);
+      this.ambient.setGlow(0.3 + 0.7 * Math.max(d, storm ? 0.4 : 0));
     }
   }
 
@@ -420,6 +490,9 @@ export class Game {
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);
+    this.obstacles.reset();
+    this.runOn = false;
+    this.escapeGateAt = 0;
     resetMood();
     this.debris.clear();
     this.particles.clear();
@@ -529,6 +602,7 @@ export class Game {
     if (st.kind === 'chasm' && this.tileEdge(this.s + 1.4, this.s + (this.speed * 0.45) / 2 + 5) === null) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
     this.setStage('crash');
+    this.obstacles.settle();
     this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
     this.crashKind = st.kind;
     this.staging = st;
@@ -685,20 +759,47 @@ export class Game {
     this.epic = st.epic;
     this.escape = E;
     this.setStage('cashout');
-    // A clear payoff at every escape: the look-back (which ends turned side-on, arms down) gives way
-    // to the cheer, fists up toward the gate of light; salute and leap stand as they are.
+    // Round 13 — "made it": no set piece or near miss from here on (honesty: nothing staged after a
+    // cash-out); pieces still ahead crumble away, the way ahead is clear.
+    this.obstacles.settle();
     const clip = st.variant === 'lookback' ? 'win_cheer' : st.clip;
-    this.runner.play(clip as RunnerAnim, 0.2, st.offset);
-    // Run out of it: how long depends on the move.
     const T = { lookback: 0.72, cheer: 0.5, salute: 1.0, leap: 1.15 }[st.variant];
-    this.setStop(this.s + (v * T) / 2);
+    // He is still running: he carries on through the last strides to safe ground before the gate of
+    // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
+    // money is settled already; only the picture runs on.
+    const runOn = v > 3 && this.motion === 'full' ? 0.75 + 0.55 * E.g : 0;
+    const stop = this.s + v * runOn + (v * T) / 2;
+    const gateAt = stop + 3.4 + 1.6 * E.g;
+    const fg = this.track.path.sample(gateAt);
+    this.placeEscapeGate(fg.pos, fg.yaw);
+    this.escapeGateAt = gateAt;
     this.sounds.escape();
-    this.fx.flash = 0.16 + 0.12 * E.g;
-    this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
-    // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
-    if (v > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
-    this.stageEscape(E);
+    this.fx.flash = 0.08 + 0.06 * E.g;
+    const land = () => {
+      if (this.stage !== 'cashout' || this.escape !== E) return;
+      this.runOn = false;
+      this.runner.play(clip as RunnerAnim, 0.2, st.offset);
+      this.setStop(stop);
+      this.fx.flash = 0.16 + 0.12 * E.g;
+      this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
+      // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
+      if (this.speed > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
+      this.stageEscape(E);
+    };
+    if (runOn > 0) {
+      this.runOn = true;
+      // The chase lens stays on him (calming as the tier falls away) until he pulls up.
+      this.rig.setMode('run');
+      this.sounds.event?.('made_it', E.g);
+      // Relief: half a stride before he pulls up, a stumble of exhausted relief.
+      this.later(Math.max(0, runOn - 0.45), () => this.stage === 'cashout' && this.runOn && this.runner.stumble());
+      this.later(runOn, land);
+    } else land();
   }
+
+  /** The cash-out run-on is in progress (he keeps his speed to the gate). */
+  private runOn = false;
+  private escapeGateAt = 0;
 
   private escape: EscapeScale | null = null;
 
@@ -726,9 +827,10 @@ export class Game {
     const f0 = this.track.path.sample(s0);
     const fw = forward(f0.yaw);
     // A place to escape to: a carved gate stands on the way ahead with daylight pouring through it.
-    const gateAt = s0 + 10 + 3 * g;
+    // (Placed by cashout() as he starts his run-on, so he runs toward it.)
+    const gateAt = this.escapeGateAt > s0 ? this.escapeGateAt : s0 + 10 + 3 * g;
     const fg = this.track.path.sample(gateAt);
-    this.placeEscapeGate(fg.pos, fg.yaw);
+    if (!this.escapeGate) this.placeEscapeGate(fg.pos, fg.yaw);
     this.rig.gateAhead = gateAt - s0;
     const glory = fg.pos.clone().addScaledVector(forward(fg.yaw), 0.9).setY(fg.pos.y + 3.0);
     // Capped so the scene keeps its contrast (no bloom whiteout), a touch more for a big escape.
@@ -875,6 +977,26 @@ export class Game {
     const f = this.track.path.sample(mid);
     const sc = mid + (c.x - f.pos.x) * -Math.sin(f.yaw) + (c.z - f.pos.z) * -Math.cos(f.yaw);
     return [sc - 2, sc + 2];
+  }
+
+  /**
+   * A stretch a set piece can stand on: level, straight floor (no stairs, no bend), no crash
+   * staging, no reveal gate, and inside the built route.
+   */
+  private clearRun(s0: number, s1: number): boolean {
+    const a = this.track.path.sample(s0);
+    const y0 = a.pos.y;
+    const yaw0 = a.yaw;
+    for (let s = s0; s <= s1 + 1e-3; s += 1) {
+      const sec = this.track.sectionAt(s);
+      if (!sec) return false;
+      const f = this.track.path.sample(s);
+      if (Math.abs(f.pos.y - y0) > 0.12) return false;
+      const d = f.yaw - yaw0;
+      if (Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > 0.2) return false;
+      for (const t of sec.tiles) if (t.piece.startsWith('stairs') && Math.abs(this.tileSpan(t)[0] + 2 - s) < 2.5) return false;
+    }
+    return true;
   }
 
   private collapsible(t: { piece: string; alive: boolean }): boolean {
@@ -1331,7 +1453,7 @@ export class Game {
         this.rig.addTrauma(0.04 + 0.06 * k);
         this.sounds.event?.('dust_burst', k);
         // Debris landing beside him: now and then a stumble-and-recover, else a glance at the wall.
-        if (near) this.later(0.35, () => (c.chance(0.4) ? this.runner.stumble() : this.runner.glance(side)), CUE);
+        if (near) this.later(0.35, () => (this.obstacles.busy ? false : c.chance(0.4) ? this.runner.stumble() : this.runner.glance(side)), CUE);
         break;
       }
       case 'stones': {
@@ -1375,6 +1497,22 @@ export class Game {
         this.tremor(I, k);
         if (k > 0.55) this.runner.glance(c.chance(0.5) ? 1 : -1);
         break;
+      case 'collapse': {
+        // Far off, a stretch of parapet or a ruin gives way into the water: a column of dust, blocks
+        // tumbling, a dull roar. The world itself is coming apart as the run goes on.
+        const g = this.track.path.sample(this.s + c.range(28, 48));
+        const gr = new THREE.Vector3(Math.cos(g.yaw), 0, -Math.sin(g.yaw));
+        const side = c.chance(0.5) ? 1 : -1;
+        const at = g.pos.clone().addScaledVector(gr, side * c.range(PATH_HALF + 1.5, PATH_HALF + 6)).setY(g.pos.y + c.range(2, 4));
+        for (let i = 0; i < 2 + Math.round(3 * k); i++) {
+          const p = at.clone().add(new THREE.Vector3(c.range(-1.5, 1.5), c.range(0, 2), c.range(-1.5, 1.5)));
+          this.later(i * 0.12, () => this.debris.spawn(c.chance(0.5) ? 'rubble_2' : 'rubble_3', new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(c.range(0, 6), c.range(0, 6), 0)), new THREE.Vector3(0.7, 0.7, 0.7)), gr.clone().multiplyScalar(side * c.range(0.5, 2)), new THREE.Vector3(c.range(-2, 2), c.range(-2, 2), c.range(-2, 2)), () => null, { breakInto: 3, breakAfter: c.range(0.4, 0.8) }), CUE);
+        }
+        B.puff(at, { count: 4 + Math.round(4 * k), spread: 4, jitter: 0.8, vel: new THREE.Vector3(0, 2, 0), size: [2, 7 + 4 * k], life: 4, alpha: 0.38, tint: DUST_T, rise: 0.3, drag: 0.7, group: CUE });
+        this.sounds.tremor(0.3 + 0.4 * k);
+        this.rig.addTrauma(0.05 + 0.08 * k);
+        break;
+      }
       case 'birds': {
         // Birds burst out of the trees off to one side and wheel away from the noise.
         const side = c.chance(0.5) ? 1 : -1;
@@ -1394,8 +1532,83 @@ export class Game {
     if (lead <= 0.05) return;
     this.later(lead * 0.6, () => {
       const t2 = (sAt - this.s) / Math.max(1, this.speed) - 0.2;
-      if (t2 > 0) this.later(t2, () => this.stage === 'run' && this.runner.hop(), CUE);
+      if (t2 > 0) this.later(t2, () => this.stage === 'run' && !this.obstacles.busy && this.runner.hop(), CUE);
     }, CUE);
+  }
+
+  /**
+   * The HUD's tier pulse: called ON the tier-up's downbeat (with the camera punch and the music's
+   * accent), from the multiplier on screen only. The UI sets it; `game.live.tier` changes at once.
+   */
+  onTierPulse: (tier: number) => void = () => {};
+
+  /** 0..1, decays over ~1.4 s after a tier-up: a warm lift in the grade and a gust in the leaves. */
+  private tierGlow = 0;
+
+  /**
+   * A tier arrives (the multiplier on screen crossed 2, 5, 10 or 25×). At once (within the frame):
+   * the grade steps warmer and harder (progression.heat steps, tierGlow lifts), game.live.tier
+   * changes and the score is told (it lands an accent on its next bar line). ON that bar line (the
+   * HUD pulse via onTierPulse / 'causeway:tier', and (sounds.nextDownbeat, if the score runs and it is within a
+   * bar; else at once): the lens punch and jolt, a gust through the leaves, a burst of world events
+   * (dust from both walls, birds, a rumble), and from the sprint tier a glance back. A cash-out or a
+   * fall before the downbeat cancels the punch. Reduced motion keeps it, gentler.
+   */
+  private tierUp(tier: number): void {
+    this.tierGlow = 1;
+    this.sounds.event?.('tier_up', tier / 4);
+    const round = this.worldSeed;
+    const land = () => {
+      if (this.stage !== 'run' || round !== this.worldSeed) return;
+      const k = this.motion === 'full' ? 1 : 0.4;
+      // The HUD's pulse lands with it: `game.onTierPulse` (for the UI) and a 'causeway:tier' window event.
+      this.onTierPulse(tier);
+      try {
+        window.dispatchEvent(new CustomEvent('causeway:tier', { detail: { tier, mult: this.live.mult } }));
+        // The UI's HUD pulse (src/ui/pulse.ts: TIER_PULSE_EVENT), as an event so the HUD can change freely.
+        window.dispatchEvent(new CustomEvent('causeway:tier-pulse', { detail: { tier, strength: 0.6 + 0.1 * tier } }));
+      } catch {
+        /* no DOM (tests) */
+      }
+      // The world's own tier-up: a gust, leaves and dust, a flicker in the sky (world/mood.ts).
+      worldTierUp(Math.min(1, 0.4 + 0.15 * tier));
+      this.rig.kick((3 + 1.5 * tier) * k);
+      this.rig.addTrauma((0.08 + 0.04 * tier) * k);
+      this.rig.jolt(0.25 + 0.1 * tier, 0);
+      // A burst of world events: the walls breathe out dust, birds lift, the ground answers.
+      const strength = Math.min(1, 0.45 + 0.13 * tier);
+      this.dangerCue('burst', strength, this.prog.intensity);
+      if (tier >= 2) this.later(0.12, () => this.stage === 'run' && this.dangerCue('birds', strength, this.prog.intensity), CUE);
+      if (tier >= 3) this.later(0.3, () => this.stage === 'run' && this.dangerCue('rumble', strength, this.prog.intensity), CUE);
+      if (tier >= 2) this.runner.glance(this.cosmetic.chance(0.5) ? 1 : -1);
+    };
+    this.pendingPunch = { tier, land, waited: 0 };
+    this.syncPunch(0);
+  }
+
+  /**
+   * Land a pending tier-up punch on the music: the theme's pending tier landing (`tierLanding`, the
+   * new layer's downbeat) once the score has heard the tier (it hears it from the HUD's climb, so it
+   * may be a frame behind); else its next bar line; else (no theme: muted, still loading) at once.
+   * Never later than ~2.4 s (≈1.35 bars) after the tier change.
+   */
+  private pendingPunch: { tier: number; land: () => void; waited: number } | null = null;
+  private syncPunch(dt: number): void {
+    const p = this.pendingPunch;
+    if (!p) return;
+    p.waited += dt;
+    const go = (inSec: number) => {
+      this.pendingPunch = null;
+      const d = Math.min(Math.max(0, inSec), Math.max(0, 2.4 - p.waited));
+      if (d < 0.03) p.land();
+      else this.later(d, p.land, CUE);
+    };
+    const tl = this.sounds.tierLanding?.() ?? null;
+    if (tl && tl.tier >= p.tier) return go(tl.in);
+    // Give the score up to ~0.15 s to hear the new tier; then the next bar line, or now.
+    if (p.waited < 0.15 && this.sounds.nextDownbeat?.() != null) return;
+    const nd = this.sounds.nextDownbeat?.() ?? null;
+    go(nd ?? 0);
   }
 
   private duckScanIn = 0;
@@ -1420,7 +1633,7 @@ export class Game {
     this.duckFrom.copy(f.pos).addScaledVector(rv, -0.6).setY(f.pos.y + 1.75);
     this.duckTo.copy(f.pos).addScaledVector(rv, 0.6).setY(f.pos.y + 1.75);
     const hit = this.occluder(this.duckFrom, this.duckTo) ?? this.occluder(this.duckTo, this.duckFrom);
-    if (hit !== null && this.runner.duck()) this.duckCool = 1.2;
+    if (hit !== null && !this.obstacles.busy && this.runner.duck()) this.duckCool = 1.2;
   }
 
   /** A distant rumble: camera tremor, grit off the walls, and a plume of dust far off over the jungle. */
@@ -1428,6 +1641,58 @@ export class Game {
    * Last line of defence for the lens: if the camera went non-finite, or sits inside a solid prop or
    * a heavy falling body (the door), cut to a safe shot behind and above the runner.
    */
+  /**
+   * Low ceilings (round 13): under an arcade, a tunnel or a fallen lintel the low chase lens rose into
+   * the soffit — the stone filled the top of the frame and cut the runner's head. An upward probe from
+   * the lens (a few times a second): with less than 0.75 m above it, the lens comes down (never below
+   * knee height) and leans a little toward the runner, eased in and out so it never pops.
+   */
+  private ceilT = 0;
+  private ceilWant = 0;
+  private ceilDrop = 0;
+  private ceilP = new THREE.Vector3();
+  private ceiling(dt: number): void {
+    const cam = this.rig.camera;
+    this.ceilT -= dt;
+    if (this.ceilT <= 0) {
+      this.ceilT = 0.12;
+      const p = cam.position;
+      // Probe from where the lens would be without the previous drop, so the drop does not undo itself.
+      this.ceilP.copy(p).setY(p.y + this.ceilDrop);
+      const top = this.ceilP.clone().setY(this.ceilP.y + 1.6);
+      const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
+      this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
+    }
+    // A set piece overhead (a lintel he slides under): looked for every frame, a third of a second
+    // ahead, since at speed it passes the lens in a blink.
+    const sCam = this.s - this.lensAlong();
+    let want = this.ceilWant;
+    for (const ahead of [0, 0.15, 0.3]) {
+      const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
+      if (y !== null) want = Math.max(want, cam.position.y + this.ceilDrop - (y - 0.4));
+    }
+    this.ceilDrop += (want - this.ceilDrop) * (1 - Math.exp(-dt * (want > this.ceilDrop ? 14 : 2.5)));
+    if (this.ceilDrop < 1e-3) return;
+    const p = cam.position;
+    const floor = this.track.path.sample(this.s).pos.y + 0.5;
+    const drop = Math.min(this.ceilDrop, Math.max(0, p.y - floor));
+    p.y -= drop;
+    // Lean the view down by the same amount so the runner keeps his place in frame.
+    cam.updateMatrixWorld();
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
+    look.y -= drop * 0.35;
+    cam.lookAt(look);
+    cam.updateMatrixWorld();
+  }
+
+  /** How far behind the runner, along his heading, the lens is (m; negative when it is ahead). */
+  private lensAlong(): number {
+    const p = this.rig.camera.position;
+    const r = this.runner.root.position;
+    const ry = this.runner.root.rotation.y;
+    return -((p.x - r.x) * -Math.sin(ry) + (p.z - r.z) * -Math.cos(ry));
+  }
+
   private guardCamera(): void {
     const cam = this.rig.camera;
     const p = cam.position;
@@ -1508,7 +1773,9 @@ export class Game {
     const ahead = new THREE.Vector3(-Math.sin(f.yaw), 0, -Math.cos(f.yaw)).multiplyScalar(this.stage === 'run' ? 0.2 : 0.1);
     const p = this.runner.root.position.clone().add(side).add(ahead);
     const secType = this.track.sectionAt(this.s)?.type;
-    const wood = secType === 'bridge';
+    const wood = secType === 'bridge' || secType === 'boardwalk';
+    // The boards give under each footfall (runner overlays); stone stays stone.
+    this.runner.surface = wood ? 'wood' : 'stone';
     this.sounds.setSection?.(secType);
     const skid = this.stage === 'crash';
     // Dust at each plant, a bigger, lower puff the harder they run; at the top tiers the push-off
@@ -1567,14 +1834,22 @@ export class Game {
       }
     }
     if (this.stage === 'cashout' || this.stage === 'crash') mult = this.live.mult;
-    const I = intensityOf(mult);
+    // THE PROGRESSION: one model for every system (camera, grade, effects, runner, world, score).
+    const P = (this.prog = progression(mult));
+    const I = P.intensity;
     if (this.stage === 'run' || this.stage === 'lead') {
       this.live.mult = mult;
       this.live.intensity = I;
+      this.live.tier = this.stage === 'run' ? P.tier : 0;
+      this.live.drive = this.stage === 'run' ? P.drive : 0;
+      this.live.heat = this.stage === 'run' ? P.heat : 0;
     }
 
     // Kinematics. Crash and cash-out brake uniformly to a staged mark.
-    if (this.stage === 'crash' || this.stage === 'cashout') {
+    if (this.stage === 'cashout' && this.runOn) {
+      // The "made it" run-on: full stride to safe ground (see cashout()).
+      this.s += this.speed * dt;
+    } else if (this.stage === 'crash' || this.stage === 'cashout') {
       const rem = Math.max(0, this.stopAt - this.s);
       this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
       this.s = Math.min(this.stopAt, this.s + this.speed * dt);
@@ -1582,23 +1857,24 @@ export class Game {
       const target = this.stage === 'run' ? speedOf(I) : 0;
       const dv = target - this.speed;
       this.speed += Math.sign(dv) * Math.min(Math.abs(dv), 6 * dt * (this.stage === 'run' && this.stageT < 1 ? 1.4 : 1));
-      this.s += this.speed * dt;
+      // sRate: the few percent the obstacle director borrows so a move's takeoff meets its set piece.
+      this.s += (this.speed + (this.stage === 'run' ? this.obstacles.sRate : 0)) * dt;
     }
     this.live.speed = this.speed;
     this.live.distance = this.s;
     this.track.update(this.s, I);
+    if (this.stage === 'run') this.obstacles.update(dt, P.tier, this.stageT);
     this.placeRunner(dt);
     this.runner.lean = this.stage === 'run' ? 0.04 * I : 0;
     // Run tier from the current multiplier only: gait and camera escalate, with cosmetic beats.
-    const drive = this.stage === 'run' ? runDrive(mult) : 0;
-    // A lens punch as each run tier arrives (2, 5, 10, 25×): from the current multiplier only.
-    const tierNow = this.stage === 'run' ? runTier(mult) : 0;
-    if (this.stage === 'run' && tierNow > this.lastRunTier) {
-      this.rig.kick(3 + 1.5 * tierNow);
-      this.sounds.event?.('tier_up', tierNow / 4);
-      this.rig.addTrauma(0.06 + 0.03 * tierNow);
-    }
+    const drive = this.stage === 'run' ? P.drive : 0;
+    // Tier-ups (2, 5, 10, 25×): every system changes together (see tierUp).
+    const tierNow = this.stage === 'run' ? P.tier : 0;
+    if (this.stage === 'run' && tierNow > this.lastRunTier) this.tierUp(tierNow);
     this.lastRunTier = tierNow;
+    if (this.stage === 'run') this.syncPunch(rawDt);
+    else this.pendingPunch = null;
+    this.tierGlow = Math.max(0, this.tierGlow - rawDt / 1.4);
     this.scanOverhead(dt, tierNow);
     // Speed without blur: from the driven tier, grit and low dust lift off the floor and the wall
     // feet just ahead and either side of him; the lens rushes through them (parallax), denser with
@@ -1619,8 +1895,8 @@ export class Game {
     this.rig.drive = drive;
     if (this.stage === 'run' && this.stageT > 1.5) {
       this.beatIn -= dt;
-      if (this.beatIn <= 0) {
-        const nb = nextBeat(this.cosmetic, runTier(mult));
+      if (this.beatIn <= 0 && !this.obstacles.busy) {
+        const nb = nextBeat(this.cosmetic, P.tier);
         this.beatIn = nb ? nb.wait : 2;
         if (nb?.beat === 'glance') this.runner.glance(this.cosmetic.chance(0.5) ? 1 : -1);
         else if (nb?.beat === 'stumble' && this.runner.stumble()) {
@@ -1668,7 +1944,7 @@ export class Game {
       }
     }
     if (this.fxMotion !== this.motion) this.applyFxBudget();
-    const dangerTarget = this.stage === 'run' ? Math.max(0, (I - 0.35) / 0.65) * 0.55 : 0;
+    const dangerTarget = this.stage === 'run' ? Math.max(0, (P.heat - 0.35) / 0.65) * 0.55 : 0;
     this.fx.danger += (dangerTarget - this.fx.danger) * (1 - Math.exp(-dt * 2));
     // The fall's grade: cold, but capped so the runner and the hazard stay readable.
     const coldTarget = this.stage === 'crash' ? Math.min(0.55, this.stageT * 0.6) : 0;
@@ -1710,6 +1986,7 @@ export class Game {
     }
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' ? I : 0);
     const cam = this.rig.camera;
+    this.ceiling(rawDt);
     this.guardCamera();
     if (this.debugPin) {
       const d = this.debugPin;
@@ -1757,9 +2034,18 @@ export class Game {
     this.sunDisc.lookAt(cam.position);
 
     wind.uTime.value = this.worldT;
-    // Round 11 crescendo: the world's mood follows the run (src/world/mood.ts; presentation only).
+    // Round 11 crescendo: the world's mood follows the run (src/world/mood.ts; presentation only),
+    // driven by the progression's heat (the same model as the grade, camera, cues and score).
+    setWorldDrive(this.stage === 'run' || this.stage === 'crash' || this.stage === 'cashout' ? this.prog.heat : 0);
     const mood = stepMood(dt, I);
     this.applyMood(mood.drive, mood.gust);
+    // Round 13: in a low, warm sun the runner wears a faint gold rim (the escape's rim, at a sliver of
+    // its strength), so his silhouette lifts off the stone; none in the flat light of morning or storm.
+    // The escape sets its own, stronger rim.
+    if (this.stage !== 'cashout') {
+      const ln = this.lookApplied?.name;
+      this.cine.rimLevelTarget = ln === 'golden' ? 0.16 : ln === 'afternoon' ? 0.1 : 0;
+    }
     this.water.update(this.worldT, cam);
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
@@ -1774,8 +2060,9 @@ export class Game {
     this.cine.update(dt, rawDt, cam, this.sunDir, this.worldT, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)));
     // Tension ramp (grade, vignette, dust in the air): from the live multiplier only, while running;
     // it eases back once the round settles (the fall's cold and the escape's gold take over).
-    const tensionTarget = this.stage === 'run' ? Math.min(1, Math.max(0, Math.log(this.live.mult) / Math.log(20))) : 0;
-    this.tension += (tensionTarget - this.tension) * (1 - Math.exp(-rawDt * (this.stage === 'run' ? 1.5 : 0.8)));
+    // The grade follows the progression's heat; a tier's step arrives within a frame or two.
+    const tensionTarget = this.stage === 'run' ? this.prog.heat : 0;
+    this.tension += (tensionTarget - this.tension) * (1 - Math.exp(-rawDt * (this.stage === 'run' ? (tensionTarget > this.tension ? 8 : 1.5) : 0.8)));
     this.motes.update(this.worldT, cam, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)), (1 + 1.3 * this.tension) * (1 + 1.2 * worldMood.drive + 1.5 * worldMood.gust), this.sunDir);
     this.ambient.update(this.worldT, cam);
 
@@ -1796,7 +2083,7 @@ export class Game {
       danger: this.fx.danger,
       cold: this.fx.cold,
       gold: this.fx.gold,
-      flash: this.fx.flash,
+      flash: this.fx.flash + 0.05 * this.tierGlow * this.tierGlow,
       fade: this.fx.fade,
       bloomBoost: this.fx.bloom,
       tension: this.tension,
@@ -1854,6 +2141,27 @@ export class Game {
   debugAdvance(metres: number): void {
     this.s += metres;
     this.track.update(this.s, 0.5);
+  }
+
+  /** QA: the nearest mesh under each screen point ([x, y] in 0..1 from the top left), with its material. */
+  /** QA: place a set piece ahead now (log, beam, pillar, blocks, boulder, tile, rocks); and the counts so far. */
+  debugObstacle(kind?: string): { placed: boolean; fired: Record<string, number> } {
+    const placed = kind ? this.obstacles.force(kind as Parameters<ObstacleDirector['force']>[0]) : false;
+    return { placed, fired: { ...this.obstacles.fired } };
+  }
+
+  debugPick(pts: [number, number][]): { name: string; mat: string; dist: number }[] {
+    const rc = new THREE.Raycaster();
+    const out: { name: string; mat: string; dist: number }[] = [];
+    this.scene.updateMatrixWorld(true);
+    for (const [x, y] of pts) {
+      rc.setFromCamera(new THREE.Vector2(x * 2 - 1, 1 - y * 2), this.rig.camera);
+      const hit = rc.intersectObject(this.scene, true).find((h) => (h.object as THREE.Mesh).isMesh && h.object.visible);
+      const m = hit?.object as THREE.Mesh | undefined;
+      const mat = m ? (Array.isArray(m.material) ? m.material[0] : m.material) : null;
+      out.push({ name: m ? `${m.parent?.name ?? ''}/${m.name}` : '(sky)', mat: mat ? `${mat.type}:${mat.name}` : '', dist: hit ? +hit.distance.toFixed(1) : -1 });
+    }
+    return out;
   }
 
   /** Triangles by mesh name, split into what the camera sees and what it does not. */

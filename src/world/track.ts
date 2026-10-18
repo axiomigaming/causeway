@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Rng } from '../engine/rng';
 import type { Kit } from './assets';
 import { Path, frameMatrix, type Frame, type Segment } from './path';
+import { Obstacles, type Obstacle, type ObstacleKind } from './obstacles';
 import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionType } from './sections';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
@@ -13,6 +14,7 @@ import { atmosphereUniforms } from './atmosphere';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
 const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
+const QA_OBS = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('obs') ?? '').split(',').filter(Boolean) : [];
 
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
@@ -35,6 +37,9 @@ const VARIANTS: Record<SectionType, number> = {
   roots: 2,
   colossi: 2,
   ledge: 2,
+  turnL: 2,
+  turnR: 2,
+  stepping: 2,
 };
 
 interface Variant {
@@ -77,7 +82,7 @@ const TILE_CAPACITY: Record<string, number> = {
   floor_0: 110,
   floor_1: 110,
   floor_2: 40,
-  floor_wide_0: 12,
+  floor_wide_0: 16,
   floor_narrow_0: 8,
   floor_medallion_0: 36,
   planks_0: 40,
@@ -164,6 +169,9 @@ export class Track {
   private rng = new Rng(1);
   private elevation = 0;
   private lastType: SectionType = 'start';
+  /** Quarter turns from the start heading (−1, 0, +1) and sections since the last corner. */
+  private heading = 0;
+  private sinceTurn = 0;
   private fallMat = makeWaterfallMaterial();
   private density = { foliage: 1, scenery: 1 };
   viewDistance = 190;
@@ -183,10 +191,18 @@ export class Track {
   }
   /** QA: section types to spawn next, in order, before the pacing rules resume. */
   forceNext: SectionType[] = [];
+  /** Round 11: obstacle props for the obstacle director (see obstacles.ts). */
+  readonly obstacles: Obstacles;
+
+  /** Place an obstacle across the route at arc length `s` (the director animates it). */
+  spawnObstacle(kind: ObstacleKind, s: number, seed = 0): Obstacle {
+    return this.obstacles.spawn(kind, s, seed);
+  }
 
   constructor(private kit: Kit) {
     this.root.name = 'track';
     this.tiles = new TileSystem(kit, this.root);
+    this.obstacles = new Obstacles(kit, this.root, this.path);
     // Foam is generated here rather than in Blender: it is a shader, not a texture.
     kit.geo.set('foam_strip', makeFoamStrip());
     kit.geo.set('foam_ring', makeFoamRing());
@@ -290,22 +306,39 @@ export class Track {
     this.themeIndex = pick(THEMES.length, this.themeIndex);
     this.lookIndex = pick(LOOKS.length, this.lookIndex);
     this.elevation = 0;
+    this.obstacles.clear();
     this.path.reset({ pos: new THREE.Vector3(0, 0, 0), yaw: 0 });
     this.spawn('start');
     this.lastType = 'start';
+    this.heading = 0;
+    this.sinceTurn = 0;
     this.update(0, 0);
+    // QA (dev builds only): ?obs=log@24,beam@34 lays obstacles to look at.
+    for (const spec of QA_OBS) {
+      const [k, at] = spec.split('@');
+      this.spawnObstacle(k as ObstacleKind, Number(at), 1);
+    }
   }
 
   /** Keep the route built ahead of `s` and cleared behind it. */
   update(s: number, intensity: number): void {
     while (this.path.length < s + this.viewDistance) {
-      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types);
+      // Corners alternate (the route never doubles back on itself) and stand at least three
+      // sections apart (the legs between them keep the lanes' scenery from meeting).
+      const allow = (t: SectionType) =>
+        t === 'turnL' ? this.heading < 1 && this.sinceTurn >= 3 : t === 'turnR' ? this.heading > -1 && this.sinceTurn >= 3 : true;
+      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
       this.spawn(t, intensity);
       this.lastType = t;
+      if (t === 'turnL' || t === 'turnR') {
+        this.heading += t === 'turnL' ? 1 : -1;
+        this.sinceTurn = 0;
+      } else this.sinceTurn++;
     }
     while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
       this.despawn(this.sections.shift()!);
     }
+    this.obstacles.trim(s);
     this.path.trim(s - 60);
   }
 
@@ -321,7 +354,8 @@ export class Track {
     const variant = this.rng.pick(candidates);
     variant.inUse++;
     const layout = variant.layout;
-    const mirror = type !== 'start' && this.rng.chance(0.5);
+    // Corners: turnL is built as a left turn and turnR is its mirror image.
+    const mirror = type === 'turnR' ? true : type === 'turnL' || type === 'start' ? false : this.rng.chance(0.5);
     const turn = mirror ? -layout.turn : layout.turn;
     const seg = this.path.push(layout.len, turn, layout.dy);
     this.elevation += layout.dy;
@@ -380,7 +414,9 @@ export class Track {
       b.set(0, 0, -len).applyMatrix4(t.m);
       const near = Math.min(-a.z, -b.z);
       const far = Math.max(-a.z, -b.z);
-      const slot: TileSlot = { piece: t.piece, index: -1, world: tmp.clone(), sNear: seg.s0 + near, sFar: seg.s0 + far, alive: true };
+      // A corner's plaza slab spans the whole bend (its extent along −Z is not arc length).
+      const span = layout.turn !== 0 ? [0, layout.len] : [near, far];
+      const slot: TileSlot = { piece: t.piece, index: -1, world: tmp.clone(), sNear: seg.s0 + span[0]!, sFar: seg.s0 + span[1]!, alive: true };
       this.tiles.alloc(slot);
       inst.tiles.push(slot);
     }
@@ -425,6 +461,16 @@ export class Track {
       }
     }
     return out;
+  }
+
+  /**
+   * Round 11, for the obstacle director: the separable causeway slabs in [sFrom, sTo] (live 4 m floor
+   * tiles; not the plaza slabs or stairs). Each has its world matrix and s-span: hide it with
+   * hideTile() and animate a debris copy of `piece` from `world` (drifting apart, tilting, sinking).
+   * The 'stepping' sections are built for this: every slab on its own pier over open water.
+   */
+  slabsIn(sFrom: number, sTo: number): TileSlot[] {
+    return this.tilesIn(sFrom, sTo).filter((t) => t.piece !== 'floor_wide_0' && !t.piece.startsWith('stairs'));
   }
 
   /** The live tile under arc length `s`, if any. */
@@ -499,7 +545,7 @@ function stageKit(kit: Kit): void {
     const m = kit.mat.get(key);
     // Detail normals strongest underfoot, where the camera is closest.
     const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' ? 0.8 : key === 'wood' ? 0.4 : 0.6;
-    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail);
+    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor');
   }
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {

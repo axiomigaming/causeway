@@ -1,3 +1,4 @@
+import { intensityOf } from './choreo';
 import * as THREE from 'three';
 import { Rng } from '../engine/rng';
 import { evalSeg, type Segment } from './path';
@@ -28,7 +29,10 @@ export type SectionType =
   | 'sunken'
   | 'roots'
   | 'colossi'
-  | 'ledge';
+  | 'ledge'
+  | 'turnL'
+  | 'turnR'
+  | 'stepping';
 
 export interface Placement {
   piece: string;
@@ -388,6 +392,8 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       }
       carvedRun = false;
       b.wall(b.rng.pick(LOW_WALLS), side, PATH_HALF + 0.36, 0, z);
+      // Round 11 detail: now and then roots creeping over the parapet and down its sides.
+      if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.5, z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
       if (b.foliage(0.4)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.5), b.rng.range(0.9, 1.4), z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.55, 0.9));
       // Green spilling over the wall's outer side, down toward the water.
       else if (b.foliage(0.3)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 1.1), b.rng.range(0.2, 0.7), z - b.rng.range(1, 3), b.rng.range(0, 6.28), b.rng.range(0.55, 0.8));
@@ -507,7 +513,89 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
 // ------------------------------------------------------------------ section builders
 type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number };
 
+/**
+ * Round 11: a real 90° corner, Temple Run style. The path is one quarter circle of radius TURN_R (≈ 7 m)
+ * (arc-length continuous, so the run logic and the camera just follow it) over a square pivot plaza:
+ * parapets and foundations along the outer edge, a corner pier where they meet, a short curved
+ * parapet and a stele on the inside of the bend. Built as a left turn; turnR is its mirror image
+ * (track.ts mirrors it), so both read the same.
+ */
+export const TURN_R = 4.5;
+const TURN_LEN = (TURN_R * Math.PI) / 2;
+
+function turnCorner(b: Builder): ReturnType<Build> {
+  const R = TURN_R;
+  const out = PATH_HALF + 0.36;
+  // The plaza: one wide slab under the whole bend (x −6.2…3.8, z 0…−7.4), tucked 2 cm under the
+  // exit leg's first slabs where they overlap.
+  b.tile('floor_wide_0', -1.2, -0.02, 0, 0, [1, 1, 0.92]);
+  b.pathRubble(-1, 0, 0.5);
+  // Outer edge, along the entry (x = +out) and across the exit (z = −(R + out)): foundations,
+  // parapets and foam, the outside wall of the corner.
+  for (const z0 of [0, -4]) {
+    const len = z0 === 0 ? 4 : R + out - 4;
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', PATH_HALF + 0.42, 0, z0, 0, [1, 1, len / 4]);
+    b.foam(1, PATH_HALF + 0.84, z0, len);
+    b.place(b.rng.pick(LOW_WALLS), out, 0, z0, 0, [1, 1, len / 4]);
+    b.edgeRubble(1, z0);
+  }
+  const back = -(R + out);
+  // Across the exit: from the corner to where the exit leg's own parapet begins (x = −R).
+  for (const [x0, len] of [[out, 4], [out - 4, R + out - 4]] as const) {
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', x0, 0, back - 0.06, Math.PI / 2, [1, 1, len / 4]);
+    b.place(b.rng.pick(LOW_WALLS), x0, 0, back, Math.PI / 2, [1, 1, len / 4]);
+  }
+  // The corner pier where the two parapets meet, a bush and grass on it.
+  b.pillar('pillar_0', out + 0.3, 0, back - 0.3, Math.PI / 4);
+  if (b.foliage(0.8)) b.place(`bush_${b.rng.int(0, 3)}`, out + 0.6, 0.4, back - 0.8, 0, 1.0);
+  if (b.foliage(0.6)) b.place(`grass_${b.rng.int(0, 1)}`, out - 0.6, 0, back + 0.7, 0, 1.0);
+  // Inside of the bend (radius < R − PATH_HALF = 2.3 m round the pivot at x = −R): a stele and a
+  // stump, fern and moss, nothing on the line the runner takes.
+  b.place('stele_1', -R + 1.0, 0, -0.9, Math.PI / 4, 0.9);
+  b.place(`rubble_${b.rng.int(0, 3)}`, -R + 0.4, 0, -1.6, b.rng.range(0, 6.28));
+  if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, -R + 1.6, 0, -0.4, 0, 0.8);
+  if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, -R + 0.6, 0, -0.6, 0, 0.7);
+  // Green behind the outer corner, a limb over it; scenery only on the outside of the bend (the
+  // inside is where the exit leg's own world begins).
+  jungleBank(b, 1, PATH_HALF + 4.5, -3, 0, 0.8);
+  canopy(b, 1, -R, 0, 0.5);
+  scenery(b, TURN_LEN, { sides: [1], minX: 10 });
+  return { turn: Math.PI / 2, hazards: ['rockfall'], walls: 'low' };
+}
+
 const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
+  turnL: { lengths: [TURN_LEN], build: (b) => turnCorner(b) },
+  stepping: {
+    // Round 11: the causeway as separate slabs over open water — each 4 m slab on its own pier, no
+    // parapet, foam churning in every joint — so the obstacle director can set them drifting apart
+    // and sinking (Track.slabsIn).
+    lengths: [16, 20],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.1, 0);
+      for (let i = 0; i <= n; i++) {
+        const z = -TILE * i;
+        for (const side of [-1, 1]) {
+          if (i < n) b.foam(side, PATH_HALF + 0.3, z, TILE);
+          // A broken pier stump under each joint, a block or two tumbled into the water.
+          if (i < n) b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
+          if (b.rng.chance(0.35)) b.place(`rubble_${b.rng.int(0, 3)}`, side * b.rng.range(2.8, 4.2), WL + 0.1, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28));
+          if (b.rich && b.foliage(0.3)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 7), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
+        }
+        b.foamRing(0, z, 2.6);
+      }
+      for (let z = -b.rng.range(3, 6); z > -len; z -= b.rng.range(7, 10)) {
+        const side = b.rng.chance(0.5) ? -1 : 1;
+        const x = side * b.rng.range(3.4, 4.4);
+        b.place(`rock_mid_${b.rng.int(0, 2)}`, x, WL + 0.3, z, b.rng.range(0, 6.28), [0.5, 0.4, 0.5]);
+        b.foamRing(x, z, 1.1);
+      }
+      scenery(b, len, { minX: 9 });
+      vista(b, len, ['arch', 'guardians', 'towers', 'falls'], 0.5);
+      return { hazards: ['chasm'], walls: 'none' };
+    },
+  },
+  turnR: { lengths: [TURN_LEN], build: (b) => turnCorner(b) },
   start: {
     lengths: [12],
     build: (b) => {
@@ -1204,9 +1292,10 @@ export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];
  * The beat's types get a strong bias; every type stays possible.
  */
 export const BIOMES: { until: number; types: SectionType[] }[] = [
-  { until: 0.22, types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots'] },
-  { until: 0.45, types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi'] },
-  { until: 0.7, types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots'] },
+  // [Progression director] the beats change exactly at the run tiers (2×, 5×, 10×), on the shared model.
+  { until: intensityOf(2), types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots'] },
+  { until: intensityOf(5), types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi'] },
+  { until: intensityOf(10), types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots'] },
   { until: 2, types: ['cliff', 'gorge', 'bridge', 'tunnel', 'ledge'] },
 ];
 
@@ -1227,7 +1316,7 @@ export const THEMES: { name: string; types: SectionType[] }[] = [
   { name: 'temples', types: ['sunken', 'plaza', 'ruins', 'arcade', 'tall'] },
 ];
 
-export function nextType(rng: Rng, prev: SectionType, elevation: number, intensity: number, favor: SectionType[] = []): SectionType {
+export function nextType(rng: Rng, prev: SectionType, elevation: number, intensity: number, favor: SectionType[] = [], allow: (t: SectionType) => boolean = () => true): SectionType {
   const beat = BIOMES[biomeOf(intensity)]!.types;
   const w: [SectionType, number][] = [
     ['corridor', 4],
@@ -1247,9 +1336,13 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['roots', 1.3],
     ['colossi', 1.1],
     ['ledge', 1.1 + 0.6 * intensity],
+    // Real corners: more often as the run builds (the director's turns are part of the crescendo).
+    ['stepping', 0.8 + 0.6 * intensity],
+    ['turnL', 0.9 + 0.6 * intensity],
+    ['turnR', 0.9 + 0.6 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
   ];
-  const options = w.filter(([t]) => t !== prev || t === 'corridor').map(([t, k]) => [t, (beat.includes(t) ? k * 2.2 : k) * (favor.includes(t) ? 2.4 : 1)] as [SectionType, number]);
+  const options = w.filter(([t]) => (t !== prev || t === 'corridor') && allow(t)).map(([t, k]) => [t, (beat.includes(t) ? k * 2.2 : k) * (favor.includes(t) ? 2.4 : 1)] as [SectionType, number]);
   return rng.weighted(options);
 }
 

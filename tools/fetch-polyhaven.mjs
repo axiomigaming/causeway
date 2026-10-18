@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'blender', 'cache', 'polyhaven');
 /** Surface scans (2K PNG maps), box-projected in materials.py. */
-export const SCANS = ['sandstone_cracks', 'rock_face', 'old_planks_02'];
+export const SCANS = ['sandstone_cracks', 'rock_face', 'old_planks_02', 'bark_brown_02'];
 const MAPS = ['diff', 'nor_gl', 'rough', 'ao', 'disp'];
 /** Scanned plants (1K glTF + 2K colour and alpha), rendered into the leaf atlas by foliage.py. */
 export const MODELS = ['shrub_04', 'fern_02', 'nettle_plant'];
