@@ -1337,6 +1337,376 @@
     "bytes": 92029,
     "hash": "0161e96fe6"
    }
+  },
+  "th_l0_a": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.3863
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l0_a.webm",
+    "bytes": 164501,
+    "hash": "40e0b5c799"
+   },
+   "m4a": {
+    "file": "th_l0_a.m4a",
+    "bytes": 267468,
+    "hash": "65658db17e"
+   }
+  },
+  "th_l0_b": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.4299
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l0_b.webm",
+    "bytes": 165050,
+    "hash": "dfc59e2a97"
+   },
+   "m4a": {
+    "file": "th_l0_b.m4a",
+    "bytes": 266659,
+    "hash": "0c9ef52c05"
+   }
+  },
+  "th_l1_a": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.2196
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l1_a.webm",
+    "bytes": 191339,
+    "hash": "c6f8fa6677"
+   },
+   "m4a": {
+    "file": "th_l1_a.m4a",
+    "bytes": 261748,
+    "hash": "c72ea95b51"
+   }
+  },
+  "th_l1_b": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.2233
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l1_b.webm",
+    "bytes": 194781,
+    "hash": "5e7ab32ce8"
+   },
+   "m4a": {
+    "file": "th_l1_b.m4a",
+    "bytes": 261548,
+    "hash": "a83e651380"
+   }
+  },
+  "th_l2_a": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.7699
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l2_a.webm",
+    "bytes": 160432,
+    "hash": "6501ed1562"
+   },
+   "m4a": {
+    "file": "th_l2_a.m4a",
+    "bytes": 265930,
+    "hash": "03d9d0105f"
+   }
+  },
+  "th_l2_b": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.7317
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l2_b.webm",
+    "bytes": 156938,
+    "hash": "163a728690"
+   },
+   "m4a": {
+    "file": "th_l2_b.m4a",
+    "bytes": 266068,
+    "hash": "ba96035ffa"
+   }
+  },
+  "th_l3_a": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.3488
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l3_a.webm",
+    "bytes": 158827,
+    "hash": "6f3185c531"
+   },
+   "m4a": {
+    "file": "th_l3_a.m4a",
+    "bytes": 263994,
+    "hash": "5d7bfaa116"
+   }
+  },
+  "th_l3_b": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     17.14285,
+     0.3395
+    ]
+   ],
+   "loop": true,
+   "bpm": 112,
+   "bars": 8,
+   "webm": {
+    "file": "th_l3_b.webm",
+    "bytes": 157165,
+    "hash": "b6d981e66b"
+   },
+   "m4a": {
+    "file": "th_l3_b.m4a",
+    "bytes": 262993,
+    "hash": "ec43aec0dd"
+   }
+  },
+  "th_top": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     16.0,
+     0.89
+    ]
+   ],
+   "loop": true,
+   "bpm": 120,
+   "bars": 8,
+   "webm": {
+    "file": "th_top.webm",
+    "bytes": 213212,
+    "hash": "93a89d8a7c"
+   },
+   "m4a": {
+    "file": "th_top.m4a",
+    "bytes": 298936,
+    "hash": "ba27d9fc4f"
+   }
+  },
+  "th_calm": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     22.85715,
+     0.2682
+    ]
+   ],
+   "loop": true,
+   "bpm": 84,
+   "bars": 8,
+   "webm": {
+    "file": "th_calm.webm",
+    "bytes": 221429,
+    "hash": "85386e691f"
+   },
+   "m4a": {
+    "file": "th_calm.m4a",
+    "bytes": 316639,
+    "hash": "9101ccc173"
+   }
+  },
+  "th_tense": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     11.42856,
+     0.4347
+    ]
+   ],
+   "loop": true,
+   "bpm": 84,
+   "bars": 4,
+   "webm": {
+    "file": "th_tense.webm",
+    "bytes": 79468,
+    "hash": "67bec1d9fc"
+   },
+   "m4a": {
+    "file": "th_tense.m4a",
+    "bytes": 141460,
+    "hash": "f1568df3ed"
+   }
+  },
+  "th_win0": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     4.0,
+     0.5462
+    ]
+   ],
+   "webm": {
+    "file": "th_win0.webm",
+    "bytes": 57120,
+    "hash": "aaa6cf8bfd"
+   },
+   "m4a": {
+    "file": "th_win0.m4a",
+    "bytes": 74254,
+    "hash": "12087cb0f0"
+   }
+  },
+  "th_win1": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     4.87856,
+     0.5112
+    ]
+   ],
+   "webm": {
+    "file": "th_win1.webm",
+    "bytes": 62691,
+    "hash": "1411aea0ad"
+   },
+   "m4a": {
+    "file": "th_win1.m4a",
+    "bytes": 89831,
+    "hash": "4e4d96aeaf"
+   }
+  },
+  "th_win2": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     5.14642,
+     0.7777
+    ]
+   ],
+   "webm": {
+    "file": "th_win2.webm",
+    "bytes": 68635,
+    "hash": "51ac344c1b"
+   },
+   "m4a": {
+    "file": "th_win2.m4a",
+    "bytes": 95235,
+    "hash": "a5e6e5e45c"
+   }
+  },
+  "th_lose": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     6.1,
+     0.5191
+    ]
+   ],
+   "webm": {
+    "file": "th_lose.webm",
+    "bytes": 80225,
+    "hash": "2df595064c"
+   },
+   "m4a": {
+    "file": "th_lose.m4a",
+    "bytes": 111645,
+    "hash": "cdc1ad2787"
+   }
+  },
+  "th_fill": {
+   "group": "theme",
+   "channels": 2,
+   "slices": [
+    [
+     0,
+     4.54285,
+     0.3547
+    ]
+   ],
+   "bpm": 112,
+   "webm": {
+    "file": "th_fill.webm",
+    "bytes": 36765,
+    "hash": "95a548a89b"
+   },
+   "m4a": {
+    "file": "th_fill.m4a",
+    "bytes": 70301,
+    "hash": "5939287d71"
+   }
   }
  }
 }
