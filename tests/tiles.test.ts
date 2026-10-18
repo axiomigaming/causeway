@@ -84,6 +84,31 @@ describe('walkable tiles', () => {
     expect(seen.size).toBe(4);
   });
 
+  it('places obstacles across the route with honest clearances', async () => {
+    const kit = fakeKit();
+    // Stand-ins shaped like the kit's: trunks tall along y, fallen columns long along z.
+    for (const n of ['jungle_0_trunk', 'jungle_1_trunk']) kit.geo.set(n, new THREE.CylinderGeometry(0.75, 0.75, 8, 12));
+    for (const n of ['column_fallen_0', 'column_fallen_1']) kit.geo.set(n, new THREE.BoxGeometry(1, 1, 6, 1, 1, 6));
+    kit.geo.set('pillar_2', new THREE.BoxGeometry(1, 3, 1));
+    const track = new Track(kit);
+    await track.prepare({ foliage: 0.4, scenery: 0.4 });
+    track.reset('obstacles');
+    track.update(0, 0);
+    const want = { log: ['jump', 0.5, 1.0], pillar: ['jump', 0.5, 1.0], beam: ['slide', 1.1, 1.6], bough: ['slide', 0.9, 1.8] } as const;
+    for (const [kind, [action, lo, hi]] of Object.entries(want)) {
+      const o = track.spawnObstacle(kind as keyof typeof want, 30, 1);
+      expect(o.action).toBe(action);
+      expect(o.clearance).toBeGreaterThan(lo);
+      expect(o.clearance).toBeLessThan(hi);
+      expect(o.sNear).toBeLessThan(30);
+      expect(o.sFar).toBeGreaterThan(30);
+      expect(o.rest.length).toBe(o.root.children.length);
+    }
+    expect(track.obstacles.within(29, 31).length).toBe(4);
+    track.update(200, 0);
+    expect(track.obstacles.list.length).toBe(0);
+  });
+
   it('takes real 90° corners that alternate, stand apart and never double back', async () => {
     const track = new Track(fakeKit());
     await track.prepare({ foliage: 0.4, scenery: 0.4 });

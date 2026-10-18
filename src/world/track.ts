@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Rng } from '../engine/rng';
 import type { Kit } from './assets';
 import { Path, frameMatrix, type Frame, type Segment } from './path';
+import { Obstacles, type Obstacle, type ObstacleKind } from './obstacles';
 import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionType } from './sections';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
@@ -13,6 +14,7 @@ import { atmosphereUniforms } from './atmosphere';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
 const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
+const QA_OBS = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('obs') ?? '').split(',').filter(Boolean) : [];
 
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
@@ -188,10 +190,18 @@ export class Track {
   }
   /** QA: section types to spawn next, in order, before the pacing rules resume. */
   forceNext: SectionType[] = [];
+  /** Round 11: obstacle props for the obstacle director (see obstacles.ts). */
+  readonly obstacles: Obstacles;
+
+  /** Place an obstacle across the route at arc length `s` (the director animates it). */
+  spawnObstacle(kind: ObstacleKind, s: number, seed = 0): Obstacle {
+    return this.obstacles.spawn(kind, s, seed);
+  }
 
   constructor(private kit: Kit) {
     this.root.name = 'track';
     this.tiles = new TileSystem(kit, this.root);
+    this.obstacles = new Obstacles(kit, this.root, this.path);
     // Foam is generated here rather than in Blender: it is a shader, not a texture.
     kit.geo.set('foam_strip', makeFoamStrip());
     kit.geo.set('foam_ring', makeFoamRing());
@@ -295,12 +305,18 @@ export class Track {
     this.themeIndex = pick(THEMES.length, this.themeIndex);
     this.lookIndex = pick(LOOKS.length, this.lookIndex);
     this.elevation = 0;
+    this.obstacles.clear();
     this.path.reset({ pos: new THREE.Vector3(0, 0, 0), yaw: 0 });
     this.spawn('start');
     this.lastType = 'start';
     this.heading = 0;
     this.sinceTurn = 0;
     this.update(0, 0);
+    // QA (dev builds only): ?obs=log@24,beam@34 lays obstacles to look at.
+    for (const spec of QA_OBS) {
+      const [k, at] = spec.split('@');
+      this.spawnObstacle(k as ObstacleKind, Number(at), 1);
+    }
   }
 
   /** Keep the route built ahead of `s` and cleared behind it. */
@@ -321,6 +337,7 @@ export class Track {
     while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
       this.despawn(this.sections.shift()!);
     }
+    this.obstacles.trim(s);
     this.path.trim(s - 60);
   }
 
