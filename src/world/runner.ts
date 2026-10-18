@@ -65,7 +65,7 @@ const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
 const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
-  start: [[0.16, 'L', 0.45], [0.27, 'R', 0.8], [0.5, 'L', 0.7], [0.73, 'R', 0.65], [0.9, 'L', 0.6]],
+  start: [[0.18, 'L', 0.45], [0.34, 'R', 0.8], [0.57, 'L', 0.7], [0.8, 'R', 0.65], [0.97, 'L', 0.6]],
   win: [[0.2, 'R', 0.5], [0.4, 'L', 0.35], [0.6, 'R', 0.25]],
   fall_chasm: [[0.12, 'L', 1], [0.28, 'R', 0.9]],
   fall_gate: [[0.13, 'L', 0.9], [0.5, 'R', 0.55], [0.7, 'L', 0.5], [0.9, 'R', 0.4]],
@@ -273,6 +273,10 @@ export class Runner {
   /** A catch step (stairs): time since it began, and which way the grade goes. */
   private catchT = -1;
   private catchDir = 1;
+  /** Stairs seen from the grade under him: the onset fires the catch step; `stairW` eases the stance in. */
+  private slopePrev = 0;
+  private stairCool = 0;
+  private stairW = 0;
   private speedPrev = 0;
   private accel = 0;
   private t = 0;
@@ -579,7 +583,18 @@ export class Runner {
     // Stairs: lean into a climb, sit back on a descent; bank into turns. Accelerating, the body tips
     // forward from the ankles (the drive phase of a sprint start); easing off, it straightens.
     const drivePhase = this.current === 'run' || this.current === 'start' ? THREE.MathUtils.clamp(this.accel * 0.022, -0.05, 0.16) : 0;
-    const lean = this.lean + drivePhase + THREE.MathUtils.clamp(this.slope, -0.5, 0.5) * 0.35;
+    // Reaching a flight (the grade under him crosses a few percent): a check of the stride, eyes to the
+    // treads. The world's own lip test only fires on steep flights; this catches the gentle ones too.
+    this.stairCool -= dt;
+    const sl = THREE.MathUtils.clamp(this.slope, -0.5, 0.5);
+    if (this.current === 'run' && Math.abs(sl) > 0.07 && Math.abs(this.slopePrev) <= 0.07 && this.stairCool <= 0) {
+      this.catchStep(sl);
+      this.stairCool = 2.5;
+    }
+    this.slopePrev = sl;
+    this.stairW += ((this.current === 'run' ? sl : 0) - this.stairW) * (1 - Math.exp(-dt * 5));
+    // Into a climb from the ankles, more than a descent sits back (which keeps the eyes on the treads).
+    const lean = this.lean + drivePhase + sl * (sl > 0 ? 0.6 : 0.45);
     this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, this.roll, 1 - Math.exp(-dt * 6));
     // The body faces −Z: a forward pitch is a negative rotation about X (positive tipped him back).
     this.body.rotation.x = THREE.MathUtils.lerp(this.body.rotation.x, -lean, 1 - Math.exp(-dt * 4));
@@ -637,6 +652,15 @@ export class Runner {
       this.rotate(b.chest, 0, 0.025 * v[3]! * w, 0.02 * v[2]! * w);
       this.rotate(b.upper_armL, -0.05 * v[4]! * w, 0, 0.03 * v[3]! * w);
       this.rotate(b.upper_armR, 0.04 * v[4]! * w, 0, -0.03 * v[1]! * w);
+    }
+    if (Math.abs(this.stairW) > 0.005) {
+      const up = Math.max(0, this.stairW) * 6;
+      const dn = Math.max(0, -this.stairW) * 6;
+      this.rotate(b.neck, -0.08 * (up + 1.6 * dn), 0, 0);
+      this.rotate(b.head, -0.05 * (up + 1.6 * dn), 0, 0);
+      this.rotate(b.upper_armL, 0, 0, 0.12 * dn);
+      this.rotate(b.upper_armR, 0, 0, -0.12 * dn);
+      lift += -0.02 * dn;
     }
     if (this.catchT >= 0) {
       this.catchT += dt;
@@ -1006,6 +1030,8 @@ export class Runner {
     this.hopT = -1;
     this.shieldT = -1;
     this.plankY = this.plankV = 0;
+    this.slopePrev = this.stairW = 0;
+    this.stairCool = 0;
     runnerWet.value = 0;
     this.beatOut = false;
     this.beatGain = 1;
