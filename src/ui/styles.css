@@ -1049,3 +1049,6 @@ input[type='range']:focus-visible::-webkit-slider-thumb { filter: var(--ring-on)
 /* the keyboard hint sits below the pendant, never under it */
 .cash-meta { margin-top: 22px; }
 .cta-sun.run-btn .btn-sub { margin-left: 4px; }
+
+/* round 11: the Space hint means nothing once the run is decided */
+.cash-meta.gone { visibility: hidden; }

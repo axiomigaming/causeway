@@ -322,7 +322,7 @@ function CashOut({ held }: { held: boolean }) {
           {amount}
         </span>
       </button>
-      <div className="cash-meta kbd-hint">
+      <div className={`cash-meta kbd-hint${held ? ' gone' : ''}`} aria-hidden={held || undefined}>
         Press <kbd>Space</kbd> to cash out
       </div>
     </>
