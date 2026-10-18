@@ -27,7 +27,55 @@ export type RunnerAnim =
   | 'win_leap'
   /** Payoffs for the biggest settled rounds (50x+), picked by the FX director. */
   | 'win_slide'
-  | 'fall_ledge';
+  | 'fall_ledge'
+  /** Escapes by multiplier (play() picks from win_cheer / win_leap): low, and the big one at 10×+. */
+  | 'win_pump'
+  | 'win_cheer_big'
+  | Obstacle;
+
+/** Moves for the obstacle director (see obstacle()). */
+export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L' | 'turn_cut_R' | 'stumble_land';
+
+/**
+ * Authored timings (clip seconds, at the 5 m/s run): the gait phase each starts on (0 = left strike;
+ * stumble_land starts at once, from a jump's landing) and hands back on, the length, and the takeoff and
+ * landing (slide: drop and rise; turn cuts: the plant). Real time divides by obstacleRate(); leap_gap's
+ * flight (takeoff → land, nominally 0.5 s) is stretched to the gap instead (obstacleTiming()).
+ */
+export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
+  jump_log: { from: 0, to: 0.68, duration: 23 / 30, takeoff: 5 / 30, land: 18 / 30 },
+  leap_gap: { from: 0, to: 0.5, duration: 34 / 30, takeoff: 6 / 30, land: 21 / 30 },
+  slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
+  vault: { from: 0, to: 0.5, duration: 22 / 30, takeoff: 5 / 30, land: 14 / 30 },
+  turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
+  turn_cut_R: { from: 0.5, to: 0.5, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
+  stumble_land: { from: -1, to: 0.6, duration: 19 / 30, takeoff: 0, land: 2 / 30 },
+};
+/** The run clip's cadence at the pace the moves were authored (5 m/s over its 2.571 m stride). */
+const OBST_CADENCE = 5 / 2.571;
+
+/** Clip seconds per real second for a move started at this cadence: it keeps step with the run. */
+export function obstacleRate(cadence: number): number {
+  return Math.min(1.45, Math.max(0.85, cadence / OBST_CADENCE));
+}
+
+/**
+ * Real-time timings of a move for a run cadence and speed (and, for leap_gap, the gap in metres):
+ * seconds from the clip's start (after obstacle()'s returned wait) to takeoff, landing and the end.
+ */
+export function obstacleTiming(name: Obstacle, cadence: number, speed: number, distance = 2.25): { takeoff: number; land: number; duration: number; flight: number } {
+  const O = OBSTACLES[name];
+  const r = obstacleRate(cadence);
+  if (name !== 'leap_gap') return { takeoff: O.takeoff / r, land: O.land / r, duration: O.duration / r, flight: (O.land - O.takeoff) / r };
+  const flight = leapFlight(distance, speed);
+  const takeoff = O.takeoff / r;
+  return { takeoff, land: takeoff + flight, duration: takeoff + flight + (O.duration - O.land) / r, flight };
+}
+
+/** leap_gap's time in the air for a gap at a speed (s), kept between a hop and a long bound. */
+export function leapFlight(distance: number, speed: number): number {
+  return Math.min(0.8, Math.max(0.3, distance / Math.max(1, speed)));
+}
 
 type Foot = 'L' | 'R';
 const GAITS = ['run', 'sprint', 'dash'] as const;
@@ -37,7 +85,7 @@ const GAITS = ['run', 'sprint', 'dash'] as const;
  * cadence to speed / S keeps the planted foot still on the floor. Keep in step with the clip builder
  * (it prints S for each gait).
  */
-export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.8, sprint: 3.911, dash: 4.842 };
+export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.571, sprint: 3.911, dash: 4.842 };
 
 /** Blend weights of the gait clips for a (continuous) run tier. */
 export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
@@ -48,7 +96,7 @@ export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
 
 /** Turnover ceiling (stride cycles per second): an elite sprinter's ~5 steps/s, a touch more all-out. */
 export function cadenceCap(drive: number): number {
-  return 2.45 + 0.1 * drive;
+  return 2.55 + 0.1 * drive;
 }
 
 /**
@@ -62,10 +110,10 @@ export function gaitCadence(speed: number, drive: number): number {
   return Math.min(Math.max(speed / stride, 1.1), cadenceCap(drive));
 }
 const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
-const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge']);
+const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
-  start: [[0.18, 'L', 0.45], [0.34, 'R', 0.8], [0.57, 'L', 0.7], [0.8, 'R', 0.65], [0.97, 'L', 0.6]],
+  start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.83, 'R', 0.65], [0.95, 'L', 0.6]],
   win: [[0.2, 'R', 0.5], [0.4, 'L', 0.35], [0.6, 'R', 0.25]],
   fall_chasm: [[0.12, 'L', 1], [0.28, 'R', 0.9]],
   fall_gate: [[0.13, 'L', 0.9], [0.5, 'R', 0.55], [0.7, 'L', 0.5], [0.9, 'R', 0.4]],
@@ -74,9 +122,18 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   fall_chasm_b: [[0.12, 'L', 1], [0.3, 'R', 0.9], [0.52, 'L', 0.6]],
   fall_gate_b: [[0.15, 'L', 0.9], [0.5, 'R', 0.6], [0.8, 'L', 0.5]],
   fall_rock_b: [[0.12, 'L', 0.8], [0.3, 'R', 0.6], [0.52, 'L', 0.7]],
-  win_cheer: [[0.2, 'R', 0.6], [0.37, 'L', 0.8], [0.6, 'R', 0.4]],
+  win_cheer: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.7, 'R', 0.2], [1.83, 'L', 0.2], [1.95, 'R', 0.2]],
+  win_pump: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.33, 'R', 0.2], [1.47, 'L', 0.2], [1.58, 'R', 0.2]],
+  win_cheer_big: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.5, 'R', 0.2], [1.63, 'L', 0.2], [1.75, 'R', 0.2], [2.77, 'L', 0.7], [2.78, 'R', 0.7], [3.33, 'L', 0.7], [3.34, 'R', 0.7]],
+  jump_log: [[0.167, 'L', 0.6], [0.6, 'R', 1]],
+  leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
+  slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
+  vault: [[0.167, 'L', 0.6], [0.467, 'L', 0.9]],
+  turn_cut_L: [[0.267, 'R', 0.85]],
+  turn_cut_R: [[0.267, 'L', 0.85]],
+  stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
   win_salute: [[0.27, 'R', 0.4], [0.5, 'L', 0.25], [1.1, 'R', 0.2], [1.27, 'L', 0.2], [1.43, 'R', 0.2]],
-  win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8]],
+  win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8], [2.63, 'R', 0.2], [2.77, 'L', 0.2], [2.88, 'R', 0.2]],
   win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5]],
   fall_ledge: [[0.17, 'L', 0.9]],
 };
@@ -198,6 +255,9 @@ export class Runner {
   private cadence = 1.35;
   /** A one-shot waiting for the next left strike (so it starts on the foot its first key expects). */
   private pending: { name: RunnerAnim; fade: number; offset: number; until: number } | null = null;
+  /** The obstacle move in play: its clip rate, and leap_gap's flight time (s). */
+  private obst: { name: Obstacle; rate: number; flight: number } | null = null;
+  private obstLift = 0;
   /** Which idle clip is playing (they alternate), and for how long. */
   private idleClip: string = 'idle';
   private idleT = 0;
@@ -360,6 +420,13 @@ export class Runner {
    */
   play(name: RunnerAnim, fade = 0.25, offset = 0): void {
     if (name === 'run' && this.current === 'ready' && this.actions.has('start')) name = 'start';
+    // The celebration scales with the multiplier (the run tier the escape came at, a public value):
+    // a fist pump below 2×, both fists up to 10×, the roar and jumping cheer above.
+    if (name === 'win_cheer' || name === 'win_leap') {
+      const lv = Math.max(this.drive, this.driveS);
+      if (lv < 0.98 && this.actions.has('win_pump')) name = 'win_pump';
+      else if (name === 'win_cheer' && lv >= 2.98 && this.actions.has('win_cheer_big')) name = 'win_cheer_big';
+    }
     if (name !== 'run' && !this.actions.has(name)) {
       const fallback = name.startsWith('win') ? 'win' : name.startsWith('fall_') ? name.replace(/_b$/, '').replace('fall_start', 'fall_gate') : null;
       if (!fallback || !this.actions.has(fallback)) return;
@@ -381,6 +448,8 @@ export class Runner {
   }
 
   private start(name: RunnerAnim, fade: number, offset: number) {
+    if (this.obst && this.obst.name !== name) this.obst = null;
+    this.obstLift = 0;
     this.current = name;
     this.fade = Math.max(0.001, fade);
     this.eventT = offset;
@@ -391,6 +460,7 @@ export class Runner {
       const clip = name === 'idle' ? this.idleClip : name;
       const a = this.actions.get(clip)!;
       a.reset();
+      a.timeScale = this.obst?.name === name ? this.obst.rate : 1;
       a.time = Math.min(offset, a.getClip().duration);
       a.play();
     }
@@ -486,6 +556,26 @@ export class Runner {
       this.pending = null;
       this.start(p.name, p.fade, p.offset);
     }
+    // Obstacle moves: keep step with the run; leap_gap's flight stretches to the gap and its arc with
+    // it; each hands back to the gait on the phase it ends on.
+    this.obstLift = 0;
+    if (this.obst && this.current === this.obst.name) {
+      const O = OBSTACLES[this.obst.name];
+      const a = this.actions.get(this.obst.name)!;
+      a.timeScale = this.obst.rate;
+      if (this.obst.name === 'leap_gap' && a.time >= O.takeoff && a.time < O.land) {
+        const nominal = O.land - O.takeoff;
+        a.timeScale = nominal / this.obst.flight;
+        const u = (a.time - O.takeoff) / nominal;
+        // The clip carries a 0.5 s arc; add the rest of a ballistic one for the actual flight.
+        this.obstLift = 4 * u * (1 - u) * (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+      }
+      if (a.time >= O.duration - 0.04) {
+        this.obst = null;
+        this.start('run', 0.1, 0);
+        this.phase = O.to;
+      }
+    }
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
     if (this.current === 'start') {
       const a = this.actions.get('start')!;
@@ -518,7 +608,7 @@ export class Runner {
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
     this.cadence = cadence;
     const prevPhase = this.phase;
-    if (this.current === 'run') this.phase = (this.phase + dt * cadence) % 1;
+    if (this.current === 'run' || this.obst) this.phase = (this.phase + dt * cadence) % 1;
     if (dt > 0) {
       const a = (speed - this.speedPrev) / dt;
       this.accel += (THREE.MathUtils.clamp(a, -12, 12) - this.accel) * (1 - Math.exp(-dt * 4));
@@ -607,6 +697,30 @@ export class Runner {
     this.lookLayer(dt);
     this.secondary(dt);
     this.plantFeet(dt);
+  }
+
+  /**
+   * An obstacle move (jump_log, leap_gap, slide, vault, turn_cut_L/R, stumble_land), blended out of the
+   * gait and back into it. It waits for its start foot (at most one stride) and returns that wait in
+   * seconds, or -1 if he is not running. `distance` (m) is leap_gap's gap: the flight and its arc scale
+   * to it. stumble_land replaces a jump's or leap's landing: call it at the landing (it starts at once).
+   * Timings: OBSTACLES / obstacleTiming(name, runner.cadence, speed, distance).
+   */
+  obstacle(name: Obstacle, opts: { distance?: number } = {}): number {
+    if (!this.actions.has(name)) return -1;
+    const fromAir = name === 'stumble_land' && this.obst !== null && this.current === this.obst.name && this.obst.name !== 'stumble_land';
+    if (this.current !== 'run' && !fromAir) return -1;
+    const rate = fromAir ? this.obst!.rate : obstacleRate(this.cadence);
+    this.obst = { name, rate, flight: name === 'leap_gap' ? leapFlight(opts.distance ?? 2.25, this.speed) : 0 };
+    const O = OBSTACLES[name];
+    const wait = O.from < 0 ? 0 : ((O.from - this.phase + 1) % 1) / Math.max(0.5, this.cadence);
+    if (wait < 0.01 || wait > 0.98 / Math.max(0.5, this.cadence)) {
+      this.pending = null;
+      this.start(name, fromAir ? 0.06 : 0.08, 0);
+      return 0;
+    }
+    this.pending = { name, fade: 0.08, offset: 0, until: this.t + wait };
+    return wait;
   }
 
   /** A footfall: on planks the boards give under it (see plank in overlays); then the world's cue. */
@@ -773,7 +887,7 @@ export class Runner {
       this.plankY += this.plankV * (Math.min(dt, 0.1) / n);
     }
     this.plankY = THREE.MathUtils.clamp(this.plankY, -0.03, 0.015);
-    lift += this.plankY;
+    lift += this.plankY + this.obstLift;
     this.rotate(b.chest, this.plankY * 2.5, 0, 0);
     this.body.position.y = lift;
   }
@@ -981,7 +1095,8 @@ export class Runner {
   }
 
   /** Two-bone IK in world space, bending in the current knee plane. False if out of reach. */
-  private solveLeg(f: FootLock, target: THREE.Vector3): boolean {
+  private solveLeg(f: FootLock, targetIn: THREE.Vector3): boolean {
+    let target = targetIn;
     const thigh = f.thigh!;
     const shin = f.shin!;
     const foot = f.foot!;
@@ -992,8 +1107,16 @@ export class Runner {
     const a = H.distanceTo(K);
     const b = K.distanceTo(A);
     const toT = target.clone().sub(H);
-    const d = toT.length();
-    if (d > (a + b) * 0.995) return false;
+    let d = toT.length();
+    let reach = true;
+    if (d > (a + b) * 0.995) {
+      // Out of reach (the clip pulled the hip away): aim as far as the leg goes and report it, so the
+      // lock fades out over a few frames instead of snapping the foot back to the clip.
+      toT.multiplyScalar(((a + b) * 0.995) / d);
+      d = (a + b) * 0.995;
+      target = H.clone().add(toT);
+      reach = false;
+    }
     if (d < Math.abs(a - b) + 0.02) return true;
     const u = toT.divideScalar(d);
     // Bend direction: where the knee points now, made perpendicular to the hip→target line.
@@ -1012,7 +1135,7 @@ export class Runner {
     const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
     foot.quaternion.copy(sq.multiply(footQ));
     foot.updateMatrixWorld(true);
-    return true;
+    return reach;
   }
 
   private rotate(b: THREE.Bone | undefined, x: number, y: number, z: number) {

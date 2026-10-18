@@ -127,3 +127,25 @@ describe('gait cadence', () => {
     expect(STRIDE.sprint).toBeLessThan(STRIDE.dash);
   }, 30_000); // importing the renderer module is slow on a loaded machine
 });
+
+describe('obstacle moves', () => {
+  it('scale leap_gap to the gap and keep every move inside its clip', async () => {
+    const { OBSTACLES, obstacleTiming, obstacleRate, leapFlight } = await import('../src/world/runner');
+    // A longer gap at the same speed stays in the air longer; landing follows takeoff by the flight.
+    const a = obstacleTiming('leap_gap', 2, 6, 1.5);
+    const b = obstacleTiming('leap_gap', 2, 6, 3);
+    expect(b.flight).toBeGreaterThan(a.flight);
+    expect(b.land - b.takeoff).toBeCloseTo(leapFlight(3, 6), 6);
+    expect(leapFlight(100, 1)).toBeLessThanOrEqual(0.8);
+    expect(leapFlight(0.1, 12)).toBeGreaterThanOrEqual(0.3);
+    // Faster turnover plays the moves faster, within limits.
+    expect(obstacleRate(2.4)).toBeGreaterThan(obstacleRate(1.9));
+    expect(obstacleRate(10)).toBeLessThanOrEqual(1.45);
+    for (const [name, O] of Object.entries(OBSTACLES)) {
+      expect(O.takeoff, name).toBeLessThanOrEqual(O.land);
+      expect(O.land, name).toBeLessThan(O.duration);
+      expect(O.to, name).toBeGreaterThanOrEqual(0);
+      expect(O.to, name).toBeLessThan(1);
+    }
+  }, 30_000);
+});
