@@ -35,7 +35,7 @@ export const SOUNDS: Record<string, SoundSpec> = {
   step_wood: { bus: 'foley', db: -11, cents: 80, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
   step_gravel: { bus: 'foley', db: -12, cents: 70, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
   step_wet: { bus: 'foley', db: -12, cents: 70, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
-  breath: { bus: 'foley', db: -28, cents: 0, vary: 0, priority: 1, max: 1 },
+  breath: { bus: 'foley', db: -30, cents: 0, vary: 0, priority: 1, max: 1 },
   pant: { bus: 'foley', db: -15, cents: 40, vary: 1, priority: 1, max: 1 },
   // The world under strain and coming down.
   impact: { bus: 'sfx', db: -3, cents: 150, vary: 2, priority: 2, max: 4, pan: 0.35, floor: -16, dull: true },
