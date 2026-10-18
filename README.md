@@ -84,7 +84,7 @@ src/state/      zustand store + Controller: service ⇄ world ⇄ UI ⇄ audio; 
 src/render/     Game (loop, staging), CameraRig, post stack (zoom blur, bloom, AgX, grade), particles
 src/world/      assets, path (lines + arcs by arc length), section library, track manager,
                 instanced walkable tiles (they can give way), water, waterfall, debris, runner
-src/audio/      procedural WebAudio: ambience beds, footsteps, impacts, adaptive score, stingers
+src/audio/      recorded SFX and beds (Freesound, see public/audio/CREDITS.txt), sequenced percussion score, procedural fallback
 src/ui/         React interface: title, top bar + history, HUD, dock (stake / cash out), panels
 blender/        headless Blender (bpy 4.2) generators for every 3D asset in public/assets
 ```

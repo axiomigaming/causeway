@@ -35,6 +35,8 @@ export interface WorldSounds {
   whoosh(): void;
   /** A heavy landing at its exact frame: the gate slab, the biggest rockfall block. Optional. */
   slam?(size: number): void;
+  /** The section type underfoot, so footsteps and ambience can follow the ground (optional). */
+  setSection?(type: string | null | undefined): void;
   /**
    * A named one-shot from the world, `strength` 0..1 (optional; the audio layer may ignore names it
    * does not know). Events: 'dust_burst' (a wall blows out dust beside the runner), 'stones_skitter'
@@ -1434,7 +1436,9 @@ export class Game {
     const side = new THREE.Vector3(Math.cos(f.yaw), 0, -Math.sin(f.yaw)).multiplyScalar(foot === 'L' ? -0.08 : 0.08);
     const ahead = new THREE.Vector3(-Math.sin(f.yaw), 0, -Math.cos(f.yaw)).multiplyScalar(this.stage === 'run' ? 0.2 : 0.1);
     const p = this.runner.root.position.clone().add(side).add(ahead);
-    const wood = this.track.sectionAt(this.s)?.type === 'bridge';
+    const secType = this.track.sectionAt(this.s)?.type;
+    const wood = secType === 'bridge';
+    this.sounds.setSection?.(secType);
     const skid = this.stage === 'crash';
     // Dust at each plant, a bigger, lower puff the harder they run; at the top tiers the push-off
     // kicks up grit too.
