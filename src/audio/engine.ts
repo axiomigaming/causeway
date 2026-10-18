@@ -58,6 +58,11 @@ export class AudioEngine implements WorldSounds {
   private score!: GainNode;
   private sfxBus!: GainNode;
   private amb!: GainNode;
+  private ambDuck!: GainNode;
+  private ambTone!: BiquadFilterNode;
+  /** The cicada bed has its own high shelf: it is the brightest, most masking bed. */
+  private insectEq: BiquadFilterNode | null = null;
+  private ambTier: Tier = 0;
   private room!: ConvolverNode;
   private musicSend!: GainNode;
   private sfxSend!: GainNode;
@@ -172,7 +177,15 @@ export class AudioEngine implements WorldSounds {
     this.sting.connect(this.music);
     this.music.connect(this.master);
     this.sfxBus.connect(this.master);
-    this.amb.connect(this.sfxBus);
+    // Ambience → a duck and a tone control before the sfx bus. While running the beds drop 10-14 dB
+    // under the score and lose their top (cicadas and spray live at 3-8 kHz, where phone speakers are
+    // harshest and where they masked the shaker); between runs they open up again.
+    this.ambDuck = ctx.createGain();
+    this.ambTone = ctx.createBiquadFilter();
+    this.ambTone.type = 'lowpass';
+    this.ambTone.frequency.value = 16000;
+    this.ambTone.Q.value = 0.5;
+    this.amb.connect(this.ambTone).connect(this.ambDuck).connect(this.sfxBus);
     const foley = ctx.createGain();
     const ui = ctx.createGain();
     foley.connect(this.sfxBus);
@@ -533,8 +546,13 @@ export class AudioEngine implements WorldSounds {
     const ctx = this.ctx;
     const sp = this.sp;
     if (!ctx || !sp || this.bedsOn) return;
+    this.insectEq = ctx.createBiquadFilter();
+    this.insectEq.type = 'highshelf';
+    this.insectEq.frequency.value = 3200;
+    this.insectEq.gain.value = -9;
+    this.insectEq.connect(this.amb);
     for (const b of BEDS) {
-      const v = sp.play(`bed_${b}`, { loop: true, gain: 0 });
+      const v = sp.play(`bed_${b}`, { loop: true, gain: 0, dest: b === 'insects' ? this.insectEq : undefined });
       if (v) this.bedVoice.set(b, v);
     }
     this.windBed = sp.play('bed_wind', { loop: true, gain: 0 });
@@ -551,13 +569,28 @@ export class AudioEngine implements WorldSounds {
 
   /** Crossfade the beds to the current section (and scene); `tc` is the time constant in seconds. */
   private mixBeds(tc: number) {
-    if (!this.ctx || !this.bedsOn) return;
+    if (!this.ctx) return;
+    if (!this.bedsOn) return this.duckAmbience(tc);
     const t = this.ctx.currentTime;
     const live = this.scene === 'run' || this.scene === 'lead' || this.scene === 'fallen';
     const mix = bedMix(live ? this.section : null);
-    // While running the score and the footsteps carry the scene: the beds sit back.
-    const k = this.scene === 'run' ? 0.7 : 1;
-    for (const b of BEDS) this.bedVoice.get(b)?.gain.gain.setTargetAtTime(mix[b] * k, t, tc);
+    for (const b of BEDS) this.bedVoice.get(b)?.gain.gain.setTargetAtTime(mix[b], t, tc);
+    this.duckAmbience(tc);
+  }
+
+  /**
+   * While running the score and the footsteps carry the scene: the whole ambience bus ducks 10 dB at
+   * 1× and 14 dB from 10×, and its top closes from 16 kHz to 6-4.5 kHz. Menus and results get the full
+   * jungle back. Follows the scene and the tier on screen only.
+   */
+  private duckAmbience(tc: number) {
+    if (!this.ctx || !this.ambDuck) return;
+    const t = this.ctx.currentTime;
+    const live = this.scene === 'run' || this.scene === 'lead';
+    const tier = live ? tierOf(this.mult) : 0;
+    const db = !live ? 0 : -10 - Math.min(4, tier * 1.4);
+    this.ambDuck.gain.setTargetAtTime(Math.pow(10, db / 20), t, tc);
+    this.ambTone.frequency.setTargetAtTime(live ? 6000 - tier * 380 : 16000, t, tc);
   }
 
   /** Score loaded: the drone, the riser strings and the recorded room come in; the synth pad bows out. */
@@ -808,7 +841,12 @@ export class AudioEngine implements WorldSounds {
     this.riserFilter.frequency.setTargetAtTime(500 + shaped * 3800, t, 0.12);
     this.riserToneGain.gain.setTargetAtTime(shaped * 0.018, t, live ? 0.15 : 0.05);
     this.riserOsc.frequency.setTargetAtTime(hz(12 + 7 * p), t, 0.12);
-    this.scorePlayer?.setTier(tierOf(this.mult));
+    const tier = tierOf(this.mult);
+    this.scorePlayer?.setTier(tier);
+    if (tier !== this.ambTier) {
+      this.ambTier = tier;
+      this.duckAmbience(1.2);
+    }
     if (this.strings) {
       // Recorded strings carry the riser: they swell over the last stretch and climb a whole tone.
       this.strings.gain.gain.setTargetAtTime(shaped * 0.9, t, live ? 0.15 : 0.06);
