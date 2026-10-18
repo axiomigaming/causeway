@@ -310,8 +310,10 @@ export class AudioEngine implements WorldSounds {
 
   /**
    * The tier change the music is about to land, if any: `{ tier, in }` with `in` seconds until the new
-   * layer's downbeat (the fill is already rolling). A tier arriving now lands on the next bar line, or the
-   * one after if the next is less than a third of a bar away; at most ~1.35 bars after the tier change.
+   * layer's downbeat (the fill is already rolling). Tiers 1-3 land on the next bar line, or the one after if
+   * the next is less than a third of a bar away (at most ~1.35 bars after the tier change). Tier 4 is a key
+   * lift: it lands on the next 4-bar section line that leaves room for the two pivot bars (at most ~6 bars,
+   * about 13 s at 112 BPM) - the big visual moment belongs on that downbeat.
    */
   tierLanding(): { tier: Tier; in: number } | null {
     return this.themeOn ? (this.theme?.pendingLanding() ?? null) : null;
@@ -729,12 +731,60 @@ export class AudioEngine implements WorldSounds {
       if (!this.themeOn) this.scorePlayer?.accent(Math.min(1, Math.max(0, strength)));
       return;
     }
+    if (this.obstacle(name, Math.min(1, Math.max(0, Number.isFinite(strength) ? strength : 0.7)))) return;
     const r = resolveSfx(name, strength);
     if (!r) return;
     if (this.sample(r.sound, { strength: r.strength }) && name === 'dust_burst') {
       // A wall blowing out: grit and a few stones come with the dust.
       this.sample('debris', { strength: 0.3 + 0.4 * strength, when: this.ctx.currentTime + 0.05 });
     }
+  }
+
+  /**
+   * Obstacle moments (FX events), layered from the recorded library: the moment's material, its weight and
+   * what it throws up. True when the name is one of them (and something played or will play).
+   */
+  private obstacle(name: string, s: number): boolean {
+    if (!this.ctx) return false;
+    const t = this.ctx.currentTime;
+    const p = this.rnd() * 0.4 - 0.2;
+    switch (name) {
+      case 'whoosh_jump':
+        // the body through the air: a slower, heavier swing
+        return this.sample('whoosh', { strength: 0.55 + 0.45 * s, rate: 0.8, pan: p });
+      case 'land_heavy':
+        // both feet into rubble: a stone thud under a hard gravel step, grit after
+        this.sample('impact', { strength: 0.35 + 0.4 * s, rate: 0.85, pan: p });
+        this.sample('step_gravel', { strength: 1, gain: 1.4, rate: 0.9, pan: p });
+        this.sample('dust', { strength: 0.3 + 0.4 * s, when: t + 0.05, pan: p });
+        return true;
+      case 'wood_crack':
+        // a plank giving way: a hard, low wood knock with a sharp stone crack on top and splinters
+        this.sample('step_wood', { strength: 1, gain: 1.6, rate: 0.7, pan: p });
+        this.sample('impact', { strength: 0.4 + 0.35 * s, rate: 1.35, pan: p, when: t + 0.015 });
+        this.sample('debris', { strength: 0.25 + 0.2 * s, rate: 1.2, when: t + 0.08, pan: p });
+        return true;
+      case 'stone_split':
+        // a slab cracking open: a bright stone crack, the grind of it parting, stones falling out
+        this.sample('impact', { strength: 0.55 + 0.4 * s, rate: 1.25, pan: p });
+        this.sample('grind', { strength: 0.35 + 0.3 * s, maxDur: 0.9, when: t + 0.04, pan: p });
+        this.sample('debris', { strength: 0.35 + 0.3 * s, when: t + 0.15, pan: p });
+        return true;
+      case 'tree_fall':
+        // a trunk going over: it gives (crumble), sweeps down (a slow, deep whoosh), lands (slam) and settles
+        this.sample('crumble', { strength: 0.35 + 0.3 * s, rate: 0.8, pan: p });
+        this.sample('whoosh', { strength: 0.7, rate: 0.55, when: t + 0.5, pan: p });
+        this.sample('slam', { strength: 0.5 + 0.35 * s, when: t + 1.1, pan: p });
+        this.sample('debris', { strength: 0.4 + 0.3 * s, when: t + 1.15, pan: p });
+        this.sample('dust', { strength: 0.4 + 0.3 * s, when: t + 1.2, pan: p });
+        return true;
+      case 'slide_scrape':
+        // feet skidding over stone and grit: the stone slide, slower and lower, with sand thrown up
+        this.sample('ui_slide', { strength: 0.55 + 0.45 * s, rate: 0.8, dest: this.sfxBus, gain: 1.6, pan: p });
+        this.sample('dust', { strength: 0.3 + 0.3 * s, when: t + 0.05, pan: p });
+        return true;
+    }
+    return false;
   }
 
   /** WorldSounds.event: named world events from the game (dust_burst, stones_skitter, tier_up, …). */
@@ -762,7 +812,9 @@ export class AudioEngine implements WorldSounds {
     // Recorded steps: the surface refined by the section, left/right a touch apart; a sprint lands
     // harder (level and brightness follow the strength the animation reports).
     const under = surfaceFor(this.section, surface, this.rnd);
-    const step = { strength: 0.35 + 0.65 * Math.min(1, strength), pan: this.stepSide * 0.08 };
+    // Higher tiers land harder: louder and a touch lower (heavier), from the multiplier on screen.
+    const tier = this.scene === 'run' ? tierOf(this.mult) : 0;
+    const step = { strength: Math.min(1, (0.35 + 0.65 * Math.min(1, strength)) * (1 + 0.07 * tier)), gain: 1 + 0.09 * tier, rate: 1 - 0.018 * tier, pan: this.stepSide * 0.08 };
     if (this.sample(`step_${under}`, step) || this.sample(`step_${surface}`, step)) {
       // At a hard sprint on loose ground the push-off kicks grit too.
       if (strength > 0.85 && this.intensity > 0.5 && under !== 'wood' && this.rnd() < 0.3) this.sample('debris', { strength: 0.15, pan: this.stepSide * 0.1 });
@@ -895,15 +947,100 @@ export class AudioEngine implements WorldSounds {
         this.nextGust = t + (running ? 5 : 9) + this.rnd() * (running ? 7 : 12);
       }
     }
-    // The world's tier-up gust (world/mood.ts: the foliage thrashes, leaves fly): a recorded gust with it.
-    if (worldMood.gust > 0.5 && this.lastGust <= 0.5) this.sample('gust', { strength: 0.5 + 0.5 * worldMood.gust, pan: this.rnd() * 0.6 - 0.3 });
+    // The world's tier-up gust (world/mood.ts: the foliage thrashes, leaves fly): a recorded gust with it,
+    // and in a gathering storm the lightning it brings is followed by thunder.
+    if (worldMood.gust > 0.5 && this.lastGust <= 0.5) {
+      this.sample('gust', { strength: 0.5 + 0.5 * worldMood.gust, pan: this.rnd() * 0.6 - 0.3 });
+      if (worldMood.drive > 0.55) this.thunder(0.5 + 0.4 * worldMood.drive, t + 0.6 + this.rnd() * 1.6);
+    }
     this.lastGust = worldMood.gust;
+    if (running && this.scene === 'run') this.escalate(tierOf(this.mult), t);
     // Breathing: heavy once the run turns into a sprint (2× and up, the same tier the runner sprints at),
     // closer and louder with the multiplier on screen. Silent otherwise.
     const sprint = running && this.scene === 'run' && tierOf(this.mult) >= 1;
     if (sprint && !this.breath && this.sp?.has('breath')) this.breath = this.sp.play('breath', { loop: true, gain: 0, priority: 1 });
-    if (this.breath) this.breath.gain.gain.setTargetAtTime(sprint ? 0.55 + 0.45 * intensity : 0, t, sprint ? 1.2 : 0.3);
+    if (this.breath) {
+      this.breath.gain.gain.setTargetAtTime(sprint ? 0.55 + 0.45 * intensity : 0, t, sprint ? 1.2 : 0.3);
+      // Heavier and faster with each tier.
+      this.breath.src.playbackRate.setTargetAtTime(1 + 0.035 * tierOf(this.mult), t, 1.5);
+    }
     if (!running) this.climb(100);
+  }
+
+  // ------------------------------------------------------------------ the soundscape builds with the tier
+  private tierLive: Tier = 0;
+  private nextCollapse = 0;
+  private nextDebris = 0;
+  private nextThunder = 0;
+
+  /**
+   * Everything around the runner escalates with the tier on screen, not only the score: more wind and a
+   * deeper rumble, stones loosening nearby, collapses somewhere in the ruins, thunder once the sky has
+   * turned (world/mood.ts drive), a sub-bass floor from 10x. Called every frame while running.
+   */
+  private escalate(tier: Tier, t: number) {
+    this.windBed?.gain.gain.setTargetAtTime(0.25 + Math.min(1, this.speed / 9) * 0.75 + 0.07 * tier, t, 0.8);
+    // The procedural sub rumble (a filtered-noise floor, felt more than heard) opens up from tier 3.
+    if (tier >= 3) {
+      this.rumbleGain.gain.setTargetAtTime(Math.max(0, this.intensity - 0.3) * 0.26 + 0.07 * (tier - 2), t, 0.8);
+      this.rumbleFilter.frequency.setTargetAtTime(70 + 10 * tier, t, 0.8);
+    }
+    const side = () => (this.rnd() < 0.5 ? -1 : 1) * (0.5 + 0.4 * this.rnd());
+    if (this.nextDebris === 0) this.nextDebris = t + 4;
+    if (this.nextCollapse === 0) this.nextCollapse = t + 9;
+    if (tier >= 1 && t > this.nextDebris) {
+      this.sample('debris', { strength: 0.14 + 0.08 * tier, pan: side() });
+      this.nextDebris = t + Math.max(2.5, 9 - 1.6 * tier) + this.rnd() * 3;
+    }
+    if (tier >= 2 && t > this.nextCollapse) {
+      // A collapse somewhere in the ruins: far (dull, panned wide, slower), nearer as the tiers climb.
+      this.sample(this.rnd() < 0.55 ? 'rockfall' : 'crumble', { strength: 0.16 + 0.09 * tier, rate: 0.82 + 0.04 * this.rnd(), pan: side() });
+      if (tier >= 3 && this.rnd() < 0.5) this.sample('impact', { strength: 0.2 + 0.08 * tier, rate: 0.8, pan: side(), when: t + 0.3 + this.rnd() * 0.5 });
+      this.nextCollapse = t + Math.max(5, 15 - 2.6 * tier) + this.rnd() * 5;
+    }
+    if (tier >= 3 && worldMood.drive > 0.55) {
+      if (this.nextThunder === 0) this.nextThunder = t + 3 + this.rnd() * 6;
+      if (t > this.nextThunder) {
+        this.thunder(0.4 + 0.15 * (tier - 2), t);
+        this.nextThunder = t + 12 + this.rnd() * 14;
+      }
+    }
+  }
+
+  /** Thunder, layered from recordings: a slowed deep boom, the long rumble of the quake take, debris far off. */
+  private thunder(s: number, at: number) {
+    const pan = this.rnd() * 1.2 - 0.6;
+    this.sample('m_boom', { when: at, strength: 0.35 + 0.45 * s, rate: 0.6 + this.rnd() * 0.12, pan, dest: this.sfxBus });
+    this.sample('rumble', { when: at + 0.12, strength: 0.4 + 0.45 * s, maxDur: 4.5, fadeIn: 0.35, rate: 0.78, pan });
+  }
+
+  /**
+   * A tier arrives (the multiplier on screen): a riser swells into the music's landing downbeat (the theme
+   * knows when the new layer or the lift lands; without it, 0.9 s), and an impact lands on it: boom, stone,
+   * debris; from 10x a sub-bass swell under it; at 25x, in a storm, thunder answers.
+   */
+  private tierUp(tier: Tier) {
+    const ctx = this.ctx;
+    if (!ctx || !this.sp) return;
+    const t = ctx.currentTime;
+    const land = this.themeOn ? this.theme!.pendingLanding() : null;
+    const at = land && land.in > 0.2 ? t + land.in : t + 0.9;
+    const riser = this.bank.get('riser');
+    if (riser) {
+      const v = tier >= 3 ? 0 : 1;
+      const dur = riser.slices[v]!.dur;
+      const rate = Math.min(1.7, Math.max(0.8, dur / (at - t)));
+      this.sample('riser', { variant: v, rate, when: Math.max(t, at - dur / rate), strength: 0.55 + 0.11 * tier });
+    }
+    const sub = this.bank.get('sub_swell');
+    if (sub && tier >= 3) {
+      const dur = sub.slices[0]!.dur;
+      this.sample('sub_swell', { when: Math.max(t, at - dur), strength: 0.6 + 0.2 * (tier - 3) });
+    }
+    this.sample('m_boom', { when: at, strength: 0.4 + 0.12 * tier, dest: this.sfxBus });
+    this.sample('impact', { when: at, strength: 0.45 + 0.1 * tier, rate: 0.9 });
+    this.sample('debris', { when: at + 0.06, strength: 0.3 + 0.1 * tier, pan: this.rnd() * 0.8 - 0.4 });
+    if (tier >= 4 && worldMood.drive > 0.5) this.thunder(0.9, at + 0.25);
   }
 
   /**
@@ -925,6 +1062,11 @@ export class AudioEngine implements WorldSounds {
     const tier = tierOf(this.mult);
     this.scorePlayer?.setTier(tier);
     if (this.themeOn && live) this.theme!.setTier(tier);
+    if (!live) this.tierLive = 0;
+    else if (tier > this.tierLive) {
+      this.tierLive = tier;
+      this.tierUp(tier);
+    }
     if (tier !== this.ambTier) {
       this.ambTier = tier;
       this.duckAmbience(1.2);
@@ -1078,6 +1220,18 @@ export class AudioEngine implements WorldSounds {
       this.sample('coins', { strength: 0.75 + 0.05 * g, when: t + 0.02 });
       this.sample('sparkle', { strength: 0.6 + 0.07 * g, when: t + 0.12 });
       this.sample('pant', { strength: 0.8, when: t + 0.9 });
+      if (g >= 2) {
+        // A big escape: a deep boom under the fanfare and gold pouring for a moment (more of it from 10x).
+        this.sample('m_boom', { strength: 0.45 + 0.1 * g, dest: this.sfxBus, when: t + 0.02 });
+        const n = g >= 4 ? 5 : g >= 3 ? 3 : 2;
+        for (let i = 1; i <= n; i++) this.sample('coins', { strength: 0.75 - 0.06 * i, when: t + 0.12 + i * 0.13 + this.rnd() * 0.05, pan: this.rnd() * 0.8 - 0.4 });
+      }
+      if (g >= 3) this.sample('sparkle', { strength: 0.7, rate: 1.26, when: t + 0.55 });
+      if (g >= 4) {
+        // From 25x: a bright gong rings over it all and the ground answers with a sub swell already rising.
+        this.sample('m_gong', { strength: 0.55, rate: 1.5, when: t + 0.3, maxDur: 4, dest: this.sfxBus });
+        this.sample('sparkle', { strength: 0.65, rate: 1.5, when: t + 0.95 });
+      }
       return;
     }
     if (this.sp?.has('coins') && this.sp.has('swell')) {
@@ -1259,6 +1413,11 @@ export class AudioEngine implements WorldSounds {
   private sampledScene(s: Scene, prev: Scene, t: number) {
     this.mixBeds(s === 'run' ? 1.2 : 2.5);
     if (s !== 'run') this.breath?.gain.gain.setTargetAtTime(0, t, 0.3);
+    if (s === 'run' && prev !== 'run') {
+      // A fresh run starts calm: the escalation timers and the tier ladder reset.
+      this.nextCollapse = this.nextDebris = this.nextThunder = 0;
+      this.tierLive = 0;
+    }
     if (s === 'lead' && prev !== 'lead') {
       // A new run (maybe straight after a result): the last stinger gets out of the way.
       this.sting.gain.cancelScheduledValues(t);

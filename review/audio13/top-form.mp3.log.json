@@ -1,0 +1,82 @@
+[
+ {
+  "t": 0.0767,
+  "what": "idle th_calm"
+ },
+ {
+  "t": 5.1013,
+  "what": "run start"
+ },
+ {
+  "t": 5.1013,
+  "what": "phrase a"
+ },
+ {
+  "t": 17.9585,
+  "what": "land 1"
+ },
+ {
+  "t": 22.2442,
+  "what": "phrase b"
+ },
+ {
+  "t": 32.9585,
+  "what": "land 2"
+ },
+ {
+  "t": 39.387,
+  "what": "phrase a"
+ },
+ {
+  "t": 43.6728,
+  "what": "land 3"
+ },
+ {
+  "t": 56.5299,
+  "what": "phrase b"
+ },
+ {
+  "t": 71.5299,
+  "what": "break"
+ },
+ {
+  "t": 60.8156,
+  "what": "lift pivot"
+ },
+ {
+  "t": 65.1013,
+  "what": "lift lands"
+ },
+ {
+  "t": 65.1013,
+  "what": "t4 a"
+ },
+ {
+  "t": 82.2442,
+  "what": "t4 a2"
+ },
+ {
+  "t": 99.387,
+  "what": "t4 b"
+ },
+ {
+  "t": 116.5299,
+  "what": "t4 c"
+ },
+ {
+  "t": 133.6728,
+  "what": "t4 a"
+ },
+ {
+  "t": 150.8156,
+  "what": "t4 b"
+ },
+ {
+  "t": 160.1906,
+  "what": "fanfare 2 (E)"
+ },
+ {
+  "t": 163.1756,
+  "what": "idle th_safe"
+ }
+]
