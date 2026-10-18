@@ -1504,42 +1504,50 @@ def gkey(fr, ph, G=None, k=1.0, **mods):
     return P
 
 
+JL_LAND, JL_H = 25, 0.6
+V_LAND, V_H = 23, 0.7
+SLIDE_Z = -0.55
+
+
 def obstacle_clips():
     """Moves over, under and around the course, authored at run pace (5 m/s); each starts on a left strike
     (gait phase 0) and hands back to the gait at the phase noted (runner.ts OBSTACLES)."""
-    # ---------------------------------------------------------- jump_log: hurdle a ~0.6 m trunk
+    # ---------------------------------------------------------- jump_log: a tuck jump over the fallen trunk
+    # (log_fallen_0: Ø 0.84 m, top ~0.8 m). Takeoff off the left foot ~1.1 m short of it; the hips rise
+    # ~0.5 m, both knees come up to the chest fast (the trailing leg first, so it clears the near face), the
+    # feet are ~0.95 m up over the top; the right foot reaches for the far side.
     new_action("jump_log")
     run_in()
     gkey(4, 0.2)
     T = {}
-    torso(T, lean=0.38, look=0.42, hp=0.18)
+    torso(T, lean=0.32, look=0.42, hp=0.16)
     leg(T, "L", hip=-0.4, knee=0.25, ankle=0.75, toe=0.7)
-    leg(T, "R", hip=1.35, knee=1.7, ankle=0.15)
-    arm(T, "L", fwd=1.3, elbow=1.3, out=0.15, curl=1.0)
-    arm(T, "R", fwd=-0.7, elbow=1.1, out=0.2, curl=1.0)
+    leg(T, "R", hip=1.5, knee=1.85, ankle=0.15)
+    arm(T, "L", fwd=1.5, elbow=1.1, out=0.15, curl=1.0)
+    arm(T, "R", fwd=0.4, elbow=1.2, out=0.25, curl=1.0)
     zt = solve_root(T)
     U = {}
-    torso(U, lean=0.45, look=0.5, hp=0.22)
-    leg(U, "L", hip=1.2, knee=2.1, ankle=0.2)
-    leg(U, "R", hip=1.5, knee=1.8, ankle=0.1)
-    arm(U, "L", fwd=1.1, elbow=1.2, out=0.3, curl=1.0)
-    arm(U, "R", fwd=0.6, elbow=1.2, out=0.35, curl=1.0)
+    torso(U, lean=0.42, look=0.55, hp=0.3)
+    leg(U, "L", hip=1.8, knee=2.5, ankle=-0.45, out=0.08)
+    leg(U, "R", hip=1.9, knee=2.35, ankle=-0.4, out=0.06)
+    arm(U, "L", fwd=1.55, elbow=0.9, out=0.35, curl=1.0)
+    arm(U, "R", fwd=1.35, elbow=0.9, out=0.4, curl=1.0)
     D = {}
     torso(D, lean=0.3, look=0.45, hp=0.15)
-    leg(D, "R", hip=0.75, knee=0.3, ankle=0.05)
-    leg(D, "L", hip=0.25, knee=1.5, ankle=0.3)
-    arm(D, "L", fwd=0.9, elbow=1.3, out=0.25, curl=1.0)
-    arm(D, "R", fwd=-0.3, elbow=1.2, out=0.3, curl=1.0)
+    leg(D, "R", hip=0.8, knee=0.3, ankle=0.05)
+    leg(D, "L", hip=0.55, knee=1.7, ankle=0.3)
+    arm(D, "L", fwd=0.9, elbow=1.3, out=0.3, curl=1.0)
+    arm(D, "R", fwd=0.2, elbow=1.2, out=0.35, curl=1.0)
     zl = solve_root(D)
-    air(6, 19, [(0.0, T), (0.45, U), (1.0, D)], zt, zl, 0.24)
+    air(6, JL_LAND, [(0.0, T), (0.25, U), (0.78, U), (1.0, D)], zt, zl, JL_H)
     A = {}
     torso(A, lean=0.42, look=0.45, hp=0.2)
-    leg(A, "R", hip=0.55, knee=0.85, ankle=-0.15)
-    leg(A, "L", hip=0.1, knee=1.35, ankle=0.35)
+    leg(A, "R", hip=0.55, knee=0.9, ankle=-0.15)
+    leg(A, "L", hip=0.2, knee=1.35, ankle=0.35)
     arm(A, "L", fwd=0.6, elbow=1.4, out=0.25, curl=1.0)
     arm(A, "R", fwd=-0.2, elbow=1.3, out=0.25, curl=1.0)
-    key(21, A, lift=-0.01)
-    gkey(24, 0.68)
+    key(JL_LAND + 2, A, lift=-0.01)
+    gkey(JL_LAND + 5, 0.68)
 
     # ---------------------------------------------------------- leap_gap: bound across a 1.5–3 m gap
     # (nominal 0.5 s flight; the runtime stretches the flight and its arc to the actual gap)
@@ -1590,20 +1598,21 @@ def obstacle_clips():
     run_in()
     gkey(4, 0.2)
     P = {}
-    torso(P, lean=0.1, look=0.4, hp=0.0)
-    leg(P, "L", hip=0.95, knee=0.45, ankle=-0.15)
-    leg(P, "R", hip=0.05, knee=1.5, ankle=0.3, toe=0.4)
+    torso(P, lean=-0.2, look=0.4, hp=-0.08)
+    leg(P, "L", hip=1.05, knee=0.35, ankle=-0.15)
+    leg(P, "R", hip=0.15, knee=1.8, ankle=0.3, toe=0.4)
     arm(P, "L", fwd=1.0, elbow=0.9, out=0.3, curl=0.9)
     arm(P, "R", fwd=-0.3, elbow=0.6, out=0.4, curl=0.6)
-    key(7, P)
-    for fr, wob in ((10, 0.0), (14, 1.0), (18, -0.6)):
+    key(6, P)
+    for fr, wob in ((9, 0.0), (13, 1.0), (18, -0.6)):
         P = {}
-        torso(P, lean=-0.42 + 0.03 * wob, look=0.25, hp=-0.15, roll=0.03 * wob)
-        leg(P, "L", hip=1.25, knee=0.12, ankle=-0.25)
-        leg(P, "R", hip=0.35, knee=2.1, ankle=0.35, out=0.15)
-        arm(P, "R", fwd=-0.7, elbow=0.25, out=0.35, wrist=-0.6, curl=0.3)
-        arm(P, "L", fwd=1.2 + 0.1 * wob, elbow=0.8, out=0.35, curl=1.0)
-        key(fr, P)
+        # Down on the right hip: the folded leg lies flat (thigh turned out), the trunk well back.
+        torso(P, lean=-0.75 + 0.03 * wob, look=0.5, hp=-0.25, roll=0.05 + 0.03 * wob)
+        leg(P, "L", hip=1.35, knee=0.1, ankle=-0.3)
+        leg(P, "R", hip=0.9, knee=2.4, ankle=0.3, out=0.9)
+        arm(P, "R", fwd=-0.5, elbow=0.2, out=0.5, wrist=-0.6, curl=0.3)
+        arm(P, "L", fwd=0.3 + 0.06 * wob, elbow=0.45, out=0.45, curl=1.0)
+        key(fr, P, z=SLIDE_Z)
     # Up: the folded right knee and the planted left heel lever him back over his feet.
     P = {}
     torso(P, lean=0.55, look=0.45, hp=0.2)
@@ -1622,46 +1631,53 @@ def obstacle_clips():
     gkey(27, 0.25, k=0.9)
     gkey(30, 0.45)
 
-    # ---------------------------------------------------------- vault: one hand on a toppled pillar, legs swung by
+    # ---------------------------------------------------------- vault: a speed vault over the toppled pillar
+    # (pillar_topple_0: Ø 0.95 m, top ~0.93 m): the right hand plants on top, the hips rise over it and
+    # turn, both legs swing through sideways above it, the hand pushes off, land on the left foot.
     new_action("vault")
     run_in()
     gkey(4, 0.2)
     T = {}
-    torso(T, lean=0.7, look=0.55, hp=0.25)
+    torso(T, lean=0.55, look=0.5, hp=0.22)
     leg(T, "L", hip=-0.3, knee=0.3, ankle=0.7, toe=0.6)
-    leg(T, "R", hip=1.2, knee=1.6, ankle=0.15)
-    arm(T, "R", fwd=1.45, elbow=0.2, out=0.1, wrist=-0.6, curl=0.2)
-    arm(T, "L", fwd=0.6, elbow=1.0, out=0.4, curl=0.8)
+    leg(T, "R", hip=1.65, knee=2.05, ankle=-0.2)
+    arm(T, "R", fwd=1.35, elbow=0.2, out=0.1, wrist=-0.6, curl=0.2)
+    arm(T, "L", fwd=0.9, elbow=1.0, out=0.4, curl=0.8)
     zt = solve_root(T)
+    # The push-off leg folds heel-to-seat as it comes through, so it clears the pillar's near face.
+    T2 = dict(T)
+    torso(T2, lean=0.45, look=0.5, hp=0.18, yaw=0.2, hyaw=0.85, roll=-0.1)
+    leg(T2, "L", hip=0.35, knee=2.4, ankle=-0.2)
+    leg(T2, "R", hip=1.8, knee=2.4, ankle=-0.3, out=-0.1)
     O = {}
-    torso(O, lean=0.55, look=0.5, hp=0.25, yaw=0.2, hyaw=0.95, roll=-0.12)
-    leg(O, "L", hip=1.35, knee=1.9, ankle=0.2, out=0.45)
-    leg(O, "R", hip=1.2, knee=1.75, ankle=0.2, out=-0.3)
-    arm(O, "R", fwd=0.55, elbow=0.05, out=0.05, wrist=-0.9, curl=0.2)
-    arm(O, "L", fwd=0.7, elbow=0.6, out=1.1, curl=0.6)
+    torso(O, lean=0.3, look=0.45, hp=0.1, yaw=0.3, hyaw=1.2, roll=-0.15)
+    leg(O, "L", hip=1.75, knee=1.5, ankle=-0.3, out=0.05)
+    leg(O, "R", hip=1.7, knee=1.75, ankle=-0.3, out=-0.1)
+    arm(O, "R", fwd=0.55, elbow=0.0, out=0.05, wrist=-1.0, curl=0.2)
+    arm(O, "L", fwd=0.9, elbow=0.5, out=1.2, curl=0.6)
     O2 = {}
-    torso(O2, lean=0.4, look=0.45, hp=0.18, yaw=0.08, hyaw=0.3)
-    leg(O2, "L", hip=0.75, knee=0.7, ankle=0.0, out=0.2)
-    leg(O2, "R", hip=0.6, knee=1.5, ankle=0.2, out=-0.1)
-    arm(O2, "R", fwd=-0.2, elbow=0.4, out=0.3, curl=0.6)
-    arm(O2, "L", fwd=0.8, elbow=0.6, out=0.8, curl=0.6)
+    torso(O2, lean=0.3, look=0.45, hp=0.12, yaw=0.15, hyaw=0.6, roll=-0.08)
+    leg(O2, "L", hip=1.3, knee=0.5, ankle=-0.1, out=0.0)
+    leg(O2, "R", hip=1.2, knee=1.3, ankle=0.0, out=-0.05)
+    arm(O2, "R", fwd=0.2, elbow=0.3, out=0.3, wrist=-0.6, curl=0.4)
+    arm(O2, "L", fwd=0.9, elbow=0.6, out=0.9, curl=0.6)
     D = {}
-    torso(D, lean=0.35, look=0.45, hp=0.15, hyaw=0.1)
-    leg(D, "L", hip=0.6, knee=0.35, ankle=0.0)
-    leg(D, "R", hip=0.15, knee=1.3, ankle=0.3)
-    arm(D, "R", fwd=-0.35, elbow=1.0, out=0.3, curl=0.9)
+    torso(D, lean=0.35, look=0.45, hp=0.15, hyaw=0.15)
+    leg(D, "L", hip=0.65, knee=0.35, ankle=0.0)
+    leg(D, "R", hip=0.35, knee=1.4, ankle=0.3)
+    arm(D, "R", fwd=-0.3, elbow=1.0, out=0.3, curl=0.9)
     arm(D, "L", fwd=0.6, elbow=1.2, out=0.4, curl=0.9)
     zl = solve_root(D)
-    air(6, 17, [(0.0, T), (0.4, O), (0.75, O2), (1.0, D)], zt, zl, 0.36)
+    air(6, V_LAND, [(0.0, T), (0.1, T2), (0.26, O), (0.74, O), (0.88, O2), (1.0, D)], zt, zl, V_H)
     A = {}
     torso(A, lean=0.45, look=0.45, hp=0.2)
     leg(A, "L", hip=0.5, knee=0.9, ankle=-0.2)
     leg(A, "R", hip=0.2, knee=1.4, ankle=0.35)
     arm(A, "R", fwd=0.3, elbow=1.3, out=0.25, curl=1.0)
     arm(A, "L", fwd=0.2, elbow=1.3, out=0.3, curl=1.0)
-    key(19, A)
-    gkey(22, 0.32, k=0.9)
-    gkey(25, 0.5)
+    key(V_LAND + 2, A)
+    gkey(V_LAND + 5, 0.32, k=0.9)
+    gkey(V_LAND + 8, 0.5)
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":
