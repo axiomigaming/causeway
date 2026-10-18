@@ -29,7 +29,7 @@ describe('walkable tiles', () => {
       for (const t of sec.tiles) {
         const len = t.sFar - t.sNear;
         expect(len).toBeGreaterThan(3.9);
-        expect(len).toBeLessThan(t.piece === 'floor_wide_0' ? 10 : 9); // a corner's plaza spans its 9.4 m bend
+        expect(len).toBeLessThan(t.piece === 'floor_wide_0' ? 10 : 9); // a corner's plaza spans its 7.1 m bend
         if (t.piece === 'floor_wide_0') continue; // the plaza slab is laid on the chord of an arc
         // The tile's own centre (4 m along its −Z) sits on the path at the middle of its s-range.
         const flip = new THREE.Vector3(0, 0, -2).applyMatrix4(t.world);

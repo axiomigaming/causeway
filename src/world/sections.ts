@@ -514,48 +514,47 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
 type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number };
 
 /**
- * Round 11: a real 90° corner, Temple Run style. The path is one quarter circle of radius TURN_R
+ * Round 11: a real 90° corner, Temple Run style. The path is one quarter circle of radius TURN_R (≈ 7 m)
  * (arc-length continuous, so the run logic and the camera just follow it) over a square pivot plaza:
  * parapets and foundations along the outer edge, a corner pier where they meet, a short curved
  * parapet and a stele on the inside of the bend. Built as a left turn; turnR is its mirror image
  * (track.ts mirrors it), so both read the same.
  */
-export const TURN_R = 6;
+export const TURN_R = 4.5;
 const TURN_LEN = (TURN_R * Math.PI) / 2;
 
 function turnCorner(b: Builder): ReturnType<Build> {
   const R = TURN_R;
   const out = PATH_HALF + 0.36;
-  // The plaza: one wide slab covering the whole bend (and a metre into the exit leg).
-  b.tile('floor_wide_0', -2, -0.02, 0, 0, [1, 1, 1.15]);
+  // The plaza: one wide slab under the whole bend (x −6.2…3.8, z 0…−7.4), tucked 2 cm under the
+  // exit leg's first slabs where they overlap.
+  b.tile('floor_wide_0', -1.2, -0.02, 0, 0, [1, 1, 0.92]);
   b.pathRubble(-1, 0, 0.5);
-  b.pathRubble(-5, 0, 0.5);
-  // Outer edge, along the entry (x = +out) and across the exit (z = −(R + out)).
+  // Outer edge, along the entry (x = +out) and across the exit (z = −(R + out)): foundations,
+  // parapets and foam, the outside wall of the corner.
   for (const z0 of [0, -4]) {
-    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', PATH_HALF + 0.42, 0, z0);
-    b.foam(1, PATH_HALF + 0.84, z0);
-    b.place(b.rng.pick(LOW_WALLS), out, 0, z0);
+    const len = z0 === 0 ? 4 : R + out - 4;
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', PATH_HALF + 0.42, 0, z0, 0, [1, 1, len / 4]);
+    b.foam(1, PATH_HALF + 0.84, z0, len);
+    b.place(b.rng.pick(LOW_WALLS), out, 0, z0, 0, [1, 1, len / 4]);
     b.edgeRubble(1, z0);
   }
   const back = -(R + out);
-  for (const x0 of [out, out - 4]) {
-    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', x0, 0, back - 0.06, Math.PI / 2);
-    b.place(b.rng.pick(LOW_WALLS), x0, 0, back, Math.PI / 2);
+  // Across the exit: from the corner to where the exit leg's own parapet begins (x = −R).
+  for (const [x0, len] of [[out, 4], [out - 4, R + out - 4]] as const) {
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', x0, 0, back - 0.06, Math.PI / 2, [1, 1, len / 4]);
+    b.place(b.rng.pick(LOW_WALLS), x0, 0, back, Math.PI / 2, [1, 1, len / 4]);
   }
-  b.place(`rubble_${b.rng.int(0, 3)}`, -5.6, 0, back + 0.2, b.rng.range(0, 6.28));
-  // The corner pier where the two parapets meet, ivy and a bush on it.
+  // The corner pier where the two parapets meet, a bush and grass on it.
   b.pillar('pillar_0', out + 0.3, 0, back - 0.3, Math.PI / 4);
   if (b.foliage(0.8)) b.place(`bush_${b.rng.int(0, 3)}`, out + 0.6, 0.4, back - 0.8, 0, 1.0);
   if (b.foliage(0.6)) b.place(`grass_${b.rng.int(0, 1)}`, out - 0.6, 0, back + 0.7, 0, 1.0);
-  // Inside of the bend: a short curved parapet (one piece along the chord) and a stele in the corner.
-  {
-    const r = R - out;
-    const th = 0.15;
-    b.place(b.rng.pick(LOW_WALLS), -R + r * Math.cos(th), 0, -r * Math.sin(th), th + 0.55);
-    b.place('stele_0', -R + 1.6, 0, -1.5, Math.PI / 4);
-    if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, -R + 2.2, 0, -0.8, 0, 0.9);
-    if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, -R + 1.2, 0, -2.4, 0, 0.8);
-  }
+  // Inside of the bend (radius < R − PATH_HALF = 2.3 m round the pivot at x = −R): a stele and a
+  // stump, fern and moss, nothing on the line the runner takes.
+  b.place('stele_1', -R + 1.0, 0, -0.9, Math.PI / 4, 0.9);
+  b.place(`rubble_${b.rng.int(0, 3)}`, -R + 0.4, 0, -1.6, b.rng.range(0, 6.28));
+  if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, -R + 1.6, 0, -0.4, 0, 0.8);
+  if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, -R + 0.6, 0, -0.6, 0, 0.7);
   // Green behind the outer corner, a limb over it; scenery only on the outside of the bend (the
   // inside is where the exit leg's own world begins).
   jungleBank(b, 1, PATH_HALF + 4.5, -3, 0, 0.8);

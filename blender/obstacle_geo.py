@@ -7,7 +7,7 @@ src/world/obstacles.ts). Built in their resting pose, origin on the ground at th
   beam_lintel_0     a carved stone lintel (6.6 × 0.62 × 0.7 m): glyph cartouches along both faces and a
                     fret on top, chipped ends; its underside at z = 0 (the director lifts it onto its
                     posts or drops it).  [stoneB atlas]
-  pillar_topple_0   a standing square glyph pier, 4.4 m, broken at the top, origin at its foot (the
+  pillar_topple_0   a standing square glyph pier, 4.6 m, whole, origin at its foot (the
                     pivot it topples about).  [stoneB atlas]
 """
 import math
@@ -137,4 +137,4 @@ def beam_lintel(name, seed, length=6.6, h=0.62, d=0.7):
 
 
 def pillar_topple(name, seed):
-    return X.square_pier(name, seed, height=4.4, w=0.9, broken=True)
+    return X.square_pier(name, seed, height=4.6, w=0.9, broken=False)

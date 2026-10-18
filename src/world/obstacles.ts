@@ -137,15 +137,19 @@ export class Obstacles {
     let action: Obstacle['action'] = 'jump';
     switch (kind) {
       case 'log': {
-        // A jungle trunk, 0.75 m thick, its ends on the parapets' feet; ferns sprouting by it.
-        this.lay(root, 'jungle_0_trunk', 'y', W + 1.4, 0.75, _v.set(0, 0.33, 0), (r(1) - 0.5) * 0.06, r(2) * 6.28);
+        // The fallen trunk (log_fallen_0: Ø 0.8 m, 7.6 m, lying across), ferns sprouting by it.
+        if (this.kit.geo.has('log_fallen_0')) {
+          this.piece(root, 'log_fallen_0', 0, 0, 0, r(1) < 0.5 ? 0 : Math.PI);
+          this.laid.push({ y: 0.37, thick: 0.84, tilt: 0 });
+        } else this.lay(root, 'jungle_0_trunk', 'y', W + 1.4, 0.75, _v.set(0, 0.33, 0), (r(1) - 0.5) * 0.06, r(2) * 6.28);
         this.piece(root, `fern_${r(3) < 0.5 ? 0 : 1}`, -PATH_HALF + 0.3, 0, 0.5, r(4) * 6.28, 0.7);
         this.piece(root, 'moss_2', PATH_HALF * (r(5) - 0.5), 0.62, 0, r(6) * 6.28, 0.6);
         break;
       }
       case 'pillar': {
         // A toppled column, drums askew, rubble where it broke.
-        this.lay(root, r(1) < 0.5 ? 'column_fallen_0' : 'column_fallen_1', 'z', W + 0.6, 0.85, _v.set(0, 0.38, 0), (r(2) - 0.5) * 0.05, r(3) * 6.28);
+        if (this.kit.geo.has('pillar_topple_0')) this.lay(root, 'pillar_topple_0', 'y', W - 0.6, 0.95, _v.set(0, 0.45, 0), (r(2) - 0.5) * 0.04, Math.PI / 2 + (r(3) - 0.5) * 0.3);
+        else this.lay(root, r(1) < 0.5 ? 'column_fallen_0' : 'column_fallen_1', 'z', W + 0.6, 0.85, _v.set(0, 0.38, 0), (r(2) - 0.5) * 0.05, r(3) * 6.28);
         this.piece(root, `rubble_${Math.floor(r(4) * 4)}`, PATH_HALF * 0.6, 0, -1.1, r(5) * 6.28, 0.7);
         break;
       }
@@ -153,7 +157,13 @@ export class Obstacles {
         // Two broken posts at the parapets and a cracked lintel fallen across them: 1.3 m under it.
         action = 'slide';
         for (const sd of [-1, 1]) this.piece(root, 'pillar_2', sd * (PATH_HALF + 0.45), 0, 0, r(1 + sd) * 6.28, [0.9, 0.5, 0.9]);
-        this.lay(root, 'column_fallen_1', 'z', W + 0.8, 0.6, _v.set(0, 1.62, 0), (r(4) - 0.5) * 0.08, r(5) * 6.28);
+        if (this.kit.geo.has('beam_lintel_0')) {
+          // The carved lintel (beam_lintel_0, 0.62 m deep, underside at its origin) across the posts.
+          const tilt = (r(4) - 0.5) * 0.06;
+          const m = new THREE.Matrix4().compose(new THREE.Vector3(0, 1.32, 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), tilt), new THREE.Vector3(1, 1, 1));
+          root.add(this.mesh('beam_lintel_0', this.kit.geo.get('beam_lintel_0')!, m));
+          this.laid.push({ y: 1.32 + 0.38, thick: 0.76, tilt });
+        } else this.lay(root, 'column_fallen_1', 'z', W + 0.8, 0.6, _v.set(0, 1.62, 0), (r(4) - 0.5) * 0.08, r(5) * 6.28);
         this.piece(root, 'vines_2', 0.4, 1.4, 0, 0, [0.6, 0.35, 0.6]);
         break;
       }
