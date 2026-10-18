@@ -78,6 +78,13 @@ export const QUERIES = [
   { key: 'gong', q: 'gong', dur: [1, 40] },
   { key: 'drone', q: 'cello drone', dur: [4, 300] },
   { key: 'ir', q: 'impulse response', dur: [0.3, 15] },
+  // Round 13: the storm, and obstacles the runner meets (FX events)
+  { key: 'thunder', q: 'thunder', dur: [2, 60] },
+  { key: 'wood_crack', q: 'wood crack', dur: [0.2, 20] },
+  { key: 'tree_fall', q: 'tree falling', dur: [1, 40] },
+  { key: 'stone_split', q: 'rock crack', dur: [0.2, 20] },
+  { key: 'slide_scrape', q: 'sliding on gravel', dur: [0.5, 30] },
+  { key: 'land_heavy', q: 'body fall', dur: [0.2, 15] },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

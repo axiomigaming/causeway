@@ -58,7 +58,9 @@ SF2 = soundfont()
 # Chords: (root semitones from D, quality). D minor, so the tune is i-VI-III-VII | i-VI-iv-V and the
 # answer VI-VII-i-i | iv-VI-V-V.
 CH = {'Dm': (0, 'm'), 'Bb': (-4, 'M'), 'F': (3, 'M'), 'C': (-2, 'M'), 'Gm': (5, 'm'), 'A': (7, 'M'), 'D': (0, 'M')}
-PROG = {'A': ['Dm', 'Bb', 'F', 'C', 'Dm', 'Bb', 'Gm', 'A'], 'B': ['Bb', 'C', 'Dm', 'Dm', 'Gm', 'Bb', 'A', 'A']}
+PROG = {'A': ['Dm', 'Bb', 'F', 'C', 'Dm', 'Bb', 'Gm', 'A'], 'B': ['Bb', 'C', 'Dm', 'Dm', 'Gm', 'Bb', 'A', 'A'],
+        # C, the bridge of the long top tier: III-VII-iv-i | VI-III-iv-V
+        'C': ['F', 'C', 'Gm', 'Dm', 'Bb', 'F', 'Gm', 'A']}
 D4 = 62
 
 
@@ -93,6 +95,16 @@ MEL = {
         [(0, 1.5, 77), (1.5, .5, 79), (2, 1, 77), (3, 1, 74)],
         [(0, 1, 76), (1, 1, 73), (2, 1, 76), (3, 1, 79)],
         [(0, 3, 81)],
+    ],
+    'C': [
+        [(0, 1, 77), (1, 1, 81), (2, 2, 84)],
+        [(0, 1, 79), (1, .5, 76), (1.5, .5, 79), (2, 2, 84)],
+        [(0, 1.5, 82), (1.5, .5, 79), (2, 1, 74), (3, 1, 77)],
+        [(0, 3, 74), (3, 1, 76)],
+        [(0, 1, 77), (1, 1, 82), (2, 1, 81), (3, 1, 79)],
+        [(0, 1.5, 81), (1.5, .5, 79), (2, 2, 77)],
+        [(0, .5, 79), (.5, .5, 77), (1, .5, 74), (1.5, .5, 77), (2, 1, 79), (3, 1, 82)],
+        [(0, 2, 81), (2, 1, 79), (3, 1, 76)],
     ],
 }
 
@@ -297,9 +309,13 @@ def arrange_run(sections, key=0, tier4=False, cycles=2):
     d3 = Drums(gain=0.65, wet=0.16)
     choir = Part(52, pan=64, gain=0.55, wet=0.4, legato=1.0)
     cym = Part(48, bank=128, chan=9, pan=64, gain=0.35, wet=0.3)
+    tpt = Part(56, pan=44, gain=0.5, wet=0.3, legato=0.95, vib=True, breath=True)
     seq = sections * cycles
     prev_h = 64
     for si, sec in enumerate(seq):
+        # 'A2' is the A section again with the hook an octave up on the flute and the trumpet taking it below
+        var2 = sec == 'A2'
+        sec = 'A' if var2 else sec
         for bi, ch in enumerate(PROG[sec]):
             B = (si * 8 + bi) * 4
             ts = tones(ch, key)
@@ -324,7 +340,9 @@ def arrange_run(sections, key=0, tier4=False, cycles=2):
                 d0.add(B + k * 0.5, 'm_shaker', 0.32 if k % 2 == 0 else 0.22, 0.35)
             # melody (pan flute) and bass
             for (b, d, n) in MEL[sec][bi]:
-                flute.add(B + b, d, n + key, 96 if b == 0 else 86)
+                flute.add(B + b, d, n + key + (12 if var2 else 0), 96 if b == 0 else 86)
+                if tier4 and (var2 or sec == 'C'):
+                    tpt.add(B + b, d, n + key - (12 if sec == 'C' else 0), 92 if b == 0 else 84)
             br = min(near([root], 38, 49))
             for (b, o, v) in [(0, 0, 100), (1, 0, 80), (1.5, 12, 84), (2, 0, 92), (3, 7, 82), (3.5, 12, 86)]:
                 bass.add(B + b, 0.45, br + o, v)
@@ -385,7 +403,7 @@ def arrange_run(sections, key=0, tier4=False, cycles=2):
     L[0] = [mar, kal, d0]
     L[1] = [flute, bass, sub]
     L[2] = [pad, pizz, stac, d2]
-    L[3] = [brass, horns, timp, d3] + ([choir, cym] if tier4 else [])
+    L[3] = [brass, horns, timp, d3] + ([choir, cym, tpt] if tier4 else [])
     return L
 
 
@@ -431,12 +449,53 @@ def run_stems():
     return res
 
 
-def top_loop():
-    """tier 4: the A section a whole tone up (E minor), faster, everything plus choir and cymbals; one stem"""
-    layers = arrange_run(['A'], key=2, tier4=True, cycles=2)
+def top_sections():
+    """tier 4: the whole ensemble with choir, cymbals and trumpet, a whole tone up (E minor) at the run's own
+    tempo (one musical clock, no tempo jump). Four 8-bar sections - A, A2 (the hook an octave up, trumpet
+    below), B, and C (a bridge) - cut from one continuous A A2 B C render, so a long run keeps evolving."""
+    names = ['A', 'A2', 'B', 'C']
+    layers = arrange_run(names, key=2, tier4=True, cycles=2)
     parts = [p for k in range(4) for p in layers[k]]
-    full = render_loop({0: parts}, BPM_TOP, 8, 2)
-    return full[0]
+    full = render_loop({0: parts}, BPM_RUN, 32, 2)[0]
+    n8 = int(round(8 * bar_len(BPM_RUN) * SR))
+    return {f'th_t4_{n.lower()}': full[i * n8:(i + 1) * n8] for i, n in enumerate(names)}
+
+
+def lift():
+    """the modulation into tier 4: two bars that replace the last two of a D minor phrase. C major (VII in
+    D minor, VI in E minor) to B7 (V of E minor), brass and strings swelling, a rising horn line, choir,
+    a timpani and taiko roll, and the cymbal on the downbeat where the E minor music begins (2 bars in)."""
+    bpm = BPM_RUN
+    brass = Part(61, pan=38, gain=0.6, wet=0.3, legato=1.0)
+    pad = Part(49, bank=17, pan=64, gain=0.55, wet=0.4, swell=[(0, 8, 50, 127)])
+    choir = Part(52, gain=0.5, wet=0.45, swell=[(0, 8, 40, 127)], bank=17)
+    horns = Part(60, pan=96, gain=0.6, wet=0.35, breath=True)
+    flute = Part(75, gain=0.7, wet=0.35, breath=True)
+    timp = Part(47, gain=0.7, wet=0.3)
+    cym = Part(48, bank=128, chan=9, gain=0.4, wet=0.35)
+    d = Drums(gain=0.75, wet=0.18)
+    for n in (60, 64, 67, 72):
+        brass.add(0, 4, n, 92)
+        pad.add(0, 4, n, 80)
+        choir.add(0, 4, n, 80)
+    for n in (59, 63, 66, 69, 71):
+        brass.add(4, 4, n, 104)
+        pad.add(4, 4, n, 88)
+        choir.add(4, 4, n, 88)
+    for k, n in enumerate([64, 66, 67, 69, 71, 72, 74, 75]):
+        horns.add(k * 0.5 + 2, 0.5, n, 80 + 3 * k)
+    for k, n in enumerate([71, 72, 74, 75, 76, 78, 79, 81]):
+        flute.add(6 + k * 0.25, 0.25, n, 84 + 3 * k)
+    d.add(0, 'm_taiko', 0.9, 0, 0)
+    d.add(4, 'm_taiko', 1.0, 0, 0)
+    for k in range(8):
+        d.add(6 + k * 0.25, 'm_taiko_hi', 0.4 + 0.07 * k, (-1) ** k * 0.2)
+    for k in range(16):
+        timp.add(4 + k * 0.25, 0.25, 47, 50 + 4 * k)
+    cym.add(8, 2, 49, 110)
+    d.add(8, 'm_taiko', 1.0, 0, 0)
+    d.add(8, 'm_boom', 0.6, 0, 0)
+    return render_once([brass, pad, choir, horns, flute, timp, cym, d], bpm, 2 * bar_len(bpm) + 2.6)
 
 
 def calm_loop():
@@ -644,12 +703,41 @@ def encode(name, x, loop, extra, kbps):
     return ent
 
 
+# Opus bitrates (AAC gets 1.5x): the theme must stay within 3 MB of Opus.
+KBPS = {'stem': 72, 't4': 80, 'idle': 56}
+
+
+def reencode():
+    """--encode-only: re-encode the cached WAV renders (.cache/music/<name>.wav) at the current bitrates,
+    keeping every manifest field; for budget changes without a full render"""
+    mp = os.path.join(AUD, 'manifest.json')
+    man = json.load(open(mp))
+    for name, ent in man['sounds'].items():
+        if ent.get('group') != 'theme':
+            continue
+        kb = KBPS['t4'] if name.startswith('th_t4') else KBPS['stem'] if name.startswith('th_l') else KBPS['idle'] if name in ('th_calm', 'th_safe') else None
+        if kb is None:
+            continue
+        x, _ = sf.read(os.path.join(CACHE, f'{name}.wav'), dtype='float32', always_2d=True)
+        extra = {k: ent[k] for k in ('bpm', 'bars') if k in ent}
+        man['sounds'][name] = encode(name, x, bool(ent.get('loop')), extra, kb)
+    json.dump(man, open(mp, 'w'), indent=1)
+    open(mp, 'a').write('\n')
+    tot = sum(v['webm']['bytes'] for v in man['sounds'].values() if v.get('group') == 'theme')
+    print(f'theme: {tot / 1024:.0f} KB opus (budget 3 MB)')
+    if tot > 3e6:
+        sys.exit('theme over budget')
+
+
 def main():
+    if '--encode-only' in sys.argv:
+        return reencode()
     out = {}
     print('run stems ...', flush=True)
     stems = run_stems()
     print('tier 4 ...', flush=True)
-    top = top_loop()
+    top = top_sections()
+    lf = lift()
     print('calm, tense ...', flush=True)
     calm, tense, safe = calm_loop(), tense_loop(), safe_loop()
     print('stingers ...', flush=True)
@@ -659,7 +747,7 @@ def main():
     # One gain for everything, so layers sum to the full mix and every piece sits in one balance: the full
     # tier-3 mix (all four layers) and the tier-4 loop peak at -1 dBFS.
     full = [sum(stems[f'th_l{k}_{s}'] for k in range(4)) for s in 'ab']
-    pk = max(float(np.abs(x).max()) for x in full + [top])
+    pk = max(float(np.abs(x).max()) for x in full + list(top.values()))
     g = 0.89 / pk
     # Loudness matching between the pieces that replace one another (the run at tier 3, tier 4, calm, tense).
     ref = lufs_m(full[0] * g)
@@ -672,12 +760,18 @@ def main():
         p = float(np.abs(y).max())
         return y * (0.89 / p) if p > 0.89 else y
 
-    bar_run, bar_top, bar_calm = bar_len(BPM_RUN), bar_len(BPM_TOP), bar_len(BPM_CALM)
+    bar_run, bar_calm = bar_len(BPM_RUN), bar_len(BPM_CALM)
     for name, x in stems.items():
-        out[name] = encode(name, x * g, True, {'bpm': BPM_RUN, 'bars': 8}, 80)
-    out['th_top'] = encode('th_top', fit(top, 1.0), True, {'bpm': BPM_TOP, 'bars': 8}, 96)
-    out['th_calm'] = encode('th_calm', fit(calm, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, 72)
-    out['th_safe'] = encode('th_safe', fit(safe, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, 72)
+        out[name] = encode(name, x * g, True, {'bpm': BPM_RUN, 'bars': 8}, KBPS['stem'])
+    # Tier 4: one gain for its four sections (they keep their relative dynamics), 1 dB over the tier-3 mix.
+    cat = np.concatenate(list(top.values())) * g
+    g4 = 10 ** ((ref + 1.0 - lufs_m(cat)) / 20)
+    g4 = min(g4, 0.89 / float(np.abs(cat).max()))
+    for name, x in top.items():
+        out[name] = encode(name, x * g * g4, True, {'bpm': BPM_RUN, 'bars': 8}, KBPS['t4'])
+    out['th_lift'] = encode('th_lift', fit(lf, 0.5), False, {'bpm': BPM_RUN, 'bars': 2}, 88)
+    out['th_calm'] = encode('th_calm', fit(calm, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, KBPS['idle'])
+    out['th_safe'] = encode('th_safe', fit(safe, -6.0), True, {'bpm': BPM_CALM, 'bars': 8}, KBPS['idle'])
     out['th_tense'] = encode('th_tense', fit(tense, -9.0), True, {'bpm': BPM_CALM, 'bars': 4}, 64)
     for i, x in enumerate(fan):
         out[f'th_win{i}'] = encode(f'th_win{i}', fit(x, -1.0 + 1.0 * i), False, {}, 96)
@@ -688,6 +782,10 @@ def main():
     for k in [k for k, v in man['sounds'].items() if v.get('group') == 'theme']:
         del man['sounds'][k]
     man['sounds'].update(out)
+    keep = {v[f]['file'] for v in out.values() for f in ('webm', 'm4a')}
+    for f in os.listdir(AUD):
+        if f.startswith('th_') and f.endswith(('.webm', '.m4a')) and f not in keep:
+            os.remove(os.path.join(AUD, f))  # a piece no longer rendered
     json.dump(man, open(mp, 'w'), indent=1)
     open(mp, 'a').write('\n')
     tot = sum(v['webm']['bytes'] for v in out.values())
@@ -695,7 +793,7 @@ def main():
     for k, v in out.items():
         print(f"{k:12} {v['slices'][0][1]:6.2f} s  {v['webm']['bytes'] / 1024:5.0f} KB opus  {v['m4a']['bytes'] / 1024:5.0f} KB aac")
     print(f'theme: {tot / 1024:.0f} KB opus, {tota / 1024:.0f} KB aac (budget 3 MB)')
-    print(f'run bar {bar_run:.4f} s, top bar {bar_top:.4f} s, calm bar {bar_calm:.4f} s')
+    print(f'run bar {bar_run:.4f} s, calm bar {bar_calm:.4f} s')
     if tot > 3e6:
         sys.exit('theme over budget')
 

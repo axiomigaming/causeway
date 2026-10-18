@@ -1,3 +1,4 @@
+import { TIER_AT, progression, runTier } from '../world/choreo';
 /**
  * Pure helpers for moment-to-moment feedback: milestones, HUD heat, the tension
  * riser, haptics. Every cue here is a function of the multiplier already on
@@ -31,7 +32,8 @@ export function milestoneApproach(m: number): number {
 
 /** HUD heat 0..1 from the multiplier (hundredths): 0 at 1×, ½ at 5×, 1 at 25× and beyond. */
 export function heatOf(m: number): number {
-  return Math.min(1, Math.max(0, Math.log(m / 100) / Math.log(25)));
+  // [Progression director] the shared model: the continuous drive (0..4) over 4 — ½ at 5×, 1 at 25×.
+  return progression(m / 100).drive / 4;
 }
 
 /**
@@ -41,9 +43,10 @@ export function heatOf(m: number): number {
  * (the cash-out multiplier for an escape — never the fall point).
  */
 export type Tier = 0 | 1 | 2 | 3 | 4;
-export const TIER_BOUNDS = [200, 500, 1000, 2500] as const;
+/** [Progression director] the tier boundaries come from world/choreo (TIER_AT), in hundredths. */
+export const TIER_BOUNDS = TIER_AT.map((x) => x * 100) as readonly number[];
 export function tierOf(m: number): Tier {
-  return m >= 2500 ? 4 : m >= 1000 ? 3 : m >= 500 ? 2 : m >= 200 ? 1 : 0;
+  return runTier(m / 100) as Tier;
 }
 
 /** Short label for a milestone flare. */

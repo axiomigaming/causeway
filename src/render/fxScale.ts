@@ -1,6 +1,6 @@
 import type { QualityLevel } from '../config/quality';
 import type { Rng } from '../engine/rng';
-import { runTier } from '../world/choreo';
+import { progression } from '../world/choreo';
 
 /**
  * Pure scaling and budget rules for the cinematic effects (falls, escapes, run-time danger cues).
@@ -127,7 +127,7 @@ export function fxBudget(level: QualityLevel, motion: Motion = 'full'): FxBudget
 /** Hard capacity of the pools (the largest budget). */
 export const FX_CAPACITY: FxBudget = BUDGETS.ultra;
 
-export type DangerCue = 'burst' | 'stones' | 'rumble' | 'birds';
+export type DangerCue = 'burst' | 'stones' | 'rumble' | 'birds' | 'collapse';
 
 /**
  * Relative weights and the mean wait for run-time danger cues at a run tier. Tier 0 is calm;
@@ -137,8 +137,8 @@ const CUE_TABLE: readonly { wait: number; w: readonly (readonly [DangerCue, numb
   { wait: Infinity, w: [] },
   { wait: 7.5, w: [['burst', 2], ['birds', 2], ['stones', 1]] },
   { wait: 4.6, w: [['burst', 3], ['stones', 2], ['birds', 1], ['rumble', 1]] },
-  { wait: 2.5, w: [['burst', 4], ['stones', 2], ['rumble', 2], ['birds', 1]] },
-  { wait: 1.5, w: [['burst', 5], ['stones', 3], ['rumble', 2], ['birds', 1]] },
+  { wait: 2.5, w: [['burst', 4], ['stones', 2], ['rumble', 2], ['birds', 1], ['collapse', 1]] },
+  { wait: 1.5, w: [['burst', 5], ['stones', 3], ['rumble', 2], ['birds', 1], ['collapse', 2]] },
 ];
 
 /**
@@ -146,12 +146,14 @@ const CUE_TABLE: readonly { wait: number; w: readonly (readonly [DangerCue, numb
  * the run is calm. `wait` is seconds until it, `strength` 0..1 scales it.
  */
 export function nextDangerCue(rng: Rng, mult: number): { cue: DangerCue; wait: number; strength: number } | null {
-  const tier = runTier(mult);
+  const P = progression(mult);
+  const tier = P.tier;
   const row = CUE_TABLE[tier]!;
   if (!row.w.length) return null;
   const cue = rng.weighted(row.w);
-  const wait = row.wait * rng.range(0.6, 1.4);
-  const strength = Math.min(1, 0.25 + 0.2 * tier + rng.range(0, 0.15));
+  // Denser and stronger through each tier too (the progression's continuous drive), not only at its steps.
+  const wait = row.wait * rng.range(0.6, 1.4) * (1 - 0.25 * P.within);
+  const strength = Math.min(1, 0.25 + 0.2 * P.drive + 0.1 * P.within + rng.range(0, 0.1));
   return { cue, wait, strength };
 }
 
