@@ -9,3 +9,4 @@ __pycache__/
 review/
 e2e-out/
 .claude/worktrees/
+.cache/

@@ -153,7 +153,7 @@ export class Ambient {
     leaf.setAttribute('aWing', new THREE.Float32BufferAttribute(new Float32Array(4), 1));
     this.leaves = makeField(
       leaf,
-      60,
+      180, // round 11: up to 180 as the run builds (setLeafDensity); 60 when calm
       /* glsl */ `
       varying vec3 vCol;
       varying float vShade;
@@ -193,8 +193,18 @@ export class Ambient {
     };
     set(this.birds, 8);
     set(this.butterflies, 4);
-    set(this.leaves, 0);
+    this.leafBudget = k >= 0.5 ? Math.min(1, k) : 0;
     this.leaves.mesh.visible = k >= 0.5;
+    this.setLeafDensity(this.leafDensity);
+  }
+
+  private leafBudget = 1;
+  private leafDensity = 0;
+  /** Round 11 crescendo: 0 calm (a third of the leaves) .. 1 the air full of falling leaves. */
+  setLeafDensity(d: number): void {
+    this.leafDensity = d;
+    const n = Math.round(this.leaves.max * this.leafBudget * (0.33 + 0.67 * Math.min(1, Math.max(0, d))));
+    (this.leaves.mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = n;
   }
 
   update(t: number, cam: THREE.Camera): void {
