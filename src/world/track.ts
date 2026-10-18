@@ -35,6 +35,8 @@ const VARIANTS: Record<SectionType, number> = {
   roots: 2,
   colossi: 2,
   ledge: 2,
+  turnL: 2,
+  turnR: 2,
 };
 
 interface Variant {
@@ -77,7 +79,7 @@ const TILE_CAPACITY: Record<string, number> = {
   floor_0: 110,
   floor_1: 110,
   floor_2: 40,
-  floor_wide_0: 12,
+  floor_wide_0: 16,
   floor_narrow_0: 8,
   floor_medallion_0: 36,
   planks_0: 40,
@@ -164,6 +166,9 @@ export class Track {
   private rng = new Rng(1);
   private elevation = 0;
   private lastType: SectionType = 'start';
+  /** Quarter turns from the start heading (−1, 0, +1) and sections since the last corner. */
+  private heading = 0;
+  private sinceTurn = 0;
   private fallMat = makeWaterfallMaterial();
   private density = { foliage: 1, scenery: 1 };
   viewDistance = 190;
@@ -293,15 +298,25 @@ export class Track {
     this.path.reset({ pos: new THREE.Vector3(0, 0, 0), yaw: 0 });
     this.spawn('start');
     this.lastType = 'start';
+    this.heading = 0;
+    this.sinceTurn = 0;
     this.update(0, 0);
   }
 
   /** Keep the route built ahead of `s` and cleared behind it. */
   update(s: number, intensity: number): void {
     while (this.path.length < s + this.viewDistance) {
-      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types);
+      // Corners alternate (the route never doubles back on itself) and stand at least three
+      // sections apart (the legs between them keep the lanes' scenery from meeting).
+      const allow = (t: SectionType) =>
+        t === 'turnL' ? this.heading < 1 && this.sinceTurn >= 3 : t === 'turnR' ? this.heading > -1 && this.sinceTurn >= 3 : true;
+      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
       this.spawn(t, intensity);
       this.lastType = t;
+      if (t === 'turnL' || t === 'turnR') {
+        this.heading += t === 'turnL' ? 1 : -1;
+        this.sinceTurn = 0;
+      } else this.sinceTurn++;
     }
     while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
       this.despawn(this.sections.shift()!);
@@ -321,7 +336,8 @@ export class Track {
     const variant = this.rng.pick(candidates);
     variant.inUse++;
     const layout = variant.layout;
-    const mirror = type !== 'start' && this.rng.chance(0.5);
+    // Corners: turnL is built as a left turn and turnR is its mirror image.
+    const mirror = type === 'turnR' ? true : type === 'turnL' || type === 'start' ? false : this.rng.chance(0.5);
     const turn = mirror ? -layout.turn : layout.turn;
     const seg = this.path.push(layout.len, turn, layout.dy);
     this.elevation += layout.dy;
@@ -380,7 +396,9 @@ export class Track {
       b.set(0, 0, -len).applyMatrix4(t.m);
       const near = Math.min(-a.z, -b.z);
       const far = Math.max(-a.z, -b.z);
-      const slot: TileSlot = { piece: t.piece, index: -1, world: tmp.clone(), sNear: seg.s0 + near, sFar: seg.s0 + far, alive: true };
+      // A corner's plaza slab spans the whole bend (its extent along −Z is not arc length).
+      const span = layout.turn !== 0 ? [0, layout.len] : [near, far];
+      const slot: TileSlot = { piece: t.piece, index: -1, world: tmp.clone(), sNear: seg.s0 + span[0]!, sFar: seg.s0 + span[1]!, alive: true };
       this.tiles.alloc(slot);
       inst.tiles.push(slot);
     }
