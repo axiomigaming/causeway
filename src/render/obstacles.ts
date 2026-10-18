@@ -20,7 +20,7 @@ import { OBSTACLES, obstacleTiming, type Obstacle } from '../world/runner';
  *   blocks   the slabs ahead crack loose and drift apart over the water → he leaps each gap
  *            (leap_gap, 2–3 leaps); the loose slabs tilt and sink (tier 2+)
  *   rocks    rocks rain down beside the way (the game's 'stones' cue) (tier 1+)
- *   boulder  near miss: a boulder rolls across the way just behind him (tier 2+)
+ *   boulder  near miss: a boulder thunders across the way just in front of him (tier 2+)
  *   tile     near miss: the slab he just left drops into the water (tier 1+)
  * And wherever the route bends hard, he cuts the corner on the outside foot (turn_cut_L/R).
  *
@@ -612,12 +612,13 @@ export class ObstacleDirector {
   }
 
   private boulder(): boolean {
-    // Near miss: a boulder rolls across the way just behind him.
+    // Near miss: a boulder thunders across the way just in front of him (crossing behind him would
+    // put it through the chase lens, ~2 m back): it crosses the centre line ~0.7 s before he gets there.
     const geo = this.h.geometry('rock_mid_0');
     const mat = this.h.material('rock') ?? this.h.material('stoneA');
     if (!geo || !mat) return false;
     const v = Math.max(4, this.h.speed());
-    const cross = this.h.s() + v * 0.9 - 2.4;
+    const cross = this.h.s() + v * 1.6;
     const f = this.h.frameAt(cross);
     const side = this.h.rng().chance(0.5) ? 1 : -1;
     const m = new THREE.Mesh(geo, mat);
@@ -626,7 +627,7 @@ export class ObstacleDirector {
     const start = f.pos.clone().addScaledVector(f.right, side * 6).setY(f.pos.y + 0.8);
     m.position.copy(start);
     this.h.add(m);
-    // It crosses the centre line ~0.9 s from now, ~2.4 m behind him.
+    // It crosses the centre line ~0.9 s from now.
     let t = -0.1;
     this.h.sound('tree_fall', 0.45);
     this.live.push({

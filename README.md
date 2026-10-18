@@ -205,7 +205,7 @@ straight stretches alternate with bursts of 1–3 pieces; the calm shortens
 pillars to vault (`vault`), rocks raining beside the way, the slab he just left
 dropping into the water, and the lintel slamming down right after he slides
 through. From 5×: the slabs ahead crack loose and drift apart over the water
-(2–3 `leap_gap`s sized to the gap) and boulders rolling across just behind him.
+(2–3 `leap_gap`s sized to the gap) and boulders thundering across the way just in front of him.
 Hard bends get a corner cut (`turn_cut_L/R`). Each piece stands ~2.5 s ahead;
 the move is called on its start foot and the route speed borrows a few percent
 so the takeoff meets the piece. A cash-out or a fall ends it at once: pieces
