@@ -166,7 +166,7 @@ export class Game {
     this.renderer.info.autoReset = false;
     this.rig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     this.rig.constrain = (p) => this.corridor(p);
-    this.rig.occlude = (a, b) => this.occluder(a, b, true);
+    this.rig.occlude = (a, b) => this.occluder(a, b);
   }
 
   static async create(canvas: HTMLCanvasElement, quality: QualityLevel, onProgress: (p: number, label: string) => void): Promise<Game> {
@@ -911,39 +911,10 @@ export class Game {
   }
 
   /**
-   * Round 15: bushes and low boughs right at the path's edge (the camera's sight line to the runner
-   * only — the duck probe ignores them). Coarse on purpose: the inner 60 % of each piece's box, so a
-   * lens behind a bush swings or pulls in instead of filming leaves (exit legs of corners mostly).
-   */
-  private leafy(sec: { root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }) {
-    let list = this.leafCache.get(sec);
-    if (list) return list;
-    list = [];
-    const p = new THREE.Vector3();
-    for (const pl of sec.layout.props) {
-      const geo = this.kit.geo.get(pl.piece);
-      if (!geo || !(this.kit.matOf.get(pl.piece) ?? '').startsWith('leaf') || !/^(bush|fern|canopy|banana|shrub|spill|jungle_bank)/.test(pl.piece)) continue;
-      if (Math.abs(p.setFromMatrixPosition(pl.m).x) > PATH_HALF + 1.6) continue;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      const box = geo.boundingBox!.clone();
-      const c = box.getCenter(new THREE.Vector3());
-      box.min.lerp(c, 0.2);
-      box.max.lerp(c, 0.2);
-      if (box.max.y < 0.9) continue;
-      const world = sec.root.matrix.clone().multiply(pl.m);
-      list.push({ box, inv: world.clone().invert(), world });
-    }
-    this.leafCache.set(sec, list);
-    return list;
-  }
-  private leafCache = new WeakMap<object, { box: THREE.Box3; inv: THREE.Matrix4; world: THREE.Matrix4 }[]>();
-
-  /**
    * Distance from `from` to the first solid prop on the segment to `to`, or null when clear. Broad
    * phase: each prop's local bounding box; narrow phase: an exact raycast of that one piece.
-   * `leaves`: also the near-path bushes (box only), for the camera's sight line.
    */
-  private occluder(from: THREE.Vector3, to: THREE.Vector3, leaves = false): number | null {
+  private occluder(from: THREE.Vector3, to: THREE.Vector3): number | null {
     if (!this.track) return null;
     const o = this.occl;
     const len = o.dir.copy(to).sub(from).length();
@@ -966,14 +937,6 @@ export class Game {
         o.mesh.raycast(o.rc, o.hits);
         for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
       }
-      if (leaves)
-        for (const e of this.leafy(sec)) {
-          o.local.copy(o.ray).applyMatrix4(e.inv);
-          if (!o.local.intersectBox(e.box, o.hit)) continue;
-          o.hit.applyMatrix4(e.world);
-          const d = o.hit.distanceTo(from);
-          if (d <= len && (best === null || d < best)) best = d;
-        }
     }
     return best;
   }
