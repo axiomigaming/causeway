@@ -84,6 +84,8 @@ export function Hud() {
         lastTier = -1;
       }
       const text = formatMult(m);
+      // The hero figure steps down a size as it grows a digit, so it always fits narrow screens.
+      if (el.dataset.len !== String(text.length)) el.dataset.len = String(text.length);
       const dot = text.lastIndexOf('.');
       const int = text.slice(0, dot);
       const frac = text.slice(dot);

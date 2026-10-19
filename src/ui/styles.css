@@ -174,7 +174,8 @@ sup { font-size: 0.7em; line-height: 0; }
 .btn-cta:active:not(:disabled):not([aria-disabled='true']) { --sc: 0.98; --lift: 0px; --fill: var(--amber-press); transition: transform 0.09s var(--ease), filter 0.09s; }
 .btn-cta:disabled { --fill: rgba(246, 239, 228, 0.16); --edge: rgba(255, 255, 255, 0.06); color: rgba(246, 239, 228, 0.6); filter: none; }
 .btn-cta .cta-word { display: inline-block; animation: wordIn 0.18s var(--ease); }
-@keyframes wordIn { from { opacity: 0; transform: translateY(6px); } }
+/* the crossfade starts part-visible, so a stalled first frame never shows an empty button */
+@keyframes wordIn { from { opacity: 0.35; transform: translateY(6px); } }
 .btn-cta.busy { cursor: progress; }
 .spinner { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

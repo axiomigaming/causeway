@@ -125,6 +125,13 @@
   .hud { --hud-top: 132px; }
   .result { top: calc(120px + var(--safe-t)); }
 }
+/* phones: 72 up to "999.99", 44 to "9,999.99"/"99,999.99", 28 beyond (on the scale) */
+@media (max-width: 760px) {
+  .hud .mult:is([data-len='8'], [data-len='9']) { font-size: var(--t44); }
+  .hud .mult:is([data-len='8'], [data-len='9']) .x { font-size: var(--t20); }
+  .hud .mult:is([data-len='10'], [data-len='11'], [data-len='12'], [data-len='13'], [data-len='14']) { font-size: var(--t28); }
+  .hud .mult:is([data-len='10'], [data-len='11'], [data-len='12'], [data-len='13'], [data-len='14']) .x { font-size: var(--t16); }
+}
 @media (max-width: 360px) {
   .hud .mult { font-size: var(--t44); }
   .hud .mult .x { font-size: var(--t20); }
