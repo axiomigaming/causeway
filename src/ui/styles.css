@@ -74,6 +74,11 @@ sup { font-size: 0.7em; line-height: 0; }
 /* the small uppercase label: 12 / 600, tracked, at ~60 % */
 .eyebrow, .label-s { font-size: var(--t12); line-height: 16px; font-weight: 600; font-stretch: 100%; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
 .gold { color: inherit; }
+/* the multiplier's ×, everywhere (hero, fell card, history): 0.5 of the figure, weight 700, its
+   ink centred on the digits' optical middle. Archivo: figures ink 0–0.71 em (middle 0.355); × at
+   700 inks 0.03–0.49 of its own em (middle 0.26 × 0.5 = 0.13 of the figure), so it rises
+   (0.355 − 0.13) / 0.5 = 0.45 of its own em; the 0.04-em gap is 0.08 of its own em. */
+.x { position: relative; top: -0.45em; font-size: 0.5em; font-weight: 700; font-stretch: 100%; letter-spacing: 0; margin-left: 0.08em; }
 .interactive { pointer-events: auto; }
 
 /* the one divider: hairline · stair · hairline */
@@ -261,11 +266,11 @@ sup { font-size: 0.7em; line-height: 0; }
 /* hero: the stair stands on the cap line above the word, flush left with it */
 .logo-title { flex-direction: column; align-items: flex-start; gap: 12px; }
 .logo-title .logo-word { font-size: var(--t72); letter-spacing: 0.06em; margin-right: -0.06em; line-height: 0.9; }
-.logo-title .logo-stair { width: 60px; height: 12px; margin: 0; }
+.logo-title .logo-stair { width: 45px; height: 27px; margin: 0; }
 .logo-compact .logo-word { font-size: var(--t14); }
-.logo-compact .logo-stair { width: 30px; height: 6px; }
+.logo-compact .logo-stair { width: 15px; height: 9px; }
 .logo-mark { display: none; }
-.logo-mark .logo-stair { width: 45px; height: 9px; }
+.logo-mark .logo-stair { width: 30px; height: 18px; }
 
 /* ================================================================== top bar: no box
    brand · history ········· balance · sound · menu, on one line (one baseline); a soft scrim does
@@ -522,7 +527,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 
   .title { justify-content: flex-end; padding-bottom: calc(88px + var(--safe-b)); }
   .logo-title .logo-word { font-size: var(--t44); font-stretch: 112%; letter-spacing: 0.04em; margin-right: -0.04em; }
-  .logo-title .logo-stair { width: 45px; height: 9px; }
+  .logo-title .logo-stair { width: 30px; height: 18px; }
   .title-actions { flex-direction: column; align-items: stretch; gap: 12px; margin-top: 32px; }
   .title-actions .btn { width: 100%; }
   .title-actions .btn-cta { min-width: 0; }
