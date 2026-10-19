@@ -27,7 +27,12 @@ export const causticUniforms = {
 
 const VERT_PARS = /* glsl */ `
 varying vec3 vWetPos;
-varying vec3 vWetN;`;
+varying vec3 vWetN;
+#ifdef WET_EDGES
+attribute float aHalf;
+varying vec3 vTileP;
+varying float vHalf;
+#endif`;
 
 const VERT = /* glsl */ `
 {
@@ -39,11 +44,19 @@ const VERT = /* glsl */ `
   #endif
   vWetPos = (modelMatrix * wetP).xyz;
   vWetN = normalize(mat3(modelMatrix) * wetN);
+  #ifdef WET_EDGES
+    vTileP = position;
+    vHalf = aHalf;
+  #endif
 }`;
 
 const FRAG_PARS = /* glsl */ `
 varying vec3 vWetPos;
 varying vec3 vWetN;
+#ifdef WET_EDGES
+varying vec3 vTileP;
+varying float vHalf;
+#endif
 uniform float uCausticTime;
 uniform float uCausticStrength;
 uniform vec4 uFeet[${MAX_FEET}];
@@ -156,6 +169,22 @@ float wetK = max(wetAt(vWetPos), uRainWet * mix(0.55, 1.0, smoothstep(0.2, 0.8, 
 diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 // Wet faces shine; flat ones less (a mirror-flat wet slab would just show the sky's blue).
 roughnessFactor = mix(roughnessFactor, mix(0.22, 0.45, abs(vWetN.y)), wetK);
+#ifdef WET_EDGES
+if (vHalf > 0.0) {
+  // World round 12: where the paving meets the parapets — grime and wear in the last ~0.7 m, moss
+  // creeping out of the joint, dead leaves gathered against the wall. The slab's own local x is the
+  // distance across the path (aHalf: half its width), so it follows every tile, mirrored or turned.
+  float e = smoothstep(vHalf - 0.75, vHalf - 0.04, abs(vTileP.x));
+  float n1 = pdN(vWetPos.xz * 3.1);
+  float n2 = pdN(vWetPos.xz * 11.0 + 2.0);
+  diffuseColor.rgb *= mix(1.0, mix(0.6, 0.82, n1), e);
+  float moss = e * e * smoothstep(0.42, 0.68, n1 * 0.7 + n2 * 0.3);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.1, 0.14, 0.05) * (0.7 + 0.6 * n2), moss * 0.75);
+  float litter = e * smoothstep(0.78, 0.84, pdN(vWetPos.xz * 6.5 + 9.0));
+  diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.3, 0.18, 0.07), vec3(0.46, 0.32, 0.12), n2), litter * 0.85);
+  roughnessFactor = mix(roughnessFactor, 0.95, e * 0.5);
+}
+#endif
 {
 #ifdef WET_PUDDLES
   // Round 11 detail: puddles standing in the hollows of the slabs (a few when dry, spreading with
@@ -186,7 +215,7 @@ const FRAG_CAUSTIC = /* glsl */ `
 }`;
 
 /** Patch a standard material (once). Chains any existing onBeforeCompile. */
-export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false): void {
+export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false, edges = false): void {
   const sm = m as THREE.MeshStandardMaterial;
   if (!sm.isMeshStandardMaterial || sm.userData.wetStone) return;
   sm.userData.wetStone = true;
@@ -197,6 +226,10 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
     Object.assign(shader.uniforms, causticUniforms);
     if (moss) shader.fragmentShader = '#define WET_MOSS\n' + shader.fragmentShader;
     if (puddles) shader.fragmentShader = '#define WET_PUDDLES\n' + shader.fragmentShader;
+    if (edges) {
+      shader.vertexShader = '#define WET_EDGES\n' + shader.vertexShader;
+      shader.fragmentShader = '#define WET_EDGES\n' + shader.fragmentShader;
+    }
     if (detail > 0) shader.fragmentShader = `#define DETAIL_AMP ${detail.toFixed(3)}\n` + shader.fragmentShader;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
@@ -207,7 +240,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${detail}`;
   sm.needsUpdate = true;
 }
 
