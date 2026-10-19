@@ -181,7 +181,7 @@ sup { font-size: 0.7em; line-height: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* refill: the same button, quieter */
 .cta-sun { --fill: var(--cream); }
-.cta-sun .btn-sub { font-size: var(--t12); font-weight: 600; font-stretch: 100%; letter-spacing: 0.1em; color: rgba(26, 18, 6, 0.66); }
+.cta-sun .btn-sub { font-size: var(--t12); font-weight: 600; font-stretch: 100%; letter-spacing: 0.1em; color: rgba(26, 18, 6, 0.8); }
 
 /* ---- secondary: a hairline capsule */
 .btn-ghost {
@@ -306,6 +306,8 @@ sup { font-size: 0.7em; line-height: 0; }
 .chip.none { font-weight: 450; }
 .history:has(.chip.none) { visibility: hidden; }
 .history.quiet { opacity: 0.6; }
+/* over open sky the top-bar labels need a little more than the dock's 62 % to hold 4.5:1 */
+.topbar :is(.tag, .balance .k, .hist-k, .balance .v small) { color: rgba(246, 239, 228, 0.74); }
 
 /* ================================================================== dock */
 .dock {
@@ -387,7 +389,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 @keyframes fillIn { from { background-color: var(--amber); } }
 .cash .label { display: grid; justify-items: start; row-gap: 4px; text-align: left; min-width: 0; }
 .cash .btn-label { font-size: var(--t16); font-weight: 800; font-stretch: 112%; letter-spacing: 0.04em; text-transform: uppercase; }
-.cash .label small { font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.04em; color: rgba(26, 18, 6, 0.66); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cash .label small { font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.04em; color: rgba(26, 18, 6, 0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cash .label small b { font-weight: 700; color: rgba(26, 18, 6, 0.86); }
 .cash .amt { font-size: var(--t28); line-height: 32px; font-weight: 800; font-stretch: 100%; letter-spacing: -0.01em; white-space: nowrap; color: var(--on-amber); }
 .cash .amt[data-len='12'], .cash .amt[data-len='13'], .cash .amt[data-len='14'] { font-size: var(--t20); }
@@ -401,7 +403,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .cash.held { cursor: default; }
 .cash.held.won { --fill: var(--amber); }
 .cash.held.fell { --fill: var(--muted-2); --edge: rgba(255, 255, 255, 0.16); }
-.cash.held.fell .amt { color: rgba(26, 18, 6, 0.7); }
+.cash.held.fell .amt { color: rgba(26, 18, 6, 0.92); }
 .cash-meta { display: flex; justify-content: center; gap: 4px; margin-top: 12px; font-size: var(--t12); line-height: 16px; color: var(--label); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); }
 .cash-meta.gone { visibility: hidden; }
 
