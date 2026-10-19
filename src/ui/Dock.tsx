@@ -3,7 +3,6 @@ import { heatOf } from '../audio/feedback';
 import { formatCredits, formatMult, parseCredits, parseMult, payout } from '../engine/money';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
-import { GoldWord } from './GoldWord';
 import { useHold } from './hold';
 import { IconMinus, IconPlus } from './icons';
 
@@ -196,9 +195,9 @@ function Setup() {
             {broke ? (
               <button className="btn btn-cta cta-sun run-btn" onClick={() => void ctl?.refill()} onMouseEnter={() => ctl?.audio.ui('hover')}>
                 <span className="btn-label">
-                  <GoldWord text="Refill" />
+                  <span className="cta-word">Refill</span>
+                  <small className="btn-sub">Demo credits</small>
                 </span>
-                <small className="btn-sub">Demo credits</small>
               </button>
             ) : (
               <button
@@ -209,13 +208,10 @@ function Setup() {
                 aria-busy={busy}
                 aria-label={busy ? 'Placing your stake' : `${s.phase === 'result' ? 'Run again' : 'Run'} with a stake of ${formatCredits(s.stake)}`}
               >
-                {/* The primary plate: crest and plume above, pendant below, one cast-gold word-mark;
-                    the stake is read from the stepper above it. */}
-                <span className="crest plume" aria-hidden />
-                <span className="pendant" aria-hidden />
+                {/* One flat amber fill, one word; the stake is read from the stepper above it. */}
                 <span className="btn-label">
                   {busy && <span className="spinner" aria-hidden />}
-                  <GoldWord text={busy ? 'Placing' : s.phase === 'result' ? 'Run again' : 'Run'} />
+                  <span className="cta-word">{busy ? 'Placing' : s.phase === 'result' ? 'Run again' : 'Run'}</span>
                 </span>
               </button>
             )}
@@ -299,14 +295,10 @@ function CashOut({ held }: { held: boolean }) {
         aria-disabled={lead || held}
         aria-label={held ? label : 'Cash out'}
       >
-        {/* The stone heats: ember seams open in the panel as --heat climbs, the crest's ruby kindles. */}
-        <span className="heat hot" aria-hidden />
-        <span className="heat glow" aria-hidden />
-        <span className="crest plume" aria-hidden />
-        <span className="pendant" aria-hidden />
+        {/* The RUN button, morphed: cream that warms toward amber as --heat climbs. */}
         <span className="label">
           <span className="btn-label">
-            <GoldWord text={label} />
+            <span className="cta-word">{label}</span>
           </span>
           {/* the stake lives inside the plate: nothing orphaned in the home-indicator zone */}
           <small>

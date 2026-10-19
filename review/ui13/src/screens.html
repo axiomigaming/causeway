@@ -1,0 +1,321 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>CAUSEWAY round 13 screens</title>
+<style>
+@font-face { font-family: 'Cinzel'; src: url(ttf/cinzel-Cinzel.ttf); font-weight: 400 900; }
+@font-face { font-family: 'Barlow SC'; src: url(ttf/BarlowSemiCondensed-Regular.ttf); font-weight: 400; }
+@font-face { font-family: 'Barlow SC'; src: url(ttf/BarlowSemiCondensed-Medium.ttf); font-weight: 500; }
+@font-face { font-family: 'Barlow SC'; src: url(ttf/BarlowSemiCondensed-SemiBold.ttf); font-weight: 600; }
+@font-face { font-family: 'Barlow SC'; src: url(ttf/BarlowSemiCondensed-Bold.ttf); font-weight: 700; }
+@font-face { font-family: 'Unbounded'; src: url(ttf/Unbounded-VF.ttf); font-weight: 200 900; }
+@font-face { font-family: 'Manrope'; src: url(ttf/Manrope-VF.ttf); font-weight: 200 800; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body { position: relative; -webkit-font-smoothing: antialiased; }
+.scene { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.scene::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.42) 0, rgba(0,0,0,0) 150px), linear-gradient(0deg, rgba(0,0,0,0.5) 0, rgba(0,0,0,0) 340px); }
+.abs { position: absolute; }
+.spr { position: absolute; pointer-events: none; user-select: none; }
+.num { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1, 'lnum' 1; }
+.status { position: absolute; left: 0; right: 0; top: 0; height: 47px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px 0 34px; font: 600 15px -apple-system, 'Barlow SC', sans-serif; color: #fff; z-index: 50; }
+.status i { font-style: normal; letter-spacing: 2px; font-size: 11px; }
+.home { position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: rgba(255,255,255,0.8); z-index: 50; }
+
+/* ============================================================ CONCEPT 1 · TEMPLE PLAQUE */
+.c1 { --ivory: #f3e7cf; --ivory-dim: #cdbd9e; --gold-t: #e9c46a; --cap: 'Cinzel', serif; --ui: 'Barlow SC', sans-serif; }
+.c1 .cap { font-family: var(--cap); font-weight: 700; font-size: 10px; letter-spacing: 0.22em; color: var(--ivory-dim); text-transform: uppercase; }
+/* top bar */
+.c1 .top { position: absolute; left: 16px; right: 16px; display: flex; align-items: center; gap: 8px; height: 48px; }
+.c1 .logo { position: relative; width: 150px; height: 48px; flex: none; }
+.c1 .bal { position: relative; height: 48px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 0 16px;
+  border: 0 solid transparent; padding: 0 18px; border-image: url(art/c1-bal.png) 68 64 fill / 34px 32px / 14px stretch; }
+.c1 .bal .in { display: flex; flex-direction: column; align-items: flex-end; }
+.c1 .bal .cap { font-size: 9px; letter-spacing: 0.2em; line-height: 12px; }
+.c1 .bal b { font: 600 19px/22px var(--ui); color: var(--ivory); text-shadow: 0 1px 0 rgba(0,0,0,0.6); }
+.c1 .bal b small { font: 600 11px var(--ui); color: var(--gold-t); margin-left: 3px; letter-spacing: 0.04em; }
+.c1 .key { position: relative; width: 48px; height: 48px; flex: none; display: grid; place-items: center; }
+.c1 .key svg { position: relative; filter: drop-shadow(0 1px 0 rgba(0,0,0,0.7)); }
+.c1 .spacer { flex: 1; }
+.c1 .hist { position: absolute; left: 16px; right: 16px; height: 28px; display: flex; align-items: center; gap: 6px; }
+.c1 .hist .cap { margin-right: 4px; color: rgba(243,231,207,0.7); }
+.c1 .chip { height: 28px; padding: 0 10px; display: grid; place-items: center; font: 600 13px var(--ui); color: var(--ivory-dim); border-radius: 3px;
+  background: linear-gradient(180deg, rgba(42,30,24,0.86), rgba(26,19,15,0.86)); box-shadow: inset 0 0 0 1px rgba(233,196,106,0.22), inset 0 1px 0 rgba(255,240,210,0.06), 0 2px 6px rgba(0,0,0,0.4); }
+/* HUD */
+.c1 .hud { position: absolute; left: 0; right: 0; text-align: center; }
+.c1 .hud .m { font: 600 104px/1 var(--ui); color: #fbf3e2; letter-spacing: -0.01em;
+  text-shadow: 0 2px 0 rgba(60,30,8,0.55), 0 6px 24px rgba(0,0,0,0.55), 0 0 calc(10px + var(--heat,0) * 30px) rgba(255,160,60, calc(0.1 + var(--heat,0) * 0.55)); }
+.c1 .hud .m em { font-style: normal; font-size: 0.42em; color: var(--gold-t); margin-left: 4px; vertical-align: 0.62em; font-weight: 600; }
+.c1 .hud .sub { margin-top: 8px; display: flex; justify-content: center; gap: 24px; font: 500 14px var(--ui); color: rgba(243,231,207,0.82); text-shadow: 0 1px 3px #000; }
+.c1 .hud .sub b { font-weight: 700; color: #fff; margin-left: 6px; }
+/* dock */
+.c1 .dock { position: absolute; left: 16px; right: 16px; height: 148px; }
+.c1 .dock .row { position: absolute; left: 22px; right: 22px; display: flex; align-items: center; gap: 8px; }
+.c1 .dock .slot { position: relative; flex: 1; height: 52px; display: flex; align-items: baseline; justify-content: center; gap: 6px; padding-top: 12px;
+  border: 0 solid transparent; border-image: url(art/c1-slot.png) 52 48 fill / 26px 24px / 8px stretch; }
+.c1 .dock .slot .v { margin-top: -2px; font: 600 26px/1 var(--ui); color: #fbf3e2; letter-spacing: 0.01em; text-shadow: 0 1px 0 #000; }
+.c1 .dock .slot .u { margin-top: -2px; font: 600 12px var(--ui); color: var(--gold-t); letter-spacing: 0.08em; }
+.c1 .tile { position: relative; flex: 1; height: 36px; display: grid; place-items: center; font: 600 14px var(--ui); color: var(--ivory);
+  border: 0 solid transparent; border-image: url(art/c1-key.png) 36 fill / 18px / 8px stretch; text-shadow: 0 1px 0 #000; }
+/* CTA */
+.c1 .cta { position: absolute; height: 88px; }
+.c1 .cta .lay { position: absolute; inset: 0; }
+.c1 .cta .word { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.c1 .cta.pressed .lay.words { transform: translateY(1.5px); filter: brightness(0.9); }
+.c1 .cta .amt { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; }
+.c1 .cta .amt b { font: 700 28px/1 var(--ui); color: #fff4dc; letter-spacing: 0.005em;
+  text-shadow: 0 -1px 0 rgba(0,0,0,0.6), 0 1px 0 rgba(255,220,170,0.18), 0 0 calc(var(--heat,0) * 16px) rgba(255,150,50, calc(var(--heat,0) * 0.7)); }
+.c1 .cta .lbl { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; }
+.c1 .cta .amt b[data-len='9'], .c1 .cta .amt b[data-len='10'] { font-size: 26px; }
+.c1 .cta .amt b[data-len='11'], .c1 .cta .amt b[data-len='12'] { font-size: 22px; }
+.c1 .cta .amt b[data-len='13'], .c1 .cta .amt b[data-len='14'] { font-size: 18px; }
+.c1 .cta .lbl small { font: 500 12px var(--ui); color: rgba(243,231,207,0.72); margin: 0 0 0 10px; letter-spacing: 0.02em; }
+.c1 .cta .lbl small b { color: var(--ivory); font-weight: 600; }
+.c1 .hint { position: absolute; left: 0; right: 0; text-align: center; font: 500 12px var(--ui); color: rgba(243,231,207,0.72); letter-spacing: 0.04em; text-shadow: 0 1px 3px #000; }
+.c1 .hint kbd { font: 600 11px var(--ui); color: var(--ivory); padding: 1px 6px; border-radius: 3px; background: rgba(30,22,17,0.9); box-shadow: inset 0 0 0 1px rgba(233,196,106,0.35); margin: 0 3px; }
+/* heat / hover / focus */
+.hot-layer { transition: opacity 0.3s; }
+.c1 .cta.heat-hi .words { filter: drop-shadow(0 0 6px rgba(255,140,40,0.55)); }
+.c1 .cta.heat-hi .plate-l { filter: drop-shadow(0 0 14px rgba(255,110,30,0.45)); }
+.sweep { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+  -webkit-mask-size: 100% 100%; background: linear-gradient(105deg, transparent 0 38%, rgba(255,250,225,0.0) 40%, rgba(255,248,220,0.85) 47%, rgba(255,250,225,0) 54%, transparent 56%); }
+.focus .plate-l { filter: drop-shadow(0 0 0.8px #fff8e6) drop-shadow(0 0 0.8px #fff8e6) drop-shadow(0 0 5px rgba(255,214,140,0.95)); }
+/* result */
+.c1 .res { position: absolute; text-align: center; }
+.c1 .res .inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 6px; }
+.c1 .res .line { font: 500 14px var(--ui); color: rgba(243,231,207,0.8); letter-spacing: 0.02em; margin-top: 4px; }
+.c1 .res .line b { color: var(--ivory); font-weight: 700; }
+.c1 .res .pay { font: 700 40px/1 var(--ui); color: #ffe7a8; margin-top: 10px; text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 0 18px rgba(255,190,80,0.35); }
+.c1 .res .pay.lost { color: var(--ivory-dim); font-size: 30px; text-shadow: 0 2px 0 rgba(0,0,0,0.6); }
+.c1 .res .verify { margin-top: 12px; font: 600 11px var(--cap); letter-spacing: 0.2em; color: var(--gold-t); text-transform: uppercase; opacity: 0.9; }
+
+/* ============================================================ CONCEPT 2 · SUN RELIC */
+.c2 { --ivory: #f2ece0; --ivory-dim: #b9b2a4; --gold-t: #f0c75e; --disp: 'Unbounded', sans-serif; --ui: 'Manrope', sans-serif; }
+.c2 .cap { font: 700 9px var(--ui); letter-spacing: 0.22em; color: rgba(242,236,224,0.6); text-transform: uppercase; }
+.c2 .band { position: absolute; left: 0; right: 0; top: 0; z-index: 2;
+  background: linear-gradient(180deg, rgba(8,8,9,0.92), rgba(14,13,12,0.84)); box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+.c2 .band::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, rgba(240,199,94,0) 0, rgba(240,199,94,0.75) 20%, #ffe39a 50%, rgba(240,199,94,0.75) 80%, rgba(240,199,94,0) 100%); }
+.c2 .top { position: absolute; left: 16px; right: 16px; display: flex; align-items: center; gap: 8px; height: 44px; z-index: 3; }
+.c2 .emb { position: relative; width: 40px; height: 40px; flex: none; }
+.c2 .wm { font: 800 14px var(--disp); letter-spacing: 0.16em; margin-left: 4px;
+  background: linear-gradient(180deg, #fff6d8 0%, #ffd56a 48%, #b8741c 52%, #f0b443 100%); -webkit-background-clip: text; color: transparent; filter: drop-shadow(0 1px 0 rgba(0,0,0,0.7)); }
+.c2 .spacer { flex: 1; }
+.c2 .cart { position: relative; height: 44px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+  border: 0 solid transparent; padding: 0 20px; border-image: url(art/c2-cart.png) 60 fill / 30px / 8px stretch; }
+.c2 .cart .in { display: flex; flex-direction: column; align-items: flex-end; }
+.c2 .cart .cap { font-size: 8px; line-height: 11px; }
+.c2 .cart b { font: 700 17px/20px var(--ui); color: var(--ivory); letter-spacing: -0.01em; }
+.c2 .cart b small { font: 700 10px var(--ui); color: var(--gold-t); margin-left: 3px; }
+.c2 .rk { position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; }
+.c2 .rk svg { position: relative; }
+.c2 .hist { position: absolute; left: 16px; right: 16px; height: 26px; display: flex; align-items: center; gap: 6px; }
+.c2 .chip { height: 26px; padding: 0 10px; display: grid; place-items: center; border-radius: 13px; font: 700 12px var(--ui); color: var(--ivory-dim);
+  background: rgba(10,10,11,0.72); box-shadow: inset 0 0 0 1px rgba(240,199,94,0.28); }
+.c2 .hud { position: absolute; left: 0; right: 0; text-align: center; }
+.c2 .hud .m { font: 800 84px/1 var(--disp); letter-spacing: -0.02em; color: #fbf6ea;
+  text-shadow: 0 3px 0 rgba(0,0,0,0.35), 0 8px 26px rgba(0,0,0,0.5), 0 0 calc(10px + var(--heat,0) * 30px) rgba(255,150,50, calc(0.08 + var(--heat,0) * 0.55)); }
+.c2 .hud .m em { font-style: normal; font-size: 0.42em; color: var(--gold-t); margin-left: 4px; vertical-align: 0.7em; }
+.c2 .hud .sub { margin-top: 10px; display: flex; justify-content: center; gap: 20px; font: 600 13px var(--ui); color: rgba(242,236,224,0.78); text-shadow: 0 1px 3px #000; }
+.c2 .hud .sub b { color: #fff; font-weight: 800; margin-left: 6px; }
+.c2 .dock { position: absolute; height: 132px; }
+.c2 .disc { position: absolute; width: 176px; height: 176px; }
+.c2 .disc .lay { position: absolute; inset: 0; }
+.c2 .disc .lay img { position: absolute; left: -14.08px; top: -14.08px; width: 204.16px; height: 204.16px; }
+.c2 .disc.pressed .words { transform: translateY(1.5px); filter: brightness(0.9); }
+.c2 .disc .ctr { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.c2 .disc .ctr b { font: 800 24px/1 var(--ui); color: #fff6e0; letter-spacing: -0.01em; margin-top: 4px;
+  text-shadow: 0 -1px 0 rgba(0,0,0,0.7), 0 0 calc(var(--heat,0) * 14px) rgba(255,150,50, calc(var(--heat,0) * 0.75)); }
+.c2 .disc .ctr b[data-len='9'], .c2 .disc .ctr b[data-len='10'] { font-size: 20px; }
+.c2 .disc .ctr b[data-len='11'], .c2 .disc .ctr b[data-len='12'] { font-size: 17px; }
+.c2 .disc .ctr b[data-len='13'], .c2 .disc .ctr b[data-len='14'] { font-size: 14px; }
+.c1 .hud .m[data-len='12'], .c2 .hud .m[data-len='12'] { font-size: 60px; }
+.c2 .disc .ctr small { font: 600 10px var(--ui); color: rgba(242,236,224,0.65); margin-top: 4px; letter-spacing: 0.04em; }
+.c2 .coin { position: absolute; width: 52px; height: 52px; display: grid; place-items: center; }
+.c2 .coin svg { position: relative; }
+.c2 .stk { position: absolute; height: 40px; display: flex; align-items: baseline; justify-content: center; gap: 6px; padding-top: 0;
+  border: 0 solid transparent; align-items: center; border-image: url(art/c2-cart.png) 60 fill / 27px 30px / 8px stretch; }
+.c2 .stk .v { margin-top: 0; font: 800 20px/1 var(--ui); color: var(--ivory); }
+.c2 .stk .u { margin-top: 2px; font: 700 10px var(--ui); color: var(--gold-t); letter-spacing: 0.08em; }
+.c2 .chips { position: absolute; display: flex; gap: 8px; justify-content: center; }
+.c2 .chips span { width: 56px; height: 36px; display: grid; place-items: center; border-radius: 18px; font: 700 13px var(--ui); color: var(--ivory);
+  background: linear-gradient(180deg, rgba(20,19,18,0.9), rgba(8,8,8,0.9)); box-shadow: inset 0 0 0 1px rgba(240,199,94,0.45), inset 0 1px 0 rgba(255,240,200,0.08), 0 3px 8px rgba(0,0,0,0.45); }
+.c2 .side { position: absolute; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.c2 .side .cap { color: rgba(242,236,224,0.55); }
+.c2 .side b { font: 800 16px var(--ui); color: var(--ivory); margin-top: 2px; }
+.c2 .hint { position: absolute; left: 0; right: 0; text-align: center; font: 600 11px var(--ui); color: rgba(242,236,224,0.68); letter-spacing: 0.06em; text-shadow: 0 1px 3px #000; }
+.c2 .hint kbd { font: 700 10px var(--ui); color: var(--ivory); padding: 1px 6px; border-radius: 4px; background: rgba(10,10,11,0.9); box-shadow: inset 0 0 0 1px rgba(240,199,94,0.4); margin: 0 3px; }
+.c2 .disc.heat-hi .lay.base { filter: drop-shadow(0 0 16px rgba(255,120,30,0.55)); }
+.c2 .disc.focus .lay.base { filter: drop-shadow(0 0 0.8px #fff8e6) drop-shadow(0 0 0.8px #fff8e6) drop-shadow(0 0 6px rgba(255,214,140,0.95)); }
+.c2 .res { position: absolute; text-align: center; }
+.c2 .res .inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.c2 .res .line { font: 600 13px var(--ui); color: rgba(242,236,224,0.75); margin-top: 6px; }
+.c2 .res .line b { color: var(--ivory); font-weight: 800; }
+.c2 .res .pay { font: 800 36px/1 var(--ui); color: #ffe39a; margin-top: 10px; letter-spacing: -0.01em; text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 0 18px rgba(255,190,80,0.35); }
+.c2 .res .pay.lost { color: var(--ivory-dim); font-size: 26px; }
+.c2 .res .verify { margin-top: 12px; font: 700 10px var(--ui); letter-spacing: 0.2em; color: var(--gold-t); text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const Q = new URLSearchParams(location.search);
+const C = Q.get('c') || '1', V = Q.get('v') || 'phone', S = Q.get('s') || 'setup';
+const PH = V === 'phone';
+const W = PH ? 390 : 1440, H = PH ? 844 : 900;
+const SAFE_T = PH ? 47 : 0, SAFE_B = PH ? 34 : 0;
+const heat = S === 'huge' ? 1 : S === 'high' ? 0.92 : S === 'low' ? 0.12 : 0;
+const amt = S === 'huge' ? '123,456,789.00' : S === 'high' ? '1,205.00' : '31.00';
+const mult = S === 'huge' ? '4,938,271.56' : S === 'high' ? '48.20' : '1.24';
+const alen = amt.length;
+const BAL = '1,000.00';
+// sprite: name, css box w×h, pad (shadow margin baked into the 2× png)
+const spr = (n, w, h, p, cls = '', extra = '') => `<img class="spr ${cls}" src="art/${n}.png" style="left:${-p}px;top:${-p}px;width:${w + 2 * p}px;height:${h + 2 * p}px;${extra}">`;
+const svg = {
+  snd: (c) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.8 9a4.2 4.2 0 0 1 0 6M18.4 6.6a7.6 7.6 0 0 1 0 10.8"/></svg>`,
+  menu: (c) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round"><path d="M5 7.5h14M5 12h14M5 16.5h14"/></svg>`,
+  minus: (c, w = 2.4) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"><path d="M6 12h12"/></svg>`,
+  plus: (c, w = 2.4) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>`,
+};
+const goldIcon = '#e9c46a';
+const histVals = ['2.41×', '1.07×', '5.88×', '1.52×', '12.30×', '3.04×'];
+let html = '';
+const bg = { setup: 'setup', pressed: 'setup', hover: 'setup', focus: 'setup', disabled: 'setup', low: 'run', high: 'run', huge: 'run', escaped: 'run', fell: 'fell' }[S];
+const DIS = S === 'disabled', HOV = S === 'hover', FOC = S === 'focus';
+html += `<div class="scene" style="background-image:url(bg/${PH ? 'p' : 'd'}-${bg}.png)"></div>`;
+if (PH) html += `<div class="status"><span>9:41</span><i>●●● ▰</i></div><div class="home"></div>`;
+const running = S === 'low' || S === 'high' || S === 'huge';
+const result = S === 'escaped' || S === 'fell';
+
+if (C === '1') {
+  html += `<div class="c1">`;
+  // top bar
+  const ty = SAFE_T + 8;
+  if (PH) {
+    html += `<div class="top" style="top:${ty}px"><div class="logo" style="width:112px">${spr('c1-logo-p', 112, 48, 14)}</div><div class="spacer"></div>
+      <div class="bal" style="width:126px"><div class="in"><span class="cap">Balance</span><b class="num">${BAL}<small>CR</small></b></div></div>
+      <div class="key">${spr('c1-key', 48, 48, 8)}${svg.snd(goldIcon)}</div><div class="key">${spr('c1-key', 48, 48, 8)}${svg.menu(goldIcon)}</div></div>`;
+    html += `<div class="hist" style="top:${ty + 56}px"><span class="cap">History</span>${histVals.slice(0, 5).map((v) => `<span class="chip num">${v}</span>`).join('')}</div>`;
+  } else {
+    html += `<div class="top" style="top:24px;left:24px;right:24px"><div class="logo">${spr('c1-logo', 150, 48, 14)}</div>
+      <div class="hist" style="position:relative;left:auto;right:auto;margin-left:16px"><span class="cap">History</span>${histVals.map((v) => `<span class="chip num">${v}</span>`).join('')}</div>
+      <div class="spacer"></div>
+      <div class="bal" style="width:176px"><div class="in"><span class="cap">Balance</span><b class="num">${BAL}<small>CR</small></b></div></div>
+      <div class="key">${spr('c1-key', 48, 48, 8)}${svg.snd(goldIcon)}</div><div class="key">${spr('c1-key', 48, 48, 8)}${svg.menu(goldIcon)}</div></div>`;
+  }
+  // CTA geometry
+  const cw = PH ? 358 : 420, ch = PH ? 88 : 92;
+  const cx = (W - cw) / 2;
+  const cy = H - SAFE_B - (PH ? 16 : 40) - ch;
+  const pk = PH ? 'p' : 'd';
+  const dockH = 148, dy = cy - 16 - dockH;
+  if (!running) {
+    // stake dock
+    html += `<div class="dock" style="top:${dy}px;left:${cx}px;width:${cw}px">${spr('c1-dock-' + pk, cw, dockH, 14)}
+      <div class="row" style="top:22px;justify-content:space-between"><span class="cap">Stake</span><span class="cap" style="opacity:.7">0.10 – 1,000</span></div>
+      <div class="row" style="top:42px"><div class="key">${spr('c1-key', 48, 48, 8)}${svg.minus('#f3e7cf')}</div>
+        <div class="slot"><span class="v num">25.00</span><span class="u">CR</span></div>
+        <div class="key">${spr('c1-key', 48, 48, 8)}${svg.plus('#f3e7cf')}</div></div>
+      <div class="row" style="top:98px">${['½', '2×', '10', '50', 'Max'].map((v) => `<div class="tile"><span>${v}</span></div>`).join('')}</div></div>`;
+  }
+  // the plate
+  const pressed = S === 'pressed';
+  const plateName = 'c1-plate-' + pk + (pressed ? '-pressed' : DIS ? '-disabled' : '');
+  let inner = '';
+  if (running) {
+    const lx = 40 + 12, rx = 40 + 14;
+    inner = `<div class="lay plate-l">${spr('c1-plate-' + pk, cw, ch, 14)}${spr('c1-plate-' + pk + '-hot', cw, ch, 14, 'hot-layer', `opacity:${heat.toFixed(2)}`)}</div>
+      <div class="lay words"><div class="lbl" style="left:${lx}px"><div style="position:relative;width:123px;height:26.24px;margin:0 0 0 -2px">${spr('c1-w-cash', 123, 26.24, 6.56)}</div><small>Stake <b class="num">25.00</b></small></div>
+      <div class="amt" style="right:${rx}px"><b class="num" data-len="${alen}">${amt}</b></div></div>`;
+  } else {
+    const word = result ? 'c1-w-again' : DIS ? 'c1-w-run-dis' : 'c1-w-run';
+    const ww = result ? 230 : 150, wh = result ? 42 : 48;
+    const sweep = HOV ? `<div class="sweep" style="left:-8px;top:-8px;width:${ww + 16}px;height:${wh + 16}px;-webkit-mask-image:url(art/${word}.png)"></div>` : '';
+    inner = `<div class="lay plate-l">${spr(plateName, cw, ch, 14)}</div><div class="lay words"><div class="word" style="width:${ww}px;height:${wh}px">${spr(word, ww, wh, 8)}${sweep}</div></div>`;
+  }
+  html += `<div class="cta ${pressed ? 'pressed' : ''} ${FOC ? 'focus' : ''} ${heat > 0.5 ? 'heat-hi' : ''}" style="left:${cx}px;top:${cy}px;width:${cw}px;height:${ch}px">${inner}</div>`;
+  if (!PH) html += `<div class="hint" style="top:${cy + ch + 12}px">Press <kbd>Space</kbd> to ${running ? 'cash out' : 'run'}</div>`;
+  if (running) {
+    html += `<div class="hud" style="top:${PH ? 176 : 190}px;--heat:${heat}"><div class="m num" data-len="${mult.length}">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;
+  }
+  if (result) {
+    const rw = PH ? 358 : 440, rh = PH ? 196 : 204;
+    const rx = (W - rw) / 2, ry = PH ? 176 : 200;
+    const esc = S === 'escaped';
+    html += `<div class="res" style="left:${rx}px;top:${ry}px;width:${rw}px;height:${rh}px">${spr('c1-result-' + pk, rw, rh, 14)}<div class="inner">
+      <div style="position:relative;width:${esc ? 260 : 280}px;height:${esc ? 48 : 40}px">${spr(esc ? 'c1-w-escaped' : 'c1-w-fell', esc ? 260 : 280, esc ? 48 : 40, 8)}</div>
+      ${esc ? `<div class="line">Cashed out at <b class="num">5.12×</b></div><div class="pay num">+128.00</div>` : `<div class="line">The causeway gave way at <b class="num">3.48×</b></div><div class="pay lost num">Stake 25.00</div>`}
+      <div class="verify">Verify round</div></div></div>`;
+  }
+  html += `</div>`;
+}
+
+if (C === '2') {
+  html += `<div class="c2">`;
+  const bandH = SAFE_T + (PH ? 60 : 68);
+  html += `<div class="band" style="height:${bandH}px"></div>`;
+  const ty = SAFE_T + (PH ? 8 : 12);
+  const rkey = (ic) => `<div class="rk">${spr('c2-rkey', 44, 44, 8)}${ic}</div>`;
+  if (PH) {
+    html += `<div class="top" style="top:${ty}px"><div class="emb">${spr('c2-emblem', 40, 40, 6)}</div><div class="spacer"></div>
+      <div class="cart" style="width:144px"><div class="in"><span class="cap">Balance</span><b class="num">${BAL}<small>CR</small></b></div></div>
+      ${rkey(svg.snd('#f0c75e'))}${rkey(svg.menu('#f0c75e'))}</div>`;
+    html += `<div class="hist" style="top:${bandH + 8}px">${histVals.slice(0, 6).map((v) => `<span class="chip num">${v}</span>`).join('')}</div>`;
+  } else {
+    html += `<div class="top" style="top:${ty}px;left:24px;right:24px"><div class="emb">${spr('c2-emblem', 40, 40, 6)}</div><span class="wm" style="font-size:16px">CAUSEWAY</span>
+      <div class="hist" style="position:relative;left:auto;right:auto;margin-left:28px">${histVals.map((v) => `<span class="chip num">${v}</span>`).join('')}</div>
+      <div class="spacer"></div>
+      <div class="cart" style="width:168px"><div class="in"><span class="cap">Balance</span><b class="num">${BAL}<small>CR</small></b></div></div>
+      ${rkey(svg.snd('#f0c75e'))}${rkey(svg.menu('#f0c75e'))}</div>`;
+  }
+  const dw = PH ? 358 : 560, dh = 132;
+  const dx = (W - dw) / 2, dy = H - SAFE_B - (PH ? 8 : 32) - dh;
+  const pk = PH ? 'p' : 'd';
+  const discC = { x: W / 2, y: dy + 38 };
+  html += `<div class="dock" style="left:${dx}px;top:${dy}px;width:${dw}px">${spr('c2-dock-' + pk, dw, dh, 16)}</div>`;
+  const pressed = S === 'pressed';
+  const sideY = dy + 66;
+  if (!running) {
+    const cxL = dx + (dw / 2 - 95) / 2 - 2, cxR = dx + dw - (dw / 2 - 95) / 2 + 2;
+    html += `<div class="coin" style="left:${cxL - 26}px;top:${sideY - 26}px">${spr('c2-coin', 52, 52, 8)}${svg.minus('#f0c75e', 2.6)}</div>`;
+    html += `<div class="coin" style="left:${cxR - 26}px;top:${sideY - 26}px">${spr('c2-coin', 52, 52, 8)}${svg.plus('#f0c75e', 2.6)}</div>`;
+    html += `<div class="stk" style="left:${W / 2 - 74}px;top:${discC.y - 88 - 8 - 40}px;width:148px"><span class="v num">25.00</span><span class="u">CR</span></div>`;
+    html += `<div class="chips" style="left:0;right:0;top:${discC.y - 88 - 8 - 40 - 8 - 36}px">${['½', '2×', '10', '50', 'Max'].map((v) => `<span>${v}</span>`).join('')}</div>`;
+  } else {
+    const xL = dx + (dw / 2 - 95) / 2, xR = dx + dw - (dw / 2 - 95) / 2;
+    html += `<div class="side" style="left:${xL - 50}px;width:100px;top:${sideY - 18}px"><span class="cap">Stake</span><b class="num">25.00</b></div>`;
+    html += `<div class="side" style="left:${xR - 50}px;width:100px;top:${sideY - 18}px"><span class="cap">${PH ? 'Tap' : 'Space'}</span><b style="font-size:12px;color:#f0c75e">to cash out</b></div>`;
+  }
+  let lay;
+  if (running) {
+    lay = `<div class="lay base">${spr('c2-disc-cash', 200 * 0.88, 200 * 0.88, 16 * 0.88)}${spr('c2-disc-hot', 176, 176, 14.08, 'hot-layer', `opacity:${heat.toFixed(2)}`)}</div>
+      <div class="lay words"><div class="ctr"><div style="position:relative;width:100px;height:22px">${spr('c2-w-cash', 100, 22, 8)}</div><b class="num" data-len="${alen}">${amt}</b><small>${mult}×</small></div></div>`;
+  } else {
+    const disc = pressed ? 'c2-disc-pressed' : DIS ? 'c2-disc-disabled' : 'c2-disc';
+    const word = result ? 'c2-w-again' : DIS ? 'c2-w-run-dis' : 'c2-w-run';
+    const sc = result ? 0.70 : 0.78;
+    const ww = 124 * sc, wh = (result ? 40 : 46) * sc;
+    const sweep = HOV ? `<div class="sweep" style="left:${-8 * sc}px;top:${-8 * sc}px;width:${ww + 16 * sc}px;height:${wh + 16 * sc}px;-webkit-mask-image:url(art/${word}.png)"></div>` : '';
+    lay = `<div class="lay base">${spr(disc, 176, 176, 14.08)}</div><div class="lay words"><div class="ctr"><div style="position:relative;width:${ww}px;height:${wh}px">${spr(word, ww, wh, 8 * sc)}${sweep}</div></div></div>`;
+  }
+  html += `<div class="disc ${pressed ? 'pressed' : ''} ${FOC ? 'focus' : ''} ${heat > 0.5 ? 'heat-hi' : ''}" style="left:${discC.x - 88}px;top:${discC.y - 88}px">${lay}</div>`;
+  if (running) html += `<div class="hud" style="top:${PH ? 180 : 200}px;--heat:${heat}"><div class="m num" data-len="${mult.length}">${mult}<em>×</em></div><div class="sub"><span>Stake<b class="num">25.00</b></span><span>Return<b class="num">${amt}</b></span></div></div>`;
+  if (!PH) html += `<div class="hint" style="top:${dy + dh + 10}px">Press <kbd>Space</kbd> to ${running ? 'cash out' : 'run'}</div>`;
+  if (result) {
+    const rw = PH ? 358 : 440, rh = PH ? 196 : 204;
+    const rx = (W - rw) / 2, ry = PH ? 190 : 210;
+    const esc = S === 'escaped';
+    html += `<div class="res" style="left:${rx}px;top:${ry}px;width:${rw}px;height:${rh}px">${spr('c2-result-' + pk, rw, rh, 16)}<div class="inner">
+      <div style="position:relative;width:${esc ? 250 : 270}px;height:${esc ? 44 : 36}px">${spr(esc ? 'c2-w-escaped' : 'c2-w-fell', esc ? 250 : 270, esc ? 44 : 36, 8)}</div>
+      ${esc ? `<div class="line">Cashed out at <b class="num">5.12×</b></div><div class="pay num">+128.00</div>` : `<div class="line">The causeway gave way at <b class="num">3.48×</b></div><div class="pay lost num">Stake 25.00</div>`}
+      <div class="verify">Verify round</div></div></div>`;
+  }
+  html += `</div>`;
+}
+document.getElementById('root').innerHTML = html;
+Promise.all([document.fonts.ready, ...[...document.images].map((i) => (i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; })))]).then(() => { document.body.dataset.ready = '1'; });
+</script>
+</body>
+</html>

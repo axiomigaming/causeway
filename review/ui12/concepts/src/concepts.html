@@ -1,0 +1,442 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>CAUSEWAY round 12 concepts</title>
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/cormorant-sc/600.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/cormorant-sc/500.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/inter/400.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/inter/500.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/inter/600.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/inter/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/tilt-warp/400.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/rubik/500.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/rubik/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/lilita-one/400.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/nunito/800.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/nunito/900.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/alfa-slab-one/400.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/bitter/600.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/bitter/400-italic.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/cinzel/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/cinzel/900.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/barlow-semi-condensed/600.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/barlow-semi-condensed/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/outfit/300.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/outfit/500.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/outfit/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/metamorphous/400.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/josefin-sans/600.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/josefin-sans/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/syne/700.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/syne/800.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/space-grotesk/500.css" />
+<link rel="stylesheet" href="fonts/node_modules/@fontsource/space-grotesk/700.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #121010; color: #eee; font-family: Inter, sans-serif; width: 1180px; }
+  .sheet { padding: 24px; }
+  .head { display: flex; align-items: flex-end; gap: 20px; height: 96px; margin-bottom: 20px; }
+  .letter { font: 700 84px/0.8 Inter, sans-serif; color: #f2c14e; width: 80px; }
+  .head h1 { font: 700 30px/1.1 Inter, sans-serif; color: #fff; }
+  .head p { font: 400 16px/1.4 Inter, sans-serif; color: #c9c2b6; margin-top: 6px; max-width: 980px; }
+  .row { display: flex; gap: 24px; }
+  .phone { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 34px; outline: 1px solid #3a3530; background-size: cover; flex: none; }
+  .phone.setup { background-image: url(bg-setup.png); }
+  .phone.run { background-image: url(bg-run.png); }
+  .cap { position: absolute; left: 0; right: 0; top: 0; height: 44px; display: flex; justify-content: space-between; padding: 14px 26px 0; font: 600 14px Inter, sans-serif; color: #fff; text-shadow: 0 1px 3px #0008; z-index: 9; }
+  .side { width: 300px; flex: none; display: flex; flex-direction: column; gap: 18px; font-size: 14px; color: #c9c2b6; }
+  .side h3 { font: 700 12px Inter, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #8d857a; margin-bottom: 6px; }
+  .spec { background: #1c1917; border: 1px solid #2c2724; border-radius: 12px; padding: 14px 16px; }
+  .spec .big { font-size: 40px; line-height: 1.05; color: #fff; }
+  .spec .ui { font-size: 17px; margin-top: 8px; color: #e8e1d6; }
+  .spec .nm { font: 500 12px Inter, sans-serif; color: #8d857a; margin-top: 4px; }
+  .sw { display: flex; gap: 8px; }
+  .sw i { width: 44px; height: 44px; border-radius: 8px; outline: 1px solid #fff2; }
+  .side ul { padding-left: 16px; line-height: 1.5; }
+  .scrim-b { position: absolute; left: 0; right: 0; bottom: 0; height: 360px; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55)); pointer-events: none; }
+  .scrim-t { position: absolute; left: 0; right: 0; top: 0; height: 140px; background: linear-gradient(180deg, rgba(0,0,0,0.45), transparent); pointer-events: none; }
+  .hud { position: absolute; left: 0; right: 0; top: 168px; text-align: center; }
+  .hud .sub { margin-top: 8px; font-size: 13px; display: flex; justify-content: center; gap: 18px; }
+  .dock { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 16px 34px; }
+  svg { display: block; }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+<style id="dir"></style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+const I = {
+  snd: (c, w = 2) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`,
+  menu: (c, w = 2) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`,
+  plus: (c, w = 2.4) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  minus: (c, w = 2.4) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"><path d="M5 12h14"/></svg>`,
+  coin: (s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#f6b51e" stroke="#7a4300" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#ffe08a" stroke-width="1.6"/></svg>`,
+  fret: (c) => `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="${c}" stroke-width="2"><path d="M2 16V2h14v10H7V7h5"/></svg>`,
+};
+const STAKE = '25.00', BAL = '1,000.00', MULT = '5.12', AMT = '128.00';
+
+const D = {};
+
+/* ============================================================ A. OBSIDIAN & JADE */
+D.A = {
+  name: 'Obsidian & Jade',
+  why: 'Quiet luxury: black volcanic glass, one jade inlay line and hairline gold. Nothing shouts, so the scene and the number carry the drama.',
+  fonts: ['Cormorant SC', 600, 'Inter', 500],
+  sw: ['#050607', '#141a1c', '#2fae78', '#7fe6b4', '#d8b25a'],
+  notes: ['Top bar: one floating glass capsule, logo · balance · sound · menu, split by jade hairlines', 'CTA: obsidian pill (Blender) with a jade inlay and gold rim; letter-spaced small caps', 'CASH OUT: the jade line lights up as heat rises'],
+  css: `
+  .A .tb { position:absolute; left:14px; right:14px; top:50px; height:52px; border-radius:26px; display:flex; align-items:center; background:rgba(6,8,9,0.78); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px rgba(216,178,90,0.55), 0 8px 24px rgba(0,0,0,0.5); padding:0 6px 0 20px; }
+  .A .logo { font:600 17px 'Cormorant SC'; letter-spacing:0.28em; color:#efe6cf; }
+  .A .div { width:1px; height:24px; background:linear-gradient(#0000,#3fbf86,#0000); margin:0 12px; }
+  .A .bal { flex:1; display:flex; flex-direction:column; align-items:flex-end; }
+  .A .bal small { white-space:nowrap; font:500 9px Inter; letter-spacing:0.22em; color:#7fe6b4; text-transform:uppercase; }
+  .A .bal b { font:600 18px Inter; color:#fff; font-variant-numeric:tabular-nums; }
+  .A .ic { width:44px; height:44px; display:grid; place-items:center; border-radius:22px; }
+  .A .stake { border-radius:24px; background:rgba(6,8,9,0.8); backdrop-filter:blur(10px); box-shadow: inset 0 0 0 1px rgba(216,178,90,0.4); padding:14px 16px 16px; margin-bottom:14px; }
+  .A .srow { display:flex; align-items:center; gap:10px; }
+  .A .lbl { font:500 10px Inter; letter-spacing:0.22em; color:#8fa59b; text-transform:uppercase; }
+  .A .circ { width:48px; height:48px; border-radius:24px; display:grid; place-items:center; box-shadow: inset 0 0 0 1px rgba(216,178,90,0.6); }
+  .A .val { flex:1; text-align:center; font:600 26px Inter; color:#fff; }
+  .A .val small { font:500 12px Inter; color:#8fa59b; margin-left:4px; }
+  .A .chips { display:flex; gap:8px; margin-top:12px; }
+  .A .chips span { flex:1; height:36px; border-radius:18px; display:grid; place-items:center; font:500 13px Inter; color:#d8d2c4; box-shadow: inset 0 0 0 1px rgba(127,230,180,0.35); }
+  .A .cta { position:relative; height:64px; margin:0 -2px; background:url(art/a-obsidian.webp) center/100% 100%; display:flex; align-items:center; justify-content:center; }
+  .A .cta .w { font:600 30px 'Cormorant SC'; letter-spacing:0.42em; padding-left:0.42em; background:linear-gradient(180deg,#fff7df,#e2c27a 60%,#b98d3a); -webkit-background-clip:text; color:transparent; filter: drop-shadow(0 2px 2px #000); }
+  .A .cta.hot::after { content:''; position:absolute; inset:9px; border-radius:24px; box-shadow: 0 0 0 1.5px #6fffc0, 0 0 18px rgba(80,255,180,0.55), inset 0 0 22px rgba(80,255,180,0.25); }
+  .A .cta.hot { justify-content:space-between; padding:0 52px 0 46px; }
+  .A .cta.hot .w { font-size:19px; letter-spacing:0.3em; }
+  .A .cta .amt { font:600 24px Inter; color:#fff; text-shadow:0 0 14px rgba(110,255,190,0.5); }
+  .A .hint { text-align:center; margin-top:10px; font:500 11px Inter; letter-spacing:0.18em; color:#9db3a9; text-transform:uppercase; }
+  .A .hud .m { font:500 112px/1 'Cormorant SC'; color:#fbf6ea; text-shadow:0 4px 30px rgba(0,0,0,0.6); letter-spacing:-0.01em; }
+  .A .hud .m i { font-style:normal; font-size:0.4em; color:#7fe6b4; margin-left:4px; }
+  .A .hud .sub { font:500 13px Inter; color:#c9d6cf; } .A .hud .sub b { color:#fff; font-weight:600; }
+  `,
+  top: () => `<div class="tb"><span class="logo">Causeway</span><span class="div"></span><span class="bal"><small>Demo balance</small><b>${BAL}</b></span><span class="div"></span><span class="ic">${I.snd('#d8b25a', 1.6)}</span><span class="ic">${I.menu('#d8b25a', 1.6)}</span></div>`,
+  setup: () => `<div class="stake"><div class="srow" style="justify-content:space-between;margin-bottom:8px"><span class="lbl">Stake</span><span class="lbl" style="color:#5f7a6e">0.10 – 1,000</span></div><div class="srow"><span class="circ">${I.minus('#d8b25a', 1.8)}</span><span class="val num">${STAKE}<small>CR</small></span><span class="circ">${I.plus('#d8b25a', 1.8)}</span></div><div class="chips"><span>½</span><span>2×</span><span>10</span><span>50</span><span>Max</span></div></div><div class="cta"><span class="w">Run</span></div><div class="hint">Space to run</div>`,
+  run: () => `<div class="cta hot"><span class="w">Cash out</span><span class="amt num">${AMT}</span></div><div class="hint">Stake ${STAKE} · Space to cash out</div>`,
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub"><span>Stake <b>${STAKE}</b></span><span>Return <b>${AMT}</b></span></div>`,
+};
+
+/* ============================================================ B. SUNSTONE MEDALLION */
+D.B = {
+  name: 'Sunstone Medallion',
+  why: 'The CTA is the sun stone itself: one big round thumb target, and the multiplier runs as a ring around it, so the calendar becomes the clock.',
+  fonts: ['Tilt Warp', 400, 'Rubik', 500],
+  sw: ['#5b4532', '#a08261', '#3a1d10', '#49d6c8', '#f2b23a'],
+  notes: ['Top bar: separated corners, no bar; a round logo seal at left, a balance tab and round keys at right', 'CTA: a 200 px carved sun-stone disc (Blender); stake − / + sit on its flanks', 'CASH OUT: a turquoise-to-gold arc fills around the dial; the amount sits in the face'],
+  css: `
+  .B .seal { position:absolute; left:14px; top:50px; width:56px; height:56px; border-radius:50%; background: radial-gradient(circle at 40% 35%, #8a6a4c, #4a3526 70%); box-shadow: inset 0 0 0 3px #2c1f15, inset 0 0 0 5px #d39a34, 0 6px 14px #0009; display:grid; place-items:center; font:400 13px 'Tilt Warp'; color:#ffd36b; text-shadow:0 2px 0 #3a1d10; letter-spacing:0.02em; }
+  .B .rt { position:absolute; right:14px; top:50px; display:flex; gap:8px; align-items:center; }
+  .B .tab { height:46px; padding:0 18px 0 16px; border-radius:23px; background: linear-gradient(#6d533c, #4a3526); box-shadow: inset 0 0 0 2px #2c1f15, inset 0 0 0 4px #c8902f, 0 6px 14px #0009; display:flex; flex-direction:column; justify-content:center; align-items:flex-end; }
+  .B .tab small { font:500 9px Rubik; letter-spacing:0.16em; color:#e8c98f; text-transform:uppercase; }
+  .B .tab b { font:700 17px Rubik; color:#fff4d8; }
+  .B .rk { width:46px; height:46px; border-radius:50%; display:grid; place-items:center; background: radial-gradient(circle at 40% 35%, #7d6046, #45342a); box-shadow: inset 0 0 0 2px #2c1f15, inset 0 0 0 4px #c8902f, 0 6px 14px #0009; }
+  .B .dock { padding-bottom:30px; }
+  .B .chips { display:flex; justify-content:center; gap:8px; margin-bottom:14px; }
+  .B .chips span { width:52px; height:36px; border-radius:18px; display:grid; place-items:center; font:500 13px Rubik; color:#fff4d8; background:rgba(40,28,20,0.82); box-shadow: inset 0 0 0 1.5px #a0794a; }
+  .B .medrow { display:flex; align-items:center; justify-content:center; gap:14px; }
+  .B .side-b { width:54px; height:54px; border-radius:50%; display:grid; place-items:center; background: radial-gradient(circle at 40% 35%, #7d6046, #45342a); box-shadow: inset 0 0 0 2px #2c1f15, inset 0 0 0 4px #c8902f, 0 6px 14px #0009; }
+  .B .med { position:relative; width:220px; height:220px; background:url(art/b-sunstone.webp) center/contain no-repeat; filter: drop-shadow(0 10px 16px #000a); }
+  .B .face { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .B .face .w { font:400 40px/1 'Tilt Warp'; color:#ffd36b; -webkit-text-stroke: 6px #2a1206; paint-order: stroke fill; text-shadow: 0 4px 0 #2a1206; letter-spacing:0.02em; }
+  .B .face small { font:700 13px Rubik; color:#fff4d8; margin-top:4px; letter-spacing:0.04em; }
+  .B .face .k { font:400 14px 'Tilt Warp'; color:#ffd36b; -webkit-text-stroke: 4px #2a1206; paint-order: stroke fill; }
+  .B .face .a { font:700 26px Rubik; color:#fff; text-shadow:0 2px 0 #2a1206, 0 0 10px #0008; }
+  .B .ring { position:absolute; inset:-14px; }
+  .B .stk { text-align:center; margin-bottom:10px; font:500 12px Rubik; color:#f3e2c0; letter-spacing:0.12em; text-transform:uppercase; text-shadow:0 1px 3px #000; }
+  .B .stk b { display:block; font:400 30px 'Tilt Warp'; color:#fff4d8; letter-spacing:0; -webkit-text-stroke: 5px #2a1206; paint-order: stroke fill; }
+  .B .hud { top:150px; }
+  .B .hud .m { font:400 96px/1 'Tilt Warp'; color:#fff4d8; -webkit-text-stroke: 10px #2a1206; paint-order: stroke fill; text-shadow:0 6px 0 #2a1206, 0 10px 30px #000a; }
+  .B .hud .m i { font-style:normal; color:#ffbf3a; font-size:0.5em; }
+  .B .hud .sub { font:500 14px Rubik; color:#f3e2c0; text-shadow:0 1px 3px #000; } .B .hud .sub b { color:#fff; font-weight:700; }
+  `,
+  top: () => `<div class="seal">CWY</div><div class="rt"><div class="tab"><small>Demo balance</small><b class="num">${BAL}</b></div><span class="rk">${I.snd('#ffd36b')}</span><span class="rk">${I.menu('#ffd36b')}</span></div>`,
+  setup: () => `<div class="chips"><span>½</span><span>2×</span><span>10</span><span>50</span><span>Max</span></div><div class="stk">Stake<b class="num">${STAKE}</b></div><div class="medrow"><span class="side-b">${I.minus('#ffd36b')}</span><div class="med"><div class="face"><span class="w">RUN</span><small>Space</small></div></div><span class="side-b">${I.plus('#ffd36b')}</span></div>`,
+  run: () => {
+    const r = 124, C = 2 * Math.PI * r, f = 0.62;
+    const ticks = Array.from({ length: 40 }, (_, i) => { const a = (i / 40) * 2 * Math.PI - Math.PI / 2; const r0 = 118, r1 = i % 5 ? 122 : 126; return `<line x1="${124 + r0 * Math.cos(a)}" y1="${124 + r0 * Math.sin(a)}" x2="${124 + r1 * Math.cos(a)}" y2="${124 + r1 * Math.sin(a)}" stroke="#f3e2c0" stroke-opacity="0.55" stroke-width="1.4"/>`; }).join('');
+    const ah = -Math.PI / 2 + f * 2 * Math.PI;
+    return `<div class="medrow" style="margin-bottom:6px"><div class="med" style="margin-top:20px"><svg class="ring" viewBox="0 0 248 248" width="248" height="248"><defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#49d6c8"/><stop offset="1" stop-color="#ffbf3a"/></linearGradient></defs><circle cx="124" cy="124" r="${r - 6}" fill="none" stroke="#000" stroke-opacity="0.45" stroke-width="9"/><circle cx="124" cy="124" r="${r - 6}" fill="none" stroke="url(#bg1)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${f * 2 * Math.PI * (r - 6)} 9999" transform="rotate(-90 124 124)" style="filter:drop-shadow(0 0 6px #ffbf3a)"/>${ticks}<circle cx="${124 + (r - 6) * Math.cos(ah)}" cy="${124 + (r - 6) * Math.sin(ah)}" r="7" fill="#fff4d8" stroke="#2a1206" stroke-width="2"/></svg><div class="face"><span class="k">CASH OUT</span><span class="a num">${AMT}</span><small>${MULT}×</small></div></div></div><div class="stk" style="margin:14px 0 0">Next sun at 10×</div>`;
+  },
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub"><span>Stake <b>${STAKE}</b></span><span>Return <b>${AMT}</b></span></div>`,
+};
+
+/* ============================================================ C. MOBILE-GAME CHUNKY */
+D.C = {
+  name: 'Arcade Runner',
+  why: 'Bright, bouncy and readable at arm\'s length: the chunky, glossy language of Temple Run and Subway Surfers, built for thumbs and fun.',
+  fonts: ['Lilita One', 400, 'Nunito', 900],
+  sw: ['#5ad13a', '#2e9e1a', '#ffcf2e', '#ff8a00', '#2fa8ff'],
+  notes: ['Top bar: chunky separate buttons; a tilted logo badge, a fat coin pill with a green +, square keys', 'CTA: a candy-gloss green slab, thick dark outline, 6 px 3D lip, white outlined type', 'CASH OUT: hot orange-yellow; the amount bounces on each tick'],
+  css: `
+  .C .badge { position:absolute; left:12px; top:56px; transform:rotate(-5deg); padding:5px 9px 7px; border-radius:12px; background:linear-gradient(#ffd84a,#ff9d00); border:3px solid #3b1d00; box-shadow:0 5px 0 #3b1d00; font:400 15px 'Lilita One'; color:#fff; -webkit-text-stroke:5px #3b1d00; paint-order:stroke fill; letter-spacing:0.02em; }
+  .C .rt { position:absolute; right:12px; top:52px; display:flex; gap:6px; }
+  .C .pill { height:46px; display:flex; align-items:center; gap:6px; padding:0 4px 0 8px; border-radius:23px; background:#1d2a4a; border:3px solid #0b1226; box-shadow:0 4px 0 #0b1226, inset 0 3px 0 rgba(255,255,255,0.15); }
+  .C .pill b { font:900 16px Nunito; color:#fff; }
+  .C .pill .p { width:32px; height:32px; border-radius:10px; display:grid; place-items:center; background:linear-gradient(#7cea4c,#33a51b); border:2.5px solid #12380a; }
+  .C .sq { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; background:linear-gradient(#5cc0ff,#1f7fe0); border:3px solid #0b2b55; box-shadow:0 4px 0 #0b2b55, inset 0 3px 0 rgba(255,255,255,0.35); }
+  .C .stake { border-radius:24px; background:linear-gradient(#2a3d6e,#1b2850); border:3px solid #0b1226; box-shadow:0 6px 0 #0b1226, inset 0 3px 0 rgba(255,255,255,0.12); padding:12px 12px 14px; margin-bottom:16px; }
+  .C .srow { display:flex; align-items:center; gap:10px; }
+  .C .rb { width:52px; height:52px; border-radius:16px; display:grid; place-items:center; background:linear-gradient(#5cc0ff,#1f7fe0); border:3px solid #0b2b55; box-shadow:0 4px 0 #0b2b55, inset 0 3px 0 rgba(255,255,255,0.35); }
+  .C .val { flex:1; height:52px; border-radius:16px; background:#0e1733; display:flex; align-items:center; justify-content:center; gap:6px; font:900 26px Nunito; color:#fff; box-shadow: inset 0 3px 0 #0006; }
+  .C .chips { display:flex; gap:6px; margin-top:10px; }
+  .C .chips span { flex:1; height:38px; border-radius:12px; display:grid; place-items:center; font:900 15px Nunito; color:#fff; background:#3a5296; border:2.5px solid #0b1226; box-shadow:0 3px 0 #0b1226; }
+  .C .cta { position:relative; height:76px; border-radius:22px; background:linear-gradient(#8af25e 0%, #4fc72d 48%, #2e9e1a 100%); border:4px solid #143d08; box-shadow:0 8px 0 #143d08, 0 14px 20px rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .C .cta::before { content:''; position:absolute; left:14px; right:14px; top:6px; height:22px; border-radius:14px; background:linear-gradient(rgba(255,255,255,0.75), rgba(255,255,255,0.08)); }
+  .C .cta .w { position:relative; font:400 40px 'Lilita One'; color:#fff; -webkit-text-stroke:8px #143d08; paint-order:stroke fill; text-shadow:0 4px 0 #143d08; letter-spacing:0.03em; }
+  .C .cta.hot { background:linear-gradient(#ffe866 0%, #ffbf1f 48%, #ff8a00 100%); border-color:#5a2600; box-shadow:0 8px 0 #5a2600, 0 14px 20px rgba(0,0,0,0.45); justify-content:space-between; padding:0 22px; }
+  .C .cta.hot .w { font-size:30px; -webkit-text-stroke-color:#5a2600; text-shadow:0 4px 0 #5a2600; }
+  .C .cta .amt { position:relative; display:flex; align-items:center; gap:6px; font:400 34px 'Lilita One'; color:#fff; -webkit-text-stroke:7px #5a2600; paint-order:stroke fill; text-shadow:0 4px 0 #5a2600; }
+  .C .hint { text-align:center; margin-top:16px; font:900 13px Nunito; color:#fff; text-shadow:0 2px 0 #0008; }
+  .C .hud .m { font:400 104px/1 'Lilita One'; color:#fff; -webkit-text-stroke:12px #3b1d00; paint-order:stroke fill; text-shadow:0 8px 0 #3b1d00, 0 12px 24px #0008; transform:rotate(-3deg); }
+  .C .hud .m i { font-style:normal; font-size:0.5em; color:#ffcf2e; }
+  .C .hud .sub { gap:8px; } .C .hud .sub span { font:900 14px Nunito; color:#fff; background:#1d2a4acc; border:2.5px solid #0b1226; border-radius:12px; padding:4px 10px; }
+  `,
+  top: () => `<div class="badge">CAUSEWAY</div><div class="rt"><div class="pill">${I.coin(24)}<b class="num">${BAL}</b><span class="p">${I.plus('#fff', 3.4)}</span></div><span class="sq">${I.snd('#fff', 2.6)}</span><span class="sq">${I.menu('#fff', 2.6)}</span></div>`,
+  setup: () => `<div class="stake"><div class="srow"><span class="rb">${I.minus('#fff', 3.6)}</span><span class="val num">${I.coin(22)}${STAKE}</span><span class="rb">${I.plus('#fff', 3.6)}</span></div><div class="chips"><span>½</span><span>2×</span><span>10</span><span>50</span><span>MAX</span></div></div><div class="cta"><span class="w">RUN!</span></div><div class="hint">Tap or press Space</div>`,
+  run: () => `<div class="cta hot"><span class="w">CASH OUT</span><span class="amt num">${I.coin(28)}${AMT}</span></div><div class="hint">Stake ${STAKE}</div>`,
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub"><span>Stake ${STAKE}</span><span>Win ${AMT}</span></div>`,
+};
+
+/* ============================================================ D. WOOD & ROPE */
+D.D = {
+  name: 'Expedition Kit',
+  why: 'Expedition gear, not temple gold: hand-cut planks, rope lashings and brass rivets, with a field-map strip for the top bar, like an explorer\'s journal.',
+  fonts: ['Alfa Slab One', 400, 'Bitter', 600],
+  sw: ['#3b2210', '#7a4b24', '#b4955c', '#e9dcc0', '#b0852e'],
+  notes: ['Top bar: one torn map-paper strip across the top, a red ink stamp logo, a ledger balance, brass keys', 'CTA: two lashed planks with brass rivets (Blender), branded slab type', 'CASH OUT: a brass tag nailed to the plank carries the amount'],
+  css: `
+  .D .map { position:absolute; left:0; right:0; top:44px; height:64px; background:
+      radial-gradient(circle at 20% 30%, rgba(120,80,30,0.18), transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(120,80,30,0.2), transparent 45%),
+      repeating-linear-gradient(90deg, rgba(90,60,20,0.08) 0 1px, transparent 1px 38px),
+      repeating-linear-gradient(0deg, rgba(90,60,20,0.08) 0 1px, transparent 1px 38px),
+      linear-gradient(#efe2c3, #dcc89c);
+    clip-path: polygon(0 0,100% 0,100% 88%,96% 94%,91% 87%,85% 96%,78% 89%,71% 97%,64% 90%,56% 96%,49% 88%,42% 95%,35% 89%,28% 97%,21% 90%,14% 96%,7% 88%,0 95%);
+    display:flex; align-items:center; padding:0 10px 6px 14px; gap:8px; filter: drop-shadow(0 4px 6px #0008); }
+  .D .stamp { font:400 15px 'Alfa Slab One'; color:#a3241a; border:2.5px solid #a3241a; border-radius:4px; padding:3px 7px; transform:rotate(-4deg); letter-spacing:0.06em; opacity:0.9; }
+  .D .ledger { flex:1; text-align:right; padding-right:6px; }
+  .D .ledger small { font:400 italic 11px Bitter; color:#6b4a26; display:block; }
+  .D .ledger b { font:600 19px Bitter; color:#2e1d0c; }
+  .D .br { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; background:radial-gradient(circle at 38% 32%, #f3d189, #b0852e 55%, #6a4a14); box-shadow: inset 0 0 0 2px #5a3c10, 0 3px 4px #0006; }
+  .D .stake { border-radius:10px; background:linear-gradient(#3a2a1c,#2a1d12); box-shadow: inset 0 0 0 2px #1a110a, 0 8px 16px #0009; outline:1.5px dashed rgba(233,220,192,0.35); outline-offset:-7px; padding:14px 14px 16px; margin-bottom:12px; }
+  .D .lbl { font:400 italic 13px Bitter; color:#d9c7a3; }
+  .D .srow { display:flex; align-items:center; gap:10px; margin-top:6px; }
+  .D .pb { width:56px; height:48px; background:url(art/d-plank-sm.webp) center/cover; border-radius:4px; display:grid; place-items:center; filter: drop-shadow(0 3px 3px #0008); }
+  .D .val { flex:1; height:48px; display:flex; align-items:center; justify-content:center; font:600 26px Bitter; color:#2e1d0c; background:linear-gradient(#efe2c3,#dcc89c); border-radius:3px; box-shadow: inset 0 2px 6px rgba(80,50,20,0.35); }
+  .D .chips { display:flex; gap:8px; margin-top:10px; }
+  .D .chips span { flex:1; height:38px; display:grid; place-items:center; font:600 14px Bitter; color:#f6ead0; background:url(art/d-plank-sm.webp) center/cover; border-radius:3px; text-shadow:0 1px 2px #000; }
+  .D .cta { position:relative; height:76px; background:url(art/d-planks.webp) center/100% 100%; display:flex; align-items:center; justify-content:center; filter: drop-shadow(0 8px 10px #000b); }
+  .D .cta .w { font:400 38px 'Alfa Slab One'; color:#f4e6c8; letter-spacing:0.08em; text-shadow: 0 -1px 0 #1d0f04, 0 2px 0 #1d0f04, 0 3px 6px #000; }
+  .D .cta.hot { justify-content:space-between; padding:0 30px 0 58px; }
+  .D .cta.hot .w { font-size:22px; white-space:nowrap; letter-spacing:0.04em; }
+  .D .tag { position:relative; padding:6px 14px 6px 22px; background:linear-gradient(#f3d189,#c99a3f 55%,#8a6420); border-radius:6px 14px 14px 6px; box-shadow: inset 0 0 0 1.5px #5a3c10, 0 3px 4px #0008; font:600 26px Bitter; color:#2a1a06; text-shadow:0 1px 0 #f9e4b0; }
+  .D .tag::before { content:''; position:absolute; left:7px; top:50%; width:8px; height:8px; margin-top:-4px; border-radius:50%; background:#2a1a06; box-shadow:0 0 0 2px #e9c46a; }
+  .D .hint { text-align:center; margin-top:10px; font:400 italic 13px Bitter; color:#efe2c3; text-shadow:0 1px 3px #000; }
+  .D .hud .m { display:inline-block; padding:4px 24px 10px; background:linear-gradient(#efe2c3,#dcc89c); clip-path: polygon(0 4%,100% 0,98% 100%,2% 96%); font:400 76px/1 'Alfa Slab One'; color:#2e1d0c; filter: drop-shadow(0 6px 8px #000a); transform:rotate(-2deg); }
+  .D .hud .m i { font-style:normal; font-size:0.5em; color:#a3241a; }
+  .D .hud .sub { font:600 14px Bitter; color:#efe2c3; text-shadow:0 1px 3px #000; }
+  `,
+  top: () => `<div class="map"><span class="stamp">CAUSEWAY</span><span class="ledger"><small>Funds in hand</small><b class="num">${BAL}</b></span><span class="br">${I.snd('#3a2608', 2.2)}</span><span class="br">${I.menu('#3a2608', 2.2)}</span></div>`,
+  setup: () => `<div class="stake"><span class="lbl">Your stake</span><div class="srow"><span class="pb">${I.minus('#f6ead0', 3)}</span><span class="val num">${STAKE}</span><span class="pb">${I.plus('#f6ead0', 3)}</span></div><div class="chips"><span>½</span><span>2×</span><span>10</span><span>50</span><span>Max</span></div></div><div class="cta"><span class="w">RUN</span></div><div class="hint">Press Space to set off</div>`,
+  run: () => `<div class="cta hot"><span class="w">CASH OUT</span><span class="tag num">${AMT}</span></div><div class="hint">Stake ${STAKE}</div>`,
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub" style="margin-top:14px"><span>Stake ${STAKE}</span><span>Return ${AMT}</span></div>`,
+};
+
+/* ============================================================ E. GOLD INGOT */
+D.E = {
+  name: 'Treasure Ingot',
+  why: 'Pure treasure: the CTA is a solid cast-gold ingot with two emeralds, the stake sits in a velvet chest tray, and the balance is the chest plaque.',
+  fonts: ['Cinzel', 900, 'Barlow Semi Condensed', 700],
+  sw: ['#c25a06', '#ffbf2a', '#fff6d0', '#3a0c1e', '#0b6b3c'],
+  notes: ['Top bar: a centred treasure-chest plaque for the balance, with the logo at left and gold coin keys at right', 'CTA: a bevelled gold ingot (Blender) with engraved type, embossed not painted', 'Stake: a velvet chest tray; chips are gold coins'],
+  css: `
+  .E .logo { position:absolute; left:14px; top:58px; font:900 12px/1.15 Cinzel; color:#ffd56a; letter-spacing:0.08em; text-shadow:0 2px 0 #3a1a00, 0 0 10px #000; }
+  .E .chest { position:absolute; left:116px; top:46px; width:154px; height:58px; border-radius:10px 10px 6px 6px; background: linear-gradient(#5a2f14,#3a1c0a); box-shadow: inset 0 0 0 3px #e2a93a, inset 0 0 0 5px #5a2f14, inset 0 0 0 6px #b07a22, 0 8px 14px #000a; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .E .chest::before, .E .chest::after { content:''; position:absolute; top:6px; bottom:6px; width:12px; background:linear-gradient(90deg,#b07a22,#ffd56a,#b07a22); }
+  .E .chest::before { left:14px; } .E .chest::after { right:14px; }
+  .E .chest small { font:700 9px 'Barlow Semi Condensed'; letter-spacing:0.22em; color:#e2c48a; text-transform:uppercase; }
+  .E .chest b { font:700 21px 'Barlow Semi Condensed'; background:linear-gradient(#fff6d0,#ffbf2a 60%,#c25a06); -webkit-background-clip:text; color:transparent; filter:drop-shadow(0 1px 0 #2a1000); }
+  .E .hasp { position:absolute; bottom:-10px; left:50%; margin-left:-9px; width:18px; height:20px; border-radius:3px 3px 9px 9px; background:linear-gradient(#ffd56a,#b07a22); box-shadow:inset 0 0 0 1.5px #5a2f14; }
+  .E .rt { position:absolute; right:14px; top:54px; display:flex; gap:6px; }
+  .E .gc { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; background:radial-gradient(circle at 38% 30%, #fff1b0, #ffbf2a 45%, #c25a06 90%); box-shadow: inset 0 0 0 2px #7a3a02, inset 0 0 0 5px rgba(255,240,180,0.5), 0 4px 6px #0008; }
+  .E .tray { border-radius:16px; padding:14px 14px 16px; margin-bottom:14px; background: radial-gradient(ellipse at 50% 0%, #6a1836, #3a0c1e 70%); box-shadow: inset 0 0 0 2px #ffcf5a, inset 0 0 0 4px #5a2f14, inset 0 6px 16px #000a, 0 8px 18px #000a; }
+  .E .srow { display:flex; align-items:center; gap:10px; }
+  .E .lbl { font:700 11px 'Barlow Semi Condensed'; letter-spacing:0.22em; color:#f0c98a; text-transform:uppercase; }
+  .E .gb { width:50px; height:50px; border-radius:50%; display:grid; place-items:center; background:radial-gradient(circle at 38% 30%, #fff1b0, #ffbf2a 45%, #c25a06 90%); box-shadow: inset 0 0 0 2px #7a3a02, 0 4px 6px #0008; }
+  .E .val { flex:1; text-align:center; font:700 30px 'Barlow Semi Condensed'; color:#fff2cc; }
+  .E .coins { display:flex; gap:8px; margin-top:12px; justify-content:space-between; }
+  .E .coins span { width:52px; height:52px; border-radius:50%; display:grid; place-items:center; font:700 15px 'Barlow Semi Condensed'; color:#4a2400; background:radial-gradient(circle at 38% 30%, #fff1b0, #ffbf2a 45%, #c25a06 90%); box-shadow: inset 0 0 0 2px #7a3a02, inset 0 0 0 6px rgba(255,240,180,0.45), 0 3px 4px #000a; }
+  .E .cta { position:relative; height:84px; background:url(art/e-ingot.webp) center/100% 100%; display:flex; align-items:center; justify-content:center; filter: drop-shadow(0 10px 12px #000b); }
+  .E .cta .w { font:900 40px Cinzel; color:#5a2600; letter-spacing:0.14em; text-shadow: 0 1.5px 0 rgba(255,246,208,0.85), 0 -1px 0 rgba(90,30,0,0.7); }
+  .E .cta.hot { justify-content:space-between; padding:0 66px 0 70px; }
+  .E .cta.hot .w { font-size:19px; letter-spacing:0.1em; line-height:1.05; }
+  .E .cta .amt { font:700 34px 'Barlow Semi Condensed'; color:#4a1f00; text-shadow: 0 1.5px 0 rgba(255,246,208,0.85); }
+  .E .pile { position:absolute; right:22px; bottom:150px; width:120px; height:72px; background:url(art/e-coins.webp) center/contain no-repeat; filter: drop-shadow(0 6px 6px #0009); }
+  .E .hint { text-align:center; margin-top:10px; font:600 12px 'Barlow Semi Condensed'; letter-spacing:0.18em; color:#f0d9a8; text-transform:uppercase; text-shadow:0 1px 3px #000; }
+  .E .hud .m { font:900 90px/1 Cinzel; background:linear-gradient(#fff6d0 10%, #ffd24a 45%, #c25a06 50%, #ffbf2a 56%, #ff9a10); -webkit-background-clip:text; color:transparent; filter: drop-shadow(0 3px 0 #3a1a00) drop-shadow(0 8px 18px #000a); }
+  .E .hud .sub { font:700 15px 'Barlow Semi Condensed'; color:#f6e2b4; letter-spacing:0.06em; text-shadow:0 1px 3px #000; }
+  `,
+  top: () => `<span class="logo">CAUSE<br>WAY</span><div class="chest"><small>Treasure</small><b class="num">${BAL}</b><span class="hasp"></span></div><div class="rt"><span class="gc">${I.snd('#5a2600', 2.4)}</span><span class="gc">${I.menu('#5a2600', 2.4)}</span></div>`,
+  setup: () => `<div class="tray"><div class="srow" style="justify-content:space-between;margin-bottom:8px"><span class="lbl">Stake</span><span class="lbl" style="opacity:.7">Auto cash-out off</span></div><div class="srow"><span class="gb">${I.minus('#5a2600', 3)}</span><span class="val num">${STAKE}</span><span class="gb">${I.plus('#5a2600', 3)}</span></div><div class="coins"><span>½</span><span>2×</span><span>10</span><span>50</span><span>MAX</span></div></div><div class="cta"><span class="w">RUN</span></div><div class="hint">Space to run</div>`,
+  run: () => `<div class="pile"></div><div class="cta hot"><span class="w">CASH<br>OUT</span><span class="amt num">${AMT}</span></div><div class="hint">Stake ${STAKE}</div>`,
+  hud: () => `<div class="m num">${MULT}×</div><div class="sub"><span>Stake ${STAKE}</span><span>Return ${AMT}</span></div>`,
+};
+
+/* ============================================================ F. MODERN PREMIUM CASINO */
+D.F = {
+  name: 'Jungle Noir',
+  why: 'Sleek and modern: smoked glass, one gold-gradient pill and a whisper of step-fret pattern. The polish of Stake or Roobet, with a jungle accent.',
+  fonts: ['Outfit', 700, 'Inter', 500],
+  sw: ['#0d1110', '#1a201e', '#f7d774', '#d79a2b', '#2fd17a'],
+  notes: ['Top bar: one full-width frosted bar; a wallet pill with a + refill, and minimal round keys', 'CTA: a 60 px gold-gradient pill, dark type, a faint fret pattern', 'CASH OUT: an emerald pill with a live amount and a slim progress line'],
+  css: `
+  .F .bar { position:absolute; left:0; right:0; top:44px; height:60px; display:flex; align-items:center; gap:8px; padding:0 12px 0 16px; background:rgba(13,17,16,0.72); backdrop-filter: blur(14px); border-bottom:1px solid rgba(247,215,116,0.18); }
+  .F .mk { width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#f7d774,#d79a2b); display:grid; place-items:center; }
+  .F .wm { font:700 15px Outfit; letter-spacing:0.16em; color:#fff; flex:1; }
+  .F .wal { height:40px; display:flex; align-items:center; gap:8px; padding:0 4px 0 14px; border-radius:20px; background:#1a201e; box-shadow: inset 0 0 0 1px #2b3330; }
+  .F .wal b { font:600 15px Inter; color:#fff; }
+  .F .wal .p { width:32px; height:32px; border-radius:16px; display:grid; place-items:center; background:linear-gradient(135deg,#f7d774,#d79a2b); }
+  .F .ic { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; background:#1a201e; box-shadow: inset 0 0 0 1px #2b3330; }
+  .F .card { border-radius:22px; padding:14px; margin-bottom:12px; background:rgba(13,17,16,0.78); backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07); }
+  .F .tabs { display:flex; background:#1a201e; border-radius:12px; padding:3px; margin-bottom:12px; }
+  .F .tabs span { flex:1; text-align:center; padding:7px 0; border-radius:10px; font:500 13px Inter; color:#8c9692; }
+  .F .tabs span.on { background:#2a322f; color:#fff; }
+  .F .fld { display:flex; align-items:center; height:52px; border-radius:14px; background:#0b0f0e; box-shadow: inset 0 0 0 1px #2b3330; padding:0 6px 0 16px; }
+  .F .fld .v { flex:1; font:500 20px Inter; color:#fff; }
+  .F .fld .v small { color:#8c9692; font-size:13px; margin-left:4px; }
+  .F .fld .q { width:44px; height:40px; display:grid; place-items:center; border-radius:10px; background:#1a201e; font:600 13px Inter; color:#cfd6d3; margin-left:4px; }
+  .F .chips { display:flex; gap:6px; margin-top:10px; }
+  .F .chips span { flex:1; height:34px; display:grid; place-items:center; border-radius:10px; font:500 13px Inter; color:#cfd6d3; background:#1a201e; }
+  .F .cta { position:relative; height:60px; border-radius:30px; background:linear-gradient(135deg,#fbe38f,#f2c14e 45%,#d79a2b); box-shadow: 0 10px 30px rgba(242,193,78,0.35), inset 0 1px 0 rgba(255,255,255,0.7); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .F .cta::before { content:''; position:absolute; inset:0; opacity:0.13; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M2 22V2h20v14H9V9h7' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E"); background-size:24px 24px; }
+  .F .cta .w { position:relative; font:700 19px Outfit; color:#1a1206; letter-spacing:0.08em; }
+  .F .cta.hot { background:linear-gradient(135deg,#6ff0a6,#2fd17a 50%,#14a45a); box-shadow: 0 10px 30px rgba(47,209,122,0.35), inset 0 1px 0 rgba(255,255,255,0.6); justify-content:space-between; padding:0 26px; }
+  .F .cta.hot .w { color:#04210f; }
+  .F .cta .amt { position:relative; font:700 22px Inter; color:#04210f; }
+  .F .hint { display:flex; justify-content:space-between; margin:10px 6px 0; font:500 12px Inter; color:#a9b3af; }
+  .F .hint kbd { font:600 11px Inter; color:#fff; background:#1a201e; border-radius:5px; padding:1px 6px; box-shadow: inset 0 0 0 1px #2b3330; }
+  .F .hud .m { font:300 104px/1 Outfit; color:#fff; letter-spacing:-0.03em; text-shadow:0 4px 30px rgba(0,0,0,0.5); }
+  .F .hud .m i { font-style:normal; color:#f2c14e; font-size:0.42em; font-weight:500; }
+  .F .hud .sub { font:500 13px Inter; color:#c8d0cd; } .F .hud .sub b { color:#fff; }
+  .F .prog { width:200px; height:4px; border-radius:2px; background:rgba(255,255,255,0.15); margin:14px auto 0; overflow:hidden; }
+  .F .prog i { display:block; width:51%; height:100%; background:linear-gradient(90deg,#2fd17a,#f2c14e); }
+  `,
+  top: () => `<div class="bar"><span class="mk">${I.fret('#1a1206')}</span><span class="wm">CAUSEWAY</span><span class="wal"><b class="num">${BAL}</b><span class="p">${I.plus('#1a1206', 3)}</span></span><span class="ic">${I.snd('#cfd6d3', 1.8)}</span><span class="ic">${I.menu('#cfd6d3', 1.8)}</span></div>`,
+  setup: () => `<div class="card"><div class="tabs"><span class="on">Manual</span><span>Auto cash-out</span></div><div class="fld"><span class="v num">${STAKE}<small>CR</small></span><span class="q">½</span><span class="q">2×</span></div><div class="chips"><span>1</span><span>5</span><span>10</span><span>50</span><span>Max</span></div></div><div class="cta"><span class="w">RUN</span></div><div class="hint"><span>Stake ${STAKE}</span><span><kbd>Space</kbd> to run</span></div>`,
+  run: () => `<div class="cta hot"><span class="w">CASH OUT</span><span class="amt num">${AMT}</span></div><div class="hint"><span>Stake ${STAKE}</span><span><kbd>Space</kbd> to cash out</span></div>`,
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub"><span>Stake <b>${STAKE}</b></span><span>Return <b>${AMT}</b></span></div><div class="prog"><i></i></div>`,
+};
+
+/* ============================================================ G. FEATHERED SERPENT */
+const serpentHead = `<svg width="78" height="84" viewBox="0 0 78 84"><defs><linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="0.5" stop-color="#f0a21a"/><stop offset="1" stop-color="#8a4a04"/></linearGradient><linearGradient id="ts" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fe0cc"/><stop offset="1" stop-color="#0b6f78"/></linearGradient></defs>
+  <path d="M70 22 C52 6 22 6 10 22 C2 32 4 48 14 56 L4 70 L22 64 C34 74 56 74 70 62 Z" fill="url(#ts)" stroke="#1a120c" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M14 30 C26 20 46 18 62 26" fill="none" stroke="url(#gs)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M10 48 C26 52 44 52 64 46" fill="none" stroke="#1a120c" stroke-width="3"/>
+  <path d="M18 50 l4 8 4-8 M30 52 l4 8 4-8 M42 51 l4 8 4-8" fill="#fff6e0" stroke="#1a120c" stroke-width="1.6" stroke-linejoin="round"/>
+  <circle cx="30" cy="36" r="7" fill="#fff6e0" stroke="#1a120c" stroke-width="2.4"/><circle cx="29" cy="36" r="3.4" fill="#c4161c"/>
+  <path d="M22 18 l-8 -12 l14 8 M36 14 l-2 -12 l8 11 M50 16 l6 -11 l0 13" fill="#2fbf6f" stroke="#1a120c" stroke-width="2" stroke-linejoin="round"/>
+</svg>`;
+const plume = `<svg width="62" height="84" viewBox="0 0 62 84">${[[-38, '#1f8f4e'], [-18, '#2fbf6f'], [0, '#4fd98a'], [18, '#2fbf6f'], [38, '#1f8f4e']].map(([a, c]) => `<g transform="rotate(${a + 90} 8 42)"><path d="M8 42 C 20 30, 48 32, 58 42 C 48 52, 20 54, 8 42 Z" fill="${c}" stroke="#0c3a20" stroke-width="2"/><path d="M12 42 H54" stroke="#0c3a20" stroke-width="1.4"/><circle cx="48" cy="42" r="4.4" fill="#1a6fd0" stroke="#ffe27a" stroke-width="1.6"/></g>`).join('')}</svg>`;
+D.G = {
+  name: 'Feathered Serpent',
+  why: 'Quetzalcoatl wraps the CTA: a turquoise mosaic body, a serpent head biting the left end and quetzal plumes at the tail. Mythic and ornamental.',
+  fonts: ['Metamorphous', 400, 'Josefin Sans', 700],
+  sw: ['#0b5e66', '#18a3a0', '#9ff0dc', '#2fbf6f', '#f0a21a'],
+  notes: ['Top bar: split ends tied together by a thin scaled serpent band; the balance sits in a mosaic cartouche', 'CTA: a turquoise mosaic body (Blender) with an SVG serpent head and jade plumes', 'CASH OUT: the serpent\'s eye kindles red, and the amount sits in a dark cartouche'],
+  css: `
+  .G .band { position:absolute; left:10px; right:10px; top:74px; height:10px; border-radius:5px; background: repeating-linear-gradient(90deg, #18a3a0 0 8px, #0b5e66 8px 10px, #46d2c0 10px 18px, #0b5e66 18px 20px); box-shadow: 0 0 0 2px #1a120c, 0 3px 6px #0008; }
+  .G .lg { position:absolute; left:14px; top:52px; height:52px; padding:0 16px; display:flex; align-items:center; border-radius:26px; background:#1a120c; box-shadow: inset 0 0 0 2px #f0a21a, 0 4px 10px #0009; font:400 17px Metamorphous; color:#ffd56a; letter-spacing:0.08em; }
+  .G .rt { position:absolute; right:14px; top:52px; display:flex; gap:6px; }
+  .G .car { height:52px; padding:0 16px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; border-radius:26px 8px 26px 8px; background:url(art/g-mosaic.webp) center/cover; box-shadow: inset 0 0 0 2px #f0a21a, 0 4px 10px #0009; }
+  .G .car small { font:700 9px 'Josefin Sans'; letter-spacing:0.2em; color:#1a120c; text-transform:uppercase; background:#ffe27acc; padding:1px 5px; border-radius:3px; }
+  .G .car b { font:700 19px 'Josefin Sans'; color:#fff; text-shadow:0 1px 0 #1a120c, 0 0 6px #0b3a3e; margin-top:2px; }
+  .G .ck { width:52px; height:52px; border-radius:50%; display:grid; place-items:center; background:#1a120c; box-shadow: inset 0 0 0 2px #f0a21a, 0 4px 10px #0009; }
+  .G .stake { border-radius:20px; padding:14px 14px 16px; margin-bottom:16px; background:rgba(14,22,20,0.86); box-shadow: inset 0 0 0 2px #0b5e66, inset 0 0 0 4px #1a120c, inset 0 0 0 5px #f0a21a55, 0 8px 18px #000a; }
+  .G .lbl { font:700 11px 'Josefin Sans'; letter-spacing:0.22em; color:#9ff0dc; text-transform:uppercase; }
+  .G .srow { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .G .tb2 { width:50px; height:50px; border-radius:14px; display:grid; place-items:center; background:url(art/g-mosaic.webp) center/cover; box-shadow: inset 0 0 0 2px #f0a21a, 0 3px 6px #0008; }
+  .G .val { flex:1; text-align:center; font:700 28px 'Josefin Sans'; color:#fff; padding-top:4px; }
+  .G .chips { display:flex; gap:6px; margin-top:12px; }
+  .G .chips span { flex:1; height:36px; display:grid; place-items:center; border-radius:18px; font:700 14px 'Josefin Sans'; color:#ffe27a; padding-top:3px; background:#0f1a18; box-shadow: inset 0 0 0 1.5px #18a3a0; }
+  .G .ctaw { position:relative; padding:0 34px 0 46px; }
+  .G .cta { position:relative; height:68px; background:url(art/g-mosaic.webp) center/100% 100%; display:flex; align-items:center; justify-content:center; filter: drop-shadow(0 8px 10px #000b); }
+  .G .head { position:absolute; left:-4px; top:-8px; z-index:2; filter: drop-shadow(0 4px 4px #000a); }
+  .G .tail { position:absolute; right:-6px; top:-8px; z-index:0; filter: drop-shadow(0 4px 4px #000a); }
+  .G .cta .w { font:400 34px Metamorphous; color:#ffe27a; -webkit-text-stroke:6px #1a120c; paint-order:stroke fill; text-shadow:0 3px 0 #1a120c; letter-spacing:0.1em; }
+  .G .cta.hot { justify-content:space-between; padding:0 12px 0 34px; }
+  .G .cta.hot .w { font-size:21px; letter-spacing:0.06em; }
+  .G .cta .amt { font:700 24px 'Josefin Sans'; color:#fff; padding:8px 14px 4px; border-radius:12px; background:#1a120ce6; box-shadow: inset 0 0 0 1.5px #f0a21a; }
+  .G .hint { text-align:center; margin-top:10px; font:700 12px 'Josefin Sans'; letter-spacing:0.16em; color:#c8f5ea; text-transform:uppercase; text-shadow:0 1px 3px #000; }
+  .G .hud .m { font:400 92px/1 Metamorphous; color:#ffe27a; -webkit-text-stroke:9px #1a120c; paint-order:stroke fill; text-shadow:0 5px 0 #1a120c, 0 0 30px rgba(73,214,200,0.6); }
+  .G .hud .m i { font-style:normal; font-size:0.5em; color:#5fe0cc; }
+  .G .hud .sub { font:700 14px 'Josefin Sans'; color:#e6fff8; text-shadow:0 1px 3px #000; letter-spacing:0.06em; }
+  `,
+  top: () => `<div class="band"></div><div class="lg">Causeway</div><div class="rt"><div class="car"><small>Balance</small><b class="num">${BAL}</b></div><span class="ck">${I.snd('#ffd56a')}</span><span class="ck">${I.menu('#ffd56a')}</span></div>`,
+  setup: () => `<div class="stake"><span class="lbl">Stake</span><div class="srow"><span class="tb2">${I.minus('#1a120c', 3.4)}</span><span class="val num">${STAKE}</span><span class="tb2">${I.plus('#1a120c', 3.4)}</span></div><div class="chips"><span>½</span><span>2×</span><span>10</span><span>50</span><span>MAX</span></div></div><div class="ctaw"><span class="head">${serpentHead}</span><div class="cta"><span class="w">RUN</span></div><span class="tail">${plume}</span></div><div class="hint">Space to run</div>`,
+  run: () => `<div class="ctaw"><span class="head">${serpentHead}</span><div class="cta hot"><span class="w">CASH OUT</span><span class="amt num">${AMT}</span></div><span class="tail">${plume}</span></div><div class="hint">Stake ${STAKE}</div>`,
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub"><span>Stake ${STAKE}</span><span>Return ${AMT}</span></div>`,
+};
+
+/* ============================================================ H. WILDCARD: BIOLUMINESCENT RUINS */
+D.H = {
+  name: 'Glowstone (wildcard)',
+  why: 'The ruin wakes up: dark carved basalt whose glyph grooves glow a living mint green, brighter the higher you climb. Night-time, eerie, and unlike any gold-temple slot.',
+  fonts: ['Syne', 800, 'Space Grotesk', 500],
+  sw: ['#121412', '#2e2a25', '#38ffc8', '#b6ffe9', '#ff5ea8'],
+  notes: ['Top bar: vertical corner stacks; logo over balance at left, sound over menu at right, nothing in the middle', 'CTA: a chipped basalt slab with a lit step-fret groove (Blender emission)', 'CASH OUT: the glow intensifies with heat; at high heat it shifts to pink'],
+  css: `
+  .H .lc { position:absolute; left:14px; top:50px; display:flex; flex-direction:column; gap:6px; }
+  .H .lt { font:800 15px Syne; letter-spacing:0.18em; color:#b6ffe9; text-shadow:0 0 10px rgba(56,255,200,0.7); }
+  .H .bb { padding:6px 12px 7px; border-radius:6px; background:rgba(14,16,15,0.82); box-shadow: inset 0 0 0 1px rgba(56,255,200,0.35), 0 0 16px rgba(56,255,200,0.15); }
+  .H .bb small { display:block; font:500 9px 'Space Grotesk'; letter-spacing:0.22em; color:#6fdcbc; text-transform:uppercase; }
+  .H .bb b { font:700 19px 'Space Grotesk'; color:#eafff8; }
+  .H .rc { position:absolute; right:14px; top:50px; display:flex; flex-direction:column; gap:8px; }
+  .H .gk { width:48px; height:48px; border-radius:8px; display:grid; place-items:center; background:rgba(14,16,15,0.82); box-shadow: inset 0 0 0 1px rgba(56,255,200,0.35), 0 0 16px rgba(56,255,200,0.15); }
+  .H .stake { padding:14px 14px 16px; margin-bottom:14px; border-radius:10px; background:rgba(14,16,15,0.86); box-shadow: inset 0 0 0 1px rgba(56,255,200,0.25); }
+  .H .lbl { font:500 11px 'Space Grotesk'; letter-spacing:0.22em; color:#6fdcbc; text-transform:uppercase; }
+  .H .srow { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .H .val { flex:1; text-align:center; font:700 28px 'Space Grotesk'; color:#eafff8; text-shadow:0 0 12px rgba(56,255,200,0.35); }
+  .H .chips { display:flex; gap:6px; margin-top:12px; }
+  .H .chips span { flex:1; height:36px; display:grid; place-items:center; border-radius:6px; font:500 14px 'Space Grotesk'; color:#cfeee4; box-shadow: inset 0 0 0 1px rgba(56,255,200,0.3); }
+  .H .cta { position:relative; height:76px; background:url(art/h-glow.webp) center/100% 100%; display:flex; align-items:center; justify-content:center; filter: drop-shadow(0 0 18px rgba(56,255,200,0.35)) drop-shadow(0 8px 10px #000b); }
+  .H .cta .w { font:800 34px Syne; color:#d9fff3; letter-spacing:0.2em; padding-left:0.2em; text-shadow: 0 0 8px #38ffc8, 0 0 22px rgba(56,255,200,0.8); }
+  .H .cta.hot { flex-direction:column; gap:2px; padding:0; filter: drop-shadow(0 0 26px rgba(255,94,168,0.55)) drop-shadow(0 8px 10px #000b); }
+  .H .cta.hot .w { font-size:13px; white-space:nowrap; letter-spacing:0.3em; padding-left:0.3em; color:#ffe3f0; text-shadow: 0 0 8px #ff5ea8, 0 0 20px rgba(255,94,168,0.8); }
+  .H .cta .amt { font:700 28px/1 'Space Grotesk'; color:#fff; text-shadow: 0 0 10px #ff5ea8; }
+  .H .hint { text-align:center; margin-top:10px; font:500 12px 'Space Grotesk'; letter-spacing:0.16em; color:#9fe8d2; text-transform:uppercase; }
+  .H .hud .m { font:800 100px/1 Syne; color:#f2fffb; letter-spacing:-0.02em; text-shadow: 0 0 14px rgba(255,94,168,0.9), 0 0 40px rgba(255,94,168,0.5), 0 4px 0 #000; }
+  .H .hud .m i { font-style:normal; font-size:0.42em; color:#ff9cc8; }
+  .H .hud .sub { font:500 13px 'Space Grotesk'; color:#d0f5ea; letter-spacing:0.08em; }
+  .H .phone::after { content:''; position:absolute; inset:0; background: linear-gradient(180deg, rgba(4,10,20,0.55), rgba(4,10,20,0.35) 50%, rgba(4,10,20,0.6)); pointer-events:none; z-index:0; }
+  .H .phone > * { z-index:1; }
+  `,
+  top: () => `<div class="lc"><span class="lt">CAUSEWAY</span><div class="bb"><small>Balance</small><b class="num">${BAL}</b></div></div><div class="rc"><span class="gk">${I.snd('#7dffd8', 1.8)}</span><span class="gk">${I.menu('#7dffd8', 1.8)}</span></div>`,
+  setup: () => `<div class="stake"><span class="lbl">Stake</span><div class="srow"><span class="gk" style="width:50px;height:50px">${I.minus('#7dffd8')}</span><span class="val num">${STAKE}</span><span class="gk" style="width:50px;height:50px">${I.plus('#7dffd8')}</span></div><div class="chips"><span>½</span><span>2×</span><span>10</span><span>50</span><span>Max</span></div></div><div class="cta"><span class="w">RUN</span></div><div class="hint">Space to run</div>`,
+  run: () => `<div class="cta hot"><span class="w">CASH OUT</span><span class="amt num">${AMT}</span></div><div class="hint">Stake ${STAKE}</div>`,
+  hud: () => `<div class="m num">${MULT}<i>×</i></div><div class="sub"><span>Stake ${STAKE}</span><span>Return ${AMT}</span></div>`,
+};
+
+const k = new URLSearchParams(location.search).get('d') || 'A';
+const d = D[k];
+document.getElementById('dir').textContent = d.css.replace(/\.(\w)\s/g, (m) => m).replaceAll(`.${k} `, `.${k} `);
+const cap = `<div class="cap"><span>9:41</span><span>●●● ▮</span></div>`;
+const [f1, w1, f2, w2] = d.fonts;
+document.getElementById('sheet').innerHTML = `
+  <div class="head"><div class="letter">${k}</div><div><h1>${d.name}</h1><p>${d.why}</p></div></div>
+  <div class="row ${k}">
+    <div class="phone setup">${cap}<div class="scrim-t"></div><div class="scrim-b"></div>${d.top()}<div class="dock">${d.setup()}</div></div>
+    <div class="phone run">${cap}<div class="scrim-t"></div><div class="scrim-b"></div>${d.top()}<div class="hud">${d.hud()}</div><div class="dock">${d.run()}</div></div>
+    <div class="side">
+      <div><h3>Type</h3><div class="spec"><div class="big" style="font-family:'${f1}';font-weight:${w1}">Run · 5.12×</div><div class="nm">Display: ${f1}</div><div class="ui" style="font-family:'${f2}';font-weight:${w2}">Cash out 1,284.50 · Stake 25.00</div><div class="nm">UI and numbers: ${f2}</div></div></div>
+      <div><h3>Palette</h3><div class="sw">${d.sw.map((c) => `<i style="background:${c}"></i>`).join('')}</div></div>
+      <div><h3>Ideas</h3><ul>${d.notes.map((n) => `<li>${n}</li>`).join('')}</ul></div>
+      <div><h3>Screens</h3><ul><li>Left: setup, stake dock + RUN</li><li>Right: mid-run, ${MULT}× with CASH OUT ${AMT}</li><li>Both phones are 390 px wide</li></ul></div>
+    </div>
+  </div>`;
+document.fonts.ready.then(() => { document.body.dataset.ready = '1'; });
+</script>
+</body>
+</html>

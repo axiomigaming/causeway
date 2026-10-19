@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
-import { GoldWord } from './GoldWord';
+import { Divider } from './icons';
 import { Logo } from './Logo';
 
 export function Title() {
@@ -32,7 +32,7 @@ export function Title() {
           <h1 className="wordmark" id="wordmark" aria-label="Causeway">
             <Logo />
           </h1>
-          <div className="rule" />
+          <Divider className="rule" />
           <p className="tagline">The old road is coming apart beneath you. Every step deeper raises the multiplier — leave with it before the way falls.</p>
           {fatal ? (
             <p className="tagline" role="alert" style={{ color: 'var(--ember)', marginTop: 24 }}>
@@ -41,9 +41,8 @@ export function Title() {
           ) : ready ? (
             <div className="title-actions">
               <button className={`btn btn-cta cta-go enter-btn${leaving ? ' busy' : ''}`} onClick={enter} onMouseEnter={() => ctl?.audio.ui('hover')} autoFocus>
-                {/* the crest belongs to the wordmark on this screen; the CTA is plain carved stone */}
                 <span className="btn-label">
-                  <GoldWord text="Enter the ruins" />
+                  <span className="cta-word">Enter the ruins</span>
                 </span>
               </button>
               <button

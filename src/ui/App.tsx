@@ -9,7 +9,12 @@ import { TopBar } from './TopBar';
 
 export function App() {
   const phase = useStore((s) => s.phase);
+  const quality = useStore((s) => s.settings.quality);
   const ctl = useCtl();
+  // Glass blurs the world only on the high tiers; Low and Medium get a solid fill (no blur cost).
+  useEffect(() => {
+    document.documentElement.dataset.quality = quality;
+  }, [quality]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
