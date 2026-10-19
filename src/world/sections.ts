@@ -32,7 +32,8 @@ export type SectionType =
   | 'ledge'
   | 'turnL'
   | 'turnR'
-  | 'stepping';
+  | 'stepping'
+  | 'approach';
 
 export interface Placement {
   piece: string;
@@ -599,6 +600,28 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       }
       scenery(b, len, { minX: 9 });
       vista(b, len, ['arch', 'guardians', 'towers', 'falls'], 0.5);
+      return { hazards: ['chasm'], walls: 'none' };
+    },
+  },
+  approach: {
+    // World round 13: the run-up to a hero landmark (track.ts forces it; never picked by the pacing).
+    // Slabs on piers over open water like 'stepping', but no landmark of its own at the far end and
+    // scenery kept well out to the sides: the view down the route is water and sky, and the landmark.
+    lengths: [16, 20],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.1, 0);
+      for (let i = 0; i < n; i++) {
+        const z = -TILE * i;
+        for (const side of [-1, 1]) {
+          b.foam(side, PATH_HALF + 0.3, z, TILE);
+          b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
+          if (b.rng.chance(0.3)) b.place(`rubble_${b.rng.int(0, 3)}`, side * b.rng.range(2.8, 4.2), WL + 0.1, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28));
+          if (b.rich && b.foliage(0.35)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 8), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
+        }
+        b.foamRing(0, z, 2.6);
+      }
+      scenery(b, len, { minX: 16 });
       return { hazards: ['chasm'], walls: 'none' };
     },
   },
