@@ -4,6 +4,8 @@ import { Rng } from '../engine/rng';
 import type { Kit } from './assets';
 import { Path, frameMatrix, type Frame, type Segment } from './path';
 import { Obstacles, type Obstacle, type ObstacleKind } from './obstacles';
+import { Landmarks } from './landmarks';
+import { STYLES, type LandmarkKind, type WorldStyle } from './style';
 import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionType } from './sections';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
@@ -14,6 +16,8 @@ import { atmosphereUniforms } from './atmosphere';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
 const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
+// QA (dev builds only): ?style=<name> pins the world style.
+const QA_STYLE = import.meta.env.DEV && typeof location !== 'undefined' ? STYLES.findIndex((st) => st.name === new URLSearchParams(location.search).get('style')) : -1;
 const QA_OBS = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('obs') ?? '').split(',').filter(Boolean) : [];
 
 const VARIANTS: Record<SectionType, number> = {
@@ -103,6 +107,13 @@ class TileSystem {
     for (const [piece, cap] of Object.entries(TILE_CAPACITY)) {
       const geo = kit.geo.get(piece);
       if (!geo) continue;
+      // World round 12: paving slabs carry their half-width, so the floor shader can grime, moss and
+      // litter the strip along the parapets (caustics.ts WET_EDGES); 0 elsewhere (off).
+      if (piece.startsWith('floor_') && !geo.getAttribute('aHalf')) {
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        const half = Math.max(Math.abs(geo.boundingBox!.min.x), Math.abs(geo.boundingBox!.max.x));
+        geo.setAttribute('aHalf', new THREE.Float32BufferAttribute(new Float32Array(geo.getAttribute('position').count).fill(half), 1));
+      }
       const m = new THREE.InstancedMesh(geo, kit.mat.get(kit.matOf.get(piece)!)!, cap);
       m.name = `tiles:${piece}`;
       m.receiveShadow = true;
@@ -172,6 +183,13 @@ export class Track {
   /** Quarter turns from the start heading (−1, 0, +1) and sections since the last corner. */
   private heading = 0;
   private sinceTurn = 0;
+  /** World round 12: a corner toward `side` is held back for `n` more sections (a landmark stands there). */
+  private turnBlock = { side: 0, n: 0 };
+  private styleIndex = -1;
+  readonly landmarks: Landmarks;
+  private landmarkQueue: LandmarkKind[] = [];
+  private nextLandmarkS = 1e9;
+  private lmRng = new Rng('landmark/0');
   private fallMat = makeWaterfallMaterial();
   private density = { foliage: 1, scenery: 1 };
   viewDistance = 190;
@@ -183,6 +201,9 @@ export class Track {
   }
   get look(): Look {
     return LOOKS[Math.max(0, this.lookIndex)]!;
+  }
+  get style(): WorldStyle {
+    return STYLES[Math.max(0, this.styleIndex)]!;
   }
   /** QA: force the next world's look (by name). */
   forceLook(name: string): void {
@@ -203,6 +224,7 @@ export class Track {
     this.root.name = 'track';
     this.tiles = new TileSystem(kit, this.root);
     this.obstacles = new Obstacles(kit, this.root, this.path);
+    this.landmarks = new Landmarks(kit, this.root, this.path);
     // Foam is generated here rather than in Blender: it is a shader, not a texture.
     kit.geo.set('foam_strip', makeFoamStrip());
     kit.geo.set('foam_ring', makeFoamRing());
@@ -305,6 +327,13 @@ export class Track {
     };
     this.themeIndex = pick(THEMES.length, this.themeIndex);
     this.lookIndex = pick(LOOKS.length, this.lookIndex);
+    // World round 12: a style too (water, season, air, which landmarks), never the last world's.
+    this.styleIndex = QA_STYLE >= 0 ? QA_STYLE : pick(STYLES.length, this.styleIndex);
+    this.lmRng = new Rng(`landmark/${seed}`);
+    this.landmarks.clear();
+    this.landmarkQueue = [...STYLES[this.styleIndex]!.landmarks];
+    this.nextLandmarkS = QA_STYLE >= 0 ? 45 : this.lmRng.range(60, 110);
+    this.turnBlock = { side: 0, n: 0 };
     this.elevation = 0;
     this.obstacles.clear();
     this.path.reset({ pos: new THREE.Vector3(0, 0, 0), yaw: 0 });
@@ -325,8 +354,21 @@ export class Track {
     while (this.path.length < s + this.viewDistance) {
       // Corners alternate (the route never doubles back on itself) and stand at least three
       // sections apart (the legs between them keep the lanes' scenery from meeting).
+      // A landmark just set out on one side also holds back a corner toward it for a few sections.
+      // Sections with cliffs or tall walls along their sides reach past their ends: a corner never
+      // follows one (the exit leg ran through the gorge's cliff), and none follows a corner.
+      const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
+      const afterCorner = this.lastType === 'turnL' || this.lastType === 'turnR';
       const allow = (t: SectionType) =>
-        t === 'turnL' ? this.heading < 1 && this.sinceTurn >= 3 : t === 'turnR' ? this.heading > -1 && this.sinceTurn >= 3 : true;
+        afterCorner && BIG.includes(t)
+          ? false
+          : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType)
+            ? false
+            : t === 'turnL'
+          ? this.heading < 1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side < 0)
+          : t === 'turnR'
+            ? this.heading > -1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side > 0)
+            : true;
       const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
       this.spawn(t, intensity);
       this.lastType = t;
@@ -334,12 +376,30 @@ export class Track {
         this.heading += t === 'turnL' ? 1 : -1;
         this.sinceTurn = 0;
       } else this.sinceTurn++;
+      if (this.turnBlock.n > 0) this.turnBlock.n--;
+      this.maybeLandmark(t);
     }
     while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
       this.despawn(this.sections.shift()!);
     }
     this.obstacles.trim(s);
+    this.landmarks.trim(s);
     this.path.trim(s - 60);
+  }
+
+  /**
+   * World round 12: set the world's next hero landmark out beside a straight section once the route
+   * is far enough along. It goes on the side the route cannot turn toward next (corners alternate),
+   * or, when either way is open, a corner toward it is held back for three sections.
+   */
+  private maybeLandmark(t: SectionType): void {
+    const sec = this.sections[this.sections.length - 1];
+    if (!sec || !this.landmarkQueue.length || sec.s0 < this.nextLandmarkS) return;
+    if (t === 'turnL' || t === 'turnR' || t === 'start' || t === 'tunnel' || sec.len < 12) return;
+    const side = this.heading > 0 ? -1 : this.heading < 0 ? 1 : this.lmRng.chance(0.5) ? 1 : -1;
+    if (this.heading === 0) this.turnBlock = { side, n: 3 };
+    this.landmarks.place(this.landmarkQueue.shift()!, sec.s0 + sec.len / 2, side);
+    this.nextLandmarkS = sec.s0 + this.lmRng.range(130, 220);
   }
 
   private spawn(type: SectionType, intensity = 0): void {
@@ -545,7 +605,7 @@ function stageKit(kit: Kit): void {
     const m = kit.mat.get(key);
     // Detail normals strongest underfoot, where the camera is closest.
     const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' ? 0.8 : key === 'wood' ? 0.4 : 0.6;
-    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor');
+    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
   }
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {

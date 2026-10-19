@@ -149,6 +149,12 @@ export class Water {
     this.mesh.position.z = Math.round(cam.position.z / 50) * 50;
   }
 
+  /** World round 12: the per-world water colours (style.ts). */
+  setTint(shallow: string, deep: string): void {
+    (this.uniforms.uShallow!.value as THREE.Color).set(shallow);
+    (this.uniforms.uDeep!.value as THREE.Color).set(deep);
+  }
+
   setDetail(d: number): void {
     this.uniforms.uDetail!.value = d;
   }

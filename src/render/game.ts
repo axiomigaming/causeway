@@ -121,6 +121,7 @@ export class Game {
   private hemi = new THREE.HemisphereLight(0x9fd0c8, 0x8a5a3a, 0.4);
   /** The world's time-of-day look last applied (round 11; see world/look.ts). */
   private lookApplied: Look | null = null;
+  private styleApplied: unknown = null;
   private mistAmount = 1;
   private tmpHead = new THREE.Vector3(); // perf
   private tmpSize = new THREE.Vector2(); // perf
@@ -335,7 +336,8 @@ export class Game {
   /** Round 11: light and air for the current world's time-of-day look (a few uniforms, once per world). */
   private applyLook(): void {
     const L = this.track.look;
-    if (L === this.lookApplied) return;
+    if (L === this.lookApplied && this.track.style === this.styleApplied) return;
+    this.styleApplied = this.track.style;
     this.lookApplied = L;
     this.sun.color.setHex(L.sun);
     this.sun.intensity = L.sunI;
@@ -353,6 +355,13 @@ export class Game {
     for (const key of ['stoneA', 'stoneB', 'floor', 'statue', 'glyph', 'temple']) {
       const m = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
       m?.color.setRGB(...L.stoneTint);
+    }
+    // World round 12: the world's style — water colours and the season of the leaves.
+    const st = this.track.style;
+    this.water.setTint(st.waterShallow, st.waterDeep);
+    for (const key of ['leaf', 'leaf_jungle']) {
+      const m = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
+      m?.color.setRGB(0.84 * st.foliage[0], 0.9 * st.foliage[1], 0.76 * st.foliage[2]);
     }
     // Round 11: what makes a storm a storm (overcast sky, no sun, soft shadows, rain-wet stone).
     setSkyLook(L.skyTint ?? [1, 1, 1], L.skyDesat ?? 0, L.sunDisc === 0 ? 1 : 0);
@@ -389,7 +398,7 @@ export class Game {
     const fog = this.scene.fog as THREE.FogExp2 | null;
     if (fog) {
       fog.color.copy(this.moodFog.setHex(L.fog).lerp(OMINOUS_FOG, 0.5 * d));
-      fog.density = L.fogDensity * (1 + 0.7 * d);
+      fog.density = L.fogDensity * (1 + 0.7 * d) * this.track.style.fog;
     }
     // Weather is part of the drive: every run starts calm (no rain, light wind), so every look has
     // headroom. The storm look opens as a still, overcast sky and breaks into wind, rain and lightning
