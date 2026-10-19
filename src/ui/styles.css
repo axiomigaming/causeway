@@ -4,8 +4,8 @@
    · One family: Archivo (variable: wght 100–900, wdth 62–125), set on one modular scale:
      12 / 14 / 16 / 20 / 28 / 44 / 72. No other sizes.
    · Surfaces: warm near-black glass with a 1 px hairline; blurred only on the High tiers.
-   · One accent, sunlit amber, as a flat fill. The only theme touch is the temple stair: two small
-     steps cut into each corner of the primary button, and the same stair as a tiny divider glyph.
+   · One accent, sunlit amber, as a flat fill. Every surface shares one radius family (14 / 16 px).
+     The only theme touch is the temple stair: the brand mark and one small divider glyph.
    · 8 pt grid, 16 px phone gutters, every hit target at least 48 px. */
 :root {
   --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -41,10 +41,6 @@
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
-  /* the temple stair: two 4 px steps per corner */
-  --stair: polygon(0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px, 100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px));
-  /* the focus ring around it: 2 px, 2 px clear of the edge, following every step */
-  --stair-ring: polygon(evenodd, 0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px, 100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px), 0 8px, 2px 10px, 6px 10px, 6px 6px, 10px 6px, 10px 2px, calc(100% - 10px) 2px, calc(100% - 10px) 6px, calc(100% - 6px) 6px, calc(100% - 6px) 10px, calc(100% - 2px) 10px, calc(100% - 2px) calc(100% - 10px), calc(100% - 6px) calc(100% - 10px), calc(100% - 6px) calc(100% - 6px), calc(100% - 10px) calc(100% - 6px), calc(100% - 10px) calc(100% - 2px), 10px calc(100% - 2px), 10px calc(100% - 6px), 6px calc(100% - 6px), 6px calc(100% - 10px), 2px calc(100% - 10px), 2px 10px);
   color-scheme: dark;
 }
 
@@ -122,8 +118,9 @@ sup { font-size: 0.7em; line-height: 0; }
 .btn:disabled { cursor: not-allowed; }
 .btn-label { display: inline-flex; align-items: center; gap: 8px; line-height: 1; white-space: nowrap; }
 
-/* ---- the primary: one flat amber fill, the stair cut into its corners. The fill and the focus
-   ring are layers (::before, ::after) so the ring can sit outside the clipped shape. */
+/* ---- the primary: one flat amber fill, the system's 14 px radius. The fill and the focus ring
+   are layers (::before, ::after), so the fill can change colour on its own and the ring sits
+   outside the button. */
 .btn-cta {
   --fill: var(--amber);
   --edge: rgba(255, 246, 222, 0.55);
@@ -148,7 +145,7 @@ sup { font-size: 0.7em; line-height: 0; }
   position: absolute;
   inset: 0;
   z-index: -1;
-  clip-path: var(--stair);
+  border-radius: var(--r);
   background: var(--fill);
   /* the 1 px lighter top inner edge */
   box-shadow: inset 0 1px 0 var(--edge);
@@ -159,8 +156,9 @@ sup { font-size: 0.7em; line-height: 0; }
   position: absolute;
   inset: -4px;
   z-index: -1;
-  clip-path: var(--stair-ring);
-  background: var(--amber);
+  /* the focus ring: 2 px, 2 px clear, concentric with the 14 px corners */
+  border: 2px solid var(--amber);
+  border-radius: calc(var(--r) + 4px);
   opacity: 0;
   transition: opacity 0.12s;
   pointer-events: none;
@@ -263,11 +261,11 @@ sup { font-size: 0.7em; line-height: 0; }
 /* hero: the stair stands on the cap line above the word, flush left with it */
 .logo-title { flex-direction: column; align-items: flex-start; gap: 12px; }
 .logo-title .logo-word { font-size: var(--t72); letter-spacing: 0.06em; margin-right: -0.06em; line-height: 0.9; }
-.logo-title .logo-stair { width: 28px; height: 16px; margin: 0; }
+.logo-title .logo-stair { width: 60px; height: 12px; margin: 0; }
 .logo-compact .logo-word { font-size: var(--t14); }
-.logo-compact .logo-stair { width: 14px; height: 8px; }
+.logo-compact .logo-stair { width: 30px; height: 6px; }
 .logo-mark { display: none; }
-.logo-mark .logo-stair { width: 21px; height: 12px; }
+.logo-mark .logo-stair { width: 45px; height: 9px; }
 
 /* ================================================================== top bar: no box
    brand · history ········· balance · sound · menu, on one line (one baseline); a soft scrim does
@@ -287,7 +285,7 @@ sup { font-size: 0.7em; line-height: 0; }
    14 px word lifted by the difference in descent (20 px figure: ~4 px; 14 px word: ~3 px) */
 .brand { display: flex; align-items: flex-end; gap: 12px; pointer-events: auto; background: none; border: 0; padding: 0 0 5px; min-height: 48px; color: var(--text); }
 .brand .logo { align-items: flex-end; }
-.brand .logo-stair { margin-bottom: 2px; }
+.brand .logo-stair { margin-bottom: 3px; }
 .tag { font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); padding: 0 0 0 12px; border-left: 1px solid var(--hair-2); }
 /* balance: a small label over one tabular figure */
 .balance { display: grid; justify-items: end; row-gap: 2px; line-height: 1; }
@@ -521,7 +519,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 
   .title { justify-content: flex-end; padding-bottom: calc(88px + var(--safe-b)); }
   .logo-title .logo-word { font-size: var(--t44); font-stretch: 112%; letter-spacing: 0.04em; margin-right: -0.04em; }
-  .logo-title .logo-stair { width: 21px; height: 12px; }
+  .logo-title .logo-stair { width: 45px; height: 9px; }
   .title-actions { flex-direction: column; align-items: stretch; gap: 12px; margin-top: 32px; }
   .title-actions .btn { width: 100%; }
   .title-actions .btn-cta { min-width: 0; }

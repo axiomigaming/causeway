@@ -53,7 +53,8 @@
 .hud .mult-glow { display: inline-flex; align-items: baseline; transform-origin: 50% 60%; }
 .hud .mult .mi, .hud .mult .mf { display: inline-block; }
 /* the unit: smaller, lighter, set on the same baseline, a hair apart */
-.hud .mult .x { font-size: var(--t28); font-weight: 600; font-stretch: 100%; letter-spacing: 0; margin-left: 4px; color: var(--label); }
+/* the unit at 44 % of the figure, its ink top on the figures' cap line (Archivo: figures 0.71 em; × at 600 inks 0.03–0.48 em, so it rises (0.71 − 0.44 × 0.48) / 0.44 = 1.134 of its own em) */
+.hud .mult .x, .result .big .unit { position: relative; top: -1.134em; font-size: 0.44em; font-weight: 600; font-stretch: 100%; letter-spacing: 0; margin-left: 0.1em; color: var(--label); }
 .hud .mult-glow.tier-pulse::after { display: none; }
 .hud.lead .mult { color: var(--text-2); }
 .hud.cashing .mult { color: var(--amber-hi); }
@@ -89,7 +90,6 @@
 .result .r-k { font-size: var(--t12); line-height: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber-hi); }
 .result .r-note { font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); padding-left: 8px; border-left: 1px solid var(--hair-2); }
 .result .big { margin-top: 12px; font-size: var(--t44); line-height: 48px; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; color: var(--text); }
-.result .big .unit { font-size: var(--t20); font-weight: 600; font-stretch: 100%; letter-spacing: 0; margin-left: 4px; color: var(--label); }
 .result .line { margin-top: 8px; display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0 8px; font-size: var(--t14); line-height: 20px; color: var(--text-2); }
 .result .line b { font-size: var(--t14); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .result .line b.gain { color: var(--amber-hi); }
@@ -128,13 +128,10 @@
 /* phones: 72 up to "999.99", 44 to "9,999.99"/"99,999.99", 28 beyond (on the scale) */
 @media (max-width: 760px) {
   .hud .mult:is([data-len='8'], [data-len='9']) { font-size: var(--t44); }
-  .hud .mult:is([data-len='8'], [data-len='9']) .x { font-size: var(--t20); }
   .hud .mult:is([data-len='10'], [data-len='11'], [data-len='12'], [data-len='13'], [data-len='14']) { font-size: var(--t28); }
-  .hud .mult:is([data-len='10'], [data-len='11'], [data-len='12'], [data-len='13'], [data-len='14']) .x { font-size: var(--t16); }
 }
 @media (max-width: 360px) {
   .hud .mult { font-size: var(--t44); }
-  .hud .mult .x { font-size: var(--t20); }
   .result .big { font-size: var(--t28); line-height: 32px; }
 }
 /* short phones: a compact card that stays clear of the dock */
@@ -142,7 +139,6 @@
   .hud { --hud-top: 104px; }
   .result { top: calc(96px + var(--safe-t)); padding: 16px 16px 4px; }
   .result .big { margin-top: 8px; font-size: var(--t28); line-height: 32px; }
-  .result .big .unit { font-size: var(--t16); }
   .result .line { margin-top: 4px; gap: 0 4px; font-size: var(--t12); line-height: 16px; }
   .result .line b { font-size: var(--t12); }
   .result .verify { margin-top: 4px; }
@@ -151,7 +147,6 @@
 @media (max-height: 520px) and (orientation: landscape) {
   .hud { --hud-top: 0px; top: calc(var(--safe-t) + 72px); }
   .hud .mult { font-size: var(--t44); }
-  .hud .mult .x { font-size: var(--t20); }
   .hud .hud-sub { margin-top: 8px; }
   .result { top: calc(64px + var(--safe-t)); padding: 16px 24px 8px; }
   .result .big { font-size: var(--t28); line-height: 32px; margin-top: 8px; }
