@@ -18,6 +18,8 @@ import { atmosphereUniforms } from './atmosphere';
 const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
 // QA (dev builds only): ?style=<name> pins the world style.
 const QA_STYLE = import.meta.env.DEV && typeof location !== 'undefined' ? STYLES.findIndex((st) => st.name === new URLSearchParams(location.search).get('style')) : -1;
+/** World round 13: sections that make an open approach to a landmark (water in view, low or no walls). */
+const OPEN_APPROACH: SectionType[] = ['bridge', 'stepping', 'boardwalk', 'plaza', 'corridor', 'ruins', 'sunken'];
 const QA_OBS = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('obs') ?? '').split(',').filter(Boolean) : [];
 
 const VARIANTS: Record<SectionType, number> = {
@@ -188,6 +190,7 @@ export class Track {
   private styleIndex = -1;
   readonly landmarks: Landmarks;
   private landmarkQueue: LandmarkKind[] = [];
+  private pendingLandmark: LandmarkKind | null = null;
   private nextLandmarkS = 1e9;
   private lmRng = new Rng('landmark/0');
   private fallMat = makeWaterfallMaterial();
@@ -224,7 +227,7 @@ export class Track {
     this.root.name = 'track';
     this.tiles = new TileSystem(kit, this.root);
     this.obstacles = new Obstacles(kit, this.root, this.path);
-    this.landmarks = new Landmarks(kit, this.root, this.path);
+    this.landmarks = new Landmarks(kit, this.root);
     // Foam is generated here rather than in Blender: it is a shader, not a texture.
     kit.geo.set('foam_strip', makeFoamStrip());
     kit.geo.set('foam_ring', makeFoamRing());
@@ -332,8 +335,9 @@ export class Track {
     this.lmRng = new Rng(`landmark/${seed}`);
     this.landmarks.clear();
     this.landmarkQueue = [...STYLES[this.styleIndex]!.landmarks];
-    this.nextLandmarkS = QA_STYLE >= 0 ? 45 : this.lmRng.range(60, 110);
+    this.nextLandmarkS = QA_STYLE >= 0 ? 30 : this.lmRng.range(70, 120);
     this.turnBlock = { side: 0, n: 0 };
+    this.pendingLandmark = null;
     this.elevation = 0;
     this.obstacles.clear();
     this.path.reset({ pos: new THREE.Vector3(0, 0, 0), yaw: 0 });
@@ -388,18 +392,27 @@ export class Track {
   }
 
   /**
-   * World round 12: set the world's next hero landmark out beside a straight section once the route
-   * is far enough along. It goes on the side the route cannot turn toward next (corners alternate),
-   * or, when either way is open, a corner toward it is held back for three sections.
+   * World round 13: hero landmarks are staged where the camera looks. Once the route is far enough on
+   * and a corner is allowed, an open section (low parapets or none, water in view) is followed by a
+   * forced corner and an open exit section; the landmark stands straight ahead of that approach, 42 m
+   * past the corner's start and 7 m to the outside of the bend: it fills the end of the view for the
+   * run-up, then the route turns away from it and it slides past on the outside.
    */
   private maybeLandmark(t: SectionType): void {
     const sec = this.sections[this.sections.length - 1];
-    if (!sec || !this.landmarkQueue.length || sec.s0 < this.nextLandmarkS) return;
-    if (t === 'turnL' || t === 'turnR' || t === 'start' || t === 'tunnel' || sec.len < 12) return;
-    const side = this.heading > 0 ? -1 : this.heading < 0 ? 1 : this.lmRng.chance(0.5) ? 1 : -1;
-    if (this.heading === 0) this.turnBlock = { side, n: 3 };
-    this.landmarks.place(this.landmarkQueue.shift()!, sec.s0 + sec.len / 2, side);
-    this.nextLandmarkS = sec.s0 + this.lmRng.range(130, 220);
+    if (!sec) return;
+    if (this.pendingLandmark && (t === 'turnL' || t === 'turnR')) {
+      // turnL bends left: the outside of the bend is to the right (+1), and vice versa.
+      this.landmarks.place(this.pendingLandmark, sec.s0, sec.seg.p0, sec.seg.yaw0, 42, t === 'turnL' ? 7 : -7);
+      this.pendingLandmark = null;
+      this.nextLandmarkS = sec.s0 + this.lmRng.range(170, 260);
+      return;
+    }
+    if (this.pendingLandmark || !this.landmarkQueue.length || sec.s0 + sec.len < this.nextLandmarkS) return;
+    if (!OPEN_APPROACH.includes(t) || this.sinceTurn < 3 || this.turnBlock.n > 0) return;
+    const turn: SectionType = this.heading > 0 ? 'turnR' : this.heading < 0 ? 'turnL' : this.lmRng.chance(0.5) ? 'turnL' : 'turnR';
+    this.forceNext.push(turn, this.lmRng.chance(0.5) ? 'stepping' : 'bridge');
+    this.pendingLandmark = this.landmarkQueue.shift()!;
   }
 
   private spawn(type: SectionType, intensity = 0): void {

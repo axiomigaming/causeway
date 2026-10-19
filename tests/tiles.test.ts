@@ -109,6 +109,39 @@ describe('walkable tiles', () => {
     expect(track.obstacles.list.length).toBe(0);
   });
 
+  it('stages hero landmarks ahead of an open approach, beyond a corner, well off the route', async () => {
+    const track = new Track(fakeKit());
+    await track.prepare({ foliage: 0.4, scenery: 0.4 });
+    const f = { pos: new THREE.Vector3(), yaw: 0 };
+    const at = new THREE.Vector3();
+    let staged = 0;
+    for (let w = 0; w < 6; w++) {
+      track.reset(`landmarks-${w}`);
+      for (let s = 0; s < 1500; s += 25) {
+        track.update(s, 0.5);
+        for (const l of track.landmarks.list) {
+          if (l.root.userData.checked) continue;
+          l.root.userData.checked = true;
+          staged++;
+          at.setFromMatrixPosition(l.root.matrix);
+          const sec = track.sections.find((x) => Math.abs(x.s0 - l.s) < 1e-6)!;
+          expect(sec.type === 'turnL' || sec.type === 'turnR').toBe(true);
+          // Straight ahead of the approach (in view for the run-up)...
+          track.path.sample(l.s - 30, f);
+          const ahead = at.clone().sub(f.pos).setY(0);
+          const fwd = new THREE.Vector3(-Math.sin(f.yaw), 0, -Math.cos(f.yaw));
+          expect(ahead.angleTo(fwd)).toBeLessThan(0.3);
+          // ...and never near the route the runner takes past it.
+          for (let q = l.s - 30; q < Math.min(l.s + 250, track.path.length); q += 2) {
+            track.path.sample(q, f);
+            expect(Math.hypot(f.pos.x - at.x, f.pos.z - at.z)).toBeGreaterThan(25);
+          }
+        }
+      }
+    }
+    expect(staged).toBeGreaterThan(5);
+  });
+
   it('takes real 90° corners that alternate, stand apart and never double back', async () => {
     const track = new Track(fakeKit());
     await track.prepare({ foliage: 0.4, scenery: 0.4 });
