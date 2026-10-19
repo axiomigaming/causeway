@@ -28,31 +28,31 @@ interface Part {
 const KINDS: Record<LandmarkKind, Part[]> = {
   // A colossal guardian toppled into the river, leaning against the current, its head broken off beside it.
   fallen_colossus: [
-    { piece: 'guardian_1', x: 0, y: WATER_Y - 4.5, z: 0, rotY: 0.35, tilt: [-0.42, 0.18], s: 3.9 },
-    { piece: 'head_0', x: 11, y: WATER_Y - 2.4, z: 7, rotY: -0.8, tilt: [0.3, -0.5], s: 2.4 },
-    { piece: 'rock_big_1', x: -7, y: WATER_Y - 3.0, z: 6, rotY: 1.2, s: 0.55 },
+    { piece: 'guardian_1', x: 0, y: WATER_Y - 6.1, z: 0, rotY: 0.35, tilt: [-0.42, 0.18], s: 5.27 },
+    { piece: 'head_0', x: 14.9, y: WATER_Y - 3.2, z: 9.5, rotY: -0.8, tilt: [0.3, -0.5], s: 3.24 },
+    { piece: 'rock_big_1', x: -9.5, y: WATER_Y - 4.1, z: 8.1, rotY: 1.2, s: 0.74 },
   ],
   // A giant face rising out of the water to the brow, gazing back down the causeway.
   river_head: [
-    { piece: 'head_1', x: 0, y: WATER_Y - 6.0, z: 0, rotY: 0.15, tilt: [0.06, 0], s: 4.6 },
-    { piece: 'rubble_3', x: -9, y: WATER_Y - 0.4, z: 8, rotY: 0.6, s: 4.0 },
-    { piece: 'rubble_2', x: 10, y: WATER_Y - 0.4, z: 6, rotY: 2.1, s: 3.2 },
+    { piece: 'head_1', x: 0, y: WATER_Y - 8.1, z: 0, rotY: 0.15, tilt: [0.06, 0], s: 6.21 },
+    { piece: 'rubble_3', x: -12.2, y: WATER_Y - 0.5, z: 10.8, rotY: 0.6, s: 5.40 },
+    { piece: 'rubble_2', x: 13.5, y: WATER_Y - 0.5, z: 8.1, rotY: 2.1, s: 4.32 },
   ],
   // The top tiers and shrine of a drowned pyramid break the water line, its stair toward the runner.
-  sunken_temple: [{ piece: 'temple_0', x: 0, y: WATER_Y - 16, z: -6, rotY: 0, s: 2.3 }],
+  sunken_temple: [{ piece: 'temple_0', x: 0, y: WATER_Y - 21.6, z: -8.1, rotY: 0, s: 3.10 }],
   // A sheer jungle cliff rising straight out of the river.
   jungle_cliff: [
-    { piece: 'cliff_wall_2', x: 0, y: WATER_Y - 2, z: 0, rotY: Math.PI / 2, s: 1.35 },
-    { piece: 'cliff_wall_2_veg', x: 0, y: WATER_Y - 2, z: 0, rotY: Math.PI / 2, s: 1.35 },
-    { piece: 'cliff_wall_2_trees', x: 0, y: WATER_Y - 2, z: 0, rotY: Math.PI / 2, s: 1.35 },
+    { piece: 'cliff_wall_2', x: 0, y: WATER_Y - 2.7, z: 0, rotY: Math.PI / 2, s: 1.82 },
+    { piece: 'cliff_wall_2_veg', x: 0, y: WATER_Y - 2.7, z: 0, rotY: Math.PI / 2, s: 1.82 },
+    { piece: 'cliff_wall_2_trees', x: 0, y: WATER_Y - 2.7, z: 0, rotY: Math.PI / 2, s: 1.82 },
   ],
   // The lone columns of a vanished hall, standing in the water at different heights.
   column_grove: [
-    { piece: 'column_lone_0', x: -9, y: WATER_Y - 2.0, z: 4, s: 1.9 },
-    { piece: 'column_lone_0', x: -2, y: WATER_Y - 0.5, z: -3, rotY: 1.3, s: 2.1 },
-    { piece: 'column_lone_0', x: 6, y: WATER_Y - 4.0, z: 2, rotY: 2.2, s: 1.8 },
-    { piece: 'column_lone_0', x: 12, y: WATER_Y - 6.5, z: 8, rotY: 0.4, tilt: [0.15, -0.3], s: 1.9 },
-    { piece: 'column_lone_0', x: 2, y: WATER_Y - 7.0, z: 9, rotY: 2.9, tilt: [-0.25, 0.4], s: 1.7 },
+    { piece: 'column_lone_0', x: -12.2, y: WATER_Y - 2.7, z: 5.4, s: 2.56 },
+    { piece: 'column_lone_0', x: -2.7, y: WATER_Y - 0.7, z: -4.1, rotY: 1.3, s: 2.84 },
+    { piece: 'column_lone_0', x: 8.1, y: WATER_Y - 5.4, z: 2.7, rotY: 2.2, s: 2.43 },
+    { piece: 'column_lone_0', x: 16.2, y: WATER_Y - 8.8, z: 10.8, rotY: 0.4, tilt: [0.15, -0.3], s: 2.56 },
+    { piece: 'column_lone_0', x: 2.7, y: WATER_Y - 9.5, z: 12.2, rotY: 2.9, tilt: [-0.25, 0.4], s: 2.29 },
   ],
 };
 
@@ -81,8 +81,8 @@ export class Landmarks {
       const base = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
       if (!base) return undefined;
       const c = base.clone();
-      c.color.multiplyScalar(0.88);
-      c.emissive = HAZE.clone().multiplyScalar(0.1);
+      c.color.multiplyScalar(0.8);
+      c.emissive = HAZE.clone().multiplyScalar(0.035);
       this.hazed.set(key, c);
       m = c;
     }
@@ -106,7 +106,8 @@ export class Landmarks {
       if (!g || !mat) continue;
       const sc = p.s ?? 1;
       const m = new THREE.Matrix4().compose(
-        new THREE.Vector3(p.x, p.y, p.z),
+        // Mirrored to the bend: the parts spread toward the outside, away from the exit leg.
+        new THREE.Vector3(p.x * Math.sign(outside || 1), p.y, p.z),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(p.tilt?.[0] ?? 0, p.rotY ?? 0, p.tilt?.[1] ?? 0, 'YXZ')),
         new THREE.Vector3(sc, sc, sc),
       );
