@@ -355,8 +355,16 @@ export class Track {
       // Corners alternate (the route never doubles back on itself) and stand at least three
       // sections apart (the legs between them keep the lanes' scenery from meeting).
       // A landmark just set out on one side also holds back a corner toward it for a few sections.
+      // Sections with cliffs or tall walls along their sides reach past their ends: a corner never
+      // follows one (the exit leg ran through the gorge's cliff), and none follows a corner.
+      const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
+      const afterCorner = this.lastType === 'turnL' || this.lastType === 'turnR';
       const allow = (t: SectionType) =>
-        t === 'turnL'
+        afterCorner && BIG.includes(t)
+          ? false
+          : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType)
+            ? false
+            : t === 'turnL'
           ? this.heading < 1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side < 0)
           : t === 'turnR'
             ? this.heading > -1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side > 0)

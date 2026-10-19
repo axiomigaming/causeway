@@ -134,6 +134,13 @@ describe('walkable tiles', () => {
       } else since++;
     }
     expect(corners).toBeGreaterThan(5);
+    // No cliffs or tall walls next to a corner (their sides reach past the section ends).
+    const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
+    types.forEach((t, i) => {
+      if (t !== 'turnL' && t !== 'turnR') return;
+      expect(BIG).not.toContain(types[i - 1]);
+      if (i + 1 < types.length) expect(BIG).not.toContain(types[i + 1]);
+    });
     // Every corner is a quarter turn, whichever way.
     for (const sec of track.sections) {
       if (sec.type === 'turnL') expect(sec.seg.turn).toBeCloseTo(Math.PI / 2, 6);
