@@ -174,13 +174,13 @@ if (vHalf > 0.0) {
   // World round 12: where the paving meets the parapets — grime and wear in the last ~0.7 m, moss
   // creeping out of the joint, dead leaves gathered against the wall. The slab's own local x is the
   // distance across the path (aHalf: half its width), so it follows every tile, mirrored or turned.
-  float e = smoothstep(vHalf - 0.75, vHalf - 0.04, abs(vTileP.x));
+  float e = smoothstep(vHalf - 0.62, vHalf - 0.04, abs(vTileP.x));
   float n1 = pdN(vWetPos.xz * 3.1);
   float n2 = pdN(vWetPos.xz * 11.0 + 2.0);
-  diffuseColor.rgb *= mix(1.0, mix(0.6, 0.82, n1), e);
-  float moss = e * e * smoothstep(0.42, 0.68, n1 * 0.7 + n2 * 0.3);
+  diffuseColor.rgb *= mix(1.0, mix(0.48, 0.74, n1), e);
+  float moss = e * smoothstep(0.4, 0.62, n1 * 0.7 + n2 * 0.3);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.1, 0.14, 0.05) * (0.7 + 0.6 * n2), moss * 0.75);
-  float litter = e * smoothstep(0.78, 0.84, pdN(vWetPos.xz * 6.5 + 9.0));
+  float litter = e * smoothstep(0.7, 0.76, pdN(vWetPos.xz * 6.5 + 9.0));
   diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.3, 0.18, 0.07), vec3(0.46, 0.32, 0.12), n2), litter * 0.85);
   roughnessFactor = mix(roughnessFactor, 0.95, e * 0.5);
 }

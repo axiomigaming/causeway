@@ -332,7 +332,7 @@ export class Track {
     this.lmRng = new Rng(`landmark/${seed}`);
     this.landmarks.clear();
     this.landmarkQueue = [...STYLES[this.styleIndex]!.landmarks];
-    this.nextLandmarkS = QA_STYLE >= 0 ? 20 : this.lmRng.range(60, 110);
+    this.nextLandmarkS = QA_STYLE >= 0 ? 45 : this.lmRng.range(60, 110);
     this.turnBlock = { side: 0, n: 0 };
     this.elevation = 0;
     this.obstacles.clear();

@@ -30,28 +30,28 @@ export const STYLES: WorldStyle[] = [
     // Jade river, a greener, wetter jungle, a little more haze.
     name: 'jade',
     waterShallow: '#3c9a6e', waterDeep: '#0b3a2a',
-    foliage: [0.92, 1.04, 0.86], fog: 1.15,
+    foliage: [0.86, 1.06, 0.8], fog: 1.15,
     landmarks: ['river_head', 'column_grove'],
   },
   {
     // A clear blue lagoon, cooler leaves, clean air.
     name: 'lagoon',
     waterShallow: '#2aa6b8', waterDeep: '#06364a',
-    foliage: [0.9, 0.98, 1.0], fog: 0.8,
+    foliage: [0.84, 0.98, 1.04], fog: 0.8,
     landmarks: ['sunken_temple', 'fallen_colossus'],
   },
   {
     // Dry season: murky olive water, yellowed leaves, dust in the air.
     name: 'dry',
     waterShallow: '#6aa58a', waterDeep: '#1d4535',
-    foliage: [1.14, 1.0, 0.72], fog: 1.3,
+    foliage: [1.28, 1.02, 0.58], fog: 1.3,
     landmarks: ['column_grove', 'river_head'],
   },
   {
     // Deep rainforest: dark tea-green water, deep greens, heavy air.
     name: 'rainforest',
     waterShallow: '#1f8f7d', waterDeep: '#032c28',
-    foliage: [0.82, 0.96, 0.78], fog: 1.4,
+    foliage: [0.74, 0.94, 0.7], fog: 1.4,
     landmarks: ['jungle_cliff', 'sunken_temple'],
   },
 ];
