@@ -252,16 +252,13 @@ export class Game {
         return { pos: f.pos.clone(), yaw: f.yaw, fwd: forward(f.yaw), right: new THREE.Vector3(Math.cos(f.yaw), 0, -Math.sin(f.yaw)) };
       },
       clearRun: (s0, s1) => this.clearRun(s0, s1),
-      tiles: (s0, s1) => {
-        const out: { piece: string; world: THREE.Matrix4; near: number; far: number; slot: TileSlot }[] = [];
-        for (const sec of this.track.sections)
-          for (const t of sec.tiles) {
-            if (!this.collapsible(t)) continue;
-            const [near, far] = this.tileSpan(t);
-            if (near >= s0 && near <= s1) out.push({ piece: t.piece, world: t.world, near, far, slot: t });
-          }
-        return out.sort((a, b) => a.near - b.near);
-      },
+      tiles: (s0, s1) =>
+        // The world's separable causeway slabs (Track.slabsIn; the stepping sections are built of them).
+        this.track
+          .slabsIn(s0 - 4, s1 + 4)
+          .filter((t) => t.alive && t.sNear >= s0 && t.sNear <= s1)
+          .map((t) => ({ piece: t.piece, world: t.world, near: t.sNear, far: t.sFar, slot: t }))
+          .sort((a, b) => a.near - b.near),
       hideTile: (t) => this.track.hideTile((t as unknown as { slot: TileSlot }).slot),
       add: (o) => this.scene.add(o),
       remove: (o) => {
@@ -283,6 +280,16 @@ export class Game {
       sound: (name, k) => this.sounds.event?.(name, k),
       cue: (name, k) => this.dangerCue(name, k, this.prog.intensity),
       lensBack: () => this.lensAlong(),
+      spawnWorld: (kind, at, seed) => this.track.spawnObstacle(kind, at, seed),
+      removeWorld: (o) => this.track.obstacles.remove(o as Parameters<Track['obstacles']['remove']>[0]),
+      corners: (s0, s1) =>
+        this.track.sections
+          .filter((sec) => (sec.type === 'turnL' || sec.type === 'turnR') && sec.s0 >= s0 && sec.s0 <= s1)
+          .map((sec) => ({ s0: sec.s0, s1: sec.s0 + sec.len, dir: (sec.type === 'turnL' ? 1 : -1) as 1 | -1 })),
+      stepping: (s0, s1) => {
+        for (let x = s0; x <= s1; x += 2) if (this.track.sectionAt(x)?.type === 'stepping') return true;
+        return false;
+      },
     });
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
@@ -1657,8 +1664,9 @@ export class Game {
     if (this.ceilT <= 0) {
       this.ceilT = 0.12;
       const p = cam.position;
-      // Probe from where the lens would be without the previous drop, so the drop does not undo itself.
-      this.ceilP.copy(p).setY(p.y + this.ceilDrop);
+      // The rig places the lens afresh each frame (the drop below is applied after it), so this is
+      // where the lens would be without any drop.
+      this.ceilP.copy(p);
       const top = this.ceilP.clone().setY(this.ceilP.y + 1.6);
       const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
       this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
@@ -1669,7 +1677,7 @@ export class Game {
     let want = this.ceilWant;
     for (const ahead of [0, 0.15, 0.3]) {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
-      if (y !== null) want = Math.max(want, cam.position.y + this.ceilDrop - (y - 0.4));
+      if (y !== null) want = Math.max(want, cam.position.y - (y - 0.4));
     }
     this.ceilDrop += (want - this.ceilDrop) * (1 - Math.exp(-dt * (want > this.ceilDrop ? 14 : 2.5)));
     if (this.ceilDrop < 1e-3) return;
@@ -1984,6 +1992,13 @@ export class Game {
       this.rig.gap = Math.min(1, this.rig.gap + rawDt * 1.4);
       this.rig.focus.copy(rp);
     }
+    // Corners: the lens leads into the bend ahead (Temple Run style), half the turn over the next 6 m.
+    if (this.stage === 'run' || this.stage === 'lead') {
+      const y0 = this.runner.root.rotation.y;
+      const d = this.track.path.sample(this.s + 6).yaw - y0;
+      const want = 0.45 * Math.atan2(Math.sin(d), Math.cos(d));
+      this.rig.yawLead += (want - this.rig.yawLead) * (1 - Math.exp(-rawDt * 5));
+    } else this.rig.yawLead = 0;
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' ? I : 0);
     const cam = this.rig.camera;
     this.ceiling(rawDt);

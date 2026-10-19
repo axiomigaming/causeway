@@ -97,6 +97,8 @@ export class CameraRig {
   subjectAhead = 0;
   /** Metres from the runner to the escape's gate of light (set by the game), for the push. */
   gateAhead = 12;
+  /** Run mode: how far (rad) the lens leads the runner's heading into a bend ahead (the game sets it). */
+  yawLead = 0;
   /**
    * Set by the game when the result card appears: the settled shot then keeps the whole runner in
    * the band between the card (reported as the top inset) and the dock.
@@ -298,7 +300,13 @@ export class CameraRig {
   private computeTarget(runnerPos: THREE.Vector3, runnerYaw: number, intensity: number, dt: number, snap = false) {
     const k = snap ? 1e6 : 1;
     const follow = this.mode === 'run' || this.mode === 'lead' ? 2.6 : this.mode === 'crash' || this.mode === 'cashout' ? 0.6 : 1.6;
-    this.yaw += angleDelta(this.yaw, runnerYaw) * (1 - Math.exp(-follow * dt * k));
+    // Round 14 corners: in the run the lens leads into a bend (yawLead, from the route ahead) and
+    // follows faster through it, so it swings round the corner with him instead of lagging into
+    // the outside wall.
+    const run = this.mode === 'run' || this.mode === 'lead';
+    const lead = run ? this.yawLead : 0;
+    const quick = run ? 1 + 1.2 * Math.min(1, Math.abs(this.yawLead) / 0.5) : 1;
+    this.yaw += angleDelta(this.yaw, runnerYaw + lead) * (1 - Math.exp(-follow * quick * dt * k));
     const yaw = this.yaw;
     this.fwd.set(-Math.sin(yaw), 0, -Math.cos(yaw));
     this.right.set(Math.cos(yaw), 0, -Math.sin(yaw));

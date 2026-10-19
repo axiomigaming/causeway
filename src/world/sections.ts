@@ -555,10 +555,17 @@ function turnCorner(b: Builder): ReturnType<Build> {
   b.place(`rubble_${b.rng.int(0, 3)}`, -R + 0.4, 0, -1.6, b.rng.range(0, 6.28));
   if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, -R + 1.6, 0, -0.4, 0, 0.8);
   if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, -R + 0.6, 0, -0.6, 0, 0.7);
-  // Green behind the outer corner, a limb over it; scenery only on the outside of the bend (the
+  // Green behind the outer corner; scenery only on the outside of the bend (the
   // inside is where the exit leg's own world begins).
   jungleBank(b, 1, PATH_HALF + 4.5, -3, 0, 0.8);
-  canopy(b, 1, -R, 0, 0.5);
+  // No canopy here: its limb arched across the entry lane runs right along the exit leg, and the camera
+  // filmed leaves at the exit of every corner. A big tree stands outside the bend instead.
+  if (b.foliage(0.6)) {
+    const t = b.rng.int(0, 1);
+    const ry = b.rng.range(0, 6.28);
+    b.place(`tree_big_${t}_trunk`, PATH_HALF + 6.5, WL, -R - 4.5, ry, 0.8);
+    b.place(`tree_big_${t}_crown`, PATH_HALF + 6.5, WL, -R - 4.5, ry, 0.8);
+  }
   scenery(b, TURN_LEN, { sides: [1], minX: 10 });
   return { turn: Math.PI / 2, hazards: ['rockfall'], walls: 'low' };
 }
