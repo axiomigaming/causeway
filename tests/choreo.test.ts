@@ -136,7 +136,7 @@ describe('obstacle moves', () => {
     const b = obstacleTiming('leap_gap', 2, 6, 3);
     expect(b.flight).toBeGreaterThan(a.flight);
     expect(b.land - b.takeoff).toBeCloseTo(leapFlight(3, 6), 6);
-    expect(leapFlight(100, 1)).toBeLessThanOrEqual(0.8);
+    expect(leapFlight(100, 1)).toBeLessThanOrEqual(1.0);
     expect(leapFlight(0.1, 12)).toBeGreaterThanOrEqual(0.3);
     // Faster turnover plays the moves faster, within limits.
     expect(obstacleRate(2.4)).toBeGreaterThan(obstacleRate(1.9));

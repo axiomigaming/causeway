@@ -68,8 +68,19 @@ def face_bm(seed, rings=30, segs=40, crown=True, cuts=2):
     bmesh.ops.create_uvsphere(t, u_segments=segs, v_segments=rings, radius=1.0)
     if cuts:
         front = [f for f in t.faces if f.calc_center_median().y < -0.3 and -0.9 < f.calc_center_median().z < 0.6]
-        edges = {e for f in front for e in f.edges}
-        bmesh.ops.subdivide_edges(t, edges=list(edges), cuts=cuts, use_grid_fill=True)
+        # A set of BMEdges iterates in memory-address order: sorted by index so the subdivision (and the
+        # vertex order of the whole head) is the same on every run.
+        t.edges.index_update()
+        edges = sorted({e for f in front for e in f.edges}, key=lambda e: e.index)
+        bmesh.ops.subdivide_edges(t, edges=edges, cuts=cuts, use_grid_fill=True)
+        # The grid fill still creates its vertices in a run-dependent order (internal pointer hashing):
+        # put vertices and faces in a canonical order (by position) so every build is identical.
+        vr = {v: i for i, v in enumerate(sorted(t.verts, key=lambda v: (round(v.co.z, 5), round(v.co.y, 5), round(v.co.x, 5))))}
+        t.verts.sort(key=lambda v: vr[v])
+        t.verts.index_update()
+        fr_ = {f: i for i, f in enumerate(sorted(t.faces, key=lambda f: tuple(sorted(v.index for v in f.verts))))}
+        t.faces.sort(key=lambda f: fr_[f])
+        t.faces.index_update()
     off = Vector((seed * 1.3, seed * 0.7, 0))
     for v in t.verts:
         p = v.co.copy()

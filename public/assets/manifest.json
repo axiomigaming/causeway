@@ -5,29 +5,29 @@
     "high": {
       "kit": {
         "file": "kit.high.glb",
-        "bytes": 12033652,
-        "v": "5aa3b33b55",
-        "src": "facd03d9a7"
+        "bytes": 12046204,
+        "v": "56c9175d0a",
+        "src": "9f2256befe"
       },
       "runner": {
         "file": "runner.high.glb",
-        "bytes": 768952,
-        "v": "bddb5fbab0",
-        "src": "fab404c491"
+        "bytes": 769768,
+        "v": "6aa8af4a04",
+        "src": "f78d8daae1"
       }
     },
     "mobile": {
       "kit": {
         "file": "kit.mobile.glb",
-        "bytes": 5614080,
-        "v": "dbd2ac9ad6",
-        "src": "1ba0e32e07"
+        "bytes": 5597084,
+        "v": "5efbde5337",
+        "src": "8248387ea4"
       },
       "runner": {
         "file": "runner.mobile.glb",
-        "bytes": 768952,
-        "v": "bddb5fbab0",
-        "src": "52a9ba1512"
+        "bytes": 769768,
+        "v": "6aa8af4a04",
+        "src": "9276eec045"
       }
     }
   },
