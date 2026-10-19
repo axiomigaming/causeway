@@ -260,9 +260,10 @@ sup { font-size: 0.7em; line-height: 0; }
 .logo { display: inline-flex; align-items: center; gap: 12px; line-height: 1; color: var(--text); white-space: nowrap; }
 .logo-stair { flex: none; color: var(--amber); }
 .logo-word { font-weight: 800; font-stretch: 125%; text-transform: uppercase; letter-spacing: 0.14em; margin-right: -0.14em; }
-.logo-title { gap: 16px; }
+/* hero: the stair stands on the cap line above the word, flush left with it */
+.logo-title { flex-direction: column; align-items: flex-start; gap: 12px; }
 .logo-title .logo-word { font-size: var(--t72); letter-spacing: 0.06em; margin-right: -0.06em; line-height: 0.9; }
-.logo-title .logo-stair { width: 28px; height: 16px; align-self: flex-start; margin-top: 4px; }
+.logo-title .logo-stair { width: 28px; height: 16px; margin: 0; }
 .logo-compact .logo-word { font-size: var(--t14); }
 .logo-compact .logo-stair { width: 14px; height: 8px; }
 .logo-mark { display: none; }
@@ -517,8 +518,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .cash { height: 64px; padding: 0 20px; }
 
   .title { justify-content: flex-end; padding-bottom: calc(88px + var(--safe-b)); }
-  .logo-title .logo-word { font-size: var(--t44); }
-  .logo-title .logo-stair { width: 21px; height: 12px; margin-top: 2px; }
+  .logo-title .logo-word { font-size: var(--t44); font-stretch: 112%; letter-spacing: 0.04em; margin-right: -0.04em; }
+  .logo-title .logo-stair { width: 21px; height: 12px; }
   .title-actions { flex-direction: column; align-items: stretch; gap: 12px; margin-top: 32px; }
   .title-actions .btn { width: 100%; }
   .title-actions .btn-cta { min-width: 0; }
