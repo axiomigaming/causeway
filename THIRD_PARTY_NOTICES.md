@@ -5,7 +5,7 @@ Apart from the CC0 photoscans listed below, CAUSEWAY ships no third-party art. E
 runner's source mesh and textures, which were supplied by the project owner —
 see `blender/sources/runner/PROVENANCE.md`.
 
-Fonts, all under the SIL Open Font License 1.1 and bundled from npm: Bungee (`@fontsource/bungee`), Marcellus SC (`@fontsource/marcellus-sc`) and Alegreya Sans (`@fontsource/alegreya-sans`). Interface frame art in `public/ui/` is rendered by `blender/build_ui.py`.
+Fonts, under the SIL Open Font License 1.1 and bundled from npm: Archivo (`@fontsource-variable/archivo`, Omnibus-Type).
 
 ## Photoscanned materials (Poly Haven, CC0 1.0)
 
