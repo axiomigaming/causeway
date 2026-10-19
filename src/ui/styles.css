@@ -502,8 +502,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 
 /* phones, portrait: brand · balance · sound · menu on one line, history below */
 @media (max-width: 760px) {
-  .topbar { grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 12px; row-gap: 8px; padding: max(16px, calc(var(--safe-t) + 8px)) calc(16px + var(--safe-r)) 0 calc(16px + var(--safe-l)); }
+  .topbar { grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 8px; row-gap: 8px; padding: max(16px, calc(var(--safe-t) + 8px)) calc(16px + var(--safe-r)) 0 calc(16px + var(--safe-l)); }
   .tools { margin-right: -12px; }
+  /* the wordmark steps down to 12 so brand · balance · sound · menu fit one line at 390 */
+  .logo-compact { gap: 8px; }
+  .logo-compact .logo-word { font-size: var(--t12); letter-spacing: 0.12em; margin-right: -0.12em; }
   .brand { grid-column: 1; grid-row: 1; }
   .brand .tag { display: none; }
   .balance { grid-column: 3; grid-row: 1; }
@@ -535,10 +538,12 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .btn-cta { height: 56px; }
   .cash { height: 60px; }
 }
-@media (max-width: 360px) {
-  .topbar { column-gap: 8px; }
+/* below 389 (375 / 360 / 320 phones) the stair mark alone is the brand in the bar */
+@media (max-width: 388px) {
   .logo-compact { display: none; }
   .logo-mark { display: inline-flex; }
+}
+@media (max-width: 360px) {
   .chips { gap: 4px; }
   .qchip { font-size: var(--t12); }
   .amount input { font-size: var(--t20); }
