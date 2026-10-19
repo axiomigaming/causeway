@@ -86,11 +86,11 @@ export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
     <path d="M6 12h12M12 6v12" />
   </svg>
 );
-/** The one theme mark: a temple stair (ziggurat) in four steps. A tiny divider glyph and the
- *  brand's mark; the primary button's stepped corners echo it. */
+/** The one theme mark: a temple stair (ziggurat) in three even steps, each 2 high and 5 wide
+ *  (2.5:1), on a 30×6 grid. Drawn at 30×6, 45×9 or 60×12 so every edge lands on a pixel. */
 export const Stair = (p: SVGProps<SVGSVGElement>) => (
-  <svg width="14" height="8" viewBox="0 0 14 8" aria-hidden {...p}>
-    <path d="M0 8V6h2V4h2V2h2V0h2v2h2v2h2v2h2v2z" fill="currentColor" />
+  <svg width="30" height="6" viewBox="0 0 30 6" shapeRendering="crispEdges" aria-hidden {...p}>
+    <path d="M0 6V4h5V2h5V0h10v2h5v2h5v2z" fill="currentColor" />
   </svg>
 );
 /** Hairline · stair · hairline: the only divider in the interface. */
