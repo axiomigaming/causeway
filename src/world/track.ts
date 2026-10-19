@@ -393,9 +393,9 @@ export class Track {
 
   /**
    * World round 13: hero landmarks are staged where the camera looks. Once the route is far enough on
-   * and a corner is allowed, an open section (low parapets or none, water in view) is followed by a
-   * forced corner and an open exit section; the landmark stands straight ahead of that approach, 42 m
-   * past the corner's start and 7 m to the outside of the bend: it fills the end of the view for the
+   * and a corner is allowed, two open sections (bridge or stepping slabs: water in view) are followed by a
+   * forced corner and an open exit section; the landmark stands straight ahead of that approach, 26 m
+   * past the corner's start and 13 m to the outside of the bend: it fills the end of the view for the
    * run-up, then the route turns away from it and it slides past on the outside.
    */
   private maybeLandmark(t: SectionType): void {
@@ -403,15 +403,17 @@ export class Track {
     if (!sec) return;
     if (this.pendingLandmark && (t === 'turnL' || t === 'turnR')) {
       // turnL bends left: the outside of the bend is to the right (+1), and vice versa.
-      this.landmarks.place(this.pendingLandmark, sec.s0, sec.seg.p0, sec.seg.yaw0, 42, t === 'turnL' ? 7 : -7);
+      this.landmarks.place(this.pendingLandmark, sec.s0, sec.seg.p0, sec.seg.yaw0, 26, t === 'turnL' ? 13 : -13);
       this.pendingLandmark = null;
       this.nextLandmarkS = sec.s0 + this.lmRng.range(170, 260);
       return;
     }
     if (this.pendingLandmark || !this.landmarkQueue.length || sec.s0 + sec.len < this.nextLandmarkS) return;
-    if (!OPEN_APPROACH.includes(t) || this.sinceTurn < 3 || this.turnBlock.n > 0) return;
+    if (!OPEN_APPROACH.includes(t) || this.sinceTurn < 1 || this.turnBlock.n > 0) return;
     const turn: SectionType = this.heading > 0 ? 'turnR' : this.heading < 0 ? 'turnL' : this.lmRng.chance(0.5) ? 'turnL' : 'turnR';
-    this.forceNext.push(turn, this.lmRng.chance(0.5) ? 'stepping' : 'bridge');
+    // Two open sections of run-up (bridge or stepping slabs: water and sky in view), the corner, an open exit.
+    const open = (): SectionType => (this.lmRng.chance(0.5) ? 'stepping' : 'bridge');
+    this.forceNext.push(open(), open(), turn, open());
     this.pendingLandmark = this.landmarkQueue.shift()!;
   }
 
