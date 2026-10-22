@@ -661,8 +661,11 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
         b.place(`rock_big_${side > 0 ? 1 : 2}`, side * 14, WL - 1, 30, b.rng.range(0, 6.28), 0.75);
       }
       b.place('rock_big_0', 0, WL - 2, 38, 0.6, [1.1, 0.8, 1.0]);
-      if (b.foliage(1)) b.place('tree_big_0_trunk', -5, WL, 26, 1.2, 1.0);
-      if (b.foliage(1)) b.place('tree_big_0_crown', -5, WL, 26, 1.2, 1.0);
+      // (One check for both: on a phone the trunk stood bare when only its crown was thinned out.)
+      if (b.foliage(1)) {
+        b.place('tree_big_0_trunk', -5, WL, 26, 1.2, 1.0);
+        b.place('tree_big_0_crown', -5, WL, 26, 1.2, 1.0);
+      }
       scenery(b, 12);
       return { hazards: ['gate'], walls: 'low' };
     },
