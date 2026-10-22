@@ -1225,8 +1225,12 @@ export class Game {
       if (under) {
         this.later(dropT - 0.06, () => {
           this.track.hideTile(under);
-          // It drops out from under him (fast, back under the lip, tipping), never riding down with him.
-          this.debris.spawn(under.piece, under.world, h.fwd.clone().multiplyScalar(-1.5).setY(-3), h.right.clone().multiplyScalar(r.chance(0.5) ? 2.5 : -2.5), () => null, { breakInto: 3, breakAfter: 0.3 });
+          // No debris for the slab under him: whatever it did (drop, tip, break) it fell with him at the
+          // same speed and he rode it or clipped it. It crumbles into the dust instead (burst, puff).
+          for (let k = 0; k < 4; k++) {
+            const q = this.runner.root.position.clone().addScaledVector(h.right, r.range(-1.6, 1.6)).addScaledVector(h.fwd, r.range(-1.2, 0.4));
+            this.particles.burst(q, 6, { spread: 0.4, up: 0.2, speed: 0.6, size: 0.2, life: 1.2, color: DUST_DARK, alpha: 0.6, gravity: 9, drag: 0.2, grow: 0 });
+          }
           const p = this.runner.root.position.clone();
           this.particles.burst(p, 10, { spread: 2.2, up: 1.2, speed: 2, size: 0.5, life: 1.4, color: DUST, alpha: 0.3 });
           B.puff(p, { count: 2 + Math.round(2 * F.dust), spread: 2.4, jitter: 0.8, vel: new THREE.Vector3(0, 1.4, 0), size: [0.9, 2.8 + 1.5 * e], life: 2.4, alpha: 0.36, tint: DUST_T, rise: 0.3 });
