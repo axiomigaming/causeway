@@ -35,9 +35,10 @@ export function Title() {
           <Divider className="rule" />
           <p className="tagline">The old road is coming apart beneath you. Every step deeper raises the multiplier — leave with it before the way falls.</p>
           {fatal ? (
-            <p className="tagline" role="alert" style={{ color: 'var(--ember)', marginTop: 24 }}>
-              {fatal}
-            </p>
+            <div className="notice" role="alert">
+              <span className="eyebrow">Can't reach the ruins</span>
+              <p>{fatal}</p>
+            </div>
           ) : ready ? (
             <div className="title-actions">
               <button className={`btn btn-cta cta-go enter-btn${leaving ? ' busy' : ''}`} onClick={enter} onMouseEnter={() => ctl?.audio.ui('hover')} autoFocus>
