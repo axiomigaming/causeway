@@ -416,7 +416,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
    solid warm near-black on every tier, so nothing behind it ghosts through */
 .veil { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(8, 6, 4, 0.55); pointer-events: auto; animation: fadein 0.2s; }
 :root[data-quality='high'] .veil, :root[data-quality='ultra'] .veil { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-.veil .sheet { background: rgba(20, 16, 12, 0.97); }
+.veil .sheet { background: #14100c; }
 .sheet { position: relative; width: min(560px, 100%); max-height: min(84vh, 760px); display: flex; flex-direction: column; overflow: hidden; animation: sheetIn 0.22s var(--ease); }
 .sheet.wide { width: min(720px, 100%); }
 .sheet:focus { outline: none; }
