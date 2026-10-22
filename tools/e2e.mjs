@@ -152,6 +152,15 @@ for (const name of pick) {
     const realMult = c.currentMult, realRet = c.currentReturn;
     const staged = { phase: 'running', result: null, live: { id: 'e2e-heat', nonce: 0, commitment: '', clientSeed: '', stake: 1000, autoCashout: null, runStartsAt: 0 } };
     const out = [];
+    // first let the staged live plate mount (slow on a loaded machine); then sample each point
+    s.getState().set(staged);
+    const tm = performance.now();
+    while (performance.now() - tm < 60000) {
+      const b = document.querySelector('.cash');
+      if (b && !b.classList.contains('lead') && !b.classList.contains('held') && b.style.getPropertyValue('--heat-fill')) break;
+      if (s.getState().phase !== 'running' || s.getState().live?.id !== 'e2e-heat') s.getState().set(staged);
+      await new Promise((r) => setTimeout(r, 50));
+    }
     for (const m of [200, 350, 351, 500, 1000]) {
       c.currentMult = () => m;
       c.currentReturn = () => (1000 * m) / 100;
@@ -159,7 +168,7 @@ for (const name of pick) {
       let fill = '';
       while (performance.now() - t0 < 8000) {
         if (s.getState().phase !== 'running' || s.getState().live?.id !== 'e2e-heat') s.getState().set(staged);
-        await new Promise((r) => requestAnimationFrame(r));
+        await new Promise((r) => setTimeout(r, 50));
         const b = document.querySelector('.cash');
         // only a live plate counts (not the lead or held states, which use fixed tokens)
         if (b && !b.classList.contains('lead') && !b.classList.contains('held') && b.style.getPropertyValue('--heat-fill')) {
