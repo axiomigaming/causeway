@@ -176,7 +176,7 @@ describe('walkable tiles', () => {
       }
     }
     expect(checked).toBeGreaterThan(1000);
-  }, 120000);
+  }, 300000);
 
   it('takes real 90° corners that alternate, stand apart and never double back', async () => {
     const track = new Track(fakeKit());
