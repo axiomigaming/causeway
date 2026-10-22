@@ -93,6 +93,9 @@ export function makeWaterfallMaterial(): THREE.ShaderMaterial {
           float billow = fbm(vec2(q.x * 3.0 + vSeed * 7.0, q.y * 2.5 - uTime * 0.9)) ;
           float b2 = fbm(vec2(q.x * 6.0 - uTime * 0.3, q.y * 5.0 - uTime * 1.6 + vSeed * 3.0));
           float a = shape * smoothstep(0.3, 0.75, billow * 0.7 + b2 * 0.45) * 0.4;
+          // World round 16: thin out toward the foot, where the card cuts into the stone or the water
+          // (its densest band ended in a hard white line along the causeway's edge).
+          a *= smoothstep(0.04, 0.3, q.y);
           vec3 c = mix(vec3(0.85, 0.9, 0.9), vec3(1.0, 0.94, 0.82), back);
           c *= 0.92 + back * 0.3;
           col = vec4(c, a);

@@ -38,7 +38,7 @@ interface Part {
 }
 
 // QA (dev builds only): ?headyaw= overrides the fallen head's yaw.
-const QA_HEAD_YAW = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('headyaw') ? Number(new URLSearchParams(location.search).get('headyaw')) : 0.6;
+const QA_HEAD_YAW = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('headyaw') ? Number(new URLSearchParams(location.search).get('headyaw')) : 0.3;
 
 const KINDS: Record<LandmarkKind, Part[]> = {
   // A drowned colossus: its fallen head (≈45 m) lying on its cheek in the river, face turned to the
@@ -88,15 +88,16 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // The 25–30 m columns of a vanished hall standing in the water, some leaning, some fallen against
   // others, at different depths.
   column_grove: [
-    { piece: 'column_lone_0', x: -14, y: WATER_Y - 2.5, z: 4, s: 3.22 },
-    { piece: 'column_lone_0', x: -6, y: WATER_Y - 1, z: -4, rotY: 1.3, s: 3.45 },
-    { piece: 'column_lone_0', x: 2, y: WATER_Y - 3.5, z: 2, rotY: 2.2, s: 3.10 },
-    { piece: 'column_lone_0', x: 10, y: WATER_Y - 1.5, z: -6, rotY: 0.7, s: 3.33 },
-    { piece: 'column_lone_0', x: 18, y: WATER_Y - 4.5, z: 4, rotY: 2.9, s: 2.99 },
-    { piece: 'column_lone_0', x: -2, y: WATER_Y - 5.5, z: -16, rotY: 0.2, s: 3.45 },
-    { piece: 'column_lone_0', x: 14, y: WATER_Y - 7.5, z: 12, rotY: 0.4, tilt: [0.1, -0.42], s: 3.22 },
-    { piece: 'column_lone_0', x: -10, y: WATER_Y - 8.5, z: 14, rotY: 2.9, tilt: [-0.2, 0.5], s: 2.99 },
-    { piece: 'column_lone_0', x: 6, y: WATER_Y - 2.5, z: -14, rotY: 1.9, tilt: [0.15, 0.22], s: 3.33 },
+    // (Light haze, round 16: under the full haze the stone read as bleached plaster in the golden look.)
+    { piece: 'column_lone_0', x: -14, y: WATER_Y - 2.5, z: 4, s: 3.22, haze: 'light' },
+    { piece: 'column_lone_0', x: -6, y: WATER_Y - 1, z: -4, rotY: 1.3, s: 3.45, haze: 'light' },
+    { piece: 'column_lone_0', x: 2, y: WATER_Y - 3.5, z: 2, rotY: 2.2, s: 3.10, haze: 'light' },
+    { piece: 'column_lone_0', x: 10, y: WATER_Y - 1.5, z: -6, rotY: 0.7, s: 3.33, haze: 'light' },
+    { piece: 'column_lone_0', x: 18, y: WATER_Y - 4.5, z: 4, rotY: 2.9, s: 2.99, haze: 'light' },
+    { piece: 'column_lone_0', x: -2, y: WATER_Y - 5.5, z: -16, rotY: 0.2, s: 3.45, haze: 'light' },
+    { piece: 'column_lone_0', x: 14, y: WATER_Y - 7.5, z: 12, rotY: 0.4, tilt: [0.1, -0.42], s: 3.22, haze: 'light' },
+    { piece: 'column_lone_0', x: -10, y: WATER_Y - 8.5, z: 14, rotY: 2.9, tilt: [-0.2, 0.5], s: 2.99, haze: 'light' },
+    { piece: 'column_lone_0', x: 6, y: WATER_Y - 2.5, z: -14, rotY: 1.9, tilt: [0.15, 0.22], s: 3.33, haze: 'light' },
     // A broken pier and a fallen shaft beside the approach.
     { piece: 'pillar_1', x: -1, y: WATER_Y - 0.8, z: 50, rotY: 0.3, s: 2.2, near: true },
     { piece: 'column_fallen_1', x: -22, y: WATER_Y - 0.9, z: 58, rotY: 1.2, s: 1.8, near: true },
@@ -143,7 +144,17 @@ export class Landmarks {
         // The fallen head's own material: light haze and a warm bounce off the river into its face,
         // so the features read against the low sun.
         c.color.multiply(new THREE.Color(0.92, 0.94, 0.98));
-        c.emissive = new THREE.Color(0xffc796).multiplyScalar(0.12);
+        c.emissive = new THREE.Color(0xffc796).multiplyScalar(0.2);
+        // The bounce is a fill from the viewer's side, not a flat glow: strongest on the planes that face
+        // the lens (cheek, brow, the bridge of the nose), falling off where they turn away, so the
+        // features keep their relief against the backlight.
+        c.onBeforeCompile = (sh) => {
+          sh.fragmentShader = sh.fragmentShader.replace(
+            '#include <emissivemap_fragment>',
+            '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= pow(max(normal.z, 0.0), 1.6) * 1.1;',
+          );
+        };
+        c.customProgramCacheKey = () => 'faceFill';
       } else if (haze === 'light') {
         c.color.multiply(new THREE.Color(0.9, 0.93, 0.98));
         c.emissive = HAZE.clone().multiplyScalar(0.035);

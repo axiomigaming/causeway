@@ -16,6 +16,8 @@ import { upgradeLeafMaterial } from './foliage';
 import { atmosphereUniforms } from './atmosphere';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
+// QA (?w=<seed>): the same world every time, whatever world came before it.
+const QA_SEEDED = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('w');
 const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
 // QA (dev builds only): ?style=<name> pins the world style.
 const QA_STYLE = import.meta.env.DEV && typeof location !== 'undefined' ? STYLES.findIndex((st) => st.name === new URLSearchParams(location.search).get('style')) : -1;
@@ -255,7 +257,9 @@ export class Track {
     this.density = density;
     // The lightest tier (phones) skips the detail normals: a few dozen ALU per stone pixel.
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
-    if (causticUniforms.uDetail.value > 0) ensureDetailMap();
+    // (It keeps one planar fetch on the near paving: one texture read on the pixels nearest the lens.)
+    causticUniforms.uDetailLite.value = density.scenery >= 0.5 ? 0 : 1;
+    ensureDetailMap();
     // Build into a fresh map and swap at the end: the route keeps spawning from the old
     // variants meanwhile, and their geometry is retired only when the world next resets.
     const next = new Map<SectionType, Variant[]>();
@@ -339,7 +343,7 @@ export class Track {
     const plan = new Rng(`plan/${seed}`);
     const pick = (n: number, last: number) => {
       const k = plan.int(0, n - 2);
-      return last < 0 ? plan.int(0, n - 1) : k >= last ? k + 1 : k;
+      return last < 0 || QA_SEEDED ? plan.int(0, n - 1) : k >= last ? k + 1 : k;
     };
     this.themeIndex = pick(THEMES.length, this.themeIndex);
     this.lookIndex = pick(LOOKS.length, this.lookIndex);

@@ -19,6 +19,8 @@ export const causticUniforms = {
   uDetail: { value: 1 },
   uDetailReady: { value: 0 },
   uDetailMap: { value: null as THREE.Texture | null },
+  /** World round 16: the lightest tier's one planar detail fetch on the near paving (0 = off). */
+  uDetailLite: { value: 0 },
   /** Rain: every surface wet (0..1), on top of the waterline and spray. */
   uRainWet: { value: 0 },
   /** xyz: foot of a waterfall (world), w: reach of its spray (m). w = 0: unused. */
@@ -120,6 +122,7 @@ const DETAIL_PARS = /* glsl */ `
 uniform float uDetail;
 uniform float uDetailReady;
 uniform sampler2D uDetailMap;
+uniform float uDetailLite;
 // One triplanar lookup: xyz = world-space tilt to add to the normal, w = cavity (0 deep .. 1 proud).
 vec4 dtTri(vec3 p, vec3 w, vec3 n) {
   vec3 tx = texture2D(uDetailMap, p.zy).rgb, ty = texture2D(uDetailMap, p.xz).rgb, tz = texture2D(uDetailMap, p.xy).rgb;
@@ -161,7 +164,22 @@ if (uDetail > 0.0 && uDetailReady > 0.0) {
     float cav = mix(a.w, a.w * (0.6 + 0.8 * b.w), fine);
     diffuseColor.rgb *= mix(1.0, 0.62 + 0.7 * cav, min(1.0, k * 1.2));
   }
-}`;
+}
+#ifdef WET_EDGES
+// World round 16, the lightest tier: the paving alone gets one planar fetch of the scan in the
+// nearest metres (the soft mobile slab textures repeated one blemish slab after slab).
+else if (uDetailLite > 0.0 && uDetailReady > 0.0) {
+  float k = uDetailLite * DETAIL_AMP * (1.0 - smoothstep(7.0, 18.0, length(vViewPosition)));
+  if (k > 0.0) {
+    vec3 t = texture2D(uDetailMap, vWetPos.xz * 0.8).rgb;
+    vec2 a = t.rg * 2.0 - 1.0;
+    vec3 bn = normal + (mat3(viewMatrix) * vec3(a.x, 0.0, a.y)) * 1.5 * k;
+    float bl = length(bn);
+    if (bl > 1e-4) normal = bn / bl;
+    diffuseColor.rgb *= mix(1.0, 0.62 + 0.7 * t.b, min(1.0, k * 1.2));
+  }
+}
+#endif`;
 
 const FRAG_WET = /* glsl */ `
 #ifdef WET_MOSS
