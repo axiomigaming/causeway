@@ -90,11 +90,12 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
           vec3 ng = normalize(cross(dFdx(vLeafW), dFdy(vLeafW)));
           float face = abs(dot(ng, normalize(cameraPosition - vLeafW)));
           if (uLeafEdge > 0.5 && leafH(gl_FragCoord.xy * 0.37 + vLeafW.xz) > smoothstep(0.06, 0.3, face)) discard;
-          // Cinematics hook (round 15): leaves within ~1.3 m of the lens dissolve (screen dither), so
+          // Cinematics hook (round 15): leaves within ~0.75 m of the lens dissolve (screen dither; a wider
+          // band stippled whole bushes dark), so
           // the low chase lens ducking under a lintel or brushing a banana plant at the path's edge
           // never fills the frame with one flat leaf card.
           float lensD = length(vLeafW - cameraPosition);
-          if (leafH(gl_FragCoord.xy * 0.53 + 3.1) > smoothstep(0.45, 1.3, lensD)) discard;
+          if (leafH(gl_FragCoord.xy * 0.53 + 3.1) > smoothstep(0.3, 0.75, lensD)) discard;
         }`,
       )
       .replace(
