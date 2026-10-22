@@ -174,7 +174,7 @@ export class CameraRig {
     this.bob = this.bobV = this.sway = this.swayV = 0;
     this.swing = this.swingTarget = 0;
     this.pull = this.pullTarget = 1;
-    this.standBack = 0;
+    this.standBack = this.standBackV = 0;
     this.fov = 58;
     const c = this.camera;
     c.position.copy(this.pos);
@@ -194,7 +194,7 @@ export class CameraRig {
     this.pull = this.pullTarget = 1;
     // A new round starts clean: no leftover shake, lens punch or jolt from the last cinematic.
     this.trauma = 0;
-    this.standBack = 0;
+    this.standBack = this.standBackV = 0;
     this.fovKick = 0;
     this.bob = this.bobV = this.sway = this.swayV = 0;
     const fov = this.computeTarget(runnerPos, runnerYaw, 0, 1 / 60, true);
@@ -700,7 +700,7 @@ export class CameraRig {
     this.camera.lookAt(this.look);
     this.camera.fov = this.fov;
     if (this.mode !== 'title') this.keepInFrame(runnerPos, dt);
-    else this.standBack = 0;
+    else this.standBack = this.standBackV = 0;
     this.rollKick *= Math.exp(-dt * 2.6);
     this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.25 + this.dutch + hr + this.rollKick);
     this.camera.fov = this.fov;
@@ -757,6 +757,7 @@ export class CameraRig {
    */
   /** Eased stand-back distance of a settled shot (m along the view; see keepInFrame). */
   private standBack = 0;
+  private standBackV = 0;
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
     if (this.mode === 'crash' && this.gap > 0.3) return; // looking down into the gap after him
     const c = this.camera;
@@ -809,7 +810,10 @@ export class CameraRig {
         const k = Math.max(needV, needH);
         if (k > 1) want = m.depth * (k - 1);
       }
-      this.standBack += (want - this.standBack) * (1 - Math.exp(-dt * 3.5));
+      // Critically damped (it starts from rest, so the dolly-out has no lurch at its first frame).
+      const w = 4;
+      this.standBackV += (w * w * (want - this.standBack) - 2 * w * this.standBackV) * dt;
+      this.standBack = Math.max(0, this.standBack + this.standBackV * dt);
       if (this.standBack > 0.01) {
         c.getWorldDirection(this.tmp);
         c.position.addScaledVector(this.tmp, -this.standBack);
