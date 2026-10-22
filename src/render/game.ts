@@ -775,7 +775,10 @@ export class Game {
     this.staging = st;
     this.epic = st.epic;
     this.escape = E;
-    this.setStage('cashout');
+    // The stage changes now; the lens keeps its chase (no mode change, no reset) until he pulls up —
+    // land() below switches it to the celebration.
+    this.stage = 'cashout';
+    this.stageT = 0;
     // Round 13 — "made it": no set piece or near miss from here on (honesty: nothing staged after a
     // cash-out); pieces still ahead crumble away, the way ahead is clear.
     this.obstacles.settle();
@@ -816,7 +819,6 @@ export class Game {
     if (runOn > 0) {
       this.runOn = true;
       // The chase lens stays on him (calming as the tier falls away) until he pulls up.
-      this.rig.setMode('run');
       this.sounds.event?.('made_it', E.g);
       // Relief: half a stride before he pulls up, a stumble of exhausted relief.
       this.later(Math.max(0, runOn - 0.45), () => this.stage === 'cashout' && this.runOn && this.runner.stumble());
@@ -912,21 +914,25 @@ export class Game {
   };
 
   /** Solid near-path props of a section (walls, pillars, arches, stelae — not leaves, not far scenery). */
-  private solids(sec: { root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }) {
-    let list = this.occl.cache.get(sec);
+  private solids(sec: { type?: string; root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }, all = false) {
+    const cache = all ? this.occlAll : this.occl.cache;
+    let list = cache.get(sec);
     if (list) return list;
     list = [];
     const p = new THREE.Vector3();
+    // A corner's exit leg runs off along the section's local x: there "near the way" is not |x|
+    // small (its walls and piers stood at |x| > 7.5 and the lens could sit inside them unseen).
+    const corner = sec.type === 'turnL' || sec.type === 'turnR';
     for (const pl of sec.layout.props) {
       const geo = this.kit.geo.get(pl.piece);
       const mat = this.kit.matOf.get(pl.piece);
       if (!geo || !mat || mat === 'leaf') continue;
-      if (Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
+      if (!all && !corner && Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
       if (!geo.boundingBox) geo.computeBoundingBox();
       const world = sec.root.matrix.clone().multiply(pl.m);
       list.push({ geo, world, inv: world.clone().invert() });
     }
-    this.occl.cache.set(sec, list);
+    cache.set(sec, list);
     return list;
   }
 
@@ -1691,20 +1697,39 @@ export class Game {
       const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
       this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
     }
-    // A set piece overhead (a lintel he slides under): looked for every frame, a third of a second
-    // ahead, since at speed it passes the lens in a blink.
+    // A set piece overhead (a lintel he slides under): looked for every frame, up to 0.6 s ahead,
+    // since at speed it passes the lens in a blink. The duck is an S-curve ramp (no surge): down
+    // under the lintel and in toward the path's centre line, clear of the bushes and vines at its
+    // edges, then back out the same way.
     const sCam = this.s - this.lensAlong();
-    let want = this.ceilWant;
-    for (const ahead of [0, 0.15, 0.3]) {
+    let near = false;
+    let depth = 0;
+    for (const ahead of [0, 0.15, 0.3, 0.45, 0.6]) {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
-      if (y !== null) want = Math.max(want, cam.position.y - (y - 0.4));
+      if (y !== null) {
+        near = true;
+        depth = Math.max(depth, cam.position.y - (y - 0.4));
+      }
     }
-    this.ceilDrop += (want - this.ceilDrop) * (1 - Math.exp(-dt * (want > this.ceilDrop ? 14 : 2.5)));
-    if (this.ceilDrop < 1e-3) return;
+    if (near) this.duckDepth = depth;
+    this.duckT = near ? Math.min(1, this.duckT + dt * 2.8) : Math.max(0, this.duckT - dt * 1.6);
+    const k = this.duckT * this.duckT * (3 - 2 * this.duckT);
+    this.ceilDrop += (this.ceilWant - this.ceilDrop) * (1 - Math.exp(-dt * (this.ceilWant > this.ceilDrop ? 10 : 2.5)));
+    const total = Math.max(this.ceilDrop, k * this.duckDepth);
+    if (total < 1e-3 && k < 1e-3) return;
     const p = cam.position;
     const floor = this.track.path.sample(this.s).pos.y + 0.5;
-    const drop = Math.min(this.ceilDrop, Math.max(0, p.y - floor));
+    const drop = Math.min(total, Math.max(0, p.y - floor));
     p.y -= drop;
+    if (k > 0) {
+      const f = this.track.path.sample(sCam, this.cframe);
+      const rx = Math.cos(f.yaw);
+      const rz = -Math.sin(f.yaw);
+      const lat = (p.x - f.pos.x) * rx + (p.z - f.pos.z) * rz;
+      const d = (THREE.MathUtils.clamp(lat, -0.15, 0.15) - lat) * k;
+      p.x += rx * d;
+      p.z += rz * d;
+    }
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
@@ -1712,6 +1737,8 @@ export class Game {
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
+  private duckT = 0;
+  private duckDepth = 0;
 
   /** How far behind the runner, along his heading, the lens is (m; negative when it is ahead). */
   private lensAlong(): number {
@@ -1721,14 +1748,36 @@ export class Game {
     return -((p.x - r.x) * -Math.sin(ry) + (p.z - r.z) * -Math.cos(ry));
   }
 
-  private guardCamera(): void {
+  private guardCamera(dt = 1 / 60): void {
     const cam = this.rig.camera;
     const p = cam.position;
     const q = cam.quaternion;
-    const bad = ![p.x, p.y, p.z, q.x, q.y, q.z, q.w, cam.fov].every(Number.isFinite) || ((this.stage === 'crash' || this.stage === 'cashout') && this.insideSolid(p));
-    if (!bad) return;
-    this.rig.safeShot(this.runner.root.position, this.runner.root.rotation.y);
+    if (![p.x, p.y, p.z, q.x, q.y, q.z, q.w, cam.fov].every(Number.isFinite)) {
+      this.rig.safeShot(this.runner.root.position, this.runner.root.rotation.y);
+      this.guardK = this.guardV = 0;
+      return;
+    }
+    // Round 16: a settled shot whose lens slips into a wall or a pillar no longer cuts to the safe
+    // shot (an 8 m jump in one frame). The lens is drawn out, fast but continuously, toward a
+    // chase position above and behind him, looking at his chest; it hands back as the rig clears.
+    const inside = (this.stage === 'crash' || this.stage === 'cashout') && this.insideSolid(p);
+    // Critically damped (from rest: the draw-out starts gently, no lurch on its first frame).
+    const w = inside ? 9 : 4;
+    this.guardV += (w * w * ((inside ? 1 : 0) - this.guardK) - 2 * w * this.guardV) * dt;
+    this.guardK = THREE.MathUtils.clamp(this.guardK + this.guardV * dt, 0, 1);
+    if (this.guardK === 0 || this.guardK === 1) this.guardV = 0;
+    if (this.guardK < 0.002) return;
+    const r = this.runner.root.position;
+    const ry = this.runner.root.rotation.y;
+    const safe = this.guardP.set(r.x + Math.sin(ry) * 3.6 + Math.cos(ry) * 0.8, r.y + 2.2, r.z + Math.cos(ry) * 3.6 - Math.sin(ry) * 0.8);
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(q).multiplyScalar(5).add(p);
+    p.lerp(safe, this.guardK);
+    look.lerp(new THREE.Vector3(r.x, r.y + 1.1, r.z), this.guardK);
+    cam.lookAt(look);
+    cam.updateMatrixWorld();
   }
+  private guardK = 0;
+  private guardV = 0;
 
   private guardBox = new THREE.Box3();
   private guardP = new THREE.Vector3();
@@ -1736,8 +1785,9 @@ export class Game {
     if (!this.track) return false;
     if (p.y < WATER_Y + 0.15) return true;
     for (const sec of this.track.sections) {
-      if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 25) continue;
-      for (const e of this.solids(sec)) {
+      if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 45) continue; // a settled lens can stand well back
+      // Every solid prop, the far scenery too: after a corner the way can pass a section's vista.
+      for (const e of this.solids(sec, true)) {
         this.guardP.copy(p).applyMatrix4(e.inv);
         this.guardBox.copy(e.geo.boundingBox!).expandByScalar(-0.15);
         if (!this.guardBox.containsPoint(this.guardP)) continue;
@@ -1753,8 +1803,32 @@ export class Game {
         if (o.hits.length % 2 === 1) return true;
       }
     }
+    // World round 12's landmarks (a drowned pyramid, a colossus, a giant head) stand well clear of
+    // the way, but a corner can swing a settled lens round into one.
+    for (const lm of this.track.landmarks.list) {
+      if (Math.abs(lm.s - this.s) > 60) continue;
+      lm.root.updateMatrixWorld();
+      for (const c of lm.root.children) {
+        const mesh = c as THREE.Mesh;
+        if (!mesh.isMesh) continue;
+        const g = mesh.geometry;
+        if (!g.boundingBox) g.computeBoundingBox();
+        this.guardP.copy(p).applyMatrix4(this.tmpInvL.copy(mesh.matrixWorld).invert());
+        if (!g.boundingBox!.containsPoint(this.guardP)) continue;
+        const o = this.occl;
+        o.mesh.geometry = g;
+        o.mesh.matrixWorld.copy(mesh.matrixWorld);
+        o.rc.set(p, UP);
+        o.rc.far = 200;
+        o.hits.length = 0;
+        o.mesh.raycast(o.rc, o.hits);
+        if (o.hits.length % 2 === 1) return true;
+      }
+    }
     return this.debris.containsHeavy(p);
   }
+  private tmpInvL = new THREE.Matrix4();
+  private occlAll = new WeakMap<object, { geo: THREE.BufferGeometry; world: THREE.Matrix4; inv: THREE.Matrix4 }[]>();
 
   private tremor(I: number, k = I) {
     this.rig.addTrauma(0.1 + I * 0.25);
@@ -2019,10 +2093,10 @@ export class Game {
       const want = 0.45 * Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yawLead += (want - this.rig.yawLead) * (1 - Math.exp(-rawDt * 5));
     } else this.rig.yawLead = 0;
-    this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' ? I : 0);
+    this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
     const cam = this.rig.camera;
     this.ceiling(rawDt);
-    this.guardCamera();
+    this.guardCamera(rawDt);
     if (this.debugPin) {
       const d = this.debugPin;
       const ry = this.runner.root.rotation.y;
