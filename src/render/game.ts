@@ -1206,6 +1206,8 @@ export class Game {
           this.sounds.impact(0.6 + 0.3 * e, false);
         });
         this.gapAt = this.worldT + dropT + 0.1;
+        // The root leaves the lip (fall_chasm, ~1.1 s): the body dropping away (audio event).
+        this.later(1.1, () => this.sounds.event?.('fall_drop', 1));
         this.later(1.75, () => {
           const p = this.runner.root.position.clone().addScaledVector(h.fwd, 0.4).setY(WATER_Y);
           this.particles.burst(p, 40, { spread: 1.2, up: 7, speed: 3, size: 0.32, life: 1.2, color: SPRAY, alpha: 0.8, gravity: 9.5, drag: 0.5, grow: 0.6 });

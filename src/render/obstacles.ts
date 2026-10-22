@@ -415,7 +415,7 @@ export class ObstacleDirector {
       this.plan(c.dir > 0 ? 'turn_cut_L' : 'turn_cut_R', c.s0 + 0.6, 2.25, {
         onTake: () => {
           // The outside foot planted hard at a real corner (audio: its own plant + skid + swing).
-          this.h.sound('corner_plant', 0.6);
+          this.h.sound('corner_plant', 0.35);
           this.landDust(this.h.s(), 0.35);
         },
       });
@@ -432,7 +432,7 @@ export class ObstacleDirector {
     if (Math.abs(d) < 0.26) return;
     this.turnS = a;
     // Positive yaw turns the forward vector to the left.
-    this.plan(d > 0 ? 'turn_cut_L' : 'turn_cut_R', a + 2, 2.25, { onTake: () => this.h.sound('whoosh_jump', 0.3) });
+    this.plan(d > 0 ? 'turn_cut_L' : 'turn_cut_R', a + 2, 2.25, { onTake: () => this.h.sound('corner_plant', 0.35) });
     this.fired.turn = (this.fired.turn ?? 0) + 1;
   }
 
