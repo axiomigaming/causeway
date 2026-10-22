@@ -1115,7 +1115,12 @@ export class Runner {
       f.foot.updateWorldMatrix(true, false);
       const ankle = f.foot.getWorldPosition(this.v1);
       const h = ankle.y - ground;
-      if (!active || this.speed > 4.5) f.locked = false;
+      // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
+      // except where the feet are meant to move on the ground or leave it: the falls' skids, the
+      // slides, and any drop below the floor (the chasm, the ledge).
+      const t = this.actions.get(this.current)?.time ?? 0;
+      const sliding = this.current === 'slide' || (this.current === 'win_slide' && t < 1.3);
+      if (!active || sliding || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'))) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
         f.pos.copy(ankle);
@@ -1130,6 +1135,9 @@ export class Runner {
 
   /** Two-bone IK in world space, bending in the current knee plane. False if out of reach. */
   private solveLeg(f: FootLock, targetIn: THREE.Vector3): boolean {
+    // A true hinge: the thigh and shin share one hinge axis, the knee bends only in the plane it spans,
+    // and that plane faces where the foot points (the pole). The foot keeps the clip's pitch but turns
+    // with the leg: no yaw or roll of the foot against the shin, so a planted sole stays flat.
     let target = targetIn;
     const thigh = f.thigh!;
     const shin = f.shin!;
@@ -1138,11 +1146,14 @@ export class Runner {
     const K = shin.getWorldPosition(new THREE.Vector3());
     const A = foot.getWorldPosition(new THREE.Vector3());
     const footQ = foot.getWorldQuaternion(new THREE.Quaternion());
+    const thighQ = thigh.getWorldQuaternion(new THREE.Quaternion());
     const a = H.distanceTo(K);
     const b = K.distanceTo(A);
     const toT = target.clone().sub(H);
     let d = toT.length();
     let reach = true;
+    // Nearly out of reach: let go early (the knee would snap straight, then bent, as the hip passes).
+    if (d > (a + b) * 0.97) reach = false;
     if (d > (a + b) * 0.995) {
       // Out of reach (the clip pulled the hip away): aim as far as the leg goes and report it, so the
       // lock fades out over a few frames instead of snapping the foot back to the clip.
@@ -1152,24 +1163,57 @@ export class Runner {
       reach = false;
     }
     if (d < Math.abs(a - b) + 0.02) return true;
-    const u = toT.divideScalar(d);
-    // Bend direction: where the knee points now, made perpendicular to the hip→target line.
-    const n = K.clone().sub(H);
-    n.addScaledVector(u, -n.dot(u));
+    const u = toT.clone().divideScalar(d);
+    // Pole: where the clip points the knee (it never flips through the leg), falling back on the foot's
+    // forward when the leg is nearly straight.
+    const footFwd = new THREE.Vector3(0, 1, 0).applyQuaternion(footQ);
+    const n = K.clone().sub(H).addScaledVector(u, -K.clone().sub(H).dot(u));
+    if (n.lengthSq() < 1e-4) n.copy(footFwd).addScaledVector(u, -footFwd.dot(u));
     if (n.lengthSq() < 1e-8) return true;
     n.normalize();
     const cosA = THREE.MathUtils.clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1);
     const sinA = Math.sqrt(1 - cosA * cosA);
     const K2 = H.clone().addScaledVector(u, a * cosA).addScaledVector(n, a * sinA);
-    this.applyWorld(thigh, new THREE.Quaternion().setFromUnitVectors(K.clone().sub(H).normalize(), K2.clone().sub(H).normalize()));
-    const K3 = shin.getWorldPosition(new THREE.Vector3());
-    const A3 = foot.getWorldPosition(new THREE.Vector3());
-    this.applyWorld(shin, new THREE.Quaternion().setFromUnitVectors(A3.sub(K3).normalize(), target.clone().sub(K3).normalize()));
-    // The foot keeps the orientation the clip gave it.
-    const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
-    foot.quaternion.copy(sq.multiply(footQ));
-    foot.updateMatrixWorld(true);
+    // Hinge axis: normal to the leg plane, on the same side as the thigh's own X axis.
+    const yT = K2.clone().sub(H).normalize();
+    const yS = target.clone().sub(K2).normalize();
+    const xNow = new THREE.Vector3(1, 0, 0).applyQuaternion(thighQ);
+    let hinge = new THREE.Vector3().crossVectors(u, n);
+    if (hinge.lengthSq() < 1e-8) hinge = xNow.clone();
+    hinge.normalize();
+    if (hinge.dot(xNow) < 0) hinge.negate();
+    this.setWorldBasis(thigh, hinge, yT);
+    this.setWorldBasis(shin, hinge, yS);
+    // The foot: turned with the leg (no twist against the shin); planted, its sole is kept level (the
+    // ankle takes the leg's tilt) so it never stands on an edge. Pitch stays the clip's.
+    const xF = hinge.clone();
+    const level = THREE.MathUtils.clamp(f.w, 0, 1);
+    xF.y *= 1 - level;
+    xF.normalize();
+    const yF = footFwd.clone().addScaledVector(xF, -footFwd.dot(xF));
+    if (yF.lengthSq() > 1e-6) this.setWorldBasis(foot, xF, yF.normalize());
+    else {
+      const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
+      foot.quaternion.copy(sq.multiply(footQ));
+      foot.updateMatrixWorld(true);
+    }
     return reach;
+  }
+
+  /** Orient a bone in world space from its X (hinge) and Y (along the bone) axes. */
+  private setWorldBasis(bone: THREE.Bone, x: THREE.Vector3, y: THREE.Vector3): void {
+    const X = x.clone().addScaledVector(y, -x.dot(y)).normalize();
+    // Keep the bone's own X side: a bone whose rest X points the other way must not flip 180°.
+    const xNow = new THREE.Vector3(1, 0, 0).applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion()));
+    if (X.dot(xNow) < 0) X.negate();
+    const Z = new THREE.Vector3().crossVectors(X, y).normalize();
+    const m = new THREE.Matrix4().makeBasis(X, y, Z);
+    const wq = new THREE.Quaternion().setFromRotationMatrix(m);
+    const parent = bone.parent!;
+    parent.updateWorldMatrix(true, false);
+    const pq = parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    bone.quaternion.copy(pq.multiply(wq));
+    bone.updateMatrixWorld(true);
   }
 
   private rotate(b: THREE.Bone | undefined, x: number, y: number, z: number) {

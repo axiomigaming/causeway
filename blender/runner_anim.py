@@ -39,7 +39,7 @@ def sgn(s):
 
 
 # ------------------------------------------------------------------ semantic pose helpers
-def leg(P, s, hip=0.0, knee=0.0, ankle=0.0, toe=0.0, out=0.0, yaw=0.0):
+def leg(P, s, hip=0.0, knee=0.0, ankle=0.0, toe=0.0, out=0.07, yaw=0.0):  # a hip-width base unless told otherwise
     P[f"thigh.{s}"] = (-hip, yaw, out * sgn(s))
     P[f"shin.{s}"] = (knee, 0, 0)
     P[f"foot.{s}"] = (-ankle, 0, 0)
@@ -688,19 +688,33 @@ def build(rig):
     arm(P, "L", fwd=1.9, elbow=0.5, out=0.55, curl=0.4)
     arm(P, "R", fwd=1.7, elbow=0.6, out=0.65, curl=0.4)
     key(33, P, y=0.18)
-    # Falling: the body tips back (he ends up looking up at the lip), arms and legs flailing wide
-    # (ballistic from frame 34; the clip ends ~4 m down, out of frame — the floor has gone).
-    for fr in range(35, 65, 2):
+    # Falling (ballistic from frame 34, 1.1 s: the game drops the slab under him then): pitched forward
+    # over the lip and drifting on past it, never sitting back; legs trailing and kicking, arms flailing
+    # up and out. The water (2.2 m below the deck) takes his feet at ~1.77 s (the game's splash is at
+    # 1.75 s); he plunges in, slows, and is fully under by ~2.4 s (the game hides him at 2.6 s).
+    WATER = -2.2  # the lowest point (his feet) reaches the surface
+    for fr in range(35, 83, 2):
         u = (fr - 34) / FPS
         w = fr * 0.9
-        k = min(1.0, u * 1.6)
+        drop = -0.5 * G_ACC * u * u
+        if drop < WATER:
+            # In the water: the plunge slows hard; the body folds a little as it goes under.
+            ui = math.sqrt(2 * -WATER / G_ACC)
+            v0 = G_ACC * ui
+            t2 = u - ui
+            drop = WATER - (v0 * t2 - 0.5 * 10.0 * t2 * t2 if t2 < v0 / 10.0 else v0 * v0 / 20.0)
+        k = min(1.0, u * 1.5)
         P = {}
-        torso(P, lean=0.6 - 0.85 * k, look=-0.3 + 0.8 * k, hp=0.25 - 0.35 * k, roll=0.14 * math.sin(w * 0.5))
-        leg(P, "L", hip=0.5 + 0.5 * math.sin(w), knee=0.8 + 0.5 * math.sin(w + 1.2), ankle=0.3, out=0.2 + 0.1 * math.sin(w * 0.7))
-        leg(P, "R", hip=0.5 - 0.5 * math.sin(w), knee=0.8 - 0.5 * math.sin(w + 1.2), ankle=0.3, out=0.25)
-        arm(P, "L", fwd=1.2 + 0.6 * math.sin(w * 1.3), elbow=0.5 + 0.3 * math.sin(w), out=1.0 + 0.3 * math.sin(w * 1.1), curl=0.2)
-        arm(P, "R", fwd=1.1 - 0.6 * math.sin(w * 1.3 + 0.8), elbow=0.6, out=1.05 + 0.3 * math.cos(w * 1.1), curl=0.2)
-        key(fr, P, y=0.18 + 1.6 * u, lift=-0.5 * G_ACC * u * u)
+        # The whole body tips forward from the hips as he goes (a tumble, not a standing drop), ~60°
+        # by the water; the trunk dips further, the head lifts to look where he is going.
+        torso(P, lean=0.5 + 0.3 * k, look=0.1 + 0.45 * k, hp=0.25 + 0.8 * k, roll=0.14 * math.sin(w * 0.5),
+              head_yaw=0.1 * math.sin(w * 0.4))
+        leg(P, "L", hip=-0.1 + 0.4 * math.sin(w), knee=0.45 + 0.45 * max(0.0, math.sin(w + 1.2)), ankle=0.4, out=0.2)
+        leg(P, "R", hip=-0.1 - 0.4 * math.sin(w), knee=0.45 + 0.45 * max(0.0, -math.sin(w + 1.2)), ankle=0.4, out=0.24)
+        # Arms thrown up and out, clawing at the air (kept short of overhead, where the axes flip).
+        arm(P, "L", fwd=2.0 + 0.35 * math.sin(w * 1.3), elbow=0.35 + 0.3 * math.sin(w), out=0.75 + 0.25 * math.sin(w * 1.1), curl=0.3)
+        arm(P, "R", fwd=1.95 - 0.35 * math.sin(w * 1.3 + 0.8), elbow=0.45, out=0.8 + 0.25 * math.cos(w * 1.1), curl=0.3)
+        key(fr, P, y=0.18 + 1.6 * min(u, 0.9) + 0.4 * max(0.0, u - 0.9), lift=drop)
 
     # ---------------------------------------------------------- gate: slam to a stop, recoil, stagger back, sink down
     new_action("fall_gate")
@@ -715,7 +729,7 @@ def build(rig):
     key(4, P, lift=-0.035)
     # Shield: forearms up in front of the face (hands at brow height, never above the head), chin
     # tucked, the face turning away from the slab.
-    shield = dict(fwd=1.3, elbow=2.15, out=0.38, twist=-0.35, wrist=0.2, curl=0.85, shrug=0.25)
+    shield = dict(fwd=1.3, elbow=2.15, out=0.46, twist=-0.35, wrist=0.2, curl=0.85, shrug=0.25)
     P = {}
     torso(P, lean=-0.06, look=-0.28, hp=-0.04, head_yaw=0.38, head_roll=0.08)
     leg(P, "L", hip=0.5, knee=0.35, ankle=-0.1)
@@ -791,7 +805,7 @@ def build(rig):
     key(5, P, lift=-0.02)
     # Hands clasped over the back of the head, elbows forward round the face: a crouch under the
     # falling rock, not arms in the air.
-    cover = dict(fwd=1.9, elbow=2.45, out=0.42, twist=-0.45, curl=0.9, shrug=0.3)
+    cover = dict(fwd=1.9, elbow=2.45, out=0.5, twist=-0.45, curl=0.9, shrug=0.3)
     P = {}
     torso(P, lean=0.35, look=-0.35, hp=0.05)
     leg(P, "L", hip=0.9, knee=1.3, ankle=-0.2)
@@ -1068,14 +1082,14 @@ def extra_clips():
     torso(P, lean=0.15, look=-0.1, yaw=-0.45, hyaw=-0.2, head_yaw=-1.0, head_roll=0.15)
     leg(P, "L", hip=0.35, knee=0.7, ankle=0.0)
     leg(P, "R", hip=-0.2, knee=0.8, ankle=0.4)
-    arm(P, "R", fwd=2.1, elbow=1.9, out=0.55, twist=-0.3, curl=0.9, shrug=0.25)
+    arm(P, "R", fwd=2.1, elbow=1.75, out=0.68, twist=-0.3, curl=0.9, shrug=0.25)
     arm(P, "L", fwd=-0.3, elbow=0.9, out=0.45, curl=0.6)
     key(10, P, y=-0.08)
     P = {}
     torso(P, lean=0.35, look=-0.2, yaw=-0.35, hyaw=-0.15, head_yaw=-0.8)
     leg(P, "L", hip=0.6, knee=1.3, ankle=0.1)
     leg(P, "R", hip=0.1, knee=1.3, ankle=0.4)
-    arm(P, "R", fwd=2.2, elbow=2.0, out=0.5, twist=-0.3, curl=0.9, shrug=0.25)
+    arm(P, "R", fwd=2.2, elbow=1.85, out=0.62, twist=-0.3, curl=0.9, shrug=0.25)
     arm(P, "L", fwd=0.2, elbow=0.8, out=0.4, curl=0.6)
     key(16, P, y=-0.25)
     P = {}
@@ -1254,7 +1268,7 @@ def extra_clips():
             torso(P, lean=0.35, look=0.3)
             standing(P, wide=0.14, bend=0.42)
             for sd in "LR":
-                arm(P, sd, fwd=0.4, elbow=2.0, out=0.3, curl=1.35)
+                arm(P, sd, fwd=1.0 if j else 0.4, elbow=1.7 if j else 2.0, out=0.3 if j else 0.85, curl=1.35)
             standing_turned(P, FACE)
             key(t + 5, P)
             zc = solve_root(P)
@@ -1265,7 +1279,12 @@ def extra_clips():
             for sd in "LR":
                 arm(U, sd, fwd=2.9, elbow=0.1, out=-0.45, curl=1.35)
             standing_turned(U, FACE)
-            for d, h in ((8, 0.18), (10, 0.3), (12, 0.3), (14, 0.18)):
+            # The arms throw up through the front (a key on the way, so they don't flip over the top).
+            M = dict(U)
+            for sd in "LR":
+                arm(M, sd, fwd=1.6, elbow=0.5, out=0.3, curl=1.35)
+            key(t + 7, M, z=-0.02 + 0.08)
+            for d, h in ((9, 0.22), (11, 0.3), (13, 0.26), (14, 0.18)):
                 key(t + d, U, z=-0.02 + h)
             L = {}
             torso(L, lean=0.25, look=0.4)
@@ -1353,6 +1372,14 @@ def extra_clips():
     arm(P, "L", fwd=-0.9, elbow=0.6, out=0.2, curl=0.8)
     arm(P, "R", fwd=-0.8, elbow=0.6, out=0.2, curl=0.8)
     key(9, P, )
+    # The arm swings up through the front on the way (not through the gimbal over the top).
+    P = {}
+    torso(P, lean=0.25, look=0.4)
+    leg(P, "L", hip=1.0, knee=1.45, ankle=0.0)
+    leg(P, "R", hip=-0.25, knee=0.6, ankle=0.55, toe=0.3)
+    arm(P, "R", fwd=1.4, elbow=0.55, out=0.12, curl=1.2, twist=0.1)
+    arm(P, "L", fwd=0.1, elbow=0.7, out=0.5, curl=0.8)
+    key(12, P, lift=0.25)
     P = {}
     torso(P, lean=0.05, look=0.35)
     leg(P, "L", hip=1.25, knee=1.6, ankle=0.1)
@@ -1588,7 +1615,10 @@ def plant_hand(action, side, f0, f1, where, ramp=1):
     bpy.ops.nla.bake(frame_start=f0 - ramp - 1, frame_end=f1 + ramp + 1, only_selected=True, visual_keying=True,
                      clear_constraints=True, use_current_action=True, bake_types={"POSE"})
     bpy.ops.object.mode_set(mode="OBJECT")
+    ea = emp.animation_data.action if emp.animation_data else None
     bpy.data.objects.remove(emp)
+    if ea is not None:
+        bpy.data.actions.remove(ea)
     if rig.animation_data.action.name != action:
         print(f"  plant_hand: bake wrote to {rig.animation_data.action.name}", flush=True)
 
@@ -1748,7 +1778,7 @@ def obstacle_clips():
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
     torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)
-    leg(T2, "L", hip=0.9, knee=2.3, ankle=-0.2, yaw=VY)
+    leg(T2, "L", hip=0.9, knee=2.3, ankle=-0.2, yaw=VY * 0.55)
     leg(T2, "R", hip=1.7, knee=2.1, ankle=-0.2, yaw=VY * 0.7)
     arm(T2, "R", fwd=0.95, elbow=0.1, out=0.1, wrist=-1.1, curl=0.2)
     # Plant (u 0.2 → 0.72): the arm sweeps from ahead of the shoulder to behind it as he passes over the
@@ -1785,7 +1815,7 @@ def obstacle_clips():
     arm(D, "R", fwd=0.4, elbow=1.2, out=0.3, curl=0.45)
     arm(D, "L", fwd=-0.1, elbow=1.1, out=0.45, curl=0.45)
     zl = solve_root(D)
-    air(6, V_LAND, [(0.0, T), (0.06, T2), (0.17, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
+    air(6, V_LAND, [(0.0, T), (0.15, T2), (0.24, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
     A = {}
     torso(A, lean=0.45, look=0.45, hp=0.2, hyaw=0.05)
     leg(A, "L", hip=0.45, knee=0.75, ankle=-0.15)
@@ -1798,7 +1828,7 @@ def obstacle_clips():
     # The palm on the stone: through the plant the right wrist is held (IK, baked) on the pillar's top,
     # which slides back past him with the floor at run pace (5 m/s in clip time).
     apex = 0.5 * (5 / 30 + (V_LAND - 1) / 30)
-    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.99))
+    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.99), ramp=3)
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":
@@ -1821,14 +1851,14 @@ def obstacle_clips():
         arm(P, side, fwd=-0.45, elbow=1.15, out=0.45, curl=0.9)
         arm(P, o, fwd=0.85, elbow=1.5, out=0.08, curl=0.9)
         nudge(P, "head", dy=0.2 * sg)
-        P["root"] = (0.0, 0.16 * sg, 0.12 * sg)
+        P["root"] = (0.0, 0.12 * sg, 0.12 * sg)
         key(9, P, z=gait_root(ph, RUN) - 0.04, x=x - 0.06 * sg)
         ph2 = (ph + 0.25) % 1.0
         P, x = loco(ph2, RUN)
         nudge(P, "chest", dy=0.15 * sg)
         nudge(P, "neck", dy=0.25 * sg)
         nudge(P, "head", dy=0.15 * sg)
-        P["root"] = (0.0, 0.2 * sg, 0.3 * sg)
+        P["root"] = (0.0, 0.14 * sg, 0.3 * sg)
         key(13, P, z=gait_root(ph2, RUN) - 0.02, x=x)
         ph3 = (p0 + 0.85) % 1.0
         P, x = loco(ph3, RUN)
