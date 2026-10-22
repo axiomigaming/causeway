@@ -53,6 +53,15 @@ export const SOUNDS: Record<string, SoundSpec> = {
   // Tier-ups: a reversed gong / boom swelling into the impact, and a sub-bass swell under tiers 3-4.
   riser: { bus: 'sting', db: -7, cents: 0, vary: 0.5, priority: 3, max: 2 },
   sub_swell: { bus: 'sfx', db: -3, cents: 30, vary: 0.5, priority: 2, max: 1 },
+  // Obstacles (round 14): real takes for the moments the director fires (engine.ts obstacle()).
+  crack_wood: { bus: 'sfx', db: -4, cents: 120, vary: 1.5, priority: 2, max: 2, pan: 0.15, floor: -10 },
+  crash_wood: { bus: 'sfx', db: -2, cents: 90, vary: 1, priority: 3, max: 2, pan: 0.1, floor: -10 },
+  crack_stone: { bus: 'sfx', db: -4, cents: 120, vary: 1.5, priority: 2, max: 3, pan: 0.2, floor: -10, dull: true },
+  skid: { bus: 'foley', db: -9, cents: 90, vary: 1.5, priority: 1, max: 2, pan: 0.1, floor: -10 },
+  land_body: { bus: 'foley', db: -8, cents: 80, vary: 1.5, priority: 2, max: 2, pan: 0.1, floor: -10, dull: true },
+  sink: { bus: 'sfx', db: -6, cents: 110, vary: 1.5, priority: 2, max: 3, pan: 0.25, floor: -10, dull: true },
+  // The storm (beds group, lazy): real thunder.
+  thunder: { bus: 'sfx', db: -6, cents: 150, vary: 2, priority: 1, max: 2, pan: 0.4, floor: -12, dull: true },
   // Escape and cash-out.
   coins: { bus: 'ui', db: 0, cents: 60, vary: 1, priority: 3, max: 2, pan: 0.1 },
   sparkle: { bus: 'ui', db: -7, cents: 50, vary: 1, priority: 2, max: 2, pan: 0.25 },

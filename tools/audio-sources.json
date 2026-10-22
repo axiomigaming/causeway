@@ -1530,6 +1530,366 @@
     "duration": 32393,
     "filesize": 738969
    }
+  },
+  {
+   "id": "b227e978-65aa-4fca-a222-515ab5531d1f",
+   "query": "wood_crack",
+   "record": {
+    "title": "JBF Plywood Breaking 2.aif",
+    "creator": "cmusounddesign",
+    "creator_url": "https://freesound.org/people/cmusounddesign",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/cmusounddesign/sounds/96167",
+    "url": "https://cdn.freesound.org/previews/96/96167_1059930-hq.mp3",
+    "attribution": "\"JBF Plywood Breaking 2.aif\" by cmusounddesign is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 1535,
+    "filesize": 30050
+   }
+  },
+  {
+   "id": "9db15ad1-f34a-4412-9c02-25e0a5090d4f",
+   "query": "wood_crack",
+   "record": {
+    "title": "Wood Crack 4",
+    "creator": "utsuru",
+    "creator_url": "https://freesound.org/people/utsuru",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/utsuru/sounds/183451",
+    "url": "https://cdn.freesound.org/previews/183/183451_418644-hq.mp3",
+    "attribution": "\"Wood Crack 4\" by utsuru is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1477,
+    "filesize": 40752
+   }
+  },
+  {
+   "id": "9c10bd83-420b-40b6-9c12-1720fc2b2117",
+   "query": "wood_crack",
+   "record": {
+    "title": "Wood Crack I.wav",
+    "creator": "the_yura",
+    "creator_url": "https://freesound.org/people/the_yura",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/the_yura/sounds/349497",
+    "url": "https://cdn.freesound.org/previews/349/349497_2451161-hq.mp3",
+    "attribution": "\"Wood Crack I.wav\" by the_yura is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 7315,
+    "filesize": 204584
+   }
+  },
+  {
+   "id": "31aad74c-a551-4d35-8005-5faf22050928",
+   "query": "tree_fall",
+   "record": {
+    "title": "A Tree Falling Down.wav",
+    "creator": "ecfike",
+    "creator_url": "https://freesound.org/people/ecfike",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/ecfike/sounds/139952",
+    "url": "https://cdn.freesound.org/previews/139/139952_2337290-hq.mp3",
+    "attribution": "\"A Tree Falling Down.wav\" by ecfike is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 4519,
+    "filesize": 106344
+   }
+  },
+  {
+   "id": "50394ced-9845-467c-8e71-a5df83dd6eba",
+   "query": "tree_fall",
+   "record": {
+    "title": "Log Falling in Forest.wav",
+    "creator": "kev_durr",
+    "creator_url": "https://freesound.org/people/kev_durr",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/kev_durr/sounds/396509",
+    "url": "https://cdn.freesound.org/previews/396/396509_5415774-hq.mp3",
+    "attribution": "\"Log Falling in Forest.wav\" by kev_durr is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 3083,
+    "filesize": 80466
+   }
+  },
+  {
+   "id": "2f344761-611a-42f3-9c7b-2f80df0345cd",
+   "query": "tree_fall",
+   "record": {
+    "title": "Tree stump breaks and falls.wav",
+    "creator": "speedygonzo",
+    "creator_url": "https://freesound.org/people/speedygonzo",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/speedygonzo/sounds/257650",
+    "url": "https://cdn.freesound.org/previews/257/257650_3865966-hq.mp3",
+    "attribution": "\"Tree stump breaks and falls.wav\" by speedygonzo is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 6293,
+    "filesize": 168960
+   }
+  },
+  {
+   "id": "92b30f16-6180-4672-84cf-2021682739da",
+   "query": "stone_split",
+   "record": {
+    "title": "WobblyCrunch.wav",
+    "creator": "zimbot",
+    "creator_url": "https://freesound.org/people/zimbot",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/zimbot/sounds/244491",
+    "url": "https://cdn.freesound.org/previews/244/244491_1449999-hq.mp3",
+    "attribution": "\"WobblyCrunch.wav\" by zimbot is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 1919,
+    "filesize": 54528
+   }
+  },
+  {
+   "id": "08be52cb-01c3-42db-a421-09856a3dfaba",
+   "query": "stone_split",
+   "record": {
+    "title": "rockfall 09.flac",
+    "creator": "tim.kahn",
+    "creator_url": "https://freesound.org/people/tim.kahn",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/tim.kahn/sounds/49624",
+    "url": "https://cdn.freesound.org/previews/49/49624_7037-hq.mp3",
+    "attribution": "\"rockfall 09.flac\" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 1119,
+    "filesize": 33744
+   }
+  },
+  {
+   "id": "959ca29d-75b3-4aac-9a18-548448c834fe",
+   "query": "stone_split",
+   "record": {
+    "title": "rock falls with cracking.mp3",
+    "creator": "SoundCollectah",
+    "creator_url": "https://freesound.org/people/SoundCollectah",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/SoundCollectah/sounds/157804",
+    "url": "https://cdn.freesound.org/previews/157/157804_1868848-hq.mp3",
+    "attribution": "\"rock falls with cracking.mp3\" by SoundCollectah is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 5865,
+    "filesize": 116034
+   }
+  },
+  {
+   "id": "1b999150-3dc7-431c-baa3-1bffb91a5695",
+   "query": "slide_scrape",
+   "record": {
+    "title": "SLIDING ON GRAVEL.wav",
+    "creator": "trexlasso",
+    "creator_url": "https://freesound.org/people/trexlasso",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/trexlasso/sounds/630008",
+    "url": "https://cdn.freesound.org/previews/630/630008_13805381-hq.mp3",
+    "attribution": "\"SLIDING ON GRAVEL.wav\" by trexlasso is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1229,
+    "filesize": 27168
+   }
+  },
+  {
+   "id": "db3b6fed-6b16-4624-b6fa-62d58640582a",
+   "query": "slide_scrape",
+   "record": {
+    "title": "Boots Gravel Feet Slide 1_5",
+    "creator": "Joao_Janz",
+    "creator_url": "https://freesound.org/people/Joao_Janz",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Joao_Janz/sounds/504383",
+    "url": "https://cdn.freesound.org/previews/504/504383_9961300-hq.mp3",
+    "attribution": "\"Boots Gravel Feet Slide 1_5\" by Joao_Janz is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1228,
+    "filesize": 36480
+   }
+  },
+  {
+   "id": "048111fa-effe-4134-a081-f53b8cc1d60f",
+   "query": "slide_scrape",
+   "record": {
+    "title": "Boots Gravel Feet Slide 1_8",
+    "creator": "Joao_Janz",
+    "creator_url": "https://freesound.org/people/Joao_Janz",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Joao_Janz/sounds/504380",
+    "url": "https://cdn.freesound.org/previews/504/504380_9961300-hq.mp3",
+    "attribution": "\"Boots Gravel Feet Slide 1_8\" by Joao_Janz is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 1584,
+    "filesize": 44208
+   }
+  },
+  {
+   "id": "c9b55218-c985-49e4-9aec-d3eba1e980db",
+   "query": "land_heavy",
+   "record": {
+    "title": "Body falling on the ground 1",
+    "creator": "ihitokage",
+    "creator_url": "https://freesound.org/people/ihitokage",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/ihitokage/sounds/395331",
+    "url": "https://cdn.freesound.org/previews/395/395331_1675920-hq.mp3",
+    "attribution": "\"Body falling on the ground 1\" by ihitokage is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 827,
+    "filesize": 21504
+   }
+  },
+  {
+   "id": "cf87daa9-f02a-44ae-a529-3e93cf127b01",
+   "query": "land_heavy",
+   "record": {
+    "title": "Body Fall Over.wav",
+    "creator": "raubana",
+    "creator_url": "https://freesound.org/people/raubana",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/raubana/sounds/82027",
+    "url": "https://cdn.freesound.org/previews/82/82027_1178110-hq.mp3",
+    "attribution": "\"Body Fall Over.wav\" by raubana is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 351,
+    "filesize": 10656
+   }
+  },
+  {
+   "id": "549d4182-645b-4958-bb09-0d81165a9362",
+   "query": "land_heavy",
+   "record": {
+    "title": "body-fall-2.wav",
+    "creator": "CosmicEmbers",
+    "creator_url": "https://freesound.org/people/CosmicEmbers",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/CosmicEmbers/sounds/160740",
+    "url": "https://cdn.freesound.org/previews/160/160740_2895542-hq.mp3",
+    "attribution": "\"body-fall-2.wav\" by CosmicEmbers is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 592,
+    "filesize": 15120
+   }
+  },
+  {
+   "id": "b5154dee-7832-49b8-a83b-30bb374a2c60",
+   "query": "slab_sink",
+   "record": {
+    "title": "Splash.wav",
+    "creator": "daveincamas",
+    "creator_url": "https://freesound.org/people/daveincamas",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/daveincamas/sounds/59104",
+    "url": "https://cdn.freesound.org/previews/59/59104_111413-hq.mp3",
+    "attribution": "\"Splash.wav\" by daveincamas is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 2653,
+    "filesize": 66912
+   }
+  },
+  {
+   "id": "3873f8cf-b11d-4193-a6fa-02abead13c87",
+   "query": "slab_sink",
+   "record": {
+    "title": "Splash 1.wav",
+    "creator": "FreqMan",
+    "creator_url": "https://freesound.org/people/FreqMan",
+    "license": "by",
+    "license_version": "4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/FreqMan/sounds/25819",
+    "url": "https://cdn.freesound.org/previews/25/25819_92661-hq.mp3",
+    "attribution": "\"Splash 1.wav\" by FreqMan is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "duration": 5863,
+    "filesize": 142944
+   }
+  },
+  {
+   "id": "a4aeb003-3eb1-45fd-8777-f14e0e3aada2",
+   "query": "slab_sink",
+   "record": {
+    "title": "Water Splash.wav",
+    "creator": "ceberation",
+    "creator_url": "https://freesound.org/people/ceberation",
+    "license": "by",
+    "license_version": "3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/ceberation/sounds/235525",
+    "url": "https://cdn.freesound.org/previews/235/235525_3770095-hq.mp3",
+    "attribution": "\"Water Splash.wav\" by ceberation is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "duration": 1274,
+    "filesize": 25968
+   }
+  },
+  {
+   "id": "64700f27-ed33-49d9-a56c-7c7e99d551f4",
+   "query": "thunder",
+   "record": {
+    "title": "thunder 2",
+    "creator": "elmoustachio",
+    "creator_url": "https://freesound.org/people/elmoustachio",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/elmoustachio/sounds/476736",
+    "url": "https://cdn.freesound.org/previews/476/476736_10180177-hq.mp3",
+    "attribution": "\"thunder 2\" by elmoustachio is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 26745,
+    "filesize": 609696
+   }
+  },
+  {
+   "id": "79b7d9cd-51c6-4064-b66e-5f432cd30fb3",
+   "query": "thunder",
+   "record": {
+    "title": "Thunder",
+    "creator": "Fission9",
+    "creator_url": "https://freesound.org/people/Fission9",
+    "license": "cc0",
+    "license_version": "1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "freesound",
+    "foreign_landing_url": "https://freesound.org/people/Fission9/sounds/465314",
+    "url": "https://cdn.freesound.org/previews/465/465314_9395330-hq.mp3",
+    "attribution": "\"Thunder\" by Fission9 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.",
+    "duration": 32205,
+    "filesize": 689784
+   }
   }
  ],
  "sounds": {
@@ -2666,7 +3026,7 @@
     },
     {
      "src": "fc0b44cc-e905-4791-aa06-ee6b4a7fe49d",
-     "start": 0.0,
+     "start": 0,
      "end": 3.6,
      "reverse": true,
      "fadeIn": 0.002,
@@ -2684,11 +3044,177 @@
    "variants": [
     {
      "src": "83623c61-5c2a-4977-9f64-2665ae06ee44",
-     "start": 0.0,
+     "start": 0,
      "end": 3.4,
      "reverse": true,
      "fadeIn": 0.002,
      "fadeOut": 0.6
+    }
+   ]
+  },
+  "crack_wood": {
+   "group": "core",
+   "channels": 1,
+   "hp": 60,
+   "fadeOut": 0.12,
+   "variants": [
+    {
+     "src": "b227e978-65aa-4fca-a222-515ab5531d1f",
+     "start": 0.2,
+     "end": 0.62
+    },
+    {
+     "src": "9db15ad1-f34a-4412-9c02-25e0a5090d4f",
+     "start": 0.88,
+     "end": 1.2
+    },
+    {
+     "src": "9c10bd83-420b-40b6-9c12-1720fc2b2117",
+     "start": 1.22,
+     "end": 1.75
+    }
+   ]
+  },
+  "crash_wood": {
+   "group": "core",
+   "channels": 1,
+   "hp": 30,
+   "fadeOut": 0.4,
+   "variants": [
+    {
+     "src": "31aad74c-a551-4d35-8005-5faf22050928",
+     "start": 0.8,
+     "end": 2.6
+    },
+    {
+     "src": "50394ced-9845-467c-8e71-a5df83dd6eba",
+     "start": 0.05,
+     "end": 1.8
+    },
+    {
+     "src": "2f344761-611a-42f3-9c7b-2f80df0345cd",
+     "start": 3.95,
+     "end": 5.3
+    }
+   ]
+  },
+  "crack_stone": {
+   "group": "core",
+   "channels": 1,
+   "hp": 50,
+   "fadeOut": 0.25,
+   "variants": [
+    {
+     "src": "92b30f16-6180-4672-84cf-2021682739da",
+     "start": 0.02,
+     "end": 1.4
+    },
+    {
+     "src": "c46895b8-a8b8-4d19-9753-9f4296732173",
+     "start": 0.03,
+     "end": 1.5
+    },
+    {
+     "src": "08be52cb-01c3-42db-a421-09856a3dfaba",
+     "start": 0.12,
+     "end": 1.09
+    },
+    {
+     "src": "959ca29d-75b3-4aac-9a18-548448c834fe",
+     "start": 0.62,
+     "end": 1.3
+    }
+   ]
+  },
+  "skid": {
+   "group": "core",
+   "channels": 1,
+   "hp": 80,
+   "fadeOut": 0.15,
+   "variants": [
+    {
+     "src": "1b999150-3dc7-431c-baa3-1bffb91a5695",
+     "start": 0.01,
+     "end": 1.23
+    },
+    {
+     "src": "db3b6fed-6b16-4624-b6fa-62d58640582a",
+     "start": 0.06,
+     "end": 1.2
+    },
+    {
+     "src": "048111fa-effe-4134-a081-f53b8cc1d60f",
+     "start": 0.23,
+     "end": 1.5
+    }
+   ]
+  },
+  "land_body": {
+   "group": "core",
+   "channels": 1,
+   "hp": 40,
+   "fadeOut": 0.1,
+   "variants": [
+    {
+     "src": "c9b55218-c985-49e4-9aec-d3eba1e980db",
+     "start": 0.011,
+     "end": 0.55
+    },
+    {
+     "src": "cf87daa9-f02a-44ae-a529-3e93cf127b01",
+     "start": 0.011,
+     "end": 0.32
+    },
+    {
+     "src": "549d4182-645b-4958-bb09-0d81165a9362",
+     "start": 0.011,
+     "end": 0.315
+    }
+   ]
+  },
+  "sink": {
+   "group": "core",
+   "channels": 1,
+   "hp": 40,
+   "fadeOut": 0.3,
+   "variants": [
+    {
+     "src": "b5154dee-7832-49b8-a83b-30bb374a2c60",
+     "start": 0.38,
+     "end": 2.2
+    },
+    {
+     "src": "3873f8cf-b11d-4193-a6fa-02abead13c87",
+     "start": 0,
+     "end": 1.85
+    },
+    {
+     "src": "a4aeb003-3eb1-45fd-8777-f14e0e3aada2",
+     "start": 0.38,
+     "end": 1.3
+    }
+   ]
+  },
+  "thunder": {
+   "group": "beds",
+   "channels": 1,
+   "hp": 25,
+   "fadeOut": 2,
+   "variants": [
+    {
+     "src": "64700f27-ed33-49d9-a56c-7c7e99d551f4",
+     "start": 0.6,
+     "end": 7.6
+    },
+    {
+     "src": "79b7d9cd-51c6-4064-b66e-5f432cd30fb3",
+     "start": 1.2,
+     "end": 9
+    },
+    {
+     "src": "79b7d9cd-51c6-4064-b66e-5f432cd30fb3",
+     "start": 20.9,
+     "end": 28.5
     }
    ]
   }
