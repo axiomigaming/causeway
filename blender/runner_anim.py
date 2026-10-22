@@ -643,41 +643,63 @@ def build(rig):
     arm(P, "L", fwd=1.1, elbow=0.6, out=0.4, curl=0.1)
     arm(P, "R", fwd=0.9, elbow=0.7, out=0.45, curl=0.1)
     key(4, P, lift=-0.035)
+    # The catch: thrown back off the skid, arms flung out wide (it reads from behind as well as the side).
     P = {}
     torso(P, lean=-0.28, look=0.3, hp=-0.08, roll=0.05)
     leg(P, "L", hip=0.9, knee=0.45, ankle=-0.35)
     leg(P, "R", hip=0.35, knee=1.3, ankle=0.0)
-    arm(P, "L", fwd=1.55, elbow=0.3, out=0.7, curl=0.0)
-    arm(P, "R", fwd=1.4, elbow=0.35, out=0.75, curl=0.0)
+    arm(P, "L", fwd=0.7, elbow=0.3, out=1.25, curl=0.0)
+    arm(P, "R", fwd=0.6, elbow=0.35, out=1.3, curl=0.0)
     key(9, P)
-    # Momentum pitches the body forward over the edge; the arms start to wheel.
-    wheel = [(14, 0.45, 2.3, -0.5, 0.1), (19, 0.4, 0.8, 2.6, 0.15), (24, 0.3, -0.4, 1.2, 0.05), (29, 0.15, 2.4, -0.2, -0.1)]
-    for fr, lean, fl, fr_, look in wheel:
+    # The teeter: the lip under his toes, he rocks side to side on one foot then the other, the arms
+    # windmilling out at the sides against it, the head snapping to the drop and back.
+    teeter = [
+        # fr, lean, roll, lifted leg, L arm (fwd, out), R arm (fwd, out), head yaw, look
+        (13, 0.35, 0.2, "R", (1.6, 1.25), (0.2, 0.9), 0.15, -0.55),
+        (17, 0.22, -0.22, "L", (0.3, 0.85), (1.7, 1.3), -0.2, -0.3),
+        (21, -0.08, 0.14, "R", (1.95, 0.7), (1.0, 1.35), 0.1, 0.1),
+        (25, 0.45, -0.12, None, (1.3, 0.95), (1.45, 1.0), 0.0, -0.6),
+    ]
+    for fr, lean, roll, lift, la, ra, hy, look in teeter:
         P = {}
-        torso(P, lean=lean, look=look - 0.25, hp=0.12, roll=0.08 * math.sin(fr), head_yaw=0.05 * math.sin(fr * 0.7))
-        leg(P, "L", hip=0.3, knee=0.25, ankle=0.35, toe=0.4)
-        leg(P, "R", hip=-0.05, knee=0.25, ankle=0.55, toe=0.5, out=0.08)
-        arm(P, "L", fwd=fl, elbow=0.3, out=0.55 + 0.2 * math.cos(fl), curl=0.0)
-        arm(P, "R", fwd=fr_, elbow=0.3, out=0.55 + 0.2 * math.cos(fr_), curl=0.0)
+        torso(P, lean=lean, look=look, hp=0.12, roll=roll, hroll=-0.5 * roll, head_yaw=hy, head_roll=-0.3 * roll)
+        leg(P, "L", hip=0.3, knee=0.3, ankle=0.35, toe=0.4)
+        leg(P, "R", hip=-0.05, knee=0.3, ankle=0.55, toe=0.5, out=0.08)
+        if lift == "R":
+            leg(P, "R", hip=-0.45, knee=1.2, ankle=0.3, out=0.25)
+        elif lift == "L":
+            leg(P, "L", hip=-0.4, knee=1.15, ankle=0.3, out=0.25)
+        arm(P, "L", fwd=la[0], elbow=0.35, out=la[1], curl=0.05)
+        arm(P, "R", fwd=ra[0], elbow=0.35, out=ra[1], curl=0.05)
         key(fr, P)
-    # Over the edge: the last windmill fails, he tips forward past the lip and drops, limbs flailing
-    # (ballistic from frame 34; the clip ends ~4 m down, out of frame — the floor has gone).
+    # The lip crumbles: the knees buckle, he snatches down at the edge with both hands.
     P = {}
-    torso(P, lean=0.62, look=-0.45, hp=0.25, roll=0.06)
-    leg(P, "L", hip=0.15, knee=0.3, ankle=0.4, toe=0.5)
-    leg(P, "R", hip=-0.3, knee=0.5, ankle=0.5, toe=0.4, out=0.08)
-    arm(P, "L", fwd=2.5, elbow=0.4, out=0.75, curl=0.1)
-    arm(P, "R", fwd=2.2, elbow=0.5, out=0.85, curl=0.1)
+    torso(P, lean=0.75, look=-0.55, hp=0.3, roll=0.05)
+    leg(P, "L", hip=0.75, knee=1.1, ankle=0.1, toe=0.3)
+    leg(P, "R", hip=0.4, knee=1.25, ankle=0.4, toe=0.5, out=0.1)
+    arm(P, "L", fwd=1.25, elbow=0.25, out=0.35, wrist=-0.6, curl=0.6)
+    arm(P, "R", fwd=1.15, elbow=0.3, out=0.4, wrist=-0.6, curl=0.6)
+    key(29, P, lift=-0.06)
+    # Over the edge: the grab closes on nothing, arms up after it, legs kicking.
+    P = {}
+    torso(P, lean=0.62, look=-0.3, hp=0.25, roll=0.06)
+    leg(P, "L", hip=0.5, knee=0.9, ankle=0.4, toe=0.5)
+    leg(P, "R", hip=-0.3, knee=0.7, ankle=0.5, toe=0.4, out=0.08)
+    arm(P, "L", fwd=1.9, elbow=0.5, out=0.55, curl=0.4)
+    arm(P, "R", fwd=1.7, elbow=0.6, out=0.65, curl=0.4)
     key(33, P, y=0.18)
+    # Falling: the body tips back (he ends up looking up at the lip), arms and legs flailing wide
+    # (ballistic from frame 34; the clip ends ~4 m down, out of frame — the floor has gone).
     for fr in range(35, 65, 2):
         u = (fr - 34) / FPS
         w = fr * 0.9
+        k = min(1.0, u * 1.6)
         P = {}
-        torso(P, lean=0.7 + 0.25 * min(1.0, u * 2), look=-0.5, hp=0.3 + 0.2 * min(1.0, u * 2), roll=0.1 * math.sin(w * 0.5))
-        leg(P, "L", hip=0.2 + 0.5 * math.sin(w), knee=0.6 + 0.4 * math.sin(w + 1.2), ankle=0.3, out=0.1)
-        leg(P, "R", hip=0.2 - 0.5 * math.sin(w), knee=0.6 - 0.4 * math.sin(w + 1.2), ankle=0.3, out=0.12)
-        arm(P, "L", fwd=2.3 + 0.6 * math.sin(w * 1.3), elbow=0.5 + 0.3 * math.sin(w), out=0.8, curl=0.2)
-        arm(P, "R", fwd=2.0 - 0.6 * math.sin(w * 1.3 + 0.8), elbow=0.6, out=0.9, curl=0.2)
+        torso(P, lean=0.6 - 0.85 * k, look=-0.3 + 0.8 * k, hp=0.25 - 0.35 * k, roll=0.14 * math.sin(w * 0.5))
+        leg(P, "L", hip=0.5 + 0.5 * math.sin(w), knee=0.8 + 0.5 * math.sin(w + 1.2), ankle=0.3, out=0.2 + 0.1 * math.sin(w * 0.7))
+        leg(P, "R", hip=0.5 - 0.5 * math.sin(w), knee=0.8 - 0.5 * math.sin(w + 1.2), ankle=0.3, out=0.25)
+        arm(P, "L", fwd=1.2 + 0.6 * math.sin(w * 1.3), elbow=0.5 + 0.3 * math.sin(w), out=1.0 + 0.3 * math.sin(w * 1.1), curl=0.2)
+        arm(P, "R", fwd=1.1 - 0.6 * math.sin(w * 1.3 + 0.8), elbow=0.6, out=1.05 + 0.3 * math.cos(w * 1.1), curl=0.2)
         key(fr, P, y=0.18 + 1.6 * u, lift=-0.5 * G_ACC * u * u)
 
     # ---------------------------------------------------------- gate: slam to a stop, recoil, stagger back, sink down
