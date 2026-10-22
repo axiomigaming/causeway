@@ -38,12 +38,13 @@ interface Part {
 }
 
 const KINDS: Record<LandmarkKind, Part[]> = {
-  // A drowned colossus: its fallen head (≈35 m) lying on its cheek in the river, face turned to the
-  // runner, and further out its stone hand breaking the water, palm up, fingers curled.
+  // A drowned colossus: its fallen head (≈45 m) lying on its cheek in the river, face turned to the
+  // runner on one side of the way, its stone hand (≈30 m) rising from the water on the other, palm to
+  // the runner, fingers curled: the approach heads between them.
   fallen_colossus: [
-    { piece: 'head_0', x: -8, y: WATER_Y - 2, z: -2, rotY: 0.35, tilt: [0.12, -0.62], s: 7.2, haze: 'light' },
-    { piece: 'hand_colossal_0', x: 22, y: WATER_Y - 3, z: -14, rotY: -0.35, tilt: [0.1, -0.12], s: 10, haze: 'light' },
-    { piece: 'rubble_3', x: 8, y: WATER_Y - 0.8, z: 10, rotY: 2.0, s: 5.0, haze: 'light' },
+    { piece: 'head_0', x: 12, y: WATER_Y - 2.5, z: -6, rotY: 0.45, tilt: [0.12, -0.62], s: 9, haze: 'light' },
+    { piece: 'hand_colossal_0', x: -32, y: WATER_Y - 4, z: -10, rotY: 0.4, tilt: [0.08, 0.1], s: 13, haze: 'light' },
+    { piece: 'rubble_3', x: -10, y: WATER_Y - 0.8, z: 2, rotY: 2.0, s: 5.0, haze: 'light' },
     // Fragments of it in the water beside the approach.
     { piece: 'column_fallen_0', x: 0, y: WATER_Y - 0.6, z: 48, rotY: 0.9, s: 2.2, near: true },
     { piece: 'rubble_3', x: -22, y: WATER_Y - 0.8, z: 60, rotY: 2.0, s: 2.6, near: true },
