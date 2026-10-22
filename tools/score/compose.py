@@ -676,6 +676,95 @@ def fill():
     return render_once([sw, cym, d], bpm, 4 * 60 / bpm + 2.4)
 
 
+
+def l0_voicing():
+    """Round 15: a second voicing of layer 0 (the run's opening layer), so consecutive runs open differently on
+    the same clock, key and harmony: a harp ostinato in a dotted 3+3+2 figure instead of the marimba eighths,
+    the hook's hint on celesta instead of kalimba, and a different light groove (djembe tones and swung
+    shaker sixteenths instead of frame drum and straight shaker). Segments A and B like run_stems()."""
+    harp = Part(46, pan=30, gain=0.6, wet=0.22, legato=1.0)
+    cel = Part(8, pan=100, gain=0.42, wet=0.3)
+    d = Drums(gain=0.5, wet=0.1)
+    seq = ['A', 'B'] * 2
+    for si, sec in enumerate(seq):
+        for bi, ch in enumerate(PROG[sec]):
+            B = (si * 8 + bi) * 4
+            ts = tones(ch, 0)
+            root = ts[0]
+            third = ts[1] - root
+            base = min(near([root], 50, 61))
+            # 3+3+2 in eighths: dotted quarter, dotted quarter, quarter, each a rising pair
+            for (b, off, v) in [(0, 0, 90), (0.75, 12, 66), (1.5, 7, 80), (2.25, third + 12, 66), (3, 12, 78), (3.5, 7, 62)]:
+                harp.add(B + b, 0.75, base + off, v)
+            if bi in (0, 4):
+                for (b, d_, n) in MEL[sec][bi]:
+                    cel.add(B + b, d_, n, 62)
+            d.add(B, 'm_pulse', 0.8)
+            d.add(B + 1.75, 'm_djembe_tone', 0.4, 0.3)
+            d.add(B + 2.5, 'm_pulse', 0.4)
+            d.add(B + 3, 'm_djembe_tone', 0.5, 0.3)
+            d.add(B + 3.5, 'm_djembe_tone', 0.32, 0.3)
+            for k in range(16):
+                # swung sixteenths: the off-sixteenths late and soft
+                if k % 4 == 1 and rng.random() < 0.4:
+                    continue
+                d.add(B + k * 0.25 + (0.04 if k % 2 else 0), 'm_shaker', 0.26 if k % 4 == 0 else 0.2 if k % 2 == 0 else 0.13, -0.35)
+    full = render_loop({0: [harp, cel, d]}, BPM_RUN, 16, 2)[0]
+    n8 = int(round(8 * bar_len(BPM_RUN) * SR))
+    return {'th_l0v_a': full[:n8], 'th_l0v_b': full[n8:2 * n8]}
+
+
+def awe():
+    """Round 15: the landmark reveal - a low choir and horns on an open fifth (D, A: no third, so it sits under
+    every chord of the progression), swelling over one bar into the downbeat, held two bars, then letting go.
+    The runtime starts it one bar before the beat it lands on (and plays it a whole tone up after the lift)."""
+    bpm = BPM_RUN
+    choir = Part(52, gain=0.6, wet=0.5, legato=1.0, swell=[(0, 4, 30, 118), (4, 8, 118, 100), (12, 4, 100, 20)])
+    horns = Part(60, pan=80, gain=0.5, wet=0.45, legato=1.0, swell=[(0, 4, 25, 110), (4, 8, 110, 92), (12, 4, 92, 15)])
+    low = Part(49, bank=17, gain=0.4, wet=0.4, legato=1.0, swell=[(0, 4, 20, 100), (12, 4, 100, 10)])
+    for n in (50, 57, 62):
+        choir.add(0, 16, n, 84)
+    for n in (50, 57):
+        horns.add(0, 16, n, 80)
+    low.add(0, 16, 38, 76)
+    timp = Part(47, gain=0.45, wet=0.3)
+    timp.add(4, 1, 50, 70)
+    return render_once([choir, horns, low, timp], bpm, 4 * bar_len(bpm) + 1.6)
+
+
+def round15():
+    """--round15: render only the round-15 pieces (th_l0v_a/b, th_awe) and merge them, loudness-matched to the
+    cached renders of the pieces already shipped (layer 0, and the tier-3 mix for the reveal)."""
+    mp = os.path.join(AUD, 'manifest.json')
+    man = json.load(open(mp))
+    rd = lambda n: sf.read(os.path.join(CACHE, f'{n}.wav'), dtype='float32', always_2d=True)[0]
+    out = r15_pieces(lufs_m(rd('th_l0_a')), lufs_m(sum(rd(f'th_l{k}_a') for k in range(4))))
+    man['sounds'].update(out)
+    json.dump(man, open(mp, 'w'), indent=1)
+    open(mp, 'a').write('\n')
+    tot = sum(v['webm']['bytes'] for v in man['sounds'].values() if v.get('group') == 'theme')
+    for k, v in out.items():
+        print(f"{k:12} {v['slices'][0][1]:6.2f} s  {v['webm']['bytes'] / 1024:5.0f} KB opus")
+    print(f'theme: {tot / 1024:.0f} KB opus (budget 3 MB)')
+    if tot > 3e6:
+        sys.exit('theme over budget')
+
+
+def r15_pieces(l0_level, mix_level):
+    """the second layer-0 voicing at the first's loudness, and the reveal 9 dB under the tier-3 mix"""
+    out = {}
+    v = l0_voicing()
+    lv = lufs_m(v['th_l0v_a'])
+    gv = 10 ** ((l0_level - lv) / 20)
+    for name, x in v.items():
+        out[name] = encode(name, x * gv, True, {'bpm': BPM_RUN, 'bars': 8}, KBPS['voicing'])
+    a = awe()
+    ga = 10 ** ((mix_level - 9.0 - lufs_m(a)) / 20)
+    ga = min(ga, 0.5 / float(np.abs(a).max()))
+    out['th_awe'] = encode('th_awe', a * ga, False, {'bpm': BPM_RUN, 'bars': 4}, KBPS['awe'])
+    return out
+
+
 # ------------------------------------------------------------------ output
 def lufs_m(x):
     """momentary-max-ish loudness proxy (dB RMS of the loudest 400 ms)"""
@@ -704,7 +793,7 @@ def encode(name, x, loop, extra, kbps):
 
 
 # Opus bitrates (AAC gets 1.5x): the theme must stay within 3 MB of Opus.
-KBPS = {'stem': 72, 't4': 80, 'idle': 56}
+KBPS = {'stem': 64, 't4': 72, 'idle': 48, 'voicing': 56, 'awe': 40}
 
 
 def reencode():
@@ -715,7 +804,7 @@ def reencode():
     for name, ent in man['sounds'].items():
         if ent.get('group') != 'theme':
             continue
-        kb = KBPS['t4'] if name.startswith('th_t4') else KBPS['stem'] if name.startswith('th_l') else KBPS['idle'] if name in ('th_calm', 'th_safe') else None
+        kb = KBPS['t4'] if name.startswith('th_t4') else KBPS['voicing'] if name.startswith('th_l0v') else KBPS['stem'] if name.startswith('th_l') else KBPS['awe'] if name == 'th_awe' else KBPS['idle'] if name in ('th_calm', 'th_safe') else None
         if kb is None:
             continue
         x, _ = sf.read(os.path.join(CACHE, f'{name}.wav'), dtype='float32', always_2d=True)
@@ -732,6 +821,8 @@ def reencode():
 def main():
     if '--encode-only' in sys.argv:
         return reencode()
+    if '--round15' in sys.argv:
+        return round15()
     out = {}
     print('run stems ...', flush=True)
     stems = run_stems()
@@ -777,6 +868,7 @@ def main():
         out[f'th_win{i}'] = encode(f'th_win{i}', fit(x, -1.0 + 1.0 * i), False, {}, 96)
     out['th_lose'] = encode('th_lose', fit(loss, -1.0), False, {}, 96)
     out['th_fill'] = encode('th_fill', fit(fl, -4.0), False, {'bpm': BPM_RUN}, 80)
+    out.update(r15_pieces(lufs_m(stems['th_l0_a'] * g), ref))
     mp = os.path.join(AUD, 'manifest.json')
     man = json.load(open(mp))
     for k in [k for k, v in man['sounds'].items() if v.get('group') == 'theme']:

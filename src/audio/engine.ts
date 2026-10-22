@@ -23,7 +23,7 @@ import { SampleBank, SamplePlayer, type PlayOpts, type Voice } from './samples';
 import { ScorePlayer } from './score';
 import { ThemePlayer } from './theme';
 import { worldMood } from '../world/mood';
-import { bedMix, mulberry32, resolveSfx, surfaceFor, voiceCap, type Bed } from './select';
+import { bedMix, mulberry32, resolveSfx, STYLE_AIR, styleAir, surfaceFor, voiceCap, type Bed } from './select';
 
 type Scene = 'title' | 'setup' | 'lead' | 'run' | 'escaped' | 'fallen';
 export type UiSound = 'hover' | 'tick' | 'press' | 'confirm' | 'bet' | 'cashout' | 'deny' | 'open' | 'close' | 'stamp' | 'toggle';
@@ -130,6 +130,13 @@ export class AudioEngine implements WorldSounds {
   private drone: Voice | null = null;
   private strings: Voice | null = null;
   private windBed: Voice | null = null;
+  private rainBed: Voice | null = null;
+  /** Round 15: the world style (from the world, or picked per run until the world says), and the reveal state. */
+  private worldStyle: string | null = null;
+  private styleFromWorld = false;
+  private fxReveal = false;
+  private revealDone = false;
+  private chasmCollapse = false;
   private nextGust = 0;
   private lastGust = 0;
   /** Cosmetic randomness for variation only (never game state). */
@@ -618,6 +625,7 @@ export class AudioEngine implements WorldSounds {
       if (v) this.bedVoice.set(b, v);
     }
     this.windBed = sp.play('bed_wind', { loop: true, gain: 0 });
+    if (sp.has('bed_rain')) this.rainBed = sp.play('bed_rain', { loop: true, gain: 0 });
     if (!this.bedVoice.size) return;
     this.bedsOn = true;
     const t = ctx.currentTime;
@@ -636,7 +644,17 @@ export class AudioEngine implements WorldSounds {
     const t = this.ctx.currentTime;
     const live = this.scene === 'run' || this.scene === 'lead' || this.scene === 'fallen';
     const mix = bedMix(live ? this.section : null);
-    for (const b of BEDS) this.bedVoice.get(b)?.gain.gain.setTargetAtTime(mix[b], t, tc);
+    // The world's own air: its level per bed, a different chorus (rate) for birds and insects, the insects' top.
+    const air = styleAir(this.worldStyle);
+    for (const b of BEDS) {
+      const v = this.bedVoice.get(b);
+      if (!v) continue;
+      v.gain.gain.setTargetAtTime(mix[b] * air.beds[b], t, tc);
+      const rate = b === 'jungle' ? air.birdRate : b === 'insects' ? air.insectRate : 1;
+      v.src.playbackRate.setTargetAtTime(rate, t, tc);
+    }
+    this.insectEq?.gain.setTargetAtTime(air.insectTop, t, tc);
+    this.rainBed?.gain.gain.setTargetAtTime(air.rain * (this.section === 'tunnel' && live ? 0.3 : 1), t, tc);
     this.duckAmbience(tc);
   }
 
@@ -731,6 +749,16 @@ export class AudioEngine implements WorldSounds {
     if (name === 'made_it') {
       // The runner carries on to safe ground and pulls up 0.75 + 0.55 g s from now (render/game.ts cashout).
       if (this.escapePending) this.escapePending.landIn = 0.75 + 0.55 * Math.min(1, Math.max(0, strength));
+      return;
+    }
+    if (name === 'landmark_reveal') {
+      this.fxReveal = true;
+      if (this.scene === 'run') this.reveal(Math.min(1, Math.max(0, strength)));
+      return;
+    }
+    if (name === 'fall_drop') {
+      // The runner goes over the lip: the body dropping away through the air (the splash comes with impact()).
+      this.sample('whoosh', { strength: 0.8, rate: 0.6 });
       return;
     }
     if (name === 'tier_up') {
@@ -894,6 +922,26 @@ export class AudioEngine implements WorldSounds {
     if (t === this.section) return;
     this.section = t;
     this.mixBeds(1.5);
+    // Until the world sends landmark_reveal itself: the open-water approach to a landmark is the reveal.
+    if (t === 'approach' && this.scene === 'run' && !this.fxReveal && !this.revealDone) {
+      this.revealDone = true;
+      this.reveal(0.6);
+    }
+  }
+
+  /**
+   * The world's style (world/style.ts: turquoise, jade, lagoon, dry, rainforest): its ambience. Called by the
+   * game when a world is built; until it is, the audio picks a style of its own per run (see setScene).
+   */
+  setWorldStyle(name: string | null | undefined): void {
+    this.styleFromWorld = true;
+    this.worldStyle = name ?? null;
+    this.mixBeds(3);
+  }
+
+  /** A hero landmark comes into view: the theme's awe swell lands on a downbeat (quieter at high tiers). */
+  private reveal(strength: number) {
+    if (this.themeOn && this.theme) this.theme.awe(strength);
   }
 
   // ------------------------------------------------------------------ world hooks
@@ -940,6 +988,17 @@ export class AudioEngine implements WorldSounds {
     if (this.recentImpacts.length >= 6) return;
     this.recentImpacts.push(t);
     const crowd = 1 / Math.sqrt(this.recentImpacts.length);
+    if (this.chasmCollapse && !water && t - this.crashAt < 4) {
+      // The floor of the chasm gives way: the slabs going, rubble pouring after them.
+      this.chasmCollapse = false;
+      this.sample('rockfall', { strength: 0.85 });
+      this.rec('crack_stone', { strength: 0.9, rate: 0.85, priority: 3 });
+      this.sample('crumble', { strength: 0.7, when: t + 0.1 });
+    }
+    if (water && size >= 0.85 && this.crashKind === 'chasm' && t - this.crashAt < 6) {
+      // The runner into the water below: a real heavy plunge under the splash.
+      this.rec('sink', { strength: 0.9, priority: 3 });
+    }
     const k = Math.min(1.3, 0.3 + size) * crowd;
     const sz = Math.min(1, Math.max(0, size));
     if (water) {
@@ -1032,7 +1091,7 @@ export class AudioEngine implements WorldSounds {
     if (!this.bedsOn) this.insectGain.gain.setTargetAtTime(running ? Math.max(0, 1 - intensity * 1.6) : 1, t, 0.8);
     else {
       // Recorded wind follows the speed; the synth body under it stays a whisper.
-      this.windBed?.gain.gain.setTargetAtTime(0.25 + Math.min(1, speed / 9) * 0.75, t, 0.5);
+      this.windBed?.gain.gain.setTargetAtTime((0.25 + Math.min(1, speed / 9) * 0.75) * styleAir(this.worldStyle).wind, t, 0.5);
       this.windGain.gain.setTargetAtTime(0.004 + speed * 0.0012, t, 0.35);
       // A gust now and then, more often at speed.
       if (t > this.nextGust) {
@@ -1072,7 +1131,7 @@ export class AudioEngine implements WorldSounds {
    * turned (world/mood.ts drive), a sub-bass floor from 10x. Called every frame while running.
    */
   private escalate(tier: Tier, t: number) {
-    this.windBed?.gain.gain.setTargetAtTime(0.25 + Math.min(1, this.speed / 9) * 0.75 + 0.07 * tier, t, 0.8);
+    this.windBed?.gain.gain.setTargetAtTime((0.25 + Math.min(1, this.speed / 9) * 0.75 + 0.07 * tier) * styleAir(this.worldStyle).wind, t, 0.8);
     // The procedural sub rumble (a filtered-noise floor, felt more than heard) opens up from tier 3.
     if (tier >= 3) {
       this.rumbleGain.gain.setTargetAtTime(Math.max(0, this.intensity - 0.3) * 0.26 + 0.07 * (tier - 2), t, 0.8);
@@ -1238,8 +1297,10 @@ export class AudioEngine implements WorldSounds {
       // The theme cuts dead into its loss sting (low brass falling, timpani); the world adds the collapse.
       this.theme!.fall();
       if (kind === 'chasm') {
-        this.sample('debris', { strength: 0.9, when: t + 0.12 });
-        this.sample('rockfall', { strength: 0.6, when: t + 0.5 });
+        // The cracks race across the floor (grit jumping from them); the floor gives on the game's first
+        // stone impact (after its pre-impact beat, which slow motion stretches): the roar comes with it there.
+        this.sample('debris', { strength: 0.6, when: t + 0.12 });
+        this.chasmCollapse = true;
       } else if (kind !== 'gate') {
         this.sample('rumble', { strength: 0.8, fadeIn: 0.3, maxDur: 3 });
         this.sample('debris', { strength: 0.7, when: t + 0.35 });
@@ -1516,6 +1577,12 @@ export class AudioEngine implements WorldSounds {
       this.score.gain.setTargetAtTime(1, t, 0.15);
     }
     if (s === 'lead' && prev !== 'lead') {
+      this.revealDone = false;
+      if (!this.styleFromWorld) {
+        // No world hook yet: a different air each run anyway (never the last run's).
+        const names = Object.keys(STYLE_AIR).filter((n) => n !== this.worldStyle);
+        this.worldStyle = names[Math.floor(this.rnd() * names.length)] ?? null;
+      }
       this.cue.gain.cancelScheduledValues(t);
       this.cue.gain.setTargetAtTime(1, t, 0.05);
       this.mult = 100;
