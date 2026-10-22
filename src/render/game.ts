@@ -73,9 +73,10 @@ const nullSounds: WorldSounds = { footstep() {}, impact() {}, tremor() {}, run()
 export { intensityOf };
 
 export function speedOf(intensity: number): number {
-  // Round 13: 5 m/s at tier 0 read as a jog. He sprints for his life from the first second (6.0 m/s,
-  // 2.33 strides/s, under the run clip's turnover cap so the feet never skate) and climbs to ~13 m/s.
-  return Math.max(6.0, 5.0 + 7.6 * Math.pow(intensity, 0.85));
+  // Round 13: 5 m/s at tier 0 read as a jog. He sprints for his life from the first second (6.5 m/s
+  // since round 16's longer run stride, 2.33 strides/s, under the turnover cap so the feet never
+  // skate) and climbs to ~13 m/s.
+  return Math.max(6.5, 5.0 + 7.6 * Math.pow(intensity, 0.85));
 }
 
 const DUST = new THREE.Color('#d9b48a');
@@ -779,7 +780,9 @@ export class Game {
     // cash-out); pieces still ahead crumble away, the way ahead is clear.
     this.obstacles.settle();
     const clip = st.variant === 'lookback' ? 'win_cheer' : st.clip;
-    const T = { lookback: 0.72, cheer: 0.5, salute: 1.0, leap: 1.15 }[st.variant];
+    // Stop distance v·T/2 matches each clip's braking: cheer/lookback decelerate over four steps
+    // (~1 s, runner round 16), so the root stops with the feet and they never slide.
+    const T = { lookback: 1.0, cheer: 1.0, salute: 1.0, leap: 1.15 }[st.variant];
     // He is still running: he carries on through the last strides to safe ground before the gate of
     // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
     // money is settled already; only the picture runs on.

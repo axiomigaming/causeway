@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Rng } from '../engine/rng';
 import { OBSTACLES, obstacleTiming, type Obstacle } from '../world/runner';
 import { PATH_HALF } from '../world/sections';
+import { WATER_Y } from '../world/water';
 
 /**
  * The obstacle director: set pieces on the way ahead that the runner always clears (presentation
@@ -413,7 +414,8 @@ export class ObstacleDirector {
       this.plans = this.plans.filter((p) => Math.abs(p.at - c.s0) > v * 1.2);
       this.plan(c.dir > 0 ? 'turn_cut_L' : 'turn_cut_R', c.s0 + 0.6, 2.25, {
         onTake: () => {
-          this.h.sound('whoosh_jump', 0.35);
+          // The outside foot planted hard at a real corner (audio: its own plant + skid + swing).
+          this.h.sound('corner_plant', 0.6);
           this.landDust(this.h.s(), 0.35);
         },
       });
@@ -729,7 +731,7 @@ export class ObstacleDirector {
     if (gaps.length < 2) return false;
     const mat = this.h.material('floor');
     const objs: THREE.Object3D[] = [];
-    const moving: { o: THREE.Mesh; dir: number; spin: number; start: number; at: number; tile: Tile }[] = [];
+    const moving: { o: THREE.Mesh; dir: number; spin: number; start: number; at: number; tile: Tile; wet?: boolean }[] = [];
     for (const t of gaps) {
       const geo = this.h.geometry(t.piece);
       if (!geo || !mat) return false;
@@ -765,8 +767,13 @@ export class ObstacleDirector {
           if (k <= 0) continue;
           const f = this.h.frameAt(m.at);
           if (k - dt <= 0) {
-            this.h.sound('stone_split', 0.6);
+            // It tears free and grinds off sideways (audio: slab_groan; the splash comes on contact).
+            this.h.sound('slab_groan', 0.6);
             this.h.dust(f.pos, 0.6);
+          }
+          if (!m.wet && m.o.position.y < WATER_Y + 0.15) {
+            m.wet = true;
+            this.h.sound('slab_splash', 0.6);
           }
           // Out of the way first (sideways, tilting), then sinking for good.
           const side = Math.min(1, k / 1.1);
