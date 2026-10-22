@@ -25,7 +25,8 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 let failed = 0;
-for (const v of VIEWS) {
+for (const v of VIEWS) for (let wi = 1; wi <= worlds; wi++) {
+  // A fresh page per world: SwiftShader runs out of memory on one page over many worlds.
   const page = await browser.newPage({ viewport: { width: v.w, height: v.h }, deviceScaleFactor: 1, isMobile: v.w < 700, hasTouch: v.w < 700 });
   await page.goto(`${URL}/?qa&q=medium&seed=results`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
@@ -34,7 +35,7 @@ for (const v of VIEWS) {
     window.__ctl.enter();
     await new Promise((r) => setTimeout(r, 1500));
   });
-  for (let wi = 1; wi <= worlds; wi++) {
+  {
     for (const m of MULTS) {
       for (const outcome of m <= 1 ? ['fall'] : ['fall', 'escape']) {
         const r = await page.evaluate(

@@ -2318,6 +2318,7 @@ export class Game {
       for (const c of o.children) walk(c);
     };
     walk(this.scene);
+    for (const o of targets) if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).computeBoundingSphere();
     const rc = new THREE.Raycaster();
     const ndc: number[][] = [];
     let solid = 0;
@@ -2366,6 +2367,8 @@ export class Game {
       for (const c of o.children) walk(c);
     };
     walk(this.scene);
+    // Instanced tiles are re-placed as the route grows; their cached bounds would make rays miss them.
+    for (const o of targets) if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).computeBoundingSphere();
     const rc = new THREE.Raycaster();
     // On the way: a track mesh right under the feet.
     rc.set(new THREE.Vector3(rp.x, rp.y + 1, rp.z), new THREE.Vector3(0, -1, 0));
