@@ -139,6 +139,38 @@ for (const name of pick) {
   await waitPhase(['result']);
   check('a round after the quality change settles', true);
   await shot('7-after-quality');
+
+  // The CASH OUT plate's colour across the tier boundaries (display only: the shown multiplier is
+  // pinned on a staged live plate, then everything is restored). It must stay on the cream → orange
+  // segment and never read red (a one-frame red flash was once filmed at ~3.5×).
+  const plate = await page.evaluate(async () => {
+    const s = window.__store, c = window.__ctl;
+    const saved = { phase: s.getState().phase, live: s.getState().live, result: s.getState().result, revealed: s.getState().revealed };
+    const realMult = c.currentMult, realRet = c.currentReturn;
+    s.getState().set({ phase: 'running', result: null, live: { id: 'e2e-heat', nonce: 0, commitment: '', clientSeed: '', stake: 1000, autoCashout: null, runStartsAt: 0 } });
+    const out = [];
+    for (const m of [200, 350, 351, 500, 1000]) {
+      c.currentMult = () => m;
+      c.currentReturn = () => (1000 * m) / 100;
+      const t0 = performance.now();
+      let fill = '';
+      while (performance.now() - t0 < 5000) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const b = document.querySelector('.cash');
+        if (b && b.style.getPropertyValue('--heat-fill')) {
+          fill = getComputedStyle(b, '::before').backgroundColor;
+          if (performance.now() - t0 > 200) break;
+        }
+      }
+      const [r, g, bl] = (fill.match(/\d+(\.\d+)?/g) ?? []).map(Number);
+      out.push({ m: m / 100, fill, red: r > 180 && g < 120 && bl < 120, onSegment: r >= 240 && r <= 246 && g >= 150 && g <= 237 && bl >= 60 && bl <= 220 });
+    }
+    c.currentMult = realMult;
+    c.currentReturn = realRet;
+    s.getState().set(saved);
+    return out;
+  });
+  check('CASH OUT plate never red across 2×, 3.5×, 5×, 10× (cream → orange only)', plate.length === 5 && plate.every((p) => p.fill && !p.red && p.onSegment), JSON.stringify(plate.map((p) => `${p.m}×:${p.fill}`)));
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await ctx.close();
 }

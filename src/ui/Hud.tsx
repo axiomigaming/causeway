@@ -5,6 +5,7 @@ import { formatCredits, formatMult } from '../engine/money';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { useHold } from './hold';
+import { css, heroInk } from './heat';
 import { Stair } from './icons';
 import './hud.css';
 
@@ -103,6 +104,7 @@ export function Hud() {
       const heat = heatOf(m);
       if (Math.abs(heat - lastHeat) > 0.004) {
         el.style.setProperty('--heat', heat.toFixed(3));
+        el.style.setProperty('--heat-ink', css(heroInk(heat)));
         lastHeat = heat;
       }
       const tier = tierOf(m);
