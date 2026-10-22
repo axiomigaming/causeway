@@ -39,7 +39,7 @@ def sgn(s):
 
 
 # ------------------------------------------------------------------ semantic pose helpers
-def leg(P, s, hip=0.0, knee=0.0, ankle=0.0, toe=0.0, out=0.0, yaw=0.0):
+def leg(P, s, hip=0.0, knee=0.0, ankle=0.0, toe=0.0, out=0.07, yaw=0.0):  # a hip-width base unless told otherwise
     P[f"thigh.{s}"] = (-hip, yaw, out * sgn(s))
     P[f"shin.{s}"] = (knee, 0, 0)
     P[f"foot.{s}"] = (-ankle, 0, 0)
@@ -726,7 +726,7 @@ def build(rig):
     key(4, P, lift=-0.035)
     # Shield: forearms up in front of the face (hands at brow height, never above the head), chin
     # tucked, the face turning away from the slab.
-    shield = dict(fwd=1.3, elbow=2.15, out=0.38, twist=-0.35, wrist=0.2, curl=0.85, shrug=0.25)
+    shield = dict(fwd=1.3, elbow=2.15, out=0.46, twist=-0.35, wrist=0.2, curl=0.85, shrug=0.25)
     P = {}
     torso(P, lean=-0.06, look=-0.28, hp=-0.04, head_yaw=0.38, head_roll=0.08)
     leg(P, "L", hip=0.5, knee=0.35, ankle=-0.1)
@@ -802,7 +802,7 @@ def build(rig):
     key(5, P, lift=-0.02)
     # Hands clasped over the back of the head, elbows forward round the face: a crouch under the
     # falling rock, not arms in the air.
-    cover = dict(fwd=1.9, elbow=2.45, out=0.42, twist=-0.45, curl=0.9, shrug=0.3)
+    cover = dict(fwd=1.9, elbow=2.45, out=0.5, twist=-0.45, curl=0.9, shrug=0.3)
     P = {}
     torso(P, lean=0.35, look=-0.35, hp=0.05)
     leg(P, "L", hip=0.9, knee=1.3, ankle=-0.2)
@@ -1079,14 +1079,14 @@ def extra_clips():
     torso(P, lean=0.15, look=-0.1, yaw=-0.45, hyaw=-0.2, head_yaw=-1.0, head_roll=0.15)
     leg(P, "L", hip=0.35, knee=0.7, ankle=0.0)
     leg(P, "R", hip=-0.2, knee=0.8, ankle=0.4)
-    arm(P, "R", fwd=2.1, elbow=1.9, out=0.55, twist=-0.3, curl=0.9, shrug=0.25)
+    arm(P, "R", fwd=2.1, elbow=1.75, out=0.68, twist=-0.3, curl=0.9, shrug=0.25)
     arm(P, "L", fwd=-0.3, elbow=0.9, out=0.45, curl=0.6)
     key(10, P, y=-0.08)
     P = {}
     torso(P, lean=0.35, look=-0.2, yaw=-0.35, hyaw=-0.15, head_yaw=-0.8)
     leg(P, "L", hip=0.6, knee=1.3, ankle=0.1)
     leg(P, "R", hip=0.1, knee=1.3, ankle=0.4)
-    arm(P, "R", fwd=2.2, elbow=2.0, out=0.5, twist=-0.3, curl=0.9, shrug=0.25)
+    arm(P, "R", fwd=2.2, elbow=1.85, out=0.62, twist=-0.3, curl=0.9, shrug=0.25)
     arm(P, "L", fwd=0.2, elbow=0.8, out=0.4, curl=0.6)
     key(16, P, y=-0.25)
     P = {}
@@ -1599,7 +1599,10 @@ def plant_hand(action, side, f0, f1, where, ramp=1):
     bpy.ops.nla.bake(frame_start=f0 - ramp - 1, frame_end=f1 + ramp + 1, only_selected=True, visual_keying=True,
                      clear_constraints=True, use_current_action=True, bake_types={"POSE"})
     bpy.ops.object.mode_set(mode="OBJECT")
+    ea = emp.animation_data.action if emp.animation_data else None
     bpy.data.objects.remove(emp)
+    if ea is not None:
+        bpy.data.actions.remove(ea)
     if rig.animation_data.action.name != action:
         print(f"  plant_hand: bake wrote to {rig.animation_data.action.name}", flush=True)
 
@@ -1832,14 +1835,14 @@ def obstacle_clips():
         arm(P, side, fwd=-0.45, elbow=1.15, out=0.45, curl=0.9)
         arm(P, o, fwd=0.85, elbow=1.5, out=0.08, curl=0.9)
         nudge(P, "head", dy=0.2 * sg)
-        P["root"] = (0.0, 0.16 * sg, 0.12 * sg)
+        P["root"] = (0.0, 0.12 * sg, 0.12 * sg)
         key(9, P, z=gait_root(ph, RUN) - 0.04, x=x - 0.06 * sg)
         ph2 = (ph + 0.25) % 1.0
         P, x = loco(ph2, RUN)
         nudge(P, "chest", dy=0.15 * sg)
         nudge(P, "neck", dy=0.25 * sg)
         nudge(P, "head", dy=0.15 * sg)
-        P["root"] = (0.0, 0.2 * sg, 0.3 * sg)
+        P["root"] = (0.0, 0.14 * sg, 0.3 * sg)
         key(13, P, z=gait_root(ph2, RUN) - 0.02, x=x)
         ph3 = (p0 + 0.85) % 1.0
         P, x = loco(ph3, RUN)
