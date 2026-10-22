@@ -48,6 +48,8 @@ export interface WorldSounds {
    * into the water already sound through impact(size, true).
    */
   event?(name: string, strength: number): void;
+  /** The world's style (world/style.ts: turquoise, jade, lagoon, dry, rainforest), once per new world. */
+  setWorldStyle?(name: string): void;
   /**
    * Seconds until the score's next bar line (downbeat), or null when no score is running. The
    * progression director lands a tier-up's visual punch on it, together with the music's accent.
@@ -379,7 +381,20 @@ export class Game {
    * Round 11 crescendo, every frame: the look's light and air pushed toward a gathering storm (storm
    * look) or a deepening, ominous dusk (the others) by the run's drive (0..1), punctuated by gusts.
    */
+  /** Hero landmarks already announced to the audio (once each, as they come into clear view). */
+  private revealed = new Set<object>();
+
   private applyMood(d: number, g: number): void {
+    // World round 16: a hero landmark comes into clear view ~55 m before its corner (presentation only).
+    if (this.stage === 'run') {
+      for (const l of this.track.landmarks.list) {
+        const ahead = l.s - this.s;
+        if (!this.revealed.has(l) && ahead < 58 && ahead > 10) {
+          this.revealed.add(l);
+          this.sounds.event?.('landmark_reveal', 0.6);
+        }
+      }
+    }
     const L = this.lookApplied;
     if (!L) return;
     const storm = (L.rain ?? 0) > 0;
@@ -507,6 +522,8 @@ export class Game {
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);
+    this.sounds.setWorldStyle?.(this.track.style.name);
+    this.revealed.clear();
     this.obstacles.reset();
     this.runOn = false;
     this.escapeGateAt = 0;
@@ -1131,10 +1148,18 @@ export class Game {
         const gap = 0.07 * (1 + 0.8 * e);
         tiles.forEach((t, i) => {
           this.later(0.02 + i * gap, () => {
+            // A slab in his fall line (the first metres beyond the lip, where he goes over at ~1.1 s)
+            // drops fast and tips out sideways, so he never lands on, rides or clips a falling slab.
+            const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
+            const along = tp.dot(h.fwd);
+            const inLine = along > -0.5 && along < 3.5;
+            const out = Math.sign(tp.dot(h.right) || (r.chance(0.5) ? 1 : -1));
             this.debris.spawn(
               t.piece,
               t.world,
-              new THREE.Vector3(r.range(-0.6, 0.6), r.range(-1.5, 0), r.range(-0.6, 0.6)),
+              inLine
+                ? h.right.clone().multiplyScalar(out * r.range(2.2, 3.2)).setY(-r.range(3.5, 4.5))
+                : new THREE.Vector3(r.range(-0.6, 0.6), r.range(-1.5, 0), r.range(-0.6, 0.6)),
               new THREE.Vector3(r.range(-1.2, 1.2), r.range(-0.3, 0.3), r.range(-1.2, 1.2)),
               () => null,
               // Slabs crack up as they drop: the nearer ones a moment after they go.
@@ -1171,7 +1196,8 @@ export class Game {
           });
         }
       };
-      if (walls !== 'none') blocks(n(4), 1, 8, F.pre + 0.3, false);
+      // (From 2.5 m beyond the lip: blocks off the walls never cross his fall line.)
+      if (walls !== 'none') blocks(n(4), 2.5, 8, F.pre + 0.3, false);
       // Big falls: the walls beside the gap come down too, in waves, the gap still widening.
       if (F.waves >= 1) {
         this.later(F.pre + 1.0, () => kick(0.5));
@@ -1192,13 +1218,19 @@ export class Game {
       // over the lip and down (its root leaves the floor at ~1.1 s), to the water below — a splash,
       // never anything worse. The camera stays at the lip and tilts down after him. Where there is
       // no slab to give, or for the other variant, he kneels at the edge instead (fall_chasm_b).
-      const dropT = 1.0;
+      // The slab under him goes just as fall_chasm's root leaves the floor (1.1 s; runner round 17).
+      const dropT = 1.1;
       const under = st.variant % 2 === 0 ? this.tileUnder(this.stopAt) : null;
       if (st.variant % 2 === 0 && !under) this.runner.play('fall_chasm_b', 0.12);
       if (under) {
         this.later(dropT - 0.06, () => {
           this.track.hideTile(under);
-          this.debris.spawn(under.piece, under.world, new THREE.Vector3(0, -0.6, 0), new THREE.Vector3(r.range(-0.8, 0.8), 0, r.range(-0.8, 0.8)), () => null, { breakInto: 3, breakAfter: 0.3 });
+          // No debris for the slab under him: whatever it did (drop, tip, break) it fell with him at the
+          // same speed and he rode it or clipped it. It crumbles into the dust instead (burst, puff).
+          for (let k = 0; k < 4; k++) {
+            const q = this.runner.root.position.clone().addScaledVector(h.right, r.range(-1.6, 1.6)).addScaledVector(h.fwd, r.range(-1.2, 0.4));
+            this.particles.burst(q, 6, { spread: 0.4, up: 0.2, speed: 0.6, size: 0.2, life: 1.2, color: DUST_DARK, alpha: 0.6, gravity: 9, drag: 0.2, grow: 0 });
+          }
           const p = this.runner.root.position.clone();
           this.particles.burst(p, 10, { spread: 2.2, up: 1.2, speed: 2, size: 0.5, life: 1.4, color: DUST, alpha: 0.3 });
           B.puff(p, { count: 2 + Math.round(2 * F.dust), spread: 2.4, jitter: 0.8, vel: new THREE.Vector3(0, 1.4, 0), size: [0.9, 2.8 + 1.5 * e], life: 2.4, alpha: 0.36, tint: DUST_T, rise: 0.3 });
@@ -1206,11 +1238,16 @@ export class Game {
           this.sounds.impact(0.6 + 0.3 * e, false);
         });
         this.gapAt = this.worldT + dropT + 0.1;
+        // The root leaves the lip (fall_chasm, ~1.1 s): the body dropping away (audio event).
+        this.later(1.1, () => this.sounds.event?.('fall_drop', 1));
         this.later(1.75, () => {
           const p = this.runner.root.position.clone().addScaledVector(h.fwd, 0.4).setY(WATER_Y);
           this.particles.burst(p, 40, { spread: 1.2, up: 7, speed: 3, size: 0.32, life: 1.2, color: SPRAY, alpha: 0.8, gravity: 9.5, drag: 0.5, grow: 0.6 });
           B.puff(p, { count: 3, spread: 1.4, jitter: 0.8, vel: new THREE.Vector3(0, 2.4, 0), size: [0.8, 3], life: 1.8, alpha: 0.4, tint: MIST_T, rise: 0.2, floor: WATER_Y });
-          this.cine.rings.spawn(p, 4.5, 1);
+          this.water.splash(p.x, p.z, 1.2);
+          // A second, lighter column as he goes under, and bubbles of foam rising where he went.
+          this.later(0.25, () => this.particles.burst(p, 24, { spread: 0.6, up: 4, speed: 1.6, size: 0.24, life: 0.9, color: SPRAY, alpha: 0.7, gravity: 9.5, drag: 0.5, grow: 0.5 }));
+          for (let k = 1; k <= 5; k++) this.later(0.4 + k * 0.22, () => this.particles.burst(p, 4, { spread: 0.5, up: 0.4, speed: 0.3, size: 0.16, life: 0.7, color: SPRAY, alpha: 0.55, gravity: -0.5, drag: 1.5, grow: 0.8 }));
           this.sounds.impact(0.9, true);
         });
         // Gone under: the clip ends deep below the floor.
@@ -1432,7 +1469,9 @@ export class Game {
       this.particles.burst(e.pos, 14 + heavy * 22, { spread: 0.8 + heavy, up: 4.5 + heavy * 4, speed: 2.5 + heavy, size: 0.3, life: 1.1, color: SPRAY, alpha: 0.75, gravity: 9.5, drag: 0.5, grow: 0.6 });
       if (heavy > 0.25) {
         B.puff(e.pos, { count: 1 + Math.round(heavy * 2), spread: 1 + heavy, jitter: 0.8, vel: new THREE.Vector3(0, 1.5 + heavy * 1.5, 0), size: [0.6, 2 + 2.5 * heavy], life: 1.6, alpha: 0.38, tint: MIST_T, rise: 0.2, floor: WATER_Y });
-        this.cine.rings.spawn(e.pos, 1.5 + heavy * 3.5, 0.55 + 0.45 * Math.min(1, heavy));
+        // Round 17: the shockwave is waves through the water's own normals and churned foam (a ring
+        // decal read as a flat white circle up close).
+        this.water.splash(e.pos.x, e.pos.z, 0.4 + 0.5 * Math.min(1, heavy));
       }
       this.sounds.impact(heavy * 0.6, true);
     } else {
@@ -2159,6 +2198,16 @@ export class Game {
       this.cine.rimLevelTarget = ln === 'golden' ? 0.16 : ln === 'afternoon' ? 0.1 : 0;
     }
     this.water.update(this.worldT, cam);
+    // The causeway's line for the water's shallow shelf (submerged footings): 16 points around him.
+    {
+      const pts: { x: number; z: number }[] = [];
+      const s0 = Math.max(this.track.path.length > 0 ? this.s - 30 : 0, -40);
+      for (let i = 0; i < 16; i++) {
+        const f = this.track.path.sample(Math.max(0, s0 + i * 6), this.cframe);
+        pts.push({ x: f.pos.x, z: f.pos.z });
+      }
+      this.water.setPath(pts);
+    }
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
       if (this.queue[i]!.at <= this.worldT) {

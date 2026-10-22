@@ -34,15 +34,18 @@ interface Part {
   near?: boolean;
   /** 'light': keep the stone's colour, moss and contrast (the colossus and the head, which the full
    * lift washed to pale ghosts against the sun). */
-  haze?: 'light';
+  haze?: 'light' | 'face';
 }
+
+// QA (dev builds only): ?headyaw= overrides the fallen head's yaw.
+const QA_HEAD_YAW = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('headyaw') ? Number(new URLSearchParams(location.search).get('headyaw')) : 0.3;
 
 const KINDS: Record<LandmarkKind, Part[]> = {
   // A drowned colossus: its fallen head (≈45 m) lying on its cheek in the river, face turned to the
   // runner on one side of the way, its stone hand (≈30 m) rising from the water on the other, palm to
   // the runner, fingers curled: the approach heads between them.
   fallen_colossus: [
-    { piece: 'head_0', x: 4, y: WATER_Y - 1, z: 2, rotY: Math.PI + 0.2, tilt: [0.12, 0.5], s: 9.5, haze: 'light' },
+    { piece: 'head_0', x: 0, y: WATER_Y - 1, z: 2, rotY: QA_HEAD_YAW, tilt: [0.12, -0.4], s: 10.5, haze: 'face' },
     { piece: 'hand_colossal_0', x: -25, y: WATER_Y - 6, z: -2, rotY: 0.4, tilt: [0.08, 0.1], s: 17, haze: 'light' },
     { piece: 'rubble_3', x: -10, y: WATER_Y - 0.8, z: 2, rotY: 2.0, s: 5.0, haze: 'light' },
     // Fragments of it in the water beside the approach.
@@ -85,15 +88,16 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // The 25–30 m columns of a vanished hall standing in the water, some leaning, some fallen against
   // others, at different depths.
   column_grove: [
-    { piece: 'column_lone_0', x: -14, y: WATER_Y - 2.5, z: 4, s: 3.22 },
-    { piece: 'column_lone_0', x: -6, y: WATER_Y - 1, z: -4, rotY: 1.3, s: 3.45 },
-    { piece: 'column_lone_0', x: 2, y: WATER_Y - 3.5, z: 2, rotY: 2.2, s: 3.10 },
-    { piece: 'column_lone_0', x: 10, y: WATER_Y - 1.5, z: -6, rotY: 0.7, s: 3.33 },
-    { piece: 'column_lone_0', x: 18, y: WATER_Y - 4.5, z: 4, rotY: 2.9, s: 2.99 },
-    { piece: 'column_lone_0', x: -2, y: WATER_Y - 5.5, z: -16, rotY: 0.2, s: 3.45 },
-    { piece: 'column_lone_0', x: 14, y: WATER_Y - 7.5, z: 12, rotY: 0.4, tilt: [0.1, -0.42], s: 3.22 },
-    { piece: 'column_lone_0', x: -10, y: WATER_Y - 8.5, z: 14, rotY: 2.9, tilt: [-0.2, 0.5], s: 2.99 },
-    { piece: 'column_lone_0', x: 6, y: WATER_Y - 2.5, z: -14, rotY: 1.9, tilt: [0.15, 0.22], s: 3.33 },
+    // (Light haze, round 16: under the full haze the stone read as bleached plaster in the golden look.)
+    { piece: 'column_lone_0', x: -14, y: WATER_Y - 2.5, z: 4, s: 3.22, haze: 'light' },
+    { piece: 'column_lone_0', x: -6, y: WATER_Y - 1, z: -4, rotY: 1.3, s: 3.45, haze: 'light' },
+    { piece: 'column_lone_0', x: 2, y: WATER_Y - 3.5, z: 2, rotY: 2.2, s: 3.10, haze: 'light' },
+    { piece: 'column_lone_0', x: 10, y: WATER_Y - 1.5, z: -6, rotY: 0.7, s: 3.33, haze: 'light' },
+    { piece: 'column_lone_0', x: 18, y: WATER_Y - 4.5, z: 4, rotY: 2.9, s: 2.99, haze: 'light' },
+    { piece: 'column_lone_0', x: -2, y: WATER_Y - 5.5, z: -16, rotY: 0.2, s: 3.45, haze: 'light' },
+    { piece: 'column_lone_0', x: 14, y: WATER_Y - 7.5, z: 12, rotY: 0.4, tilt: [0.1, -0.42], s: 3.22, haze: 'light' },
+    { piece: 'column_lone_0', x: -10, y: WATER_Y - 8.5, z: 14, rotY: 2.9, tilt: [-0.2, 0.5], s: 2.99, haze: 'light' },
+    { piece: 'column_lone_0', x: 6, y: WATER_Y - 2.5, z: -14, rotY: 1.9, tilt: [0.15, 0.22], s: 3.33, haze: 'light' },
     // A broken pier and a fallen shaft beside the approach.
     { piece: 'pillar_1', x: -1, y: WATER_Y - 0.8, z: 50, rotY: 0.3, s: 2.2, near: true },
     { piece: 'column_fallen_1', x: -22, y: WATER_Y - 0.9, z: 58, rotY: 1.2, s: 1.8, near: true },
@@ -129,14 +133,29 @@ export class Landmarks {
    * contrast), full or light. Either way the scan detail is laid on at a landmark scale (caustics.ts
    * DETAIL_FAR), so the surface holds up at 7–11x.
    */
-  private material(key: string, near: boolean, light: boolean): THREE.Material | undefined {
+  private material(key: string, near: boolean, haze: 'light' | 'face' | 'full'): THREE.Material | undefined {
     const base = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
     if (!base || near) return base;
-    const id = `${key}|${light ? 'l' : 'f'}`;
+    const id = `${key}|${haze}`;
     let m = this.hazed.get(id);
     if (!m) {
       const c = base.clone();
-      if (light) {
+      if (haze === 'face') {
+        // The fallen head's own material: light haze and a warm bounce off the river into its face,
+        // so the features read against the low sun.
+        c.color.multiply(new THREE.Color(0.92, 0.94, 0.98));
+        c.emissive = new THREE.Color(0xffc796).multiplyScalar(0.2);
+        // The bounce is a fill from the viewer's side, not a flat glow: strongest on the planes that face
+        // the lens (cheek, brow, the bridge of the nose), falling off where they turn away, so the
+        // features keep their relief against the backlight.
+        c.onBeforeCompile = (sh) => {
+          sh.fragmentShader = sh.fragmentShader.replace(
+            '#include <emissivemap_fragment>',
+            '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= pow(max(normal.z, 0.0), 1.6) * 1.1;',
+          );
+        };
+        c.customProgramCacheKey = () => 'faceFill';
+      } else if (haze === 'light') {
         c.color.multiply(new THREE.Color(0.9, 0.93, 0.98));
         c.emissive = HAZE.clone().multiplyScalar(0.035);
       } else {
@@ -172,7 +191,7 @@ export class Landmarks {
     for (const p of KINDS[kind]) {
       const g = this.kit.geo.get(p.piece);
       const key = this.kit.matOf.get(p.piece);
-      const mat = key ? this.material(key, !!p.near, p.haze === 'light') : undefined;
+      const mat = key ? this.material(key, !!p.near, p.haze ?? 'full') : undefined;
       if (!g || !mat) continue;
       const sc = p.s ?? 1;
       const m = new THREE.Matrix4().compose(

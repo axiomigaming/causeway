@@ -128,6 +128,38 @@ export function findOnset(data: Float32Array, from: number, to: number, threshol
 export type Surface = 'stone' | 'wood' | 'gravel' | 'wet';
 export type Bed = 'jungle' | 'insects' | 'river' | 'waterfall';
 
+/**
+ * Round 15: each world style (world/style.ts names) has its own air. Multipliers on the section mix per bed,
+ * the wind, playback rates for the bird and insect beds (a different chorus, not just a level), and the
+ * insect bed's top (dB of the high shelf; the default cuts it 9 dB). Unknown names get the default.
+ */
+export interface StyleAir {
+  beds: Record<Bed, number>;
+  wind: number;
+  birdRate: number;
+  insectRate: number;
+  insectTop: number;
+  /** The rain bed's level when it is shipped (0 = none). */
+  rain: number;
+}
+
+export const STYLE_AIR: Record<string, StyleAir> = {
+  // The reference world: the mix as it was.
+  turquoise: { beds: { jungle: 1, insects: 1, river: 1, waterfall: 1 }, wind: 1, birdRate: 1, insectRate: 1, insectTop: -9, rain: 0 },
+  // Jade river, greener and wetter: the river forward, birds a touch lower, fewer insects, less wind.
+  jade: { beds: { jungle: 1.1, insects: 0.8, river: 1.4, waterfall: 1.1 }, wind: 0.8, birdRate: 0.97, insectRate: 0.98, insectTop: -10, rain: 0 },
+  // A clear lagoon, clean open air: water lapping, sparse brighter birds, few insects, more breeze.
+  lagoon: { beds: { jungle: 0.75, insects: 0.55, river: 1.25, waterfall: 0.9 }, wind: 1.3, birdRate: 1.05, insectRate: 1, insectTop: -11, rain: 0 },
+  // Dry season: the cicadas take over (higher, brighter), birds thin out, the water low, a dusty wind.
+  dry: { beds: { jungle: 0.6, insects: 1.7, river: 0.45, waterfall: 0.6 }, wind: 1.45, birdRate: 1.03, insectRate: 1.07, insectTop: -4, rain: 0 },
+  // Deep rainforest: dense, dark and wet; more of everything that lives, water everywhere, still air.
+  rainforest: { beds: { jungle: 1.35, insects: 1.15, river: 1.3, waterfall: 1.25 }, wind: 0.7, birdRate: 0.95, insectRate: 0.97, insectTop: -8, rain: 0.8 },
+};
+
+export function styleAir(name: string | null | undefined): StyleAir {
+  return (name && STYLE_AIR[name]) || STYLE_AIR.turquoise!;
+}
+
 /** Sections with falling water nearby (waterfall bed, wet stone underfoot). */
 const WATERFALL = new Set(['cliff', 'gorge']);
 /** Sections over open water (river/lapping bed, planks or wet stone). */

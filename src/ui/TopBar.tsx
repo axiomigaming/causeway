@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { formatCredits, formatMult } from '../engine/money';
+import { countUp } from '../audio/feedback';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { IconMenu, IconShield, IconSliders, IconSound } from './icons';
@@ -18,15 +19,47 @@ export function TopBar() {
   const ctl = useCtl();
   const [bump, setBump] = useState(false);
   const prev = useRef(balance);
-  useEffect(() => {
-    if (balance > prev.current) {
-      setBump(true);
-      const t = setTimeout(() => setBump(false), 650);
-      prev.current = balance;
-      return () => clearTimeout(t);
-    }
+  const figRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = figRef.current;
+    const from = prev.current;
     prev.current = balance;
-  }, [balance]);
+    if (!el) return;
+    const final = formatCredits(balance);
+    if (balance <= from || settings.motion !== 'full') {
+      el.textContent = final;
+      el.style.minWidth = '';
+      return;
+    }
+    // A win counts up from the old balance (tabular digits; the box is held at the final width,
+    // so nothing beside it moves while it counts).
+    setBump(true);
+    el.textContent = final;
+    el.style.minWidth = `${el.getBoundingClientRect().width}px`;
+    const t0 = performance.now();
+    const dur = 600;
+    let raf = 0;
+    const finish = () => {
+      cancelAnimationFrame(raf);
+      el.textContent = final;
+      el.style.minWidth = '';
+      setBump(false);
+    };
+    const step = () => {
+      const k = (performance.now() - t0) / dur;
+      if (k >= 1) return finish();
+      el.textContent = formatCredits(countUp(from, balance, k));
+      raf = requestAnimationFrame(step);
+    };
+    el.textContent = formatCredits(from);
+    raf = requestAnimationFrame(step);
+    // frames can stall (a hidden tab, a starved device): the settled figure lands on time regardless
+    const guard = window.setTimeout(finish, dur + 50);
+    return () => {
+      window.clearTimeout(guard);
+      finish();
+    };
+  }, [balance, settings.motion]);
   const open = (m: 'fair' | 'settings' | 'menu' | 'history') => {
     ctl?.audio.ui('open');
     set({ modal: m });
@@ -70,7 +103,10 @@ export function TopBar() {
           <span className="wide-only">Demo </span>Balance
         </div>
         <div className="v num">
-          {formatCredits(balance)}
+          {/* the figure's text is written only by the effect above (never by React), so a count
+              in progress and React can't disagree */}
+          <span className="fig" ref={figRef} aria-hidden />
+          <span className="sr">{formatCredits(balance)}</span>
           <small>CR</small>
         </div>
       </div>

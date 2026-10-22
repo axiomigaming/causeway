@@ -87,6 +87,9 @@ export const QUERIES = [
   { key: 'land_heavy', q: 'body fall', dur: [0.2, 15] },
   // Round 14: a stone slab sliding off and going into the water
   { key: 'slab_sink', q: 'rock splash water', dur: [0.5, 30] },
+  // Round 15: world styles get their own beds (the rainforest's rain, a second bird chorus)
+  { key: 'rain', q: 'rain on leaves', dur: [15, 600] },
+  { key: 'birds', q: 'tropical birds', dur: [15, 600] },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -251,11 +251,15 @@ export class Debris {
         b.splashed = true;
         b.rolling = false;
         this.onImpact({ pos: new THREE.Vector3(m.position.x, WATER_Y, m.position.z), speed: -b.vel.y, water: true, mass: m.scale.x });
-        b.vel.multiplyScalar(0.15);
+        // Round 17 (cinematics): pieces go on down through the surface (most of their fall speed
+        // kept) instead of floating as a raft where the runner enters the water.
+        b.vel.x *= 0.15;
+        b.vel.z *= 0.15;
+        b.vel.y = Math.min(b.vel.y * 0.6, -2.5);
         b.spin.multiplyScalar(0.3);
       }
       if (b.splashed) {
-        b.vel.y = Math.max(b.vel.y, -1.2);
+        b.vel.y = Math.max(b.vel.y, -4);
         if (m.position.y < WATER_Y - 6) this.remove(i);
       }
     }

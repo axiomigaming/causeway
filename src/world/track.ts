@@ -16,6 +16,8 @@ import { upgradeLeafMaterial } from './foliage';
 import { atmosphereUniforms } from './atmosphere';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
+// QA (?w=<seed>): the same world every time, whatever world came before it.
+const QA_SEEDED = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('w');
 const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
 // QA (dev builds only): ?style=<name> pins the world style.
 const QA_STYLE = import.meta.env.DEV && typeof location !== 'undefined' ? STYLES.findIndex((st) => st.name === new URLSearchParams(location.search).get('style')) : -1;
@@ -88,6 +90,11 @@ export const ROUTE_CLEARANCE = 8;
 
 const MIRROR_X = new THREE.Matrix4().makeScale(-1, 1, 1);
 const TURN_LEN_M = (TURN_R * Math.PI) / 2;
+/**
+ * Sections stay built this far behind the runner (m): the result shots turn the camera round to face
+ * the runner, and the way behind must run on, not end in a cut slab and parapets in mid-air.
+ */
+export const KEEP_BEHIND = 90;
 
 /** Length along the path of each walkable piece (metres). */
 const TILE_LENGTH: Record<string, number> = { floor_wide_0: 8 };
@@ -250,7 +257,12 @@ export class Track {
     this.density = density;
     // The lightest tier (phones) skips the detail normals: a few dozen ALU per stone pixel.
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
+    // (It keeps one planar fetch on the near paving: one texture read on the pixels nearest the lens.)
+    causticUniforms.uDetailLite.value = density.scenery >= 0.5 ? 0 : 1;
+    // (Phones fetch the scan after the first load, ~90 KB off the critical path; until it arrives the
+    // term is off.)
     if (causticUniforms.uDetail.value > 0) ensureDetailMap();
+    else if (typeof window !== 'undefined') window.setTimeout(ensureDetailMap, 6000);
     // Build into a fresh map and swap at the end: the route keeps spawning from the old
     // variants meanwhile, and their geometry is retired only when the world next resets.
     const next = new Map<SectionType, Variant[]>();
@@ -334,7 +346,7 @@ export class Track {
     const plan = new Rng(`plan/${seed}`);
     const pick = (n: number, last: number) => {
       const k = plan.int(0, n - 2);
-      return last < 0 ? plan.int(0, n - 1) : k >= last ? k + 1 : k;
+      return last < 0 || QA_SEEDED ? plan.int(0, n - 1) : k >= last ? k + 1 : k;
     };
     this.themeIndex = pick(THEMES.length, this.themeIndex);
     this.lookIndex = pick(LOOKS.length, this.lookIndex);
@@ -405,7 +417,7 @@ export class Track {
     const probe = new Path();
     probe.reset(this.path.tail);
     probe.push(len, turn, 0);
-    probe.push(150, 0, 0);
+    probe.push(this.viewDistance + 20, 0, 0);
     const f = { pos: new THREE.Vector3(), yaw: 0 };
     const pts: THREE.Vector3[] = [];
     for (let q = 1; q <= probe.length; q += 3) pts.push(probe.sample(q, f).pos.clone());
@@ -472,12 +484,12 @@ export class Track {
       if (this.turnBlock.n > 0) this.turnBlock.n--;
       this.maybeLandmark(t);
     }
-    while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
+    while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - KEEP_BEHIND) {
       this.despawn(this.sections.shift()!);
     }
     this.obstacles.trim(s);
     this.landmarks.trim(s);
-    this.path.trim(s - 60);
+    this.path.trim(s - KEEP_BEHIND - 20);
   }
 
   /**
@@ -710,6 +722,13 @@ function stageKit(kit: Kit): void {
     // Detail normals strongest underfoot, where the camera is closest.
     const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' ? 0.8 : key === 'wood' ? 0.4 : 0.6;
     if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
+  }
+  // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):
+  // in the shade of a canopy the giant roots and trunks went flat black. Lift it to ~0.065 (dark bark).
+  const bark = kit.mat.get('bark') as THREE.MeshStandardMaterial | undefined;
+  if (bark && !bark.userData.lifted) {
+    bark.userData.lifted = true;
+    bark.color.multiplyScalar(4);
   }
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {

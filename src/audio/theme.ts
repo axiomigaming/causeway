@@ -22,6 +22,11 @@
  * cash-out tier) or the loss sting plays in the key the run is in, then the warm D major loop or the tense
  * loop follows. Title and setup play the calm version of the tune, which hands over to the run on GO.
  *
+ * Different every run (round 15), on the same clock, key and form: layer 0 alternates between two voicings
+ * (marimba + kalimba, or harp + celesta with its own light groove), and a recorded percussion overlay plays
+ * one of four groove variants, entering with the tiers. A landmark reveal swells a low choir and horns into a
+ * downbeat (th_awe), quieter the higher the tier, so it never covers the climb.
+ *
  * Only the tier of the multiplier ON SCREEN (during a run) or the settled result (after it) reaches this
  * class. It never knows where the round ends.
  */
@@ -35,7 +40,25 @@ export const THEME_SOUNDS = [
   'th_calm', 'th_safe', 'th_tense', 'th_win0', 'th_win1', 'th_win2', 'th_lose', 'th_fill',
 ] as const;
 
+/** Round-15 pieces: used when present (the theme still runs without them). */
+export const THEME_EXTRA = ['th_l0v_a', 'th_l0v_b', 'th_awe'] as const;
+
 type Seg = 'a' | 'b';
+
+/**
+ * Groove overlays: recorded one-shots on the run's bar grid, one variant per run (never the last run's).
+ * Each hit is [beat in the bar, instrument, velocity, pan, the tier it enters at]. Tier 0 stays bare.
+ */
+export const GROOVES: readonly (readonly [number, string, number, number, number][])[] = [
+  // djembe tumbao
+  [[0, 'm_djembe_bass', 0.5, 0.2, 1], [1.5, 'm_djembe_tone', 0.4, 0.25, 1], [0.75, 'm_djembe_tone', 0.3, 0.25, 2], [2.5, 'm_djembe_slap', 0.45, 0.3, 2], [3, 'm_djembe_tone', 0.35, 0.25, 2], [3.5, 'm_djembe_tone', 0.3, 0.3, 3]],
+  // frame-drum gallop
+  [[2.75, 'm_frame', 0.3, -0.3, 1], [3, 'm_frame', 0.4, -0.3, 1], [0.75, 'm_frame', 0.28, -0.3, 2], [1, 'm_frame', 0.35, -0.3, 2], [3.5, 'm_taiko_hi', 0.3, 0.2, 3]],
+  // shaker sixteenths and a high-taiko call
+  [[0.25, 'm_shaker', 0.18, 0.4, 1], [0.75, 'm_shaker', 0.18, 0.4, 1], [1.25, 'm_shaker', 0.18, 0.4, 1], [1.75, 'm_shaker', 0.18, 0.4, 1], [2.25, 'm_shaker', 0.18, 0.4, 1], [2.75, 'm_shaker', 0.18, 0.4, 1], [3.25, 'm_shaker', 0.18, 0.4, 1], [3.75, 'm_shaker', 0.2, 0.4, 1], [1.5, 'm_taiko_hi', 0.3, -0.2, 2], [3.75, 'm_taiko_hi', 0.25, -0.2, 2], [2.25, 'm_djembe_tone', 0.3, 0.2, 3]],
+  // syncopated pulse
+  [[0.75, 'm_pulse', 0.35, 0, 1], [2.25, 'm_pulse', 0.3, 0, 1], [3.5, 'm_djembe_slap', 0.35, 0.3, 2], [1.75, 'm_frame', 0.3, -0.25, 3], [3.25, 'm_frame', 0.25, -0.25, 3]],
+];
 type Seg4 = 'a' | 'a2' | 'b' | 'c';
 
 /** Phrase orders below tier 4, four phrases at a time; picked per block with the cosmetic RNG. */
@@ -127,7 +150,15 @@ interface Run {
   plan4: Seg4[];
   /** E minor downbeat of the lift, once tier 4 is reached. */
   liftAt: number | null;
+  /** Start of the two pivot bars before the lift. */
+  liftStart: number | null;
   srcs: AudioBufferSourceNode[];
+  /** Layer-0 voicing (0 marimba, 1 harp) and groove variant of this run; the next bar to put the groove on. */
+  voice: 0 | 1;
+  groove: number;
+  gBar: number;
+  /** Tier changes on this run's clock (when each layer landed), for the groove. */
+  tiers: { at: number; tier: Tier }[];
 }
 
 export class ThemePlayer {
@@ -142,6 +173,11 @@ export class ThemePlayer {
   /** When the pending (below-4) tier change lands, so repeated tier-ups share one fill. */
   private landing = 0;
   private landed: Tier = 0;
+  private lastVoice: 0 | 1 = 1;
+  private lastGroove = -1;
+  private grooveGain: GainNode;
+  private aweSrc: Src | null = null;
+  private lastAwe = -1e9;
   mode: 'off' | 'idle' | 'lead' | 'run' | 'result' = 'off';
   /** What was scheduled when (AudioContext seconds), for QA and tests: the proof that nothing restarts. */
   readonly log: { t: number; what: string }[] = [];
@@ -169,6 +205,15 @@ export class ThemePlayer {
     }
     this.topGain = ctx.createGain();
     this.topGain.connect(out);
+    // The groove overlay sits under the stems (and drops out with them in a break).
+    this.grooveGain = ctx.createGain();
+    this.grooveGain.gain.value = 0.55;
+    this.grooveGain.connect(this.brk);
+  }
+
+  /** This run's variety, for QA and tests. */
+  variety(): { voice: 0 | 1; groove: number } | null {
+    return this.run ? { voice: this.run.voice, groove: this.run.groove } : null;
   }
 
   ready(): boolean {
@@ -262,7 +307,17 @@ export class ThemePlayer {
       this.idleStart = null;
     }
     const bar = (4 * 60) / this.bpm('th_l0_a');
-    this.run = { t0: at, bar, next: at, seg: 0, plan: phrasePlan(8, this.rnd), seg4: 0, plan4: phrasePlan4(4, this.rnd), liftAt: null, srcs: [] };
+    // A different run every time: the other layer-0 voicing (when shipped), and a groove not the last one.
+    const voice: 0 | 1 = this.bank.has('th_l0v_a') && this.bank.has('th_l0v_b') ? ((1 - this.lastVoice) as 0 | 1) : 0;
+    this.lastVoice = voice;
+    let groove = Math.floor(this.rnd() * GROOVES.length);
+    if (groove === this.lastGroove) groove = (groove + 1 + Math.floor(this.rnd() * (GROOVES.length - 1))) % GROOVES.length;
+    this.lastGroove = groove;
+    this.run = {
+      t0: at, bar, next: at, seg: 0, plan: phrasePlan(8, this.rnd), seg4: 0, plan4: phrasePlan4(4, this.rnd),
+      liftAt: null, liftStart: null, srcs: [], voice, groove, gBar: 0, tiers: [{ at, tier: 0 }],
+    };
+    this.note(at, `voicing ${voice}, groove ${groove}`);
     this.tier = 0;
     this.landed = 0;
     this.landing = 0;
@@ -309,7 +364,8 @@ export class ThemePlayer {
         const s = r.plan[r.seg]!;
         const cut = r.liftAt !== null && r.next < r.liftAt && r.next + phrase > r.liftAt ? r.liftAt + 0.05 : null;
         for (let i = 0; i < 4; i++) {
-          const x = this.source(`th_l${i}_${s}`, this.layer[i]!, r.next);
+          const name = i === 0 && r.voice === 1 ? `th_l0v_${s}` : `th_l${i}_${s}`;
+          const x = this.source(name, this.layer[i]!, r.next);
           if (!x) continue;
           r.srcs.push(x.src);
           if (cut !== null) x.src.stop(cut); // the lift takes over half-way through this phrase
@@ -334,6 +390,82 @@ export class ThemePlayer {
       const lift = r.liftAt;
       r.next = lift !== null && r.next < lift - 1e-6 && r.next + phrase > lift + 1e-6 ? lift : r.next + phrase;
     }
+    this.scheduleGroove(r, now);
+  }
+
+  /** The tier the layers had landed at by time `t` on this run's clock. */
+  private tierAt(r: Run, t: number): Tier {
+    let k: Tier = 0;
+    for (const x of r.tiers) if (x.at <= t + 0.01) k = Math.max(k, x.tier) as Tier;
+    return k;
+  }
+
+  /** The groove overlay, a bar at a time up to half a second ahead, thinned to the tier landed by then. */
+  private scheduleGroove(r: Run, now: number) {
+    const pat = GROOVES[r.groove]!;
+    const first = Math.max(r.gBar, Math.ceil((now - r.t0) / r.bar - 1e-6));
+    for (let b = first; r.t0 + b * r.bar < now + 0.5; b++) {
+      r.gBar = b + 1;
+      const t = r.t0 + b * r.bar;
+      // The pivot bars carry their own roll: no groove on them.
+      if (r.liftStart !== null && r.liftAt !== null && t >= r.liftStart - 0.01 && t < r.liftAt - 0.01) continue;
+      const tier = this.tierAt(r, t);
+      if (tier < 1) continue;
+      const lvl = tier >= 4 ? 0.7 : 1;
+      for (const [beat, inst, vel, pan, from] of pat) {
+        if (tier < from) continue;
+        this.hit(inst, t + (beat * r.bar) / 4, vel * lvl, pan);
+      }
+    }
+  }
+
+  /** One recorded percussion hit (a random take of it), humanised by a few ms and cents. */
+  private hit(name: string, at: number, vel: number, pan: number) {
+    const l = this.bank.get(name);
+    if (!l || !l.slices.length) return;
+    const sl = l.slices[Math.floor(this.rnd() * l.slices.length)]!;
+    const src = this.ctx.createBufferSource();
+    src.buffer = l.buffer;
+    src.playbackRate.value = Math.pow(2, ((this.rnd() * 2 - 1) * 15) / 1200);
+    const g = this.ctx.createGain();
+    g.gain.value = vel * (0.9 + 0.2 * this.rnd());
+    let node: AudioNode = src.connect(g);
+    const c = this.ctx as BaseAudioContext & { createStereoPanner?: () => StereoPannerNode };
+    if (typeof c.createStereoPanner === 'function') {
+      const p = c.createStereoPanner();
+      p.pan.value = pan;
+      node = node.connect(p);
+    }
+    node.connect(this.grooveGain);
+    const when = Math.max(this.ctx.currentTime + 0.005, at + (this.rnd() * 2 - 1) * 0.004);
+    src.start(when, sl.start, sl.dur);
+    src.onended = () => g.disconnect();
+    this.run?.srcs.push(src);
+    if (this.run && this.run.srcs.length > 40) this.run.srcs.splice(0, this.run.srcs.length - 40);
+  }
+
+  /**
+   * A landmark comes into view: a low choir and horns on an open fifth swell over a bar into the next downbeat
+   * at least `lead` s away (entered part-way when that is under a bar), in the run's key. Quieter the higher the
+   * tier, never on the pivot into tier 4, at most once in 12 s. Returns the downbeat it lands on, or -1.
+   */
+  awe(strength = 0.6, lead = 0.6): number {
+    const r = this.run;
+    if (!r || this.mode !== 'run' || !this.bank.has('th_awe')) return -1;
+    const now = this.ctx.currentTime;
+    if (now - this.lastAwe < 12) return -1;
+    const land = nextBar(r.t0, r.bar, now + lead);
+    if (r.liftAt !== null && r.liftStart !== null && land >= r.liftStart - r.bar && land <= r.liftAt + r.bar) return -1;
+    const lifted = r.liftAt !== null && land >= r.liftAt;
+    const rate = lifted ? LIFT_RATE : 1;
+    const tier = this.tierAt(r, land);
+    const level = (0.55 + 0.45 * Math.min(1, Math.max(0, strength))) * (tier <= 1 ? 1 : tier === 2 ? 0.8 : tier === 3 ? 0.62 : 0.5);
+    this.fadeOut(this.aweSrc, now, 0.2);
+    this.aweSrc = this.source('th_awe', this.out, land - r.bar / rate, false, level, 0, rate);
+    if (this.aweSrc) r.srcs.push(this.aweSrc.src);
+    this.lastAwe = now;
+    this.note(land, `awe${lifted ? ' (E)' : ''}`);
+    return land;
   }
 
   /** The tier of the multiplier on screen. Higher tiers land on bar lines; tier 4 lifts at a phrase line. */
@@ -347,6 +479,8 @@ export class ThemePlayer {
       if (r.liftAt !== null) return;
       const lp = liftPlan(r.t0, r.bar, now);
       r.liftAt = lp.at;
+      r.liftStart = lp.start;
+      r.tiers.push({ at: lp.at, tier: 4 });
       // The phrase holding the lift may already be scheduled (it began less than 1.5 s ahead of now): the
       // tier-4 music then starts at the lift itself, and the old phrase's sources end there.
       if (r.next > lp.at + 1e-6) {
@@ -399,6 +533,7 @@ export class ThemePlayer {
 
   private landLayers(t: Tier, at: number) {
     this.landed = Math.max(this.landed, Math.min(3, t)) as Tier;
+    this.run?.tiers.push({ at, tier: Math.min(3, t) as Tier });
     for (let i = 1; i <= Math.min(3, t); i++) {
       const g = this.layer[i]!.gain;
       if (g.value >= 0.99) continue;
@@ -457,6 +592,8 @@ export class ThemePlayer {
 
   private stopRun(at: number, tc: number) {
     const r = this.run;
+    this.fadeOut(this.aweSrc, at, tc * 2);
+    this.aweSrc = null;
     for (const g of [...this.layer, this.topGain]) {
       g.gain.cancelScheduledValues(at);
       g.gain.setValueAtTime(g.gain.value, at);
