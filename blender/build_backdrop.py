@@ -56,14 +56,18 @@ bg.inputs[1].default_value = 0.22
 
 # Haze colour for aerial perspective: warm near the sun side, cooler away.
 HAZE = hexcol("#93aeb4")  # cool, a little green: the jungle breathes it
-HAZE_FAR = hexcol("#c9d4d8")
+HAZE_FAR = hexcol("#bccfdd")  # round 17: far layers go bluer and paler
 
 
 def aerial(ntm, col, near=150.0, far=2600.0, strength=0.6):
+    """Round 17: aerial perspective that turns bluer and lighter with distance (each layer of the
+    shore, the hills and the mesas a paler, cooler step back), not one flat grey veil."""
     cam = N(ntm, "ShaderNodeCameraData")
-    fac = maprange(ntm, cam.outputs["View Distance"], near, far, 0.0, strength, smooth=False)
-    fac = math_node(ntm, "POWER", fac, 1.1)
-    return mix(ntm, fac, col, HAZE, "MIX")
+    fac = maprange(ntm, cam.outputs["View Distance"], near, far, 0.0, min(0.86, strength * 1.3), smooth=False)
+    fac = math_node(ntm, "POWER", fac, 0.85)
+    tint = maprange(ntm, cam.outputs["View Distance"], 200.0, 2400.0, 0.0, 1.0, smooth=False)
+    haze = mix(ntm, tint, HAZE, HAZE_FAR, "MIX")
+    return mix(ntm, fac, col, haze, "MIX")
 
 
 def terrain_mat(name, low, high, green=0.0, near=150, far=2600):
@@ -161,17 +165,21 @@ def karst(name, loc, radius, height, seed):
     for v in bm.verts:
         p = v.co.copy()
         z = (p.z + 1) / 2
-        prof = (1 - z ** 6) ** 0.35
-        flute = 1 + 0.28 * noise.noise(Vector((p.x * 4, p.y * 4, z * 0.8)) + off) + 0.2 * noise.fractal(p * 3.0 + off, 0.65, 2, 5)
-        v.co = Vector((p.x * radius * (0.35 + 0.65 * prof) * flute, p.y * radius * (0.35 + 0.65 * prof) * flute, z * height))
+        # Round 17: sheer, fluted sides and a blunt, broken top (the old profile read as an egg).
+        prof = (1 - z ** 10) ** 0.22
+        flute = 1 + 0.38 * noise.noise(Vector((p.x * 5, p.y * 5, z * 0.35)) + off) + 0.16 * noise.fractal(p * 3.0 + off, 0.65, 2, 5)
+        ledge = 1 + 0.12 * math.floor(noise.noise(Vector((z * 6.0, seed * 0.3, 0.0))) * 3) / 3
+        v.co = Vector((p.x * radius * (0.45 + 0.55 * prof) * flute * ledge, p.y * radius * (0.45 + 0.55 * prof) * flute * ledge, z * height))
     ob = new_mesh_obj(name, bm)
     for q in ob.data.polygons:
         q.use_smooth = True
     ob.location = loc
     ob.data.materials.append(rock_near)
+    KARST_TOPS.append((loc, radius, height))
     return ob
 
 
+KARST_TOPS = []
 for k in range(26):
     az = rng.uniform(0, 360)
     if abs(((az - SUN_AZ + 180) % 360) - 180) < 9:
@@ -264,16 +272,179 @@ step_pyramid("temple_f", at(112, 540, -2), 0.8, tiers=5, comb=False)
 step_pyramid("temple_g", at(160, 620, -2), 1.1, tiers=6)
 # (Round 8: the needle spires that stood about the lagoon are gone: they read as church spires.)
 
-# Canopy scatter on the near hills.
-ico = bpy.data.meshes.new("ico")
-bm = bmesh.new()
-bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
-bm.to_mesh(ico)
-bm.free()
+# ---------------------------------------------------------------- far vegetation (round 17)
+# The far jungle used to be one icosphere per tree: rows of round "lollipop" domes and an even green
+# wall. Now: lumpy multi-lobed crowns of many sizes, emergent giants and palms breaking the skyline,
+# gaps where the bank thins, more karst close in, and mist banks between the layers.
+
+
+def _merge_into(bm, t):
+    me = bpy.data.meshes.new("_m")
+    t.to_mesh(me)
+    t.free()
+    bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
+
+
+def crown_mesh(name, seed, lobes=6, spread=1.0, flat=0.8):
+    """A cauliflower crown: several noise-displaced lobes, one higher, an irregular top."""
+    r = random.Random(seed)
+    bm = bmesh.new()
+    for i in range(lobes):
+        t = bmesh.new()
+        bmesh.ops.create_icosphere(t, subdivisions=2, radius=1.0)
+        sz = r.uniform(0.45, 1.0) if i else 1.0
+        c = Vector((r.uniform(-spread, spread), r.uniform(-spread, spread), r.uniform(0.0, 0.7) * spread + (0.35 if i == 0 else 0.0)))
+        off = Vector((seed * 3.1 + i, i * 1.7, seed * 0.7))
+        for v in t.verts:
+            q = v.co.copy()
+            d = 1 + 0.38 * noise.fractal(q * 2.3 + off, 0.6, 2.0, 3) + 0.12 * noise.noise(q * 6.0 + off)
+            # (Round 17b: no flat underside — that read as mushrooms; lobes sag into each other.)
+            v.co = c + Vector((q.x * sz * d, q.y * sz * d, max(q.z, -0.75) * sz * d * flat))
+        _merge_into(bm, t)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for poly in me.polygons:
+        poly.use_smooth = True
+    return me
+
+
+def trunk_mesh(name, r0, lean=0.0):
+    """A unit-height trunk (scaled to height per instance), tapering, with a slight lean."""
+    bm = bmesh.new()
+    segs = 6
+    rings = []
+    for k in range(segs + 1):
+        z = k / segs
+        x = lean * z * z
+        rad = r0 * (1 - 0.6 * z)
+        rings.append([bm.verts.new((x + math.cos(a) * rad, math.sin(a) * rad, z)) for a in [2 * math.pi * j / 6 for j in range(6)]])
+    for k in range(segs):
+        for j in range(6):
+            bm.faces.new((rings[k][j], rings[k][(j + 1) % 6], rings[k + 1][(j + 1) % 6], rings[k + 1][j]))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    return me
+
+
+def palm_mesh(name, seed, h=18.0):
+    """A palm silhouette: a curved, leaning trunk and a star of drooping fronds (two-sided strips)."""
+    r = random.Random(seed)
+    bm = bmesh.new()
+    lean = r.uniform(0.12, 0.3)
+    segs = 8
+    rings = []
+    for k in range(segs + 1):
+        t = k / segs
+        cx = lean * h * t * t
+        rad = 0.45 * (1 - 0.45 * t)
+        rings.append([bm.verts.new((cx + math.cos(a) * rad, math.sin(a) * rad, h * t)) for a in [2 * math.pi * j / 5 for j in range(5)]])
+    for k in range(segs):
+        for j in range(5):
+            bm.faces.new((rings[k][j], rings[k][(j + 1) % 5], rings[k + 1][(j + 1) % 5], rings[k + 1][j]))
+    top = Vector((lean * h, 0, h))
+    n = r.randint(8, 11)
+    for f in range(n):
+        a = 2 * math.pi * f / n + r.uniform(-0.2, 0.2)
+        ln = r.uniform(5.5, 8.0)
+        up = r.uniform(0.15, 0.6)
+        d = Vector((math.cos(a), math.sin(a), 0))
+        side = Vector((-d.y, d.x, 0))
+        pts = []
+        for k in range(7):
+            t = k / 6
+            p = top + d * (ln * t) + Vector((0, 0, ln * (up * t - 0.75 * t * t)))
+            w = 1.1 * math.sin(math.pi * min(1.0, t * 1.15 + 0.05))
+            pts.append((bm.verts.new(p - side * w * 0.5), bm.verts.new(p + side * w * 0.5)))
+        for k in range(6):
+            bm.faces.new((pts[k][0], pts[k + 1][0], pts[k + 1][1], pts[k][1]))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    return me
+
+
+bark_far = bpy.data.materials.new("barkfar")
+t = nodes_clear(bark_far)
+out = N(t, "ShaderNodeOutputMaterial")
+bsdf = N(t, "ShaderNodeBsdfPrincipled")
+L(t, bsdf.outputs[0], out.inputs[0])
+L(t, aerial(t, hexcol("#3a3127"), 120, 1500), bsdf.inputs["Base Color"])
+bsdf.inputs["Roughness"].default_value = 0.9
+
+# Canopy: per-object hue and a lumpy light/dark breakup inside each crown.
+t = canopy.node_tree
+for nd in list(t.nodes):
+    t.nodes.remove(nd)
+out = N(t, "ShaderNodeOutputMaterial")
+bsdf = N(t, "ShaderNodeBsdfPrincipled")
+L(t, bsdf.outputs[0], out.inputs[0])
+oi = N(t, "ShaderNodeObjectInfo")
+tc = N(t, "ShaderNodeTexCoord")
+cn = N(t, "ShaderNodeTexNoise", Scale=1.6, Detail=4.0, Roughness=0.6)
+L(t, tc.outputs["Object"], cn.inputs["Vector"])
+col = ramp(t, oi.outputs["Random"], [(0.0, hexcol("#0f2412")), (0.35, hexcol("#1a3a14")), (0.7, hexcol("#2c5418")), (1.0, hexcol("#4c6c22"))])
+col = mix(t, 1.0, col, ramp(t, cn.outputs[0], [(0.35, (0.55, 0.6, 0.55, 1)), (0.65, (1.12, 1.1, 1.0, 1))]), "MULTIPLY")
+# Leaf clusters: a fine bumpy, sparkling breakup so a crown reads as foliage, not a smooth stone.
+lf = N(t, "ShaderNodeTexVoronoi", Scale=7.0)
+L(t, tc.outputs["Object"], lf.inputs["Vector"])
+col = mix(t, 1.0, col, ramp(t, lf.outputs["Distance"], [(0.05, (1.15, 1.15, 1.0, 1)), (0.6, (0.6, 0.65, 0.55, 1))]), "MULTIPLY")
+lb = N(t, "ShaderNodeBump", Strength=0.75, Distance=0.25)
+L(t, lf.outputs["Distance"], lb.inputs["Height"])
+L(t, lb.outputs[0], bsdf.inputs["Normal"])
+L(t, aerial(t, col, 220, 2200), bsdf.inputs["Base Color"])
+bsdf.inputs["Roughness"].default_value = 0.9
+frond = bpy.data.materials.new("frond")
+t = nodes_clear(frond)
+out = N(t, "ShaderNodeOutputMaterial")
+bsdf = N(t, "ShaderNodeBsdfPrincipled")
+L(t, bsdf.outputs[0], out.inputs[0])
+oi = N(t, "ShaderNodeObjectInfo")
+col = ramp(t, oi.outputs["Random"], [(0.0, hexcol("#2e5418")), (1.0, hexcol("#5a7a26"))])
+L(t, aerial(t, col, 120, 1500), bsdf.inputs["Base Color"])
+bsdf.inputs["Roughness"].default_value = 0.8
+
+CROWNS = [crown_mesh(f"crown{i}", 100 + i, lobes=5 + i % 5, spread=0.75 + 0.12 * (i % 4), flat=0.85 + 0.06 * (i % 3)) for i in range(10)]
+GIANT_CROWNS = [crown_mesh(f"gcrown{i}", 200 + i, lobes=9, spread=1.3, flat=0.6) for i in range(4)]
+TRUNKS = [trunk_mesh(f"trunk{i}", 0.05, lean=0.04 * (i - 1)) for i in range(3)]
+PALMS = [palm_mesh(f"palm{i}", 400 + i) for i in range(4)]
+for me in CROWNS + GIANT_CROWNS:
+    me.materials.append(canopy)
+for me in TRUNKS:
+    me.materials.append(bark_far)
+for me in PALMS:
+    me.materials.append(frond)
+
+
+def inst(me, loc, s, sz=None):
+    o = bpy.data.objects.new("v", me)
+    o.scale = (s, s, sz if sz is not None else s)
+    o.rotation_euler.z = rng.uniform(0, 6.28)
+    o.location = loc
+    link(o)
+    return o
+
+
+def giant(loc, h, s):
+    """An emergent: a bare trunk standing clear of the canopy under a broad, flat crown."""
+    inst(rng.choice(TRUNKS), loc, h, sz=h)
+    inst(rng.choice(GIANT_CROWNS), loc + Vector((0, 0, h * 0.78)), s, sz=s * rng.uniform(0.8, 1.1))
+    # The canopy closes round its foot: it rises out of the forest, not off a bare pole.
+    for c in range(3):
+        cs = s * rng.uniform(0.45, 0.7)
+        inst(rng.choice(CROWNS), loc + Vector((rng.uniform(-s, s) * 0.8, rng.uniform(-s, s) * 0.8, cs * 0.6)), cs)
+
+
+def palm(loc, h):
+    inst(rng.choice(PALMS), loc, h / 18.0)
+
+
 hills = bpy.data.objects["hills"]
 deps = bpy.context.evaluated_depsgraph_get()
 count = 0
-for k in range(9000 if not FAST else 2500):
+for k in range(14000 if not FAST else 4000):
     a = rng.uniform(0, 2 * math.pi)
     r = rng.uniform(260, 1100)
     p = Vector((math.cos(a) * r, math.sin(a) * r, 700))
@@ -281,29 +452,103 @@ for k in range(9000 if not FAST else 2500):
     if not hit or loc.z < 2:
         continue
     if nrm.z < 0.6:
+        # The terrace walls: jungle hangs on them too (clumps pushed out off the face), so the hills
+        # are not bare grey-green walls between green tops.
+        if rng.random() < 0.6:
+            s = rng.uniform(3, 7) * (r / 500) ** 0.3
+            out = Vector((nrm.x, nrm.y, 0)).normalized() if Vector((nrm.x, nrm.y)).length > 1e-3 else Vector((0, 0, 0))
+            inst(rng.choice(CROWNS), loc + out * s * 0.5, s, sz=s * rng.uniform(0.9, 1.4))
         continue
-    s0 = rng.uniform(4, 9) * (r / 500) ** 0.3
-    for c in range(3):
-        o = bpy.data.objects.new("tree", ico)
-        s = s0 * rng.uniform(0.55, 1.0)
-        o.scale = (s, s, s * rng.uniform(0.6, 0.9))
-        o.location = loc + Vector((rng.uniform(-s0, s0), rng.uniform(-s0, s0), s * 0.25))
-        link(o)
+    s0 = rng.uniform(4, 10) * (r / 500) ** 0.3
+    u = rng.random()
+    if u < 0.07:
+        giant(loc, s0 * rng.uniform(4.0, 6.0), s0 * rng.uniform(1.6, 2.4))
+    elif u < 0.11:
+        palm(loc, s0 * rng.uniform(2.6, 3.6))
+    else:
+        for c in range(rng.randint(1, 3)):
+            s = s0 * rng.uniform(0.6, 1.15)
+            inst(rng.choice(CROWNS), loc + Vector((rng.uniform(-s0, s0), rng.uniform(-s0, s0), s * rng.uniform(-0.1, 0.5))), s, sz=s * rng.uniform(0.75, 1.25))
     count += 1
-ico.materials.append(canopy)
 print("canopy", count)
 
-# Near shore jungle band (200–320 m) so the water has a far bank.
-for k in range(1600 if not FAST else 500):
+# The far bank (220–400 m): not an even wall. Its height swells and sinks along the shore, it thins to
+# gaps of open water and bare rock, giants and palms stand out of it, and the crowns step back in rows.
+bank = 0
+for k in range(3600 if not FAST else 1300):
     a = rng.uniform(0, 2 * math.pi)
-    if abs(((math.degrees(a) - SUN_AZ + 180) % 360) - 180) < 10:
+    az = math.degrees(a)
+    if abs(((az - SUN_AZ + 180) % 360) - 180) < 10:
         continue
-    r = rng.uniform(240, 380)
-    o = bpy.data.objects.new("tree", ico)
-    s = rng.uniform(3, 8)
-    o.scale = (s, s, s * rng.uniform(0.8, 1.4))
-    o.location = (math.cos(a) * r, math.sin(a) * r, s * 0.6 - 1)
-    link(o)
+    swell = noise.noise(Vector((math.cos(a) * 3.0, math.sin(a) * 3.0, 0.5)))  # -1..1 along the shore
+    if swell < -0.35 and rng.random() < 0.8:
+        continue  # a gap in the bank
+    r = rng.uniform(230, 400)
+    hmul = 1.0 + 0.6 * swell + 0.25 * (r - 230) / 170
+    u = rng.random()
+    base = Vector((math.cos(a) * r, math.sin(a) * r, -1.5))
+    if u < 0.05:
+        giant(base, rng.uniform(26, 40) * max(0.7, hmul), rng.uniform(8, 13))
+    elif u < 0.16 and r < 320:
+        palm(base, rng.uniform(20, 30))
+    else:
+        s = rng.uniform(3.5, 9) * max(0.5, hmul)
+        inst(rng.choice(CROWNS), base + Vector((0, 0, s * rng.uniform(-0.15, 0.55))), s, sz=s * rng.uniform(0.8, 1.5))
+    bank += 1
+print("bank", bank)
+
+# More karst close in: sheer pale faces standing out of the bank and the shallows.
+for k in range(12):
+    az = rng.uniform(0, 360)
+    if abs(((az - SUN_AZ + 180) % 360) - 180) < 12:
+        continue
+    d = rng.uniform(280, 620)
+    karst(f"karstnear{k}", Vector((math.cos(math.radians(az)) * d, math.sin(math.radians(az)) * d, -4)),
+          rng.uniform(16, 34), rng.uniform(60, 150), 40 + k)
+
+# Green caps and ledge clumps on every karst tower.
+for (kl, kr, kh) in KARST_TOPS:
+    for c in range(rng.randint(4, 8)):
+        a = rng.uniform(0, 6.28)
+        d = kr * rng.uniform(0.0, 0.5)
+        s = kr * rng.uniform(0.18, 0.32)
+        inst(rng.choice(CROWNS), kl + Vector((math.cos(a) * d, math.sin(a) * d, kh * rng.uniform(0.9, 0.98))), s, sz=s * 0.7)
+    if rng.random() < 0.5:
+        palm(kl + Vector((kr * 0.2, 0, kh * 0.95)), kr * 0.6)
+
+# Mist banks: soft curtains low between the layers (shore | hills | mesas), thickest at the water,
+# torn by noise, so each layer stands in front of a paler one.
+mist = bpy.data.materials.new("mist")
+t = nodes_clear(mist)
+out = N(t, "ShaderNodeOutputMaterial")
+em = N(t, "ShaderNodeEmission")
+tr = N(t, "ShaderNodeBsdfTransparent")
+mx = N(t, "ShaderNodeMixShader")
+tc = N(t, "ShaderNodeTexCoord")
+sep = N(t, "ShaderNodeSeparateXYZ")
+L(t, tc.outputs["Generated"], sep.inputs[0])
+mpm = N(t, "ShaderNodeMapping")
+mpm.inputs["Scale"].default_value = (6.0, 6.0, 1.0)
+L(t, tc.outputs["Generated"], mpm.inputs[0])
+mn = N(t, "ShaderNodeTexNoise", Scale=9.0, Detail=5.0, Roughness=0.55)
+L(t, mpm.outputs[0], mn.inputs["Vector"])
+fall = maprange(t, sep.outputs[2], 0.0, 1.0, 1.0, 0.0)
+fall = math_node(t, "POWER", fall, 1.8)
+torn = maprange(t, mn.outputs[0], 0.38, 0.68, 0.15, 1.0)
+dens = math_node(t, "MULTIPLY", math_node(t, "MULTIPLY", fall, torn), 0.8)
+L(t, dens, mx.inputs[0])
+L(t, tr.outputs[0], mx.inputs[1])
+L(t, em.outputs[0], mx.inputs[2])
+L(t, mx.outputs[0], out.inputs[0])
+em.inputs["Color"].default_value = hexcol("#d4dfe4")
+em.inputs["Strength"].default_value = 1.25
+for rad, hgt in ((430, 34), (820, 60), (1350, 95)):
+    bmm = bmesh.new()
+    bmesh.ops.create_cone(bmm, cap_ends=False, segments=256, radius1=rad, radius2=rad, depth=hgt)
+    mo = new_mesh_obj(f"mist{rad}", bmm)
+    mo.location.z = hgt / 2 - 3
+    mo.data.materials.append(mist)
+    mo.visible_shadow = False
 
 # ---------------------------------------------------------------- water and clouds
 water = bpy.data.materials.new("water")

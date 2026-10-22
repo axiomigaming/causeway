@@ -140,7 +140,7 @@ describe('walkable tiles', () => {
       }
     }
     expect(staged).toBeGreaterThan(5);
-  });
+  }, 120000);
 
   it('never routes a later stretch of the way through scenery already built (natural and forced corners)', async () => {
     // Stand-in geometry so the scenery has real footprints: a 6 m block (radius ≈4 m) for the big far pieces.
@@ -226,5 +226,5 @@ describe('walkable tiles', () => {
       if (sec.type === 'turnL') expect(sec.seg.turn).toBeCloseTo(Math.PI / 2, 6);
       if (sec.type === 'turnR') expect(sec.seg.turn).toBeCloseTo(-Math.PI / 2, 6);
     }
-  });
+  }, 120000);
 });

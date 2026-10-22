@@ -137,6 +137,8 @@ for i in range(3):
 # ---- wood
 groups["wood"] += [K.planks("planks_0", 500), K.planks("planks_1", 501), S.rope_rail("rope_rail_0", 510, width=3.6)]
 groups["bark"] += [S.roots("roots_0", 520), S.roots("roots_1", 521, width=4.5, n=10, length=(2.0, 4.5))]
+# Round 17: giant buttress roots heaved over the parapets of the "roots" sections (were hanging tubes: stakes).
+groups["bark"] += [S.buttress_roots("root_giant_0", 530, n=2), S.buttress_roots("root_giant_1", 531, n=3, crest=1.3)]
 # Round 11: obstacle pieces for the obstacle director (obstacle_geo.py).
 groups["bark"].append(OG.log_fallen("log_fallen_0", 1400))
 groups["flora"] += [

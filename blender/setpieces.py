@@ -453,3 +453,111 @@ def colossal_hand(name, seed):
             for l in f.loops:
                 l[cl] = jitter_color(hexcol("#5a6e2c"), rng, 0.1, 0.04)
     return finish_obj(name, bm, 60)
+
+
+def _catmull(ps, steps):
+    """Points along a Catmull-Rom spline through `ps` (Vectors), `steps` per span."""
+    out = []
+    ext = [ps[0] * 2 - ps[1]] + list(ps) + [ps[-1] * 2 - ps[-2]]
+    for i in range(1, len(ext) - 2):
+        p0, p1, p2, p3 = ext[i - 1], ext[i], ext[i + 1], ext[i + 2]
+        for s in range(steps):
+            t = s / steps
+            t2, t3 = t * t, t * t * t
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
+    out.append(ps[-1].copy())
+    return out
+
+
+def _root_sweep(bm, pts, prof, twist, ring_n=9):
+    """Sweep an ellipse along `pts`: prof(u) -> (half-width along the wall, half-thickness off it);
+    the ellipse turns by twist(u) about the root's own axis. Capped at the start; the end comes to a point."""
+    n = len(pts)
+    rings = []
+    for i, p in enumerate(pts):
+        u = i / (n - 1)
+        tng = (pts[min(n - 1, i + 1)] - pts[max(0, i - 1)]).normalized()
+        # Off the surface the root lies on: perpendicular to it within the wall's cross-section (XZ),
+        # so the frame never flips where the root turns over the crest.
+        a_n = tng.cross(Vector((0, 1, 0)))
+        if a_n.length < 1e-4:
+            a_n = Vector((1, 0, 0))
+        a_n.normalize()
+        a_b = tng.cross(a_n).normalized()
+        tw = twist(u)
+        e1 = a_n * math.cos(tw) + a_b * math.sin(tw)
+        e2 = -a_n * math.sin(tw) + a_b * math.cos(tw)
+        wb, wn = prof(u)
+        ring = []
+        for j in range(ring_n):
+            ang = 2 * math.pi * j / ring_n
+            # A buttress is not a pipe: flattened, with a keel (a sharper edge) toward the wall.
+            r_n = wn * (1.0 + 0.18 * math.cos(ang) ** 3)
+            # Knotted, ridged bark: the section swells and pinches along the root and round it.
+            q = p * 2.2 + Vector((math.cos(ang), math.sin(ang), 0)) * 0.6
+            k = 1.0 + 0.16 * noise.noise(q) + 0.07 * noise.noise(q * 3.1)
+            ring.append(bm.verts.new(p + (e1 * math.cos(ang) * r_n + e2 * math.sin(ang) * wb) * k))
+        rings.append(ring)
+    for i in range(n - 1):
+        for j in range(ring_n):
+            bm.faces.new((rings[i][j], rings[i][(j + 1) % ring_n], rings[i + 1][(j + 1) % ring_n], rings[i + 1][j]))
+    bm.faces.new(list(reversed(rings[0])))
+
+
+def buttress_roots(name, seed, length=4.0, n=3, crest=1.2):
+    """World round 17: giant roots heaved over a parapet (replacing hanging tubes that read as stakes).
+
+    Modelled on the right-hand wall: origin on the wall's centre line at path level, spanning `length`
+    m along +Y, the path toward −X, the water beyond +X. Each root comes thick out of the bank behind
+    the wall, arches over the crest (sunk into the masonry, as roots grow), runs down the inner face and
+    flares into a flat buttress fin where it meets the paving, twisting a little, then thins and sinks
+    into the joints. Some send a branch down the outer face to the water.
+    """
+    rng = random.Random(seed)
+    bm = bmesh.new()
+    for k in range(n):
+        y0 = length * (k + rng.uniform(0.2, 0.8)) / n
+        r0 = rng.uniform(0.15, 0.32)
+        wob = lambda s: noise.noise(Vector((seed * 1.7 + k * 3.1, s * 1.3, 0.5)))  # -1..1
+        lift = rng.uniform(0.15, 0.6)
+        # Each root runs at its own slant across the wall (not a row of parallel ribs).
+        skew = rng.uniform(-0.9, 0.9)
+        # Out of the ground behind the wall, over the crest, down the inner face, into the paving.
+        ctrl = [(2.7, -0.3), (2.0, crest * 0.7 + lift), (1.1, crest + lift), (0.3, crest + 0.1 + lift * 0.3), (-0.33, crest - 0.15), (-0.5, 0.8), (-0.58, 0.3), (-0.78, 0.04), (-0.98, -0.07)]
+        ps = []
+        for i, (x, z) in enumerate(ctrl):
+            f = i / (len(ctrl) - 1)
+            ps.append(Vector((x + 0.06 * wob(i), y0 + skew * (f - 0.5) + 0.22 * wob(i + 10) * f, z)))
+        pts = _catmull(ps, 5)
+        flare = rng.uniform(1.7, 2.2)
+        tw = rng.uniform(0.35, 0.8) * rng.choice((-1, 1))
+
+        def prof(u, r0=r0, flare=flare):
+            if u < 0.62:
+                w = r0 * (1.0 - 0.3 * u / 0.62)
+                return (w * 1.15, w)
+            if u < 0.9:
+                f = (u - 0.62) / 0.28
+                f = f * f * (3 - 2 * f)
+                base = r0 * 0.7
+                return (base * (1.15 + (flare - 1.15) * f), base * (1.0 - 0.55 * f))
+            f = (u - 0.9) / 0.1
+            return (r0 * 0.7 * flare * (1 - 0.92 * f), r0 * 0.7 * 0.45 * (1 - 0.9 * f))
+
+        _root_sweep(bm, pts, prof, lambda u, tw=tw: tw * u * u)
+        # A branch down the outer face toward the water (the water line is ~2.2 m below the path).
+        if rng.random() < 0.7:
+            yb = y0 + rng.uniform(-0.4, 0.4)
+            bps = [Vector((0.55, yb, crest + 0.05)), Vector((0.75, yb, crest - 0.45)), Vector((0.95, yb + 0.15 * wob(3), 0.0)), Vector((1.3, yb, -1.4)), Vector((1.7, yb, -2.6))]
+            rb = r0 * 0.6
+            _root_sweep(bm, _catmull(bps, 4), lambda u, rb=rb: (rb * (1.1 - 0.7 * u) + 0.01, rb * (1.0 - 0.75 * u) + 0.01), lambda u: 0.3 * u)
+    # Rootlets: thin feelers running off along the paving joints at the feet.
+    for k in range(n * 2):
+        y = rng.uniform(0.2, length - 0.2)
+        a = rng.uniform(-0.5, 0.5)
+        ln = rng.uniform(0.35, 0.7)
+        p0 = Vector((-0.7, y, 0.01))
+        ps = [p0, p0 + Vector((-ln * 0.5 * math.cos(a), ln * 0.5 * math.sin(a), 0.015)), p0 + Vector((-ln * math.cos(a), ln * math.sin(a), -0.03))]
+        rr = rng.uniform(0.025, 0.045)
+        _root_sweep(bm, _catmull(ps, 3), lambda u, rr=rr: (rr * (1 - 0.8 * u) + 0.004, rr * 0.7 * (1 - 0.8 * u) + 0.003), lambda u: 0.0, ring_n=5)
+    return finish_obj(name, bm, 50)

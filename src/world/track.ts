@@ -13,6 +13,7 @@ import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
 import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
+import { makeMossMaterial } from './moss';
 import { atmosphereUniforms } from './atmosphere';
 import { intensityOf } from './choreo';
 import { GROWTH_PER_MS } from '../engine/config';
@@ -796,6 +797,12 @@ function stageKit(kit: Kit): void {
   }
   const leaf = kit.mat.get('leaf');
   if (leaf) upgradeLeafMaterial(leaf);
+  // World round 17: the moss cushions get their own material (fibre normal, colour breakup, fuzz).
+  const flora = kit.mat.get('flora');
+  if (flora && !kit.mat.has('moss')) {
+    kit.mat.set('moss', makeMossMaterial(flora));
+    for (const n of ['moss_0', 'moss_1', 'moss_2']) if (kit.matOf.has(n)) kit.matOf.set(n, 'moss');
+  }
   for (const key of ['stoneA', 'stoneB', 'floor', 'rock', 'cliff', 'statue', 'glyph', 'wood', 'temple']) {
     const m = kit.mat.get(key);
     // Detail normals strongest underfoot, where the camera is closest.

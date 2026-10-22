@@ -1235,9 +1235,16 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       lowWalls(b, 0, n, [-1, 1], { gaps: 0.4 });
       for (const side of [-1, 1]) {
         for (let z = -7; z > -len - 4; z -= 14) jungleBank(b, side, PATH_HALF + 2.0, z);
-        for (let z = -b.rng.range(2, 4); z > -len + 1; z -= b.rng.range(4, 6.5)) {
-          // Giant roots spilling over the parapet and down to the water, both faces.
-          b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.45), b.rng.range(1.8, 2.6), z, -side * Math.PI / 2, [b.rng.range(1.3, 1.8), b.rng.range(1.6, 2.2), 1]);
+        for (let z = -b.rng.range(2, 4); z > -len + 4; z -= b.rng.range(4.5, 7.5)) {
+          // Giant roots heaved over the parapet (round 17: buttress roots that arch over the crest, flare
+          // into fins on the paving and sink into its joints, a branch down the outer face to the water;
+          // they were hanging tubes stretched into stakes). Modelled on the right wall, 4 m along −Z
+          // from the origin: on the left, turned end for end.
+          const k = b.rng.int(0, 1);
+          if (b.rng.chance(0.7)) {
+            if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, 0, z, 0);
+            else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), 0, z - 4, Math.PI);
+          }
           if (b.foliage(0.5)) bananas(b, side * b.rng.range(3.2, 4.2), -0.6, z - 1.5);
         }
         const t = b.rng.int(0, 1);
