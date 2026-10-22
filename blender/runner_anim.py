@@ -688,19 +688,30 @@ def build(rig):
     arm(P, "L", fwd=1.9, elbow=0.5, out=0.55, curl=0.4)
     arm(P, "R", fwd=1.7, elbow=0.6, out=0.65, curl=0.4)
     key(33, P, y=0.18)
-    # Falling: the body tips back (he ends up looking up at the lip), arms and legs flailing wide
-    # (ballistic from frame 34; the clip ends ~4 m down, out of frame — the floor has gone).
-    for fr in range(35, 65, 2):
+    # Falling (ballistic from frame 34, 1.1 s: the game drops the slab under him then): pitched forward
+    # over the lip and drifting on past it, never sitting back; legs trailing and kicking, arms flailing
+    # up and out. The water (2.2 m below the deck) takes his feet at ~1.77 s (the game's splash is at
+    # 1.75 s); he plunges in, slows, and is fully under by ~2.4 s (the game hides him at 2.6 s).
+    WATER = -2.2  # the lowest point (his feet) reaches the surface
+    for fr in range(35, 83, 2):
         u = (fr - 34) / FPS
         w = fr * 0.9
-        k = min(1.0, u * 1.6)
+        drop = -0.5 * G_ACC * u * u
+        if drop < WATER:
+            # In the water: the plunge slows hard; the body folds a little as it goes under.
+            ui = math.sqrt(2 * -WATER / G_ACC)
+            v0 = G_ACC * ui
+            t2 = u - ui
+            drop = WATER - (v0 * t2 - 0.5 * 10.0 * t2 * t2 if t2 < v0 / 10.0 else v0 * v0 / 20.0)
+        k = min(1.0, u * 1.5)
         P = {}
-        torso(P, lean=0.6 - 0.85 * k, look=-0.3 + 0.8 * k, hp=0.25 - 0.35 * k, roll=0.14 * math.sin(w * 0.5))
-        leg(P, "L", hip=0.5 + 0.5 * math.sin(w), knee=0.8 + 0.5 * math.sin(w + 1.2), ankle=0.3, out=0.2 + 0.1 * math.sin(w * 0.7))
-        leg(P, "R", hip=0.5 - 0.5 * math.sin(w), knee=0.8 - 0.5 * math.sin(w + 1.2), ankle=0.3, out=0.25)
-        arm(P, "L", fwd=1.2 + 0.6 * math.sin(w * 1.3), elbow=0.5 + 0.3 * math.sin(w), out=1.0 + 0.3 * math.sin(w * 1.1), curl=0.2)
-        arm(P, "R", fwd=1.1 - 0.6 * math.sin(w * 1.3 + 0.8), elbow=0.6, out=1.05 + 0.3 * math.cos(w * 1.1), curl=0.2)
-        key(fr, P, y=0.18 + 1.6 * u, lift=-0.5 * G_ACC * u * u)
+        torso(P, lean=0.62 + 0.3 * k, look=-0.45 + 0.25 * k, hp=0.25 + 0.15 * k, roll=0.12 * math.sin(w * 0.5),
+              head_yaw=0.1 * math.sin(w * 0.4))
+        leg(P, "L", hip=0.15 + 0.35 * math.sin(w), knee=0.35 + 0.35 * max(0.0, math.sin(w + 1.2)), ankle=0.35, out=0.15)
+        leg(P, "R", hip=0.15 - 0.35 * math.sin(w), knee=0.35 + 0.35 * max(0.0, -math.sin(w + 1.2)), ankle=0.35, out=0.2)
+        arm(P, "L", fwd=1.9 + 0.5 * math.sin(w * 1.3), elbow=0.4 + 0.3 * math.sin(w), out=0.9 + 0.3 * math.sin(w * 1.1), curl=0.15)
+        arm(P, "R", fwd=1.8 - 0.5 * math.sin(w * 1.3 + 0.8), elbow=0.5, out=0.95 + 0.3 * math.cos(w * 1.1), curl=0.15)
+        key(fr, P, y=0.18 + 1.6 * min(u, 0.9) + 0.4 * max(0.0, u - 0.9), lift=drop)
 
     # ---------------------------------------------------------- gate: slam to a stop, recoil, stagger back, sink down
     new_action("fall_gate")
