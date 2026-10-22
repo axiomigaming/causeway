@@ -297,6 +297,7 @@ sup { font-size: 0.7em; line-height: 0; }
 .balance { display: grid; justify-items: end; row-gap: 2px; line-height: 1; }
 .balance .k { font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); white-space: nowrap; }
 .balance .v { font-size: var(--t20); line-height: 24px; font-weight: 700; letter-spacing: 0; color: var(--text); white-space: nowrap; transition: color 0.3s; }
+.balance .v .fig { display: inline-block; text-align: right; }
 .balance .v small { font-size: var(--t12); font-weight: 600; letter-spacing: 0.1em; color: var(--label); margin-left: 4px; }
 .balance.bump .v { animation: bump 0.6s var(--ease); }
 @keyframes bump { 30% { color: var(--amber-hi); } }
@@ -370,9 +371,10 @@ sup { font-size: 0.7em; line-height: 0; }
 }
 .step:active:not(:disabled), .qchip:active:not(:disabled) { transform: scale(0.96); transition-duration: 0.09s; }
 .step:disabled, .qchip:disabled { color: var(--faint); border-color: var(--hair); cursor: not-allowed; }
+/* the chip that matches the stake: same 1 px border in amber, a faint amber wash (no size change) */
+.qchip[aria-pressed='true'] { border-color: var(--amber); background: rgba(244, 183, 64, 0.12); color: var(--amber-hi); transition: border-color 0.12s, background-color 0.12s, color 0.12s; }
 .run-cell { display: flex; }
 .run-btn { width: 100%; }
-.fine { margin-top: 12px; text-align: center; font-size: var(--t12); line-height: 16px; color: var(--label); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); }
 kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.04em; padding: 0 6px; border-radius: 4px; border: 1px solid var(--hair-2); color: var(--text); margin: 0 4px; }
 
 /* ---- CASH OUT: the RUN button, morphed to warm cream; it warms toward amber as --heat climbs */
@@ -524,7 +526,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 /* ================================================================== small screens */
 @media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
   .wide-only { display: none; }
-  .fine, .limits, .auto-note { display: none; }
+  .limits, .auto-note, .setup-hint { display: none; }
   .veil { place-items: end stretch; padding: 0; }
   .sheet, .sheet.wide { width: 100%; max-height: 88vh; border-radius: var(--r-lg) var(--r-lg) 0 0; animation: sheetUp 0.22s var(--ease); }
   .sheet-head { padding: 24px 16px 16px; }
@@ -627,7 +629,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 }
 /* short desktops: the fine print goes and the dock tightens, so the runner keeps its room */
 @media (min-width: 761px) and (min-height: 521px) and (max-height: 820px) {
-  .fine { display: none; }
+  .setup-hint { display: none; }
   .setup { padding: 8px 16px 12px; }
   .btn-cta { height: 56px; }
   .dock { bottom: calc(16px + var(--safe-b)); }

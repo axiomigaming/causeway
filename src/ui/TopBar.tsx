@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatCredits, formatMult } from '../engine/money';
+import { countUp } from '../audio/feedback';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { IconMenu, IconShield, IconSliders, IconSound } from './icons';
@@ -18,15 +19,42 @@ export function TopBar() {
   const ctl = useCtl();
   const [bump, setBump] = useState(false);
   const prev = useRef(balance);
+  const figRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    if (balance > prev.current) {
-      setBump(true);
-      const t = setTimeout(() => setBump(false), 650);
-      prev.current = balance;
-      return () => clearTimeout(t);
-    }
+    const el = figRef.current;
+    const from = prev.current;
     prev.current = balance;
-  }, [balance]);
+    if (!el) return;
+    const final = formatCredits(balance);
+    if (balance <= from || settings.motion !== 'full') {
+      el.textContent = final;
+      el.style.minWidth = '';
+      return;
+    }
+    // A win counts up from the old balance (tabular digits; the box is held at the final width,
+    // so nothing beside it moves while it counts).
+    setBump(true);
+    el.textContent = final;
+    el.style.minWidth = `${el.getBoundingClientRect().width}px`;
+    const t0 = performance.now();
+    const dur = 600;
+    let raf = 0;
+    const step = () => {
+      const k = (performance.now() - t0) / dur;
+      el.textContent = formatCredits(countUp(from, balance, k));
+      if (k < 1) raf = requestAnimationFrame(step);
+      else {
+        el.style.minWidth = '';
+        setBump(false);
+      }
+    };
+    step();
+    return () => {
+      cancelAnimationFrame(raf);
+      el.textContent = final;
+      el.style.minWidth = '';
+    };
+  }, [balance, settings.motion]);
   const open = (m: 'fair' | 'settings' | 'menu' | 'history') => {
     ctl?.audio.ui('open');
     set({ modal: m });
@@ -70,7 +98,10 @@ export function TopBar() {
           <span className="wide-only">Demo </span>Balance
         </div>
         <div className="v num">
-          {formatCredits(balance)}
+          {/* written by the count-up above; React sets the settled figure */}
+          <span className="fig" ref={figRef}>
+            {formatCredits(balance)}
+          </span>
           <small>CR</small>
         </div>
       </div>
