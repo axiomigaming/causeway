@@ -26,6 +26,8 @@ export class Water {
         uDetail: { value: 2 },
         uCamPos: { value: new THREE.Vector3() },
         // Cinematics (round 17): up to four splashes (x, z, start time, strength) ringing out.
+        // QA (?qa&water0): the round-16 water without the round-17 ripples, for before/after crops.
+        uRipple: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
         uSplash: { value: [new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0)] },
       },
     ]);
@@ -56,6 +58,7 @@ export class Water {
         uniform float uSkyYaw;
         uniform float uMark;
         uniform vec4 uSplash[4];
+        uniform float uRipple;
         varying vec3 vWorld;
 
         // Gradient noise and its analytic derivative (value noise, quintic): the close-range ripple
@@ -132,7 +135,7 @@ export class Water {
           // Flatten waves with distance to avoid shimmer.
           g *= 1.0 / (1.0 + dist * 0.02);
           // Round 17: multi-scale ripples on every tier (the close water read as a flat sheet).
-          g += ripples(vWorld.xz, uTime, dist);
+          g += ripples(vWorld.xz, uTime, dist) * uRipple;
           float splashFoam;
           g += splashGrad(vWorld.xz, uTime, splashFoam);
           // Round 11: fine ripples close to the eye break the mirror into glitter (ref17).
