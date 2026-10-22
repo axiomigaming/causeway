@@ -705,12 +705,15 @@ def build(rig):
             drop = WATER - (v0 * t2 - 0.5 * 10.0 * t2 * t2 if t2 < v0 / 10.0 else v0 * v0 / 20.0)
         k = min(1.0, u * 1.5)
         P = {}
-        torso(P, lean=0.62 + 0.3 * k, look=-0.45 + 0.25 * k, hp=0.25 + 0.15 * k, roll=0.12 * math.sin(w * 0.5),
+        # The whole body tips forward from the hips as he goes (a tumble, not a standing drop), ~60°
+        # by the water; the trunk dips further, the head lifts to look where he is going.
+        torso(P, lean=0.5 + 0.3 * k, look=0.1 + 0.45 * k, hp=0.25 + 0.8 * k, roll=0.14 * math.sin(w * 0.5),
               head_yaw=0.1 * math.sin(w * 0.4))
-        leg(P, "L", hip=0.15 + 0.35 * math.sin(w), knee=0.35 + 0.35 * max(0.0, math.sin(w + 1.2)), ankle=0.35, out=0.15)
-        leg(P, "R", hip=0.15 - 0.35 * math.sin(w), knee=0.35 + 0.35 * max(0.0, -math.sin(w + 1.2)), ankle=0.35, out=0.2)
-        arm(P, "L", fwd=1.9 + 0.5 * math.sin(w * 1.3), elbow=0.4 + 0.3 * math.sin(w), out=0.9 + 0.3 * math.sin(w * 1.1), curl=0.15)
-        arm(P, "R", fwd=1.8 - 0.5 * math.sin(w * 1.3 + 0.8), elbow=0.5, out=0.95 + 0.3 * math.cos(w * 1.1), curl=0.15)
+        leg(P, "L", hip=-0.1 + 0.4 * math.sin(w), knee=0.45 + 0.45 * max(0.0, math.sin(w + 1.2)), ankle=0.4, out=0.2)
+        leg(P, "R", hip=-0.1 - 0.4 * math.sin(w), knee=0.45 + 0.45 * max(0.0, -math.sin(w + 1.2)), ankle=0.4, out=0.24)
+        # Arms thrown up and out, clawing at the air (kept short of overhead, where the axes flip).
+        arm(P, "L", fwd=2.0 + 0.35 * math.sin(w * 1.3), elbow=0.35 + 0.3 * math.sin(w), out=0.75 + 0.25 * math.sin(w * 1.1), curl=0.3)
+        arm(P, "R", fwd=1.95 - 0.35 * math.sin(w * 1.3 + 0.8), elbow=0.45, out=0.8 + 0.25 * math.cos(w * 1.1), curl=0.3)
         key(fr, P, y=0.18 + 1.6 * min(u, 0.9) + 0.4 * max(0.0, u - 0.9), lift=drop)
 
     # ---------------------------------------------------------- gate: slam to a stop, recoil, stagger back, sink down
