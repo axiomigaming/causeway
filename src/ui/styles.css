@@ -68,6 +68,7 @@ button, input, select { font: inherit; color: inherit; letter-spacing: inherit; 
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 sup { font-size: 0.7em; line-height: 0; }
+::selection { background: rgba(244, 183, 64, 0.35); color: var(--text); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* every figure: tabular lining digits, so nothing jitters while it ticks */
 .num { font-weight: 700; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1, 'lnum' 1; }

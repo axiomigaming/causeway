@@ -41,7 +41,7 @@ export function Title() {
             </div>
           ) : ready ? (
             <div className="title-actions">
-              <button className={`btn btn-cta cta-go enter-btn${leaving ? ' busy' : ''}`} onClick={enter} onMouseEnter={() => ctl?.audio.ui('hover')} autoFocus>
+              <button className={`btn btn-cta cta-go enter-btn${leaving ? ' busy' : ''}`} onClick={enter} onMouseEnter={() => ctl?.audio.ui('hover')}>
                 <span className="btn-label">
                   <span className="cta-word">Enter the ruins</span>
                 </span>
