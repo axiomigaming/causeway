@@ -213,7 +213,7 @@ export function ResultPlate() {
       </div>
       <div className="big num" aria-label={`${m}×`} style={{ '--chars': m.length + 1 } as CSSProperties}>
         {m}
-        <span className="unit">×</span>
+        <span className="x">×</span>
       </div>
       <div className="line">
         Stake lost<i className="dot">·</i>
@@ -242,7 +242,7 @@ function WonPlate({ stake, payout, mult, auto, verify }: { stake: number; payout
     let raf = 0;
     const step = () => {
       const k = (performance.now() - t0) / dur;
-      el.textContent = `+${formatCredits(countUp(stake, payout, k))}`;
+      el.textContent = formatCredits(countUp(stake, payout, k));
       if (k < 1) raf = requestAnimationFrame(step);
     };
     step();
@@ -262,17 +262,22 @@ function WonPlate({ stake, payout, mult, auto, verify }: { stake: number; payout
         <span className="r-k">Escaped</span>
         {auto && <span className="r-note">Auto cash-out</span>}
       </div>
-      <div className="big num" aria-hidden="true" style={{ '--chars': formatCredits(payout).length + 1 } as CSSProperties}>
+      {/* the return, unsigned: profit (below) is the only signed figure */}
+      <div className="r-label" aria-hidden="true">
+        Return
+      </div>
+      <div className="big num" aria-hidden="true" style={{ '--chars': formatCredits(payout).length + 3 } as CSSProperties}>
         <span className="payout-fig" ref={bigRef}>
-          +{formatCredits(payout)}
+          {formatCredits(payout)}
         </span>
+        <span className="unit">CR</span>
       </div>
       <div className="line" aria-hidden="true">
         At <b className="num">{formatMult(mult)}×</b>
         <i className="dot">·</i>
         Stake <b className="num">{formatCredits(stake)}</b>
         <i className="dot">·</i>
-        Profit <b className="num gain">{formatCredits(profit, { sign: true })}</b>
+        Profit <b className={`num${profit > 0 ? ' gain' : ''}`}>{formatCredits(profit, { sign: true })}</b>
       </div>
       {verify}
     </div>

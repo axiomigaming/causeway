@@ -85,6 +85,8 @@ export const QUERIES = [
   { key: 'stone_split', q: 'rock crack', dur: [0.2, 20] },
   { key: 'slide_scrape', q: 'sliding on gravel', dur: [0.5, 30] },
   { key: 'land_heavy', q: 'body fall', dur: [0.2, 15] },
+  // Round 14: a stone slab sliding off and going into the water
+  { key: 'slab_sink', q: 'rock splash water', dur: [0.5, 30] },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -486,12 +486,32 @@ export class ThemePlayer {
     return { at, lifted: r.liftAt !== null && at >= r.liftAt - 2 * r.bar };
   }
 
-  /** Cash-out: on the next eighth, the run gives way to a fanfare sized by the settled cash-out tier, in the
-   * run's key; then the warm D major version of the tune. */
-  escape(tier: Tier): void {
-    if (this.mode === 'result') return;
-    const { at, lifted } = this.cutIn();
-    this.stopRun(at - 0.02, 0.04);
+  /**
+   * Where the "made it" fanfare lands: on the beat of the run's clock nearest to `want` (the moment the
+   * runner pulls up, from the game), at least 0.15 s ahead and within the phrase already scheduled;
+   * without a wish, the next eighth note. Also whether the run had lifted to E minor by then.
+   */
+  private landing4(want?: number): { at: number; lifted: boolean } {
+    const r = this.run;
+    const now = this.ctx.currentTime;
+    if (!r || want === undefined) return this.cutIn();
+    const beat = r.bar / 4;
+    const w = Math.min(now + 1.4, Math.max(now + 0.15, want));
+    let at = r.t0 + Math.round((w - r.t0) / beat) * beat;
+    if (at < now + 0.15) at += beat;
+    return { at, lifted: r.liftAt !== null && at >= r.liftAt - 2 * r.bar };
+  }
+
+  /**
+   * Cash-out. The run keeps playing until the fanfare lands on the beat (by default the next eighth; with
+   * `pullUpAt`, the beat nearest that moment), then fades under the fanfare's attack instead of stopping
+   * before it. The fanfare is sized by the settled cash-out tier and plays in the run's key (D major after
+   * D minor, a Picardy resolution; E after the lift), then the warm D major loop. Returns its start time.
+   */
+  escape(tier: Tier, pullUpAt?: number): number {
+    if (this.mode === 'result') return -1;
+    const { at, lifted } = this.landing4(pullUpAt);
+    this.stopRun(at, 0.12);
     const n = fanfareFor(tier);
     const rate = lifted ? LIFT_RATE : 1;
     const f = this.buf(`th_win${n}`);
@@ -499,13 +519,15 @@ export class ThemePlayer {
     this.note(at, `fanfare ${n}${lifted ? ' (E)' : ''}`);
     this.setIdle('th_safe', at + Math.max(1.5, (f?.duration ?? 4) / rate - 1.6), 2.5, 0.85);
     this.mode = 'result';
+    return at;
   }
 
-  /** A fall: on the next eighth, the run stops into the loss sting (in the run's key), then the tense loop. */
+  /** A fall: on the next eighth, the run crossfades into the loss sting (in the run's key, resolving on its tonic), then the tense loop. */
   fall(): void {
     if (this.mode === 'result') return;
     const { at, lifted } = this.cutIn();
-    this.stopRun(at - 0.02, 0.02);
+    // The run plays into the sting's first note and dies under it (a short crossfade, not a hard stop).
+    this.stopRun(at, 0.06);
     const rate = lifted ? LIFT_RATE : 1;
     const f = this.buf('th_lose');
     this.source('th_lose', this.sting, at, false, 1, 0, rate);

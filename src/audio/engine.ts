@@ -29,6 +29,8 @@ type Scene = 'title' | 'setup' | 'lead' | 'run' | 'escaped' | 'fallen';
 export type UiSound = 'hover' | 'tick' | 'press' | 'confirm' | 'bet' | 'cashout' | 'deny' | 'open' | 'close' | 'stamp' | 'toggle';
 
 const BEDS: Bed[] = ['jungle', 'insects', 'river', 'waterfall'];
+/** Master drive into the dynamics chain (see applyLevels). */
+const DRIVE = 1.62;
 
 const ROOT = 146.83; // D3
 const hz = (semi: number, base = ROOT) => base * Math.pow(2, semi / 12);
@@ -332,7 +334,9 @@ export class AudioEngine implements WorldSounds {
   private applyLevels() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const m = this.levels.muted ? 0 : this.levels.master;
+    // DRIVE: the whole mix 4.2 dB hotter into the master compressor and limiter, measured on a full run
+    // (music included) to sit near -16 LUFS for phones with true peaks under -1 dBTP (review/audio14).
+    const m = this.levels.muted ? 0 : this.levels.master * DRIVE;
     this.master.gain.setTargetAtTime(m, t, 0.05);
     this.music.gain.setTargetAtTime(this.levels.music * 0.95, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(this.levels.sfx, t, 0.05);
@@ -724,6 +728,11 @@ export class AudioEngine implements WorldSounds {
    */
   sfx(name: string, strength = 0.7): void {
     if (!this.ctx) return;
+    if (name === 'made_it') {
+      // The runner carries on to safe ground and pulls up 0.75 + 0.55 g s from now (render/game.ts cashout).
+      if (this.escapePending) this.escapePending.landIn = 0.75 + 0.55 * Math.min(1, Math.max(0, strength));
+      return;
+    }
     if (name === 'tier_up') {
       // A run tier arrives (strength = tier / 4, from the multiplier on screen). Not a separate
       // ding: the score lands an accent on its next downbeat, the bar where the new layer enters.
@@ -740,51 +749,135 @@ export class AudioEngine implements WorldSounds {
     }
   }
 
+  /** The FX side sends these itself (then the guesses from strengths below stand down). */
+  private fxSends = { corner: false, splash: false };
+
+  /** Play a recorded obstacle sound if it is loaded; else false (the caller layers a stand-in). */
+  private rec(name: string, o: PlayOpts): boolean {
+    return !!this.sp?.has(name) && this.sample(name, o);
+  }
+
   /**
-   * Obstacle moments (FX events), layered from the recorded library: the moment's material, its weight and
-   * what it throws up. True when the name is one of them (and something played or will play).
+   * Obstacle moments (FX events from render/obstacles.ts), each on the frame the director fires it:
+   * recorded where we have the recording (crack_wood, crash_wood, crack_stone, skid, land_body, sink,
+   * all real takes), layered from the library while those are still loading. Strengths tell the moments
+   * apart where one name serves several: a corner is a whoosh_jump under 0.4 (jumps are 0.5+), the beam
+   * slamming down is land_heavy 0.9 (landings 0.45-0.6), the pillar landing is tree_fall 0.8 (the
+   * boulder setting off 0.45), the pillar's base giving way is stone_split 0.5, the slabs starting to
+   * drift 0.8 and each slab (or the tile dropping) 0.6. True when the name is one of them.
    */
   private obstacle(name: string, s: number): boolean {
     if (!this.ctx) return false;
     const t = this.ctx.currentTime;
     const p = this.rnd() * 0.4 - 0.2;
     switch (name) {
+      case 'corner_plant':
+        this.fxSends.corner = true;
+        this.cornerPlant(s, t, p);
+        return true;
       case 'whoosh_jump':
-        // the body through the air: a slower, heavier swing
-        return this.sample('whoosh', { strength: 0.55 + 0.45 * s, rate: 0.8, pan: p });
+        if (s < 0.4) {
+          // A 90-degree corner (or a bend): the foot plants and the body swings round it.
+          if (this.fxSends.corner) return this.sample('whoosh', { strength: 0.3 + 0.4 * s, rate: 1.05, pan: p });
+          this.cornerPlant(s, t, p);
+          return true;
+        }
+        // Takeoff: the push-off scuff, then the body through the air (a slower, heavier swing).
+        this.rec('skid', { strength: 0.35, maxDur: 0.16, rate: 1.2, pan: p, gain: 0.8 });
+        return this.sample('whoosh', { strength: 0.55 + 0.45 * s, rate: 0.8, pan: p, when: t + 0.02 });
       case 'land_heavy':
-        // both feet into rubble: a stone thud under a hard gravel step, grit after
-        this.sample('impact', { strength: 0.35 + 0.4 * s, rate: 0.85, pan: p });
-        this.sample('step_gravel', { strength: 1, gain: 1.4, rate: 0.9, pan: p });
+        if (s >= 0.85) {
+          // The lintel slamming down onto the slabs behind him: a real timber crash, the stone under it, grit.
+          if (!this.rec('crash_wood', { strength: 0.75 + 0.25 * s, pan: p, priority: 3 })) this.sample('step_wood', { strength: 1, gain: 1.8, rate: 0.6, pan: p });
+          this.sample('slam', { strength: 0.45 + 0.3 * s, rate: 0.9, pan: p });
+          this.sample('debris', { strength: 0.4 + 0.3 * s, when: t + 0.06, pan: p });
+          this.sample('dust', { strength: 0.4 + 0.3 * s, when: t + 0.08, pan: p });
+          return true;
+        }
+        // Both feet into the ground: the body's weight (a recorded landing, its first instant), a hard step, grit.
+        if (!this.rec('land_body', { strength: 0.5 + 0.5 * s, maxDur: 0.4, pan: p })) this.sample('impact', { strength: 0.35 + 0.4 * s, rate: 0.85, pan: p });
+        this.sample('step_gravel', { strength: 1, gain: 1.3, rate: 0.9, pan: p });
         this.sample('dust', { strength: 0.3 + 0.4 * s, when: t + 0.05, pan: p });
         return true;
       case 'wood_crack':
-        // a plank giving way: a hard, low wood knock with a sharp stone crack on top and splinters
-        this.sample('step_wood', { strength: 1, gain: 1.6, rate: 0.7, pan: p });
-        this.sample('impact', { strength: 0.4 + 0.35 * s, rate: 1.35, pan: p, when: t + 0.015 });
+        // The lintel breaking loose: a real beam cracking, a low wood knock under it, splinters after.
+        if (!this.rec('crack_wood', { strength: 0.7 + 0.3 * s, pan: p, priority: 3 })) this.sample('impact', { strength: 0.4 + 0.35 * s, rate: 1.35, pan: p, when: t + 0.015 });
+        this.sample('step_wood', { strength: 1, gain: 1.3, rate: 0.7, pan: p });
         this.sample('debris', { strength: 0.25 + 0.2 * s, rate: 1.2, when: t + 0.08, pan: p });
         return true;
       case 'stone_split':
-        // a slab cracking open: a bright stone crack, the grind of it parting, stones falling out
-        this.sample('impact', { strength: 0.55 + 0.4 * s, rate: 1.25, pan: p });
-        this.sample('grind', { strength: 0.35 + 0.3 * s, maxDur: 0.9, when: t + 0.04, pan: p });
-        this.sample('debris', { strength: 0.35 + 0.3 * s, when: t + 0.15, pan: p });
+        this.stoneSplit(s, t, p);
+        return true;
+      case 'slab_groan':
+        // A slab tearing free and grinding off sideways (explicit FX event).
+        this.slabGroan(s, t, p);
+        return true;
+      case 'slab_splash':
+        this.fxSends.splash = true;
+        this.slabSplash(s, t, p);
         return true;
       case 'tree_fall':
-        // a trunk going over: it gives (crumble), sweeps down (a slow, deep whoosh), lands (slam) and settles
-        this.sample('crumble', { strength: 0.35 + 0.3 * s, rate: 0.8, pan: p });
-        this.sample('whoosh', { strength: 0.7, rate: 0.55, when: t + 0.5, pan: p });
-        this.sample('slam', { strength: 0.5 + 0.35 * s, when: t + 1.1, pan: p });
-        this.sample('debris', { strength: 0.4 + 0.3 * s, when: t + 1.15, pan: p });
-        this.sample('dust', { strength: 0.4 + 0.3 * s, when: t + 1.2, pan: p });
+        if (s >= 0.6) {
+          // The pillar lands across the way (the event fires on the frame it lands): the stone column
+          // crashing down, breaking at the edges, rubble running off, the ground answering.
+          this.sample('slam', { strength: 0.6 + 0.4 * s, pan: p });
+          if (!this.rec('crack_stone', { strength: 0.8 + 0.2 * s, rate: 0.82, pan: p, priority: 3 })) this.sample('impact', { strength: 0.9, rate: 0.9, pan: p });
+          this.sample('rockfall', { strength: 0.45 + 0.3 * s, when: t + 0.05, pan: p });
+          this.sample('debris', { strength: 0.4 + 0.3 * s, when: t + 0.12, pan: p });
+          this.sample('dust', { strength: 0.4 + 0.3 * s, when: t + 0.15, pan: p });
+          this.sample('rumble', { strength: 0.35 + 0.2 * s, maxDur: 1.8, fadeIn: 0.05, when: t + 0.04, pan: p });
+          return true;
+        }
+        // The boulder breaking loose and rolling in (it crosses the way ~1 s later, with land_heavy).
+        this.sample('crumble', { strength: 0.35 + 0.3 * s, rate: 0.85, pan: p });
+        this.sample('rumble', { strength: 0.45 + 0.3 * s, maxDur: 1.6, fadeIn: 0.25, rate: 0.9, when: t + 0.08, pan: p });
+        this.sample('rockfall', { strength: 0.3 + 0.2 * s, rate: 0.75, when: t + 0.3, pan: p });
         return true;
       case 'slide_scrape':
-        // feet skidding over stone and grit: the stone slide, slower and lower, with sand thrown up
-        this.sample('ui_slide', { strength: 0.55 + 0.45 * s, rate: 0.8, dest: this.sfxBus, gain: 1.6, pan: p });
+        // Feet skidding into the slide under the lintel: a real slide on gravel, sand thrown up.
+        if (!this.rec('skid', { strength: 0.6 + 0.4 * s, pan: p, priority: 2 })) this.sample('ui_slide', { strength: 0.55 + 0.45 * s, rate: 0.8, dest: this.sfxBus, gain: 1.6, pan: p });
         this.sample('dust', { strength: 0.3 + 0.3 * s, when: t + 0.05, pan: p });
         return true;
     }
     return false;
+  }
+
+  /** The foot planted hard at a corner: a heavy step, a short skid of grit, the body swinging round. */
+  private cornerPlant(s: number, t: number, p: number) {
+    this.sample('step_gravel', { strength: 1, gain: 1.25, rate: 0.92, pan: p });
+    if (!this.rec('skid', { strength: 0.4 + 0.4 * s, maxDur: 0.32, rate: 1.08, pan: p, when: t + 0.01 })) this.sample('ui_slide', { strength: 0.4, rate: 0.9, maxDur: 0.3, dest: this.sfxBus, pan: p, when: t + 0.01 });
+    this.sample('whoosh', { strength: 0.3 + 0.4 * s, rate: 1.05, pan: -p, when: t + 0.05 });
+  }
+
+  /**
+   * stone_split. 0.5: the pillar's base gives way (it lands 1.05 s later): a crack and the groan of it
+   * leaning, then the air of it sweeping down. 0.8: the slabs over the water start to drift: a big crack
+   * and a deep groan. 0.6: one slab tears free (or the tile he left drops): crack, grind, and its splash
+   * when it reaches the water, unless the FX sends slab_splash itself.
+   */
+  private stoneSplit(s: number, t: number, p: number) {
+    if (Math.abs(s - 0.5) < 0.05) {
+      if (!this.rec('crack_stone', { strength: 0.85, pan: p, priority: 3 })) this.sample('impact', { strength: 0.75, rate: 1.25, pan: p });
+      this.sample('grind', { strength: 0.55, maxDur: 0.9, rate: 0.8, fadeIn: 0.08, when: t + 0.08, pan: p });
+      this.sample('whoosh', { strength: 0.75, rate: 0.55, when: t + 0.55, pan: p });
+      return;
+    }
+    if (!this.rec('crack_stone', { strength: 0.6 + 0.4 * s, pan: p, priority: 2 })) this.sample('impact', { strength: 0.55 + 0.4 * s, rate: 1.25, pan: p });
+    this.slabGroan(s, t + 0.04, p);
+    this.sample('debris', { strength: 0.3 + 0.3 * s, when: t + 0.15, pan: p });
+    if (s < 0.75 && !this.fxSends.splash) this.slabSplash(s, t + 1.1, p);
+  }
+
+  /** A slab grinding off its bed: the stone grind slowed into a groan, the low rumble under it. */
+  private slabGroan(s: number, t: number, p: number) {
+    this.sample('grind', { strength: 0.4 + 0.4 * s, maxDur: 1.3, rate: 0.72, fadeIn: 0.1, when: t, pan: p });
+    if (s >= 0.75) this.sample('rumble', { strength: 0.4 + 0.3 * s, maxDur: 1.6, fadeIn: 0.2, rate: 0.8, when: t + 0.05 });
+  }
+
+  /** A slab going into the water: a real heavy splash, the big splash's spray over it. */
+  private slabSplash(s: number, t: number, p: number) {
+    if (!this.rec('sink', { strength: 0.6 + 0.4 * s, when: t, pan: p, priority: 2 })) this.sample('splash_big', { strength: 0.5 + 0.4 * s, when: t, pan: p });
+    else this.sample('splash_small', { strength: 0.4 + 0.3 * s, when: t + 0.03, pan: p });
   }
 
   /** WorldSounds.event: named world events from the game (dust_burst, stones_skitter, tier_up, …). */
@@ -1007,9 +1100,13 @@ export class AudioEngine implements WorldSounds {
     }
   }
 
-  /** Thunder, layered from recordings: a slowed deep boom, the long rumble of the quake take, debris far off. */
+  /** Thunder: a real thunder take (beds group, lazy) with a slowed deep boom under it; before it loads, the boom and the quake rumble. */
   private thunder(s: number, at: number) {
     const pan = this.rnd() * 1.2 - 0.6;
+    if (this.rec('thunder', { when: at, strength: 0.55 + 0.45 * s, pan, maxDur: 9 })) {
+      this.sample('m_boom', { when: at, strength: 0.25 + 0.3 * s, rate: 0.55 + this.rnd() * 0.1, pan, dest: this.sfxBus });
+      return;
+    }
     this.sample('m_boom', { when: at, strength: 0.35 + 0.45 * s, rate: 0.6 + this.rnd() * 0.12, pan, dest: this.sfxBus });
     this.sample('rumble', { when: at + 0.12, strength: 0.4 + 0.45 * s, maxDur: 4.5, fadeIn: 0.35, rate: 0.78, pan });
   }
@@ -1204,6 +1301,47 @@ export class AudioEngine implements WorldSounds {
     }
   }
 
+  private escapePending: { landIn: number | null } | null = null;
+
+  /**
+   * A cash-out is settled: the game calls escape() and, in the same moment, event('made_it', g) when the
+   * runner still carries on for a few strides before pulling up (0.75 + 0.55 g seconds). The request waits a
+   * microtask so made_it can say when that is; the fanfare then lands on the beat nearest the pull-up, and
+   * the theme keeps playing until it does. Without made_it (slow runner, reduced motion), the next eighth.
+   */
+  private requestEscape() {
+    if (this.escapePending || !this.theme || this.theme.mode === 'result') return;
+    this.escapePending = { landIn: null };
+    queueMicrotask(() => this.flushEscape());
+  }
+
+  private flushEscape() {
+    const p = this.escapePending;
+    this.escapePending = null;
+    const ctx = this.ctx;
+    if (!p || !ctx || !this.theme || this.theme.mode === 'result') return;
+    const g = this.grade;
+    const now = ctx.currentTime;
+    const at = this.theme.escape(g, p.landIn !== null ? now + p.landIn : undefined);
+    const t = at > 0 ? at : now;
+    // Gold, a sparkle and the runner's breath with the fanfare; more of everything at high multipliers.
+    this.sample('coins', { strength: 0.75 + 0.05 * g, when: t + 0.02 });
+    this.sample('sparkle', { strength: 0.6 + 0.07 * g, when: t + 0.12 });
+    this.sample('pant', { strength: 0.8, when: t + 0.9 });
+    if (g >= 2) {
+      // A big escape: a deep boom under the fanfare and gold pouring for a moment (more of it from 10x).
+      this.sample('m_boom', { strength: 0.45 + 0.1 * g, dest: this.sfxBus, when: t + 0.02 });
+      const n = g >= 4 ? 5 : g >= 3 ? 3 : 2;
+      for (let i = 1; i <= n; i++) this.sample('coins', { strength: 0.75 - 0.06 * i, when: t + 0.12 + i * 0.13 + this.rnd() * 0.05, pan: this.rnd() * 0.8 - 0.4 });
+    }
+    if (g >= 3) this.sample('sparkle', { strength: 0.7, rate: 1.26, when: t + 0.55 });
+    if (g >= 4) {
+      // From 25x: a bright gong rings over it all.
+      this.sample('m_gong', { strength: 0.55, rate: 1.5, when: t + 0.3, maxDur: 4, dest: this.sfxBus });
+      this.sample('sparkle', { strength: 0.65, rate: 1.5, when: t + 0.95 });
+    }
+  }
+
   escape(): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
@@ -1215,23 +1353,8 @@ export class AudioEngine implements WorldSounds {
     this.score.gain.setTargetAtTime(0, t, 0.25);
     this.breath?.gain.gain.setTargetAtTime(0, t, 0.2);
     if (this.themeOn && this.sp?.has('coins')) {
-      // The theme's fanfare (sized by the cash-out tier) over gold, a sparkle and the runner's breath.
-      this.theme!.escape(g);
-      this.sample('coins', { strength: 0.75 + 0.05 * g, when: t + 0.02 });
-      this.sample('sparkle', { strength: 0.6 + 0.07 * g, when: t + 0.12 });
-      this.sample('pant', { strength: 0.8, when: t + 0.9 });
-      if (g >= 2) {
-        // A big escape: a deep boom under the fanfare and gold pouring for a moment (more of it from 10x).
-        this.sample('m_boom', { strength: 0.45 + 0.1 * g, dest: this.sfxBus, when: t + 0.02 });
-        const n = g >= 4 ? 5 : g >= 3 ? 3 : 2;
-        for (let i = 1; i <= n; i++) this.sample('coins', { strength: 0.75 - 0.06 * i, when: t + 0.12 + i * 0.13 + this.rnd() * 0.05, pan: this.rnd() * 0.8 - 0.4 });
-      }
-      if (g >= 3) this.sample('sparkle', { strength: 0.7, rate: 1.26, when: t + 0.55 });
-      if (g >= 4) {
-        // From 25x: a bright gong rings over it all and the ground answers with a sub swell already rising.
-        this.sample('m_gong', { strength: 0.55, rate: 1.5, when: t + 0.3, maxDur: 4, dest: this.sfxBus });
-        this.sample('sparkle', { strength: 0.65, rate: 1.5, when: t + 0.95 });
-      }
+      // The fanfare lands on the music's clock when the runner pulls up (see requestEscape / made_it).
+      this.requestEscape();
       return;
     }
     if (this.sp?.has('coins') && this.sp.has('swell')) {
@@ -1284,9 +1407,10 @@ export class AudioEngine implements WorldSounds {
     if (!this.sp?.has('ui_tap') || !this.sp.has('ui_tick')) return false;
     switch (s) {
       case 'hover':
-        if (t - this.lastHover < 0.09) return true;
+        // Barely there: a felt-soft wood touch, at most every 150 ms.
+        if (t - this.lastHover < 0.15) return true;
         this.lastHover = t;
-        return this.sample('ui_tick', { strength: 0.25, rate: 1.25 });
+        return this.sample('ui_tick', { strength: 0.12, rate: 1.15 });
       case 'tick':
         return this.sample('ui_tick', { strength: 0.8 });
       case 'press':
@@ -1312,7 +1436,9 @@ export class AudioEngine implements WorldSounds {
         this.sample('sparkle', { strength: 0.55, when: t + 0.025 });
         return true;
       case 'stamp':
-        this.sample('impact', { strength: 0.45, rate: 1.1, priority: 2 });
+        // The result card settles: a stone set down (a low tap with a soft frame-drum body), not a hit.
+        this.sample('ui_tap', { strength: 0.9, rate: 0.82 });
+        this.sample('m_frame', { strength: 0.35, rate: 0.9, dest: this.bus.ui, when: t + 0.005 });
         return true;
       case 'deny':
         this.sample('ui_tap', { strength: 0.7, rate: 0.7 });
@@ -1434,7 +1560,7 @@ export class AudioEngine implements WorldSounds {
         th.startRun(t + 0.01);
         this.sample('m_taiko', { strength: 0.9, dest: this.sting });
       } else if (s === 'title' || s === 'setup') th.rest();
-      else if (s === 'escaped') th.escape(this.grade);
+      else if (s === 'escaped') this.requestEscape();
       else if (s === 'fallen') th.fall();
       return;
     }

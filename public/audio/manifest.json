@@ -50,7 +50,7 @@
    "webm": {
     "file": "step_stone.webm",
     "bytes": 24576,
-    "hash": "43dd93c7a2"
+    "hash": "182f48c38b"
    },
    "m4a": {
     "file": "step_stone.m4a",
@@ -101,7 +101,7 @@
    "webm": {
     "file": "step_wood.webm",
     "bytes": 24988,
-    "hash": "6d1f1878b2"
+    "hash": "7a53585706"
    },
    "m4a": {
     "file": "step_wood.m4a",
@@ -152,7 +152,7 @@
    "webm": {
     "file": "step_gravel.webm",
     "bytes": 23744,
-    "hash": "271dbb606d"
+    "hash": "6cfdb7128f"
    },
    "m4a": {
     "file": "step_gravel.m4a",
@@ -203,7 +203,7 @@
    "webm": {
     "file": "step_wet.webm",
     "bytes": 29576,
-    "hash": "0c8f0b57df"
+    "hash": "8606b9ad0e"
    },
    "m4a": {
     "file": "step_wet.m4a",
@@ -225,7 +225,7 @@
    "webm": {
     "file": "breath.webm",
     "bytes": 45173,
-    "hash": "74e9914fa9"
+    "hash": "ffe5c89110"
    },
    "m4a": {
     "file": "breath.m4a",
@@ -246,7 +246,7 @@
    "webm": {
     "file": "pant.webm",
     "bytes": 9907,
-    "hash": "bcc67c0d88"
+    "hash": "46114a1c4d"
    },
    "m4a": {
     "file": "pant.m4a",
@@ -268,7 +268,7 @@
    "webm": {
     "file": "bed_jungle.webm",
     "bytes": 150502,
-    "hash": "763b17a4de"
+    "hash": "56341f73ce"
    },
    "m4a": {
     "file": "bed_jungle.m4a",
@@ -290,7 +290,7 @@
    "webm": {
     "file": "bed_insects.webm",
     "bytes": 130879,
-    "hash": "c9030a430f"
+    "hash": "9405eaac5f"
    },
    "m4a": {
     "file": "bed_insects.m4a",
@@ -312,7 +312,7 @@
    "webm": {
     "file": "bed_waterfall.webm",
     "bytes": 93982,
-    "hash": "6576e72537"
+    "hash": "bd96ae55cb"
    },
    "m4a": {
     "file": "bed_waterfall.m4a",
@@ -334,7 +334,7 @@
    "webm": {
     "file": "bed_river.webm",
     "bytes": 93997,
-    "hash": "19ea275858"
+    "hash": "8365882baa"
    },
    "m4a": {
     "file": "bed_river.m4a",
@@ -356,7 +356,7 @@
    "webm": {
     "file": "bed_wind.webm",
     "bytes": 79465,
-    "hash": "60701280bb"
+    "hash": "5a70592867"
    },
    "m4a": {
     "file": "bed_wind.m4a",
@@ -387,7 +387,7 @@
    "webm": {
     "file": "gust.webm",
     "bytes": 49853,
-    "hash": "33cae74f09"
+    "hash": "1c83cc690b"
    },
    "m4a": {
     "file": "gust.m4a",
@@ -433,7 +433,7 @@
    "webm": {
     "file": "impact.webm",
     "bytes": 23361,
-    "hash": "67e1050405"
+    "hash": "13e95c7e3c"
    },
    "m4a": {
     "file": "impact.m4a",
@@ -464,7 +464,7 @@
    "webm": {
     "file": "slam.webm",
     "bytes": 13005,
-    "hash": "cf4a50f020"
+    "hash": "f772425670"
    },
    "m4a": {
     "file": "slam.m4a",
@@ -495,7 +495,7 @@
    "webm": {
     "file": "grind.webm",
     "bytes": 29087,
-    "hash": "51220c5754"
+    "hash": "0127bab31a"
    },
    "m4a": {
     "file": "grind.m4a",
@@ -526,7 +526,7 @@
    "webm": {
     "file": "rumble.webm",
     "bytes": 104497,
-    "hash": "9e820c3d4c"
+    "hash": "f8c7ee9a26"
    },
    "m4a": {
     "file": "rumble.m4a",
@@ -567,7 +567,7 @@
    "webm": {
     "file": "rockfall.webm",
     "bytes": 116686,
-    "hash": "6c559bb210"
+    "hash": "b1491a2d2d"
    },
    "m4a": {
     "file": "rockfall.m4a",
@@ -598,7 +598,7 @@
    "webm": {
     "file": "crumble.webm",
     "bytes": 60212,
-    "hash": "20ec7276b1"
+    "hash": "bc7548c968"
    },
    "m4a": {
     "file": "crumble.m4a",
@@ -629,7 +629,7 @@
    "webm": {
     "file": "splash_big.webm",
     "bytes": 38098,
-    "hash": "67a08e2ca4"
+    "hash": "76b50e3fe6"
    },
    "m4a": {
     "file": "splash_big.m4a",
@@ -655,7 +655,7 @@
    "webm": {
     "file": "splash_small.webm",
     "bytes": 8327,
-    "hash": "d74525dd01"
+    "hash": "fcdf525c98"
    },
    "m4a": {
     "file": "splash_small.m4a",
@@ -696,7 +696,7 @@
    "webm": {
     "file": "debris.webm",
     "bytes": 48297,
-    "hash": "1906c76b78"
+    "hash": "a6eaa70773"
    },
    "m4a": {
     "file": "debris.m4a",
@@ -727,7 +727,7 @@
    "webm": {
     "file": "dust.webm",
     "bytes": 39852,
-    "hash": "fb32c51134"
+    "hash": "59202fd047"
    },
    "m4a": {
     "file": "dust.m4a",
@@ -763,7 +763,7 @@
    "webm": {
     "file": "whoosh.webm",
     "bytes": 15379,
-    "hash": "5b0a454f11"
+    "hash": "f91a29b77d"
    },
    "m4a": {
     "file": "whoosh.m4a",
@@ -799,7 +799,7 @@
    "webm": {
     "file": "coins.webm",
     "bytes": 15991,
-    "hash": "2fb3ab5aad"
+    "hash": "cac5b3bfb1"
    },
    "m4a": {
     "file": "coins.m4a",
@@ -825,7 +825,7 @@
    "webm": {
     "file": "sparkle.webm",
     "bytes": 37627,
-    "hash": "1cfa3e3777"
+    "hash": "ffe29cd93b"
    },
    "m4a": {
     "file": "sparkle.m4a",
@@ -846,7 +846,7 @@
    "webm": {
     "file": "swell.webm",
     "bytes": 26605,
-    "hash": "1d04bedae3"
+    "hash": "b76594b7e5"
    },
    "m4a": {
     "file": "swell.m4a",
@@ -887,7 +887,7 @@
    "webm": {
     "file": "ui_tap.webm",
     "bytes": 13708,
-    "hash": "485eef629a"
+    "hash": "527a9fac0c"
    },
    "m4a": {
     "file": "ui_tap.m4a",
@@ -913,7 +913,7 @@
    "webm": {
     "file": "ui_tick.webm",
     "bytes": 4947,
-    "hash": "0ddb92a907"
+    "hash": "de6d038cd7"
    },
    "m4a": {
     "file": "ui_tick.m4a",
@@ -939,7 +939,7 @@
    "webm": {
     "file": "ui_slide.webm",
     "bytes": 13102,
-    "hash": "750990ef1f"
+    "hash": "0ec62fde9c"
    },
    "m4a": {
     "file": "ui_slide.m4a",
@@ -960,7 +960,7 @@
    "webm": {
     "file": "ui_toggle.webm",
     "bytes": 2095,
-    "hash": "7f608eb481"
+    "hash": "0236fbb4f1"
    },
    "m4a": {
     "file": "ui_toggle.m4a",
@@ -991,7 +991,7 @@
    "webm": {
     "file": "m_taiko.webm",
     "bytes": 14317,
-    "hash": "fba93a545a"
+    "hash": "0554bbbce7"
    },
    "m4a": {
     "file": "m_taiko.m4a",
@@ -1022,7 +1022,7 @@
    "webm": {
     "file": "m_taiko_hi.webm",
     "bytes": 10597,
-    "hash": "e1a3bdd9f5"
+    "hash": "2cdff18c40"
    },
    "m4a": {
     "file": "m_taiko_hi.m4a",
@@ -1053,7 +1053,7 @@
    "webm": {
     "file": "m_frame.webm",
     "bytes": 12865,
-    "hash": "4f82af241f"
+    "hash": "a0e70502a8"
    },
    "m4a": {
     "file": "m_frame.m4a",
@@ -1089,7 +1089,7 @@
    "webm": {
     "file": "m_pulse.webm",
     "bytes": 10326,
-    "hash": "88b9db35e7"
+    "hash": "c8eb442e1e"
    },
    "m4a": {
     "file": "m_pulse.m4a",
@@ -1130,7 +1130,7 @@
    "webm": {
     "file": "m_shaker.webm",
     "bytes": 9640,
-    "hash": "a6544bbce7"
+    "hash": "ac11d231d2"
    },
    "m4a": {
     "file": "m_shaker.m4a",
@@ -1156,7 +1156,7 @@
    "webm": {
     "file": "m_djembe_bass.webm",
     "bytes": 7703,
-    "hash": "a1614d7a22"
+    "hash": "4f1c0a2bec"
    },
    "m4a": {
     "file": "m_djembe_bass.m4a",
@@ -1187,7 +1187,7 @@
    "webm": {
     "file": "m_djembe_tone.webm",
     "bytes": 8009,
-    "hash": "40c1c7f946"
+    "hash": "96fb62ef37"
    },
    "m4a": {
     "file": "m_djembe_tone.m4a",
@@ -1218,7 +1218,7 @@
    "webm": {
     "file": "m_djembe_slap.webm",
     "bytes": 8200,
-    "hash": "df35bf2588"
+    "hash": "6e4ac1f543"
    },
    "m4a": {
     "file": "m_djembe_slap.m4a",
@@ -1244,7 +1244,7 @@
    "webm": {
     "file": "m_boom.webm",
     "bytes": 41692,
-    "hash": "8ea0c83a9c"
+    "hash": "65b4e1d6c5"
    },
    "m4a": {
     "file": "m_boom.m4a",
@@ -1265,7 +1265,7 @@
    "webm": {
     "file": "m_gong.webm",
     "bytes": 59486,
-    "hash": "ab941f93d9"
+    "hash": "759b047859"
    },
    "m4a": {
     "file": "m_gong.m4a",
@@ -1287,7 +1287,7 @@
    "webm": {
     "file": "m_drone.webm",
     "bytes": 68267,
-    "hash": "44ef0d1ce8"
+    "hash": "2f190065b6"
    },
    "m4a": {
     "file": "m_drone.m4a",
@@ -1309,7 +1309,7 @@
    "webm": {
     "file": "m_strings.webm",
     "bytes": 16797,
-    "hash": "4c921b625f"
+    "hash": "95e5fa66ae"
    },
    "m4a": {
     "file": "m_strings.m4a",
@@ -1330,7 +1330,7 @@
    "webm": {
     "file": "ir_room.webm",
     "bytes": 38948,
-    "hash": "e702411013"
+    "hash": "66e56f5f0f"
    },
    "m4a": {
     "file": "ir_room.m4a",
@@ -1356,7 +1356,7 @@
    "webm": {
     "file": "riser.webm",
     "bytes": 45735,
-    "hash": "c907cc3072"
+    "hash": "04527918af"
    },
    "m4a": {
     "file": "riser.m4a",
@@ -1377,12 +1377,234 @@
    "webm": {
     "file": "sub_swell.webm",
     "bytes": 20306,
-    "hash": "f7c09edfee"
+    "hash": "41d97909ca"
    },
    "m4a": {
     "file": "sub_swell.m4a",
     "bytes": 34053,
     "hash": "d029820f79"
+   }
+  },
+  "crack_wood": {
+   "group": "core",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     0.42,
+     0.8913
+    ],
+    [
+     0.92,
+     0.32,
+     0.8913
+    ],
+    [
+     1.49,
+     0.53,
+     0.8913
+    ]
+   ],
+   "webm": {
+    "file": "crack_wood.webm",
+    "bytes": 12142,
+    "hash": "4e2cd717e6"
+   },
+   "m4a": {
+    "file": "crack_wood.m4a",
+    "bytes": 22364,
+    "hash": "e6bce31faa"
+   }
+  },
+  "crash_wood": {
+   "group": "core",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     1.8,
+     0.3848
+    ],
+    [
+     2.3,
+     1.75,
+     0.8913
+    ],
+    [
+     4.3,
+     1.35,
+     0.8913
+    ]
+   ],
+   "webm": {
+    "file": "crash_wood.webm",
+    "bytes": 31891,
+    "hash": "14acdee4be"
+   },
+   "m4a": {
+    "file": "crash_wood.m4a",
+    "bytes": 55696,
+    "hash": "0c69e43a4e"
+   }
+  },
+  "crack_stone": {
+   "group": "core",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     1.38,
+     0.8913
+    ],
+    [
+     1.88,
+     1.47,
+     0.8913
+    ],
+    [
+     3.6,
+     0.97,
+     0.8913
+    ],
+    [
+     4.82,
+     0.68,
+     0.8913
+    ]
+   ],
+   "webm": {
+    "file": "crack_stone.webm",
+    "bytes": 41467,
+    "hash": "fed8143549"
+   },
+   "m4a": {
+    "file": "crack_stone.m4a",
+    "bytes": 58966,
+    "hash": "80f1b82beb"
+   }
+  },
+  "skid": {
+   "group": "core",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     1.2198,
+     0.8913
+    ],
+    [
+     1.7198,
+     1.14,
+     0.8913
+    ],
+    [
+     3.1098,
+     1.27,
+     0.8913
+    ]
+   ],
+   "webm": {
+    "file": "skid.webm",
+    "bytes": 29515,
+    "hash": "225aa38bd8"
+   },
+   "m4a": {
+    "file": "skid.m4a",
+    "bytes": 46879,
+    "hash": "1ebdb73f44"
+   }
+  },
+  "land_body": {
+   "group": "core",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     0.539,
+     0.8913
+    ],
+    [
+     1.039,
+     0.309,
+     0.8913
+    ],
+    [
+     1.598,
+     0.304,
+     0.8913
+    ]
+   ],
+   "webm": {
+    "file": "land_body.webm",
+    "bytes": 10051,
+    "hash": "d35c6bae96"
+   },
+   "m4a": {
+    "file": "land_body.m4a",
+    "bytes": 14902,
+    "hash": "b743ca2194"
+   }
+  },
+  "sink": {
+   "group": "core",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     1.82,
+     0.8913
+    ],
+    [
+     2.32,
+     1.85,
+     0.5411
+    ],
+    [
+     4.42,
+     0.895,
+     0.7471
+    ]
+   ],
+   "webm": {
+    "file": "sink.webm",
+    "bytes": 31253,
+    "hash": "c7a7253e47"
+   },
+   "m4a": {
+    "file": "sink.m4a",
+    "bytes": 53117,
+    "hash": "d690a0b0e5"
+   }
+  },
+  "thunder": {
+   "group": "beds",
+   "channels": 1,
+   "slices": [
+    [
+     0.25,
+     7,
+     0.8382
+    ],
+    [
+     7.5,
+     7.8,
+     0.7812
+    ],
+    [
+     15.55,
+     7.6,
+     0.7295
+    ]
+   ],
+   "webm": {
+    "file": "thunder.webm",
+    "bytes": 125697,
+    "hash": "99575ab6fa"
+   },
+   "m4a": {
+    "file": "thunder.m4a",
+    "bytes": 210171,
+    "hash": "bbf5f7af5f"
    }
   },
   "th_l0_a": {
