@@ -758,6 +758,8 @@ export class CameraRig {
   /** Eased stand-back distance of a settled shot (m along the view; see keepInFrame). */
   private standBack = 0;
   private standBackV = 0;
+  private tmp2 = new THREE.Vector3();
+  private tmp3 = new THREE.Vector3();
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
     if (this.mode === 'crash' && this.gap > 0.3) return; // looking down into the gap after him
     const c = this.camera;
@@ -808,7 +810,17 @@ export class CameraRig {
         const needV = (m.head - m.feet) / ((hi - lo) * tanV * 0.92);
         const needH = (m.right - m.left) / (2 * mx * tanH * 0.92);
         const k = Math.max(needV, needH);
-        if (k > 1) want = m.depth * (k - 1);
+        if (k > 1) want = Math.min(3.5, m.depth * (k - 1));
+        // Never back into the scenery behind the lens (a wall, a statue): stop short of the first
+        // solid on the way out from his chest.
+        if (want > 0.05) {
+          c.getWorldDirection(this.tmp);
+          const from = this.tmp2.set(runnerPos.x, runnerPos.y + 1.3, runnerPos.z);
+          const to = this.tmp3.copy(c.position).addScaledVector(this.tmp, -want);
+          const len = from.distanceTo(to);
+          const hit = this.occlude(from, to);
+          if (hit !== null && hit < len) want = Math.max(0, want - (len - hit) - 0.5);
+        }
       }
       // Critically damped (it starts from rest, so the dolly-out has no lurch at its first frame).
       const w = 4;
