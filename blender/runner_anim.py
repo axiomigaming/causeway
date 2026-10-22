@@ -94,6 +94,43 @@ def solve_root(P):
     return -(HIP_Z + contact_z(P))
 
 
+SEAT_D = 0.125  # the seat below the hip joints (sitting on the ground)
+
+
+def _sole_z(P, s, knee, ankle):
+    """Lowest sole point of one leg relative to the hip joints, for a given knee bend and ankle."""
+    hp = -P.get("hips", (0, 0, 0))[0]
+    hip = -P.get(f"thigh.{s}", (0, 0, 0))[0]
+    at = THIGH0 + hip - hp
+    as_ = at - knee - K0
+    af = as_ - ankle - A0
+    az = -LT * math.cos(at) - LS * math.cos(as_)
+    return min(az + y * math.sin(af) + z * math.cos(af) for y, z in SOLE)
+
+
+def sit_ground(P, sides=("L", "R"), splay=0.0):
+    """Sitting on the ground, not on an invisible chair: returns the root height that puts the seat on the
+    floor, and bends each listed leg's knee until its sole is on the floor too, the sole flat (knees up)."""
+    hp = -P.get("hips", (0, 0, 0))[0]
+    seat = -SEAT_D - 0.02 * max(0.0, hp)
+    for s in sides:
+        hip = -P[f"thigh.{s}"][0]
+        at = THIGH0 + hip - hp
+        lo, hi = 0.0, max(0.05, at - K0 - A0)  # from the shin in line with the thigh to the shin hanging plumb
+        for _ in range(40):
+            k = 0.5 * (lo + hi)
+            as_ = at - k - K0
+            if _sole_z(P, s, k, as_ - A0 + splay) > seat:
+                lo = k
+            else:
+                hi = k
+        k = 0.5 * (lo + hi)
+        as_ = at - k - K0
+        P[f"shin.{s}"] = (k, 0, 0)
+        P[f"foot.{s}"] = (-(as_ - A0 + splay), 0, 0)
+    return -(HIP_Z + seat)
+
+
 def key(frame, P, z=None, y=0.0, x=0.0, lift=0.0):
     pb = RIG.pose.bones
     for p in pb:
@@ -956,9 +993,9 @@ def run_in(fr=1):
 def sit_look_up(P, look, br):
     torso(P, lean=0.23, look=look, hp=-0.2, breath=0.02 * br, head_yaw=0.05)
     leg(P, "L", hip=1.5, knee=1.65, ankle=-0.2, out=0.1)
-    leg(P, "R", hip=1.3, knee=1.0, ankle=0.0, out=0.14)
+    leg(P, "R", hip=1.6, knee=1.0, ankle=0.0, out=0.14)
     arm(P, "L", fwd=0.9, elbow=1.3, out=0.2, curl=0.4)
-    arm(P, "R", fwd=0.45, elbow=0.4, out=0.25, curl=0.4)
+    arm(P, "R", fwd=-0.4, elbow=0.3, out=0.25, wrist=-0.7, curl=0.2, shrug=-0.3)  # palm down on the stone beside him
 
 
 def kneel_one(P, lean=0.4, look=0.0, head_yaw=0.0):
@@ -1057,16 +1094,23 @@ def extra_clips():
     arm(P, "R", fwd=0.2, elbow=0.4, out=0.65, curl=0.3)
     key(18, P, y=-0.5)
     P = {}
+    torso(P, lean=-0.1, look=0.15, hp=-0.15)
+    leg(P, "L", hip=0.95, knee=0.8, ankle=0.0)
+    leg(P, "R", hip=0.7, knee=1.1, ankle=0.2)
+    arm(P, "L", fwd=-0.1, elbow=0.4, out=0.5, curl=0.2)
+    arm(P, "R", fwd=-0.15, elbow=0.35, out=0.55, curl=0.2)
+    key(22, P, z=solve_root(P) + 0.02, y=-0.56)  # legs going out from under him, the feet still over the stone
+    P = {}
     torso(P, lean=0.1, look=0.05, hp=-0.25)
-    leg(P, "L", hip=1.3, knee=1.2, ankle=-0.1)
-    leg(P, "R", hip=1.1, knee=1.6, ankle=0.1)
+    leg(P, "L", hip=1.4, knee=1.2, ankle=-0.1)
+    leg(P, "R", hip=1.55, knee=1.6, ankle=0.1)
     arm(P, "L", fwd=-0.6, elbow=0.2, out=0.4, wrist=-0.5, curl=0.1)
     arm(P, "R", fwd=-0.55, elbow=0.25, out=0.4, wrist=-0.5, curl=0.1)
-    key(26, P, y=-0.6)
+    key(28, P, z=sit_ground(P), y=-0.6)  # lands on the seat
     for fr, look, br in ((34, -0.3, 0.0), (46, -0.25, 1.0), (58, -0.1, 0.0), (76, -0.35, 1.0), (92, -0.4, 0.0)):
         P = {}
         sit_look_up(P, look, br)
-        key(fr, P, y=-0.62)
+        key(fr, P, z=sit_ground(P), y=-0.62)  # on the seat on the floor, knees up (not on an invisible chair)
 
     # ---------------------------------------------------------- fall_gate_b: turn away from the slam, drop to a knee
     new_action("fall_gate_b")
@@ -1129,20 +1173,28 @@ def extra_clips():
     arm(P, "R", fwd=-0.8, elbow=0.15, out=0.35, wrist=-0.7, curl=0.1)
     key(16, P, y=-0.55)
     P = {}
+    torso(P, lean=-0.25, look=0.3, hp=-0.28)
+    leg(P, "L", hip=1.45, knee=0.45, ankle=-0.2)
+    leg(P, "R", hip=1.5, knee=1.1, ankle=0.0, out=0.1)
+    arm(P, "L", fwd=1.9, elbow=1.3, out=0.6, curl=0.6)
+    arm(P, "R", fwd=-0.8, elbow=0.15, out=0.4, wrist=-0.75, curl=0.1)
+    key(18, P, z=solve_root(P) + 0.05, y=-0.57)  # the feet kick up as the seat comes down
+    P = {}
     torso(P, lean=-0.1, look=0.15, hp=-0.26, head_roll=-0.08)
     leg(P, "L", hip=1.4, knee=0.55, ankle=-0.2)
-    leg(P, "R", hip=1.15, knee=1.35, ankle=0.0, out=0.1)
+    leg(P, "R", hip=1.55, knee=1.35, ankle=0.0, out=0.1)
     arm(P, "L", fwd=1.95, elbow=1.25, out=0.6, curl=0.6)
-    arm(P, "R", fwd=-0.85, elbow=0.2, out=0.35, wrist=-0.75, curl=0.1)
-    key(20, P, y=-0.58, lift=-0.01)
+    arm(P, "R", fwd=-0.75, elbow=0.15, out=0.4, wrist=-0.75, curl=0.1, shrug=-0.3)
+    # Down on the seat on the stone (knees up, soles flat), the hand behind propping him up.
+    key(22, P, z=sit_ground(P), y=-0.58)
     for fr, t, br in ((28, 0.0, 0.0), (44, 0.3, 1.0), (62, 0.7, 0.0), (80, 1.0, 1.0), (95, 1.0, 0.0)):
         P = {}
         torso(P, lean=-0.2 + 0.4 * t, look=0.35 - 0.6 * t, hp=-0.28, head_yaw=0.35 * math.sin(t * 3), breath=0.02 * br)
-        leg(P, "L", hip=1.4, knee=0.6 + 0.6 * t, ankle=-0.15)
-        leg(P, "R", hip=1.2, knee=1.4, ankle=0.0, out=0.12)
+        leg(P, "L", hip=1.4 + 0.3 * t, out=0.09)
+        leg(P, "R", hip=1.6, out=0.12)
         arm(P, "L", fwd=1.9 - 1.3 * t, elbow=1.3 - 0.4 * t, out=0.5, curl=0.6)
-        arm(P, "R", fwd=-0.8, elbow=0.15, out=0.35, wrist=-0.7, curl=0.1)
-        key(fr, P, y=-0.6)
+        arm(P, "R", fwd=-0.75, elbow=0.1 + 0.15 * t, out=0.4 - 0.1 * t, wrist=-0.8, curl=0.1, shrug=-0.3)  # the prop, on the stone
+        key(fr, P, z=sit_ground(P), y=-0.6)
 
     # ---------------------------------------------------------- fall_chasm_b: skid down onto the knees at the lip
     new_action("fall_chasm_b")
@@ -1175,14 +1227,21 @@ def extra_clips():
     arm(P, "L", fwd=1.2, elbow=0.15, out=0.3, wrist=-0.8, curl=0.1)
     arm(P, "R", fwd=1.15, elbow=0.15, out=0.3, wrist=-0.8, curl=0.1)
     key(26, P, y=-0.05)
-    for fr, t, br in ((40, 0.0, 0.0), (56, 0.6, 1.0), (72, 1.0, 0.0), (95, 1.0, 1.0)):
+    # Settling back toward the heels: the knees stay on the stone (the pelvis lowers as the hips flex, the
+    # shins fold a little further and the feet lie out flat behind), never a kneel hovering over the floor.
+    def settle(fr, t, br, fix, unt=0.0):
         P = {}
         torso(P, lean=0.75 - 0.35 * t, look=-0.1 - 0.25 * t, hp=0.2 - 0.3 * t, head_yaw=0.25 * math.sin(fr * 0.3) * (1 - t), breath=0.03 * br)
-        leg(P, "L", hip=0.1 + 0.5 * t, knee=1.75 + 0.6 * t, ankle=0.4 - 0.2 * t, toe=0.5)
-        leg(P, "R", hip=0.15 + 0.5 * t, knee=1.8 + 0.6 * t, ankle=0.4 - 0.2 * t, toe=0.5, out=0.08)
+        u = min(1.0, t / 0.6) * fix  # the feet lay out flat early in the settle, before the weight sinks back
+        dk, da = (0.2 * t + unt) * fix, 1.6 * u  # unt: the shins fold up to lift the feet as the toes untuck
+        leg(P, "L", hip=0.1 + 0.5 * t, knee=1.75 + 0.6 * t + dk, ankle=0.4 - 0.2 * t - da, toe=0.5 * (1 - u))
+        leg(P, "R", hip=0.15 + 0.5 * t, knee=1.8 + 0.6 * t + dk, ankle=0.4 - 0.2 * t - da, toe=0.5 * (1 - u), out=0.08)
         arm(P, "L", fwd=1.2 - 0.9 * t, elbow=0.15 + 0.5 * t, out=0.3, wrist=-0.8 * (1 - t), curl=0.3)
         arm(P, "R", fwd=1.15 - 0.85 * t, elbow=0.15 + 0.5 * t, out=0.3, wrist=-0.8 * (1 - t), curl=0.3)
-        key(fr, P, y=-0.08)
+        return P
+
+    for fr, t, br, unt in ((40, 0.0, 0.0, 0.0), (47, 0.3, 0.5, 0.45), (56, 0.6, 1.0, 0.0), (72, 1.0, 0.0, 0.0), (95, 1.0, 1.0, 0.0)):
+        key(fr, settle(fr, t, br, 1, unt), z=solve_root(settle(fr, t, br, 0)) - 0.16 * t, y=-0.08)
 
     # ---------------------------------------------------------- the escapes, scaled by the multiplier (runner.ts picks):
     # win_pump (low), win_cheer (mid), win_cheer_big (high). Each: 2–3 slowing steps, relief, a turn to the
@@ -1354,7 +1413,8 @@ def extra_clips():
         P = {}
         torso(P, lean=-0.06, look=0.28, yaw=-0.1, breath=0.04 * br)
         standing(P, wide=0.1, bend=0.05)
-        arm(P, "R", fwd=2.3 + 0.05 * br, elbow=0.95, out=-0.12, curl=1.35, twist=0.25)
+        # Raised wide of the head (out < 0 overhead), so the lens in front still sees his face.
+        arm(P, "R", fwd=2.3 + 0.05 * br, elbow=0.8, out=-0.42, curl=1.35, twist=0.25)
         arm(P, "L", **akimbo)
         P["shoulder.R"] = (0.12, 0, 0)
         standing_turned(P, 2.85)
