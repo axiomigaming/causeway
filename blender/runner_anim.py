@@ -470,8 +470,11 @@ def ready_pose(br=0.0):
 
 
 def standing(P, wide=0.06, bend=0.05):
-    leg(P, "L", hip=0.04 + bend, knee=0.06 + bend * 2, ankle=bend, out=wide)
-    leg(P, "R", hip=-0.02 + bend, knee=0.03 + bend * 2, ankle=bend, out=wide + 0.02)
+    # Feet flat whatever the pelvis does: a pelvis pitched forward (torso hp, set before this) takes the
+    # thighs with it, so the hips flex by as much again to keep the knees over the feet.
+    hp = -P.get("hips", (0.0, 0.0, 0.0))[0]
+    leg(P, "L", hip=0.04 + bend + hp, knee=0.06 + bend * 2, ankle=bend, out=wide)
+    leg(P, "R", hip=-0.02 + bend + hp, knee=0.03 + bend * 2, ankle=bend, out=wide + 0.02)
 
 
 def build(rig):
@@ -603,8 +606,8 @@ def build(rig):
     torso(P, lean=0.7, look=0.64, hp=0.2, hyaw=-0.06)
     leg(P, "R", hip=0.42, knee=0.55, ankle=-0.05)
     leg(P, "L", hip=-0.42, knee=1.1, ankle=0.55)
-    arm(P, "L", fwd=0.5, elbow=1.45, curl=0.85)
-    arm(P, "R", fwd=-0.3, elbow=1.2, curl=0.85)
+    arm(P, "L", fwd=1.15, elbow=1.5, out=0.1, curl=1.0, prot=0.12)
+    arm(P, "R", fwd=-0.95, elbow=1.05, out=0.22, curl=1.0)
     key(12, P)
     P = {}
     torso(P, lean=0.62, look=0.6, hp=0.18, hyaw=0.14, yaw=-0.12)
@@ -617,8 +620,8 @@ def build(rig):
     torso(P, lean=0.55, look=0.55, hp=0.16, hyaw=0.05)
     leg(P, "L", hip=0.4, knee=0.45, ankle=-0.05)
     leg(P, "R", hip=-0.4, knee=1.2, ankle=0.55)
-    arm(P, "R", fwd=0.45, elbow=1.4, curl=0.8)
-    arm(P, "L", fwd=-0.25, elbow=1.2, curl=0.8)
+    arm(P, "R", fwd=1.05, elbow=1.5, out=0.1, curl=1.0, prot=0.1)
+    arm(P, "L", fwd=-0.85, elbow=1.05, out=0.22, curl=1.0)
     key(19, P)
     P, x = loco(0.25, SPRINT, 0.85)
     key(22, P, z=gait_root(0.25, SPRINT, 0.85), x=x)
@@ -932,8 +935,8 @@ def standing_turned(P, yaw):
     # The root bone's local Z is world up: rotation about it turns the whole body.
     P["root"] = (0, 0, yaw)
 
-AKIMBO = dict(fwd=-0.2, elbow=1.55, out=0.55, twist=0.6, curl=0.6)
-FISTS = dict(fwd=0.5, elbow=1.9, out=0.3, curl=1.35)
+AKIMBO = dict(fwd=-0.1, elbow=1.8, out=0.5, twist=-1.1, wrist=0.3, curl=0.5)  # hand on the hip, knuckles in
+FISTS = dict(fwd=0.2, elbow=1.25, out=0.25, curl=1.1)  # loose fists at the waist
 
 
 DECEL = 30  # frames from the run to the braking plant (decel())
@@ -944,14 +947,14 @@ def decel(f0=1):
     swing dying away and the trunk coming up and back to brake; a last braking plant, a glance back over
     the shoulder at what he got away from, and the arms swinging on through it."""
     run_in(f0)
-    for d, ph, k, back in ((5, 0.5, 0.8, 0.0), (11, 0.0, 0.6, 0.07), (18, 0.5, 0.42, 0.13), (26, 0.0, 0.26, 0.17)):
+    for d, ph, k, back in ((5, 0.5, 0.8, 0.0), (11, 0.0, 0.6, 0.04), (18, 0.5, 0.42, 0.07), (26, 0.0, 0.26, 0.08)):
         P, x = loco(ph, RUN, k)
         nudge(P, "spine", dx=0.55 * back)
         nudge(P, "chest", dx=0.45 * back)
         nudge(P, "neck", dx=-0.3 * back)
         key(f0 + d - 1, P, z=gait_root(ph, RUN, k), x=x)
     P = {}
-    torso(P, lean=-0.1, look=0.3, hp=-0.02, head_yaw=0.55, yaw=0.12)
+    torso(P, lean=0.12, look=0.12, hp=0.04, head_yaw=0.55, yaw=0.12)
     leg(P, "L", hip=0.4, knee=0.3, ankle=-0.18)
     leg(P, "R", hip=0.0, knee=0.4, ankle=0.18, toe=0.2)
     arm(P, "L", fwd=0.55, elbow=0.8, out=0.3, curl=0.4)
@@ -1279,7 +1282,7 @@ def extra_clips():
         arm(P, "L", fwd=0.15, elbow=1.0, out=0.25, curl=0.9)
         key(fr, P)
     # Turn back toward the ruins, breathing hard, a hand on the hip, chest up.
-    akimbo = dict(fwd=-0.2, elbow=1.55, out=0.55, twist=0.6, curl=0.6)
+    akimbo = AKIMBO
     for fr, yaw, lift_leg, br in ((33, 0.9, "R", 1.0), (38, 1.9, "L", 0.0), (43, 2.7, "R", 1.0), (48, 2.85, None, 0.0)):
         P = {}
         torso(P, lean=0.06, look=0.15, head_yaw=0.35 if fr < 41 else 0.0, breath=0.04 * br)
