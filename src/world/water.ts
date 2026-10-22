@@ -114,9 +114,11 @@ export class Water {
             float env = exp(-age * 0.9) * s.w * smoothstep(front + 0.6, front - 0.4, r) * exp(-max(0.0, front - r) * 0.55);
             float ph = (r - front) * 7.0;
             g += d / r * cos(ph) * 0.09 * env;
-            // Foam: a churned patch at the centre and a broken lace on the leading crest.
-            float lace = wh(floor(p * 9.0) + floor(age * 6.0));
-            foam += exp(-age * 1.1) * s.w * (smoothstep(1.0 + age * 0.5, 0.0, r) * 0.9 + smoothstep(0.35, 0.0, abs(r - front)) * (0.4 + 0.6 * lace) * 0.7);
+            // Foam: churned white water at the centre, breaking up into drifting patches (smooth
+            // noise, never a dotted ring) and fading over 2–3 s; only a faint line on the crest.
+            float churn = wnoise(p * 2.2 + vec2(age * 0.6, -age * 0.4)).x * 0.6 + wnoise(p * 5.3 - age).x * 0.4;
+            float centre = smoothstep(1.2 + age * 0.7, 0.0, r) * smoothstep(0.25, 0.75, churn + 0.35 - age * 0.12);
+            foam += exp(-age * 0.9) * s.w * (centre * 0.95 + smoothstep(0.25, 0.0, abs(r - front)) * smoothstep(0.45, 0.8, churn) * 0.25);
           }
           return g;
         }
@@ -173,6 +175,9 @@ export class Water {
           // Deep teal-green in the middle distance, a clearer jade close under the eye.
           body = mix(body, uShallow * 1.15, smoothstep(14.0, 3.0, dist) * 0.35);
           body *= mix(0.7, 1.0, smoothstep(90.0, 8.0, dist));
+          // Looking down (little mirror) the ripples still read: the body brightens and darkens
+          // with the surface slope, as the bed's light refracts through it.
+          body *= clamp(1.0 + (g.x * 1.7 - g.y * 1.3) * 3.0 * depthLook, 0.75, 1.3);
           // Light scattered inside wave crests.
           float crest = clamp(g.x * 3.0 + g.y * 2.0, 0.0, 1.0);
           body += uShallow * crest * 0.25;
@@ -190,7 +195,12 @@ export class Water {
           float shelf = 0.0;
           if (uShelf > 0.0) {
             float pd = pathDist(vWorld.xz);
-            shelf = smoothstep(5.6, 2.9, pd) * uShelf * smoothstep(60.0, 8.0, dist);
+            // Under the causeway itself (seen only where it has fallen away: a chasm) the water is
+            // deep: dark green-blue, darkest mid-gorge, clearer toward the walls' footings.
+            float gorge = (1.0 - smoothstep(0.4, 2.7, pd)) * uShelf;
+            body = mix(body, mix(uDeep * 0.75, uShallow * 0.55, smoothstep(0.6, 2.6, pd)), gorge * (0.55 + 0.4 * depthLook));
+            // The footings: a band just outside the edge.
+            shelf = smoothstep(1.9, 2.9, pd) * smoothstep(5.6, 3.4, pd) * uShelf * smoothstep(60.0, 8.0, dist);
             if (shelf > 0.0) {
               vec2 bp = vWorld.xz * vec2(0.55, 1.1) + g * 6.0;
               vec2 cell = floor(bp);
