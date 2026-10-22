@@ -549,14 +549,18 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .scrim-left { width: 100%; background: linear-gradient(to top, rgba(8, 6, 4, 0.9), rgba(8, 6, 4, 0.5) 55%, rgba(8, 6, 4, 0.08)); }
   .title-foot { left: 24px; right: 24px; gap: 8px 16px; }
 }
-@media (max-width: 760px) and (max-height: 700px) {
-  .title-foot { display: none; }
-  .title { padding-bottom: calc(32px + var(--safe-b)); }
-  .setup { padding: 4px 16px 16px; }
+/* shorter phones (up to 780 tall: 360×740, 375×667…): a tighter dock, so the world keeps two thirds */
+@media (max-width: 760px) and (max-height: 780px) {
+  .setup { padding: 4px 16px 12px; }
   .setup-body { gap: 12px; }
   .stake-col { gap: 8px; }
   .btn-cta { height: 56px; }
   .cash { height: 60px; }
+  .dock { padding-bottom: max(12px, calc(var(--safe-b) + 8px)); }
+}
+@media (max-width: 760px) and (max-height: 700px) {
+  .title-foot { display: none; }
+  .title { padding-bottom: calc(32px + var(--safe-b)); }
 }
 /* below 389 (375 / 360 / 320 phones) the stair mark alone is the brand in the bar */
 @media (max-width: 388px) {
