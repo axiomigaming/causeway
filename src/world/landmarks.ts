@@ -59,7 +59,7 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // A step pyramid ≈75 m across, sunk so that its upper tiers and shrine break the water: broad
   // stepped terraces, wider than they are tall in the frame, its stair toward the runner.
   sunken_temple: [
-    { piece: 'temple_0', x: -4, y: WATER_Y - 6, z: -36, rotY: 0, s: [4.5, 3.0, 4.5] },
+    { piece: 'temple_0', x: -10, y: WATER_Y - 6, z: -36, rotY: 0, s: [4.5, 3.0, 4.5] },
     // A drowned stele and a feathered-serpent post beside the approach.
     { piece: 'stele_0', x: -2, y: WATER_Y - 1.2, z: 50, rotY: 0.4, tilt: [0.1, 0.15], s: 1.7, near: true },
     { piece: 'serpent_0', x: -21, y: WATER_Y - 0.8, z: 58, rotY: -0.8, s: 3.0, near: true },
