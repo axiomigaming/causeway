@@ -68,6 +68,7 @@ button, input, select { font: inherit; color: inherit; letter-spacing: inherit; 
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 sup { font-size: 0.7em; line-height: 0; }
+::selection { background: rgba(244, 183, 64, 0.35); color: var(--text); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* every figure: tabular lining digits, so nothing jitters while it ticks */
 .num { font-weight: 700; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1, 'lnum' 1; }
@@ -98,8 +99,8 @@ sup { font-size: 0.7em; line-height: 0; }
   border-radius: var(--r-lg);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
 }
-:root[data-quality='high'] :is(.glass, .sheet, .toast, .result),
-:root[data-quality='ultra'] :is(.glass, .sheet, .toast, .result) {
+:root[data-quality='high'] :is(.glass, .toast, .result),
+:root[data-quality='ultra'] :is(.glass, .toast, .result) {
   background: var(--surface);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
@@ -411,9 +412,14 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .cash-meta.gone { visibility: hidden; }
 
 /* ================================================================== panels */
-.veil { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(8, 6, 4, 0.56); pointer-events: auto; animation: fadein 0.2s; }
+/* modal panels: the page behind dims to 55 % (blurred on the High tiers only); the sheet itself is
+   solid warm near-black on every tier, so nothing behind it ghosts through */
+.veil { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(8, 6, 4, 0.55); pointer-events: auto; animation: fadein 0.2s; }
+:root[data-quality='high'] .veil, :root[data-quality='ultra'] .veil { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.veil .sheet { background: #14100c; }
 .sheet { position: relative; width: min(560px, 100%); max-height: min(84vh, 760px); display: flex; flex-direction: column; overflow: hidden; animation: sheetIn 0.22s var(--ease); }
 .sheet.wide { width: min(720px, 100%); }
+.sheet:focus { outline: none; }
 @keyframes sheetIn { from { opacity: 0; transform: translateY(12px); } }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 16px 16px 24px; border-bottom: 1px solid var(--hair); }
 .sheet-head .eyebrow { display: block; }
@@ -426,6 +432,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .sect > h3 { margin: 0 0 12px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
 .kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; align-items: center; font-size: var(--t14); }
 .kv .k { color: var(--label); }
+.kv .kv-fig { font-size: var(--t20); line-height: 24px; color: var(--text); }
 .kv select { min-height: 48px; font: inherit; border-radius: 10px; }
 .hash { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--hair); background: rgba(0, 0, 0, 0.2); font-size: var(--t12); line-height: 16px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--text); word-break: break-all; user-select: text; }
 .hash button { position: relative; flex: none; min-width: 24px; min-height: 24px; padding: 0; border: 0; background: none; color: var(--label); pointer-events: auto; }
@@ -448,14 +455,22 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .steps b { display: block; margin-bottom: 4px; font-size: var(--t16); line-height: 24px; color: var(--text); font-weight: 700; }
 .steps span { font-size: var(--t14); line-height: 20px; color: var(--text-2); }
 .callout { margin-top: 16px; padding: 12px 16px; border-left: 2px solid var(--amber); font-size: var(--t14); line-height: 20px; color: var(--text-2); background: rgba(255, 236, 210, 0.03); }
+.callout.quiet { border-left-color: var(--hair-2); color: var(--label); }
 .callout code { font-family: var(--f); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
 
 .rows { display: grid; }
-.hhead { display: grid; grid-template-columns: 80px 1fr; gap: 16px; padding: 0 16px 8px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
-.hrow { display: grid; grid-template-columns: 80px 1fr auto auto; gap: 16px; align-items: center; min-height: 48px; padding: 8px 16px; border: 0; border-top: 1px solid var(--hair); background: none; text-align: left; color: var(--text-2); font-size: var(--t14); pointer-events: auto; border-radius: 0; transition: background-color 0.15s; }
+.hhead { display: grid; grid-template-columns: 80px 1fr 88px 40px; gap: 16px; padding: 0 16px 8px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
+.hrow { display: grid; grid-template-columns: 80px 1fr 88px 40px; gap: 16px; align-items: center; min-height: 48px; padding: 8px 16px; border: 0; border-top: 1px solid var(--hair); background: none; text-align: left; color: var(--text-2); font-size: var(--t14); pointer-events: auto; border-radius: 0; transition: background-color 0.15s; }
 .hrow:hover { background: rgba(255, 236, 210, 0.04); }
 .hrow .c { font-size: var(--t16); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-.hrow .out { font-size: var(--t14); font-weight: 700; }
+.hrow .out { font-size: var(--t14); font-weight: 700; text-align: right; }
+.hhead span:nth-child(3) { text-align: right; }
+.hrow .when { text-align: right; }
+/* phones: the run number goes, so the description keeps room for one or two lines */
+@media (max-width: 760px) {
+  .hhead, .hrow { grid-template-columns: 64px 1fr 72px; gap: 12px; }
+  .hrow .when { display: none; }
+}
 .hrow .out.won { color: var(--amber); }
 .hrow .out.lost { color: var(--label); }
 .hrow .when { font-size: var(--t12); color: var(--label); font-variant-numeric: tabular-nums; }
@@ -487,9 +502,20 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 .menu button:hover:not(:disabled) { color: var(--amber-hi); }
 .menu button:disabled { color: var(--faint); cursor: not-allowed; }
 
-.toasts { position: fixed; top: calc(104px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 10; }
-.toast { padding: 12px 20px; border-radius: 12px; font-size: var(--t14); line-height: 20px; color: var(--text); animation: rise 0.22s var(--ease); }
-.toast.warn { border-color: rgba(244, 183, 64, 0.5); }
+/* full-width track, each toast centred and only as wide as its line (up to 400) */
+.toasts { position: fixed; top: calc(104px + var(--safe-t)); left: 16px; right: 16px; display: grid; justify-items: center; gap: 8px; z-index: 10; }
+/* toasts: one line of body text after a small mark; warnings carry an amber mark, never red */
+.toast { display: flex; align-items: center; gap: 12px; max-width: min(400px, calc(100vw - 32px)); padding: 12px 16px; border-radius: 12px; font-size: var(--t14); line-height: 20px; font-weight: 500; color: var(--text); animation: rise 0.22s var(--ease); }
+.toast::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); }
+.toast.warn::before { background: var(--amber); box-shadow: 0 0 0 3px rgba(244, 183, 64, 0.18); }
+/* the title screen's error: a quiet glass notice with a label, not a red line */
+.notice { margin-top: 32px; padding: 16px; border-radius: var(--r); border: 1px solid var(--hair-2); border-left: 2px solid var(--amber); background: rgba(16, 13, 10, 0.72); }
+.notice .eyebrow { display: block; color: var(--amber-hi); }
+.notice p { margin: 4px 0 0; font-size: var(--t14); line-height: 20px; color: var(--text); }
+/* the verifier's run picker: the system's field (hairline, 10 px radius, 48 px) */
+.select { min-height: 48px; width: 100%; padding: 0 40px 0 12px; border-radius: 10px; border: 1px solid var(--hair-2); background: rgba(0, 0, 0, 0.2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%23f6efe4' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 16px center; -webkit-appearance: none; appearance: none; font-size: var(--t14); font-weight: 500; color: var(--text); pointer-events: auto; outline: none; }
+.select:focus-visible { border-color: var(--amber); }
+.select option { background: #17130f; color: var(--text); }
 
 /* ================================================================== small screens */
 @media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
@@ -534,14 +560,18 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .scrim-left { width: 100%; background: linear-gradient(to top, rgba(8, 6, 4, 0.9), rgba(8, 6, 4, 0.5) 55%, rgba(8, 6, 4, 0.08)); }
   .title-foot { left: 24px; right: 24px; gap: 8px 16px; }
 }
-@media (max-width: 760px) and (max-height: 700px) {
-  .title-foot { display: none; }
-  .title { padding-bottom: calc(32px + var(--safe-b)); }
-  .setup { padding: 4px 16px 16px; }
+/* shorter phones (up to 780 tall: 360×740, 375×667…): a tighter dock, so the world keeps two thirds */
+@media (max-width: 760px) and (max-height: 780px) {
+  .setup { padding: 4px 16px 12px; }
   .setup-body { gap: 12px; }
   .stake-col { gap: 8px; }
   .btn-cta { height: 56px; }
   .cash { height: 60px; }
+  .dock { padding-bottom: max(12px, calc(var(--safe-b) + 8px)); }
+}
+@media (max-width: 760px) and (max-height: 700px) {
+  .title-foot { display: none; }
+  .title { padding-bottom: calc(32px + var(--safe-b)); }
 }
 /* below 389 (375 / 360 / 320 phones) the stair mark alone is the brand in the bar */
 @media (max-width: 388px) {
@@ -591,9 +621,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .setup-body { gap: 12px; }
   .stake-col { gap: 8px; }
 }
-/* short desktops: the fine print goes, so the runner keeps its room */
+/* short desktops: the fine print goes and the dock tightens, so the runner keeps its room */
 @media (min-width: 761px) and (min-height: 521px) and (max-height: 820px) {
   .fine { display: none; }
+  .setup { padding: 8px 16px 12px; }
+  .btn-cta { height: 56px; }
   .dock { bottom: calc(16px + var(--safe-b)); }
 }
 @media (prefers-reduced-motion: reduce) {

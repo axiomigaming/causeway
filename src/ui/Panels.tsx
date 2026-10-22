@@ -12,12 +12,14 @@ function Sheet({ title, eyebrow, children, wide, onClose }: { title: string; eye
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>('button, input')?.focus();
+    // Focus the dialog itself (not its first control), so opening it never paints a focus ring on
+    // the close button; the next Tab lands inside it.
+    ref.current?.focus({ preventScroll: true });
     return () => prev?.focus?.();
   }, []);
   return (
     <div className="veil" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
+      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}>
         <div className="sheet-head">
           <div>
             <div className="eyebrow">{eyebrow}</div>
@@ -105,9 +107,7 @@ function Fair({ onClose }: { onClose: () => void }) {
             </button>
           </div>
           <span className="k">Run number (nonce)</span>
-          <span className="num" style={{ fontSize: 18 }}>
-            {s.nextNonce}
-          </span>
+          <span className="num kv-fig">{s.nextNonce}</span>
         </div>
       </div>
       <div className="sect">
@@ -116,11 +116,7 @@ function Fair({ onClose }: { onClose: () => void }) {
           <>
             <div className="kv">
               <span className="k">Run</span>
-              <select
-                value={focus.id}
-                onChange={(e) => s.set({ fairFocus: e.target.value })}
-                style={{ background: 'rgba(0,0,0,.3)', color: 'var(--bone)', border: '1px solid var(--line-strong)', padding: '7px 8px', pointerEvents: 'auto' }}
-              >
+              <select className="select num" value={focus.id} onChange={(e) => s.set({ fairFocus: e.target.value })}>
                 {s.history.slice(0, 30).map((h) => (
                   <option key={h.id} value={h.id}>
                     #{h.nonce} · fell at {formatMult(h.crash)}× · {h.outcome === 'cashout' ? `you left at ${formatMult(h.cashoutMult!)}×` : 'stake lost'}
@@ -166,7 +162,7 @@ function Fair({ onClose }: { onClose: () => void }) {
           m is exactly 97% ÷ m: every cash-out target returns 97% on average, and no timing beats another.
           {s.deterministic ? ' This session is running on a fixed QA seed.' : ''}
         </div>
-        <div className="callout" style={{ borderColor: 'var(--bone-3)', background: 'rgba(255,255,255,.03)' }}>
+        <div className="callout quiet">
           Demo build: the round authority runs in a sealed worker in this browser with virtual credits. A real deployment runs the same logic on the operator's server.
         </div>
       </div>
@@ -187,17 +183,26 @@ function History({ onClose }: { onClose: () => void }) {
           <div className="hhead" aria-hidden>
             <span>Fell at</span>
             <span>Your run</span>
+            <span>Profit</span>
           </div>
-          {history.map((h) => (
-            <button key={h.id} className="hrow" onClick={() => set({ modal: 'fair', fairFocus: h.id })}>
-              <span className={`c num ${tierOf(h.crash)}`}>{formatMult(h.crash)}×</span>
-              <span>
-                {h.outcome === 'cashout' ? `Cashed out at ${formatMult(h.cashoutMult!)}×${h.auto ? ' (auto)' : ''}` : 'Not cashed out'} · stake {formatCredits(h.stake)}
-              </span>
-              <span className={`out num ${h.outcome === 'cashout' ? 'won' : 'lost'}`}>{h.outcome === 'cashout' ? `+${formatCredits(h.payout)}` : `−${formatCredits(h.stake)}`}</span>
-              <span className="when">#{h.nonce}</span>
-            </button>
-          ))}
+          {history.map((h) => {
+            // The money column is the signed profit (the only signed figure); the return is secondary.
+            const won = h.outcome === 'cashout';
+            const profit = won ? h.payout - h.stake : -h.stake;
+            return (
+              <button key={h.id} className="hrow" onClick={() => set({ modal: 'fair', fairFocus: h.id })}>
+                <span className={`c num ${tierOf(h.crash)}`}>
+                  {formatMult(h.crash)}
+                  <span className="x">×</span>
+                </span>
+                <span>
+                  {won ? `Cashed out at ${formatMult(h.cashoutMult!)}×${h.auto ? ' (auto)' : ''} · return ${formatCredits(h.payout)}` : `Not cashed out · stake ${formatCredits(h.stake)}`}
+                </span>
+                <span className={`out num${profit > 0 ? ' won' : ' lost'}`}>{formatCredits(profit, { sign: true })}</span>
+                <span className="when">#{h.nonce}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </Sheet>
