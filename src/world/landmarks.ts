@@ -45,7 +45,7 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // runner on one side of the way, its stone hand (≈30 m) rising from the water on the other, palm to
   // the runner, fingers curled: the approach heads between them.
   fallen_colossus: [
-    { piece: 'head_0', x: 4, y: WATER_Y - 1, z: 2, rotY: QA_HEAD_YAW, tilt: [0.12, -0.4], s: 10.5, haze: 'face' },
+    { piece: 'head_0', x: 0, y: WATER_Y - 1, z: 2, rotY: QA_HEAD_YAW, tilt: [0.12, -0.4], s: 10.5, haze: 'face' },
     { piece: 'hand_colossal_0', x: -25, y: WATER_Y - 6, z: -2, rotY: 0.4, tilt: [0.08, 0.1], s: 17, haze: 'light' },
     { piece: 'rubble_3', x: -10, y: WATER_Y - 0.8, z: 2, rotY: 2.0, s: 5.0, haze: 'light' },
     // Fragments of it in the water beside the approach.

@@ -720,6 +720,13 @@ function stageKit(kit: Kit): void {
     const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' ? 0.8 : key === 'wood' ? 0.4 : 0.6;
     if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
   }
+  // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):
+  // in the shade of a canopy the giant roots and trunks went flat black. Lift it to bark's albedo.
+  const bark = kit.mat.get('bark') as THREE.MeshStandardMaterial | undefined;
+  if (bark && !bark.userData.lifted) {
+    bark.userData.lifted = true;
+    bark.color.multiplyScalar(2.6);
+  }
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {
     gold.userData.staged = true;

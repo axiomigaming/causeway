@@ -438,7 +438,9 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
           b.place(`palm_${pi}_trunk`, x, -2.2 + s * 0.45, zz, ry, ps);
           b.place(`palm_${pi}_crown`, x, -2.2 + s * 0.45, zz, ry, ps);
         }
-        if (b.foliage(0.8)) b.place(`bush_${b.rng.int(0, 3)}`, x + b.rng.range(-1, 1), -2.2 + s * 0.8, zz + b.rng.range(-1, 1), b.rng.range(0, 6.28), b.rng.range(0.8, 1.4));
+        // (Kept over the rock's crown and settled into it: a metre out to the side on a small island it
+        // hung over open water.)
+        if (b.foliage(0.8)) b.place(`bush_${b.rng.int(0, 3)}`, x + b.rng.range(-1, 1) * 0.45 * s, -2.2 + s * 0.62, zz + b.rng.range(-1, 1) * 0.45 * s, b.rng.range(0, 6.28), b.rng.range(0.8, 1.4));
         if (b.foliage(0.6)) {
           const t = b.rng.int(0, 1);
           const ts = b.rng.range(0.75, 1.05);

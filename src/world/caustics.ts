@@ -169,7 +169,8 @@ if (uDetail > 0.0 && uDetailReady > 0.0) {
 // World round 16, the lightest tier: the paving alone gets one planar fetch of the scan in the
 // nearest metres (the soft mobile slab textures repeated one blemish slab after slab).
 else if (uDetailLite > 0.0 && uDetailReady > 0.0) {
-  float k = uDetailLite * DETAIL_AMP * (1.0 - smoothstep(7.0, 18.0, length(vViewPosition)));
+  // (Top faces only — a planar fetch streaks down a slab's sides — and softer than the full tiers'.)
+  float k = uDetailLite * DETAIL_AMP * 0.6 * (1.0 - smoothstep(7.0, 18.0, length(vViewPosition))) * smoothstep(0.75, 0.95, vWetN.y);
   if (k > 0.0) {
     vec3 t = texture2D(uDetailMap, vWetPos.xz * 0.8).rgb;
     vec2 a = t.rg * 2.0 - 1.0;
