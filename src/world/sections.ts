@@ -621,7 +621,8 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
         }
         b.foamRing(0, z, 2.6);
       }
-      scenery(b, len, { minX: 16 });
+      // No scenery: the view down the approach is water, sky and the landmark (which brings its own
+      // dressing beside the way: landmarks.ts), so no two reveals share the same islands.
       return { hazards: ['chasm'], walls: 'none' };
     },
   },
