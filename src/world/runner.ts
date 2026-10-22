@@ -1135,14 +1135,17 @@ export class Runner {
       // slides, and any drop below the floor (the chasm, the ledge).
       const t = this.actions.get(this.current)?.time ?? 0;
       const sliding = this.current === 'slide' || (this.current === 'win_slide' && t < 1.6);
-      const free = !active || sliding || turning || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      // Kneeling settled at the lip (fall_chasm_b from 1.3 s): the feet lay out flat on their tops, so a
+      // sole-levelling pin would flip them over; the clip already holds them still.
+      const kneeling = this.current === 'fall_chasm_b' && t > 1.3;
+      const free = !active || sliding || turning || kneeling || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
       // Gone below the floor (the drop), or sliding along it: let go at once.
-      if (h < -0.05 || sliding) f.w = 0;
+      if (h < -0.05 || sliding || kneeling) f.w = 0;
       f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : 10)));
       if (f.w < 0.01) continue;
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);

@@ -110,7 +110,7 @@ def _sole_z(P, s, knee, ankle):
 
 def sit_ground(P, sides=("L", "R"), splay=0.0):
     """Sitting on the ground, not on an invisible chair: returns the root height that puts the seat on the
-    floor, and bends each listed leg's knee until its sole is on the floor too, the sole flat (knees up)."""
+    floor, and bends each listed leg's knee until its sole is on the floor too, the sole flat (with the thighs this low, the legs lie out along the stone)."""
     hp = -P.get("hips", (0, 0, 0))[0]
     seat = -SEAT_D - 0.02 * max(0.0, hp)
     for s in sides:
@@ -1110,7 +1110,7 @@ def extra_clips():
     for fr, look, br in ((34, -0.3, 0.0), (46, -0.25, 1.0), (58, -0.1, 0.0), (76, -0.35, 1.0), (92, -0.4, 0.0)):
         P = {}
         sit_look_up(P, look, br)
-        key(fr, P, z=sit_ground(P), y=-0.62)  # on the seat on the floor, knees up (not on an invisible chair)
+        key(fr, P, z=sit_ground(P), y=-0.62)  # on the seat on the floor, legs out (not on an invisible chair)
 
     # ---------------------------------------------------------- fall_gate_b: turn away from the slam, drop to a knee
     new_action("fall_gate_b")
@@ -1185,7 +1185,7 @@ def extra_clips():
     leg(P, "R", hip=1.55, knee=1.35, ankle=0.0, out=0.1)
     arm(P, "L", fwd=1.95, elbow=1.25, out=0.6, curl=0.6)
     arm(P, "R", fwd=-0.75, elbow=0.15, out=0.4, wrist=-0.75, curl=0.1, shrug=-0.3)
-    # Down on the seat on the stone (knees up, soles flat), the hand behind propping him up.
+    # Down on the seat on the stone (legs out along it), the hand behind propping him up.
     key(22, P, z=sit_ground(P), y=-0.58)
     for fr, t, br in ((28, 0.0, 0.0), (44, 0.3, 1.0), (62, 0.7, 0.0), (80, 1.0, 1.0), (95, 1.0, 0.0)):
         P = {}
