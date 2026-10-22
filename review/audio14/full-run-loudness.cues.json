@@ -1,0 +1,62 @@
+[
+ {
+  "t": 1.607,
+  "id": "phase:placing:0",
+  "label": "placing"
+ },
+ {
+  "t": 1.646,
+  "id": "phase:lead:1",
+  "label": "lead"
+ },
+ {
+  "t": 2.725,
+  "id": "phase:running:2",
+  "label": "running"
+ },
+ {
+  "t": 30.78,
+  "id": "phase:result:3",
+  "label": "fall 4.80x"
+ },
+ {
+  "t": 47.878,
+  "id": "phase:placing:4",
+  "label": "placing"
+ },
+ {
+  "t": 47.891,
+  "id": "phase:lead:5",
+  "label": "lead"
+ },
+ {
+  "t": 52.063,
+  "id": "phase:running:6",
+  "label": "running"
+ },
+ {
+  "t": 106.459,
+  "id": "phase:result:7",
+  "label": "fall 37.38x"
+ },
+ {
+  "t": 114.897,
+  "id": "phase:placing:8",
+  "label": "placing"
+ },
+ {
+  "t": 114.911,
+  "id": "phase:lead:9",
+  "label": "lead"
+ },
+ {
+  "t": 116.016,
+  "id": "phase:running:10",
+  "label": "running"
+ },
+ {
+  "t": 120.423,
+  "id": "phase:result:11",
+  "label": "fall 1.32x"
+ }
+]

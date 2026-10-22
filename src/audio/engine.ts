@@ -30,7 +30,7 @@ export type UiSound = 'hover' | 'tick' | 'press' | 'confirm' | 'bet' | 'cashout'
 
 const BEDS: Bed[] = ['jungle', 'insects', 'river', 'waterfall'];
 /** Master drive into the dynamics chain (see applyLevels). */
-const DRIVE = 1.45;
+const DRIVE = 1.62;
 
 const ROOT = 146.83; // D3
 const hz = (semi: number, base = ROOT) => base * Math.pow(2, semi / 12);
@@ -334,7 +334,7 @@ export class AudioEngine implements WorldSounds {
   private applyLevels() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    // DRIVE: the whole mix 3.2 dB hotter into the master compressor and limiter, measured on a full run
+    // DRIVE: the whole mix 4.2 dB hotter into the master compressor and limiter, measured on a full run
     // (music included) to sit near -16 LUFS for phones with true peaks under -1 dBTP (review/audio14).
     const m = this.levels.muted ? 0 : this.levels.master * DRIVE;
     this.master.gain.setTargetAtTime(m, t, 0.05);
