@@ -292,13 +292,14 @@ def crown_mesh(name, seed, lobes=6, spread=1.0, flat=0.8):
     bm = bmesh.new()
     for i in range(lobes):
         t = bmesh.new()
-        bmesh.ops.create_icosphere(t, subdivisions=2, radius=1.0)
+        bmesh.ops.create_icosphere(t, subdivisions=3, radius=1.0)
         sz = r.uniform(0.45, 1.0) if i else 1.0
         c = Vector((r.uniform(-spread, spread), r.uniform(-spread, spread), r.uniform(0.0, 0.7) * spread + (0.35 if i == 0 else 0.0)))
         off = Vector((seed * 3.1 + i, i * 1.7, seed * 0.7))
         for v in t.verts:
             q = v.co.copy()
-            d = 1 + 0.38 * noise.fractal(q * 2.3 + off, 0.6, 2.0, 3) + 0.12 * noise.noise(q * 6.0 + off)
+            # Round 18: a crinkled, leafy edge (clusters on clusters), so the silhouette is not a soft puff.
+            d = 1 + 0.38 * noise.fractal(q * 2.3 + off, 0.6, 2.0, 3) + 0.14 * noise.noise(q * 6.0 + off) + 0.09 * abs(noise.noise(q * 13.0 + off))
             # (Round 17b: no flat underside — that read as mushrooms; lobes sag into each other.)
             v.co = c + Vector((q.x * sz * d, q.y * sz * d, max(q.z, -0.75) * sz * d * flat))
         _merge_into(bm, t)
@@ -394,6 +395,12 @@ col = mix(t, 1.0, col, ramp(t, lf.outputs["Distance"], [(0.05, (1.15, 1.15, 1.0,
 lb = N(t, "ShaderNodeBump", Strength=0.75, Distance=0.25)
 L(t, lf.outputs["Distance"], lb.inputs["Height"])
 L(t, lb.outputs[0], bsdf.inputs["Normal"])
+# Round 18: a dark shadowed underside to every crown (the canopy reads in layers, crown over crown).
+gn_ = N(t, "ShaderNodeNewGeometry")
+sn_ = N(t, "ShaderNodeSeparateXYZ")
+L(t, gn_.outputs["Normal"], sn_.inputs[0])
+under = ramp(t, maprange(t, sn_.outputs[2], -0.6, 0.35, 0.0, 1.0), [(0.0, (0.32, 0.36, 0.34, 1)), (1.0, (1.0, 1.0, 1.0, 1))])
+col = mix(t, 1.0, col, under, "MULTIPLY")
 L(t, aerial(t, col, 220, 2200), bsdf.inputs["Base Color"])
 bsdf.inputs["Roughness"].default_value = 0.9
 frond = bpy.data.materials.new("frond")
@@ -408,7 +415,7 @@ bsdf.inputs["Roughness"].default_value = 0.8
 
 CROWNS = [crown_mesh(f"crown{i}", 100 + i, lobes=5 + i % 5, spread=0.75 + 0.12 * (i % 4), flat=0.85 + 0.06 * (i % 3)) for i in range(10)]
 GIANT_CROWNS = [crown_mesh(f"gcrown{i}", 200 + i, lobes=9, spread=1.3, flat=0.6) for i in range(4)]
-TRUNKS = [trunk_mesh(f"trunk{i}", 0.05, lean=0.04 * (i - 1)) for i in range(3)]
+TRUNKS = [trunk_mesh(f"trunk{i}", 0.06, lean=0.04 * (i - 1)) for i in range(3)]
 PALMS = [palm_mesh(f"palm{i}", 400 + i) for i in range(4)]
 for me in CROWNS + GIANT_CROWNS:
     me.materials.append(canopy)
@@ -461,14 +468,15 @@ for k in range(14000 if not FAST else 4000):
         continue
     s0 = rng.uniform(4, 10) * (r / 500) ** 0.3
     u = rng.random()
-    if u < 0.07:
-        giant(loc, s0 * rng.uniform(4.0, 6.0), s0 * rng.uniform(1.6, 2.4))
+    if u < 0.09:
+        giant(loc, s0 * rng.uniform(5.0, 7.5), s0 * rng.uniform(1.5, 2.2))
     elif u < 0.11:
         palm(loc, s0 * rng.uniform(2.6, 3.6))
     else:
         for c in range(rng.randint(1, 3)):
             s = s0 * rng.uniform(0.6, 1.15)
-            inst(rng.choice(CROWNS), loc + Vector((rng.uniform(-s0, s0), rng.uniform(-s0, s0), s * rng.uniform(-0.1, 0.5))), s, sz=s * rng.uniform(0.75, 1.25))
+            tall = rng.random() < 0.18  # a narrow, towering crown now and then
+            inst(rng.choice(CROWNS), loc + Vector((rng.uniform(-s0, s0), rng.uniform(-s0, s0), s * rng.uniform(-0.1, 0.5))), s * (0.7 if tall else 1.0), sz=s * (rng.uniform(1.8, 2.6) if tall else rng.uniform(0.75, 1.25)))
     count += 1
 print("canopy", count)
 
@@ -487,8 +495,8 @@ for k in range(3600 if not FAST else 1300):
     hmul = 1.0 + 0.6 * swell + 0.25 * (r - 230) / 170
     u = rng.random()
     base = Vector((math.cos(a) * r, math.sin(a) * r, -1.5))
-    if u < 0.05:
-        giant(base, rng.uniform(26, 40) * max(0.7, hmul), rng.uniform(8, 13))
+    if u < 0.07:
+        giant(base, rng.uniform(32, 50) * max(0.75, hmul), rng.uniform(8, 12))
     elif u < 0.16 and r < 320:
         palm(base, rng.uniform(20, 30))
     else:
@@ -637,7 +645,7 @@ link(cam)
 sc.camera = cam
 W = 2048 if FAST else 4096
 sc.render.resolution_x, sc.render.resolution_y = W, W // 2
-sc.cycles.samples = 24 if FAST else 32  # denoised; the far world needs no more
+sc.cycles.samples = 24 if FAST else 40  # denoised; round 18: more, so the denoiser keeps crown edges crisp
 sc.cycles.use_denoising = True
 sc.cycles.max_bounces = 4
 sc.view_settings.view_transform = "AgX"
