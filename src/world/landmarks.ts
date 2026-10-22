@@ -28,13 +28,13 @@ interface Part {
 const KINDS: Record<LandmarkKind, Part[]> = {
   // A colossal guardian toppled into the river, leaning against the current, its head broken off beside it.
   fallen_colossus: [
-    { piece: 'guardian_1', x: 0, y: WATER_Y - 6.1, z: 0, rotY: 0.35, tilt: [-0.42, 0.18], s: 5.27 },
+    { piece: 'guardian_1', x: 0, y: WATER_Y - 7.5, z: 0, rotY: Math.PI + 0.35, tilt: [0.28, 0.16], s: 6.8 },
     { piece: 'head_0', x: 14.9, y: WATER_Y - 3.2, z: 9.5, rotY: -0.8, tilt: [0.3, -0.5], s: 3.24 },
     { piece: 'rock_big_1', x: -9.5, y: WATER_Y - 4.1, z: 8.1, rotY: 1.2, s: 0.74 },
   ],
   // A giant face rising out of the water to the brow, gazing back down the causeway.
   river_head: [
-    { piece: 'head_1', x: 0, y: WATER_Y - 8.1, z: 0, rotY: 0.15, tilt: [0.06, 0], s: 6.21 },
+    { piece: 'head_1', x: 0, y: WATER_Y + 3.0, z: 0, rotY: 0.15, tilt: [-0.05, 0], s: 4.4 },
     { piece: 'rubble_3', x: -12.2, y: WATER_Y - 0.5, z: 10.8, rotY: 0.6, s: 5.40 },
     { piece: 'rubble_2', x: 13.5, y: WATER_Y - 0.5, z: 8.1, rotY: 2.1, s: 4.32 },
   ],
