@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Kit } from './assets';
 import { forward, left } from './path';
 import type { LandmarkKind } from './style';
+import { patchWetStone } from './caustics';
 import { WATER_Y } from './water';
 
 /**
@@ -31,14 +32,18 @@ interface Part {
   s?: number | [number, number, number];
   /** Foreground dressing beside the approach: not hazed, and not part of the landmark's silhouette. */
   near?: boolean;
+  /** 'light': keep the stone's colour, moss and contrast (the colossus and the head, which the full
+   * lift washed to pale ghosts against the sun). */
+  haze?: 'light';
 }
 
 const KINDS: Record<LandmarkKind, Part[]> = {
-  // A colossal guardian (≈45 m) toppled across the river on its side, its shoulders and head reared out
-  // of the water, its feet sunk; the broken-off head of another lies face-up in the shallows nearby.
+  // A drowned colossus: its fallen head (≈35 m) lying on its cheek in the river, face turned to the
+  // runner, and further out its stone hand breaking the water, palm up, fingers curled.
   fallen_colossus: [
-    { piece: 'guardian_1', x: -31, y: WATER_Y + 1, z: -10, rotY: 0, tilt: [0, -(Math.PI / 2 - 0.5)], s: 11.5 },
-    { piece: 'head_0', x: 6, y: WATER_Y - 6, z: 6, rotY: 0.6, tilt: [-1.1, 0.25], s: 4.4 },
+    { piece: 'head_0', x: -8, y: WATER_Y - 2, z: -2, rotY: 0.35, tilt: [0.12, -0.62], s: 7.2, haze: 'light' },
+    { piece: 'hand_colossal_0', x: 22, y: WATER_Y - 3, z: -14, rotY: -0.35, tilt: [0.1, -0.12], s: 10, haze: 'light' },
+    { piece: 'rubble_3', x: 8, y: WATER_Y - 0.8, z: 10, rotY: 2.0, s: 5.0, haze: 'light' },
     // Fragments of it in the water beside the approach.
     { piece: 'column_fallen_0', x: 0, y: WATER_Y - 0.6, z: 48, rotY: 0.9, s: 2.2, near: true },
     { piece: 'rubble_3', x: -22, y: WATER_Y - 0.8, z: 60, rotY: 2.0, s: 2.6, near: true },
@@ -47,9 +52,9 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // A giant face (≈40 m from the water to the crown) rising from the river to the chin, gazing back
   // down the approach, fallen blocks heaped at its jaw.
   river_head: [
-    { piece: 'head_1', x: -6, y: WATER_Y + 5.1, z: -4, rotY: 0.15, tilt: [-0.05, 0], s: 7.0 },
-    { piece: 'rubble_3', x: 14, y: WATER_Y - 0.8, z: 10, rotY: 0.6, s: 5.5 },
-    { piece: 'rubble_2', x: -18, y: WATER_Y - 0.8, z: 4, rotY: 2.1, s: 4.5 },
+    { piece: 'head_1', x: -6, y: WATER_Y + 5.1, z: -4, rotY: 0.15, tilt: [-0.05, 0], s: 7.0, haze: 'light' },
+    { piece: 'rubble_3', x: 14, y: WATER_Y - 0.8, z: 10, rotY: 0.6, s: 5.5, haze: 'light' },
+    { piece: 'rubble_2', x: -18, y: WATER_Y - 0.8, z: 4, rotY: 2.1, s: 4.5, haze: 'light' },
     // A palm islet and a stele beside the approach.
     { piece: 'rock_big_0', x: -23, y: WATER_Y - 4.2, z: 52, rotY: 1.1, s: 0.32, near: true },
     { piece: 'palm_1_trunk', x: -23, y: WATER_Y + 1.2, z: 52, rotY: 0.3, s: 0.9, near: true },
@@ -103,6 +108,9 @@ export interface Landmark {
   main: THREE.Group;
 }
 
+/** Kit materials that take the landmark-scale scan detail. */
+const STONE = new Set(['statue', 'stoneA', 'stoneB', 'temple', 'glyph', 'rock', 'cliff']);
+
 /** Aerial perspective: the haze colour they are pushed toward, and how far. */
 const HAZE = new THREE.Color(0xb6cbd8);
 
@@ -115,16 +123,28 @@ export class Landmarks {
     private readonly parent: THREE.Object3D,
   ) {}
 
-  /** The kit material pushed into the air: darker albedo, a cool lift (lighter, bluer, less contrast). */
-  private material(key: string, near: boolean): THREE.Material | undefined {
+  /**
+   * The kit material pushed into the air: darker albedo and a cool lift (lighter, bluer, less
+   * contrast), full or light. Either way the scan detail is laid on at a landmark scale (caustics.ts
+   * DETAIL_FAR), so the surface holds up at 7–11x.
+   */
+  private material(key: string, near: boolean, light: boolean): THREE.Material | undefined {
     const base = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
     if (!base || near) return base;
-    let m = this.hazed.get(key);
+    const id = `${key}|${light ? 'l' : 'f'}`;
+    let m = this.hazed.get(id);
     if (!m) {
       const c = base.clone();
-      c.color.multiply(new THREE.Color(0.72, 0.78, 0.86));
-      c.emissive = HAZE.clone().multiplyScalar(0.11);
-      this.hazed.set(key, c);
+      if (light) {
+        c.color.multiply(new THREE.Color(0.9, 0.93, 0.98));
+        c.emissive = HAZE.clone().multiplyScalar(0.035);
+      } else {
+        c.color.multiply(new THREE.Color(0.72, 0.78, 0.86));
+        c.emissive = HAZE.clone().multiplyScalar(0.11);
+      }
+      delete c.userData.wetStone;
+      if (STONE.has(key)) patchWetStone(c, false, false, 0.9, false, false, true);
+      this.hazed.set(id, c);
       m = c;
     }
     return m;
@@ -151,7 +171,7 @@ export class Landmarks {
     for (const p of KINDS[kind]) {
       const g = this.kit.geo.get(p.piece);
       const key = this.kit.matOf.get(p.piece);
-      const mat = key ? this.material(key, !!p.near) : undefined;
+      const mat = key ? this.material(key, !!p.near, p.haze === 'light') : undefined;
       if (!g || !mat) continue;
       const sc = p.s ?? 1;
       const m = new THREE.Matrix4().compose(

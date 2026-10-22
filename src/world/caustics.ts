@@ -132,15 +132,26 @@ vec4 dtTri(vec3 p, vec3 w, vec3 n) {
 const FRAG_DETAIL = /* glsl */ `
 if (uDetail > 0.0 && uDetailReady > 0.0) {
   float dist = length(vViewPosition);
+  #ifdef DETAIL_FAR
+  // Hero landmarks (40–90 m away, 7–11x scale): the scan at a landmark scale, never faded.
+  float k = uDetail * DETAIL_AMP;
+  #else
   float k = uDetail * DETAIL_AMP * (1.0 - smoothstep(14.0, 30.0, dist));
+  #endif
   if (k > 0.0) {
     vec3 wn = vWetN;
     vec3 w = pow(abs(wn), vec3(4.0));
     w /= max(w.x + w.y + w.z, 1e-4);
+    #ifdef DETAIL_FAR
+    vec4 a = dtTri(vWetPos * 0.11, w, wn);
+    float fine = 1.0;
+    vec4 b = dtTri(vWetPos * 0.37 + 0.37, w, wn);
+    #else
     vec4 a = dtTri(vWetPos * 0.8, w, wn);
     // A finer octave (offset so the two tiles never line up), faded before it shimmers.
     float fine = 1.0 - smoothstep(4.0, 10.0, dist);
     vec4 b = dtTri(vWetPos * 2.9 + 0.37, w, wn);
+    #endif
     vec3 dw = a.xyz * 1.5 + b.xyz * 0.8 * fine;
     vec3 dv = mat3(viewMatrix) * dw;
     vec3 bn = normal + dv * k;
@@ -215,7 +226,7 @@ const FRAG_CAUSTIC = /* glsl */ `
 }`;
 
 /** Patch a standard material (once). Chains any existing onBeforeCompile. */
-export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false, edges = false): void {
+export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false, edges = false, far = false): void {
   const sm = m as THREE.MeshStandardMaterial;
   if (!sm.isMeshStandardMaterial || sm.userData.wetStone) return;
   sm.userData.wetStone = true;
@@ -226,6 +237,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
     Object.assign(shader.uniforms, causticUniforms);
     if (moss) shader.fragmentShader = '#define WET_MOSS\n' + shader.fragmentShader;
     if (puddles) shader.fragmentShader = '#define WET_PUDDLES\n' + shader.fragmentShader;
+    if (far) shader.fragmentShader = '#define DETAIL_FAR\n' + shader.fragmentShader;
     if (edges) {
       shader.vertexShader = '#define WET_EDGES\n' + shader.vertexShader;
       shader.fragmentShader = '#define WET_EDGES\n' + shader.fragmentShader;
@@ -240,7 +252,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
   sm.needsUpdate = true;
 }
 
