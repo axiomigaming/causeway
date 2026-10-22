@@ -1115,7 +1115,12 @@ export class Runner {
       f.foot.updateWorldMatrix(true, false);
       const ankle = f.foot.getWorldPosition(this.v1);
       const h = ankle.y - ground;
-      if (!active || this.speed > 4.5) f.locked = false;
+      // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
+      // except where the feet are meant to move on the ground or leave it: the falls' skids, the
+      // slides, and any drop below the floor (the chasm, the ledge).
+      const t = this.actions.get(this.current)?.time ?? 0;
+      const sliding = this.current === 'slide' || (this.current === 'win_slide' && t < 1.3);
+      if (!active || sliding || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'))) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
         f.pos.copy(ankle);
@@ -1147,6 +1152,8 @@ export class Runner {
     const toT = target.clone().sub(H);
     let d = toT.length();
     let reach = true;
+    // Nearly out of reach: let go early (the knee would snap straight, then bent, as the hip passes).
+    if (d > (a + b) * 0.97) reach = false;
     if (d > (a + b) * 0.995) {
       // Out of reach (the clip pulled the hip away): aim as far as the leg goes and report it, so the
       // lock fades out over a few frames instead of snapping the foot back to the clip.
@@ -1157,10 +1164,11 @@ export class Runner {
     }
     if (d < Math.abs(a - b) + 0.02) return true;
     const u = toT.clone().divideScalar(d);
-    // Pole: the foot's forward (bone +Y), else the knee's current direction.
+    // Pole: where the clip points the knee (it never flips through the leg), falling back on the foot's
+    // forward when the leg is nearly straight.
     const footFwd = new THREE.Vector3(0, 1, 0).applyQuaternion(footQ);
-    const n = footFwd.clone().addScaledVector(u, -footFwd.dot(u));
-    if (n.lengthSq() < 1e-4) n.copy(K).sub(H).addScaledVector(u, -K.clone().sub(H).dot(u));
+    const n = K.clone().sub(H).addScaledVector(u, -K.clone().sub(H).dot(u));
+    if (n.lengthSq() < 1e-4) n.copy(footFwd).addScaledVector(u, -footFwd.dot(u));
     if (n.lengthSq() < 1e-8) return true;
     n.normalize();
     const cosA = THREE.MathUtils.clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1);
@@ -1176,9 +1184,14 @@ export class Runner {
     if (hinge.dot(xNow) < 0) hinge.negate();
     this.setWorldBasis(thigh, hinge, yT);
     this.setWorldBasis(shin, hinge, yS);
-    // The foot: the clip's forward, with any part of it along the hinge removed (no twist, no roll).
-    const yF = footFwd.clone().addScaledVector(hinge, -footFwd.dot(hinge));
-    if (yF.lengthSq() > 1e-6) this.setWorldBasis(foot, hinge, yF.normalize());
+    // The foot: turned with the leg (no twist against the shin); planted, its sole is kept level (the
+    // ankle takes the leg's tilt) so it never stands on an edge. Pitch stays the clip's.
+    const xF = hinge.clone();
+    const level = THREE.MathUtils.clamp(f.w, 0, 1);
+    xF.y *= 1 - level;
+    xF.normalize();
+    const yF = footFwd.clone().addScaledVector(xF, -footFwd.dot(xF));
+    if (yF.lengthSq() > 1e-6) this.setWorldBasis(foot, xF, yF.normalize());
     else {
       const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
       foot.quaternion.copy(sq.multiply(footQ));

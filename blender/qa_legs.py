@@ -11,6 +11,7 @@ Per clip, sampled every frame, the worst value and where:
              hinge axis out of level (deg)
   cross      a planted foot past the body's midline toward the other side (cm, pelvis frame)
   hands      a hand inside the trunk (capsule from the pelvis to the neck, r 0.12 m) (cm deep)
+  pop        the largest change of any bone's rotation from one frame to the next (deg)
   slide      a planted foot drifting while it stays planted (cm per frame); plants inside a clip's
              running stretch, moving straight back at run pace with the floor, are not slides
 Flags: hinge > 10°, foot yaw > 25°, roll > 20°, cross > 2 cm, hands > 2 cm, slide > 1 cm.
@@ -37,7 +38,7 @@ sc = bpy.context.scene
 pb = rig.pose.bones
 M = rig.matrix_world
 only = [a for a in sys.argv[1:] if not a.startswith("-")]
-LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0)
+LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0, pop=60.0)
 
 
 def axis(b, i):
@@ -69,8 +70,19 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
     f0, f1 = (int(x) for x in act.frame_range)
     worst = {k: (0.0, 0) for k in LIM}
     prev = {}
+    qprev = {}
+    popbone = [""]
     for f in range(f0, f1 + 1):
         sc.frame_set(f)
+        for b in pb:
+            q = b.matrix_basis.to_quaternion()
+            if b.name in qprev:
+                d = math.degrees(q.rotation_difference(qprev[b.name]).angle)
+                d = min(d, 360 - d)
+                if d > worst["pop"][0]:
+                    worst["pop"] = (d, f)
+                    popbone[0] = b.name
+            qprev[b.name] = q
         hips = P("hips")
         root = P("root") if "root" in pb else Vector((0, 0, 0))
         side = axis("hips", 0)  # the pelvis's left (+X)
@@ -114,7 +126,7 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
     flags = [k for k in LIM if worst[k][0] > LIM[k]]
     rows.append((act.name, worst, flags))
     cells = "  ".join(f"{k} {worst[k][0]:5.1f}@{worst[k][1]:<3d}" for k in LIM)
-    print(f"{act.name:16s} {cells}  {'FLAG ' + ','.join(flags) if flags else 'ok'}", flush=True)
+    print(f"{act.name:16s} {cells} [{popbone[0]}]  {'FLAG ' + ','.join(flags) if flags else 'ok'}", flush=True)
 bad = [r for r in rows if r[2]]
 print(f"== {len(rows)} clips, {len(bad)} flagged", flush=True)
 os._exit(0)

@@ -1265,7 +1265,7 @@ def extra_clips():
             torso(P, lean=0.35, look=0.3)
             standing(P, wide=0.14, bend=0.42)
             for sd in "LR":
-                arm(P, sd, fwd=0.4, elbow=2.0, out=0.3, curl=1.35)
+                arm(P, sd, fwd=1.0 if j else 0.4, elbow=1.7 if j else 2.0, out=0.3 if j else 0.85, curl=1.35)
             standing_turned(P, FACE)
             key(t + 5, P)
             zc = solve_root(P)
@@ -1276,7 +1276,12 @@ def extra_clips():
             for sd in "LR":
                 arm(U, sd, fwd=2.9, elbow=0.1, out=-0.45, curl=1.35)
             standing_turned(U, FACE)
-            for d, h in ((8, 0.18), (10, 0.3), (12, 0.3), (14, 0.18)):
+            # The arms throw up through the front (a key on the way, so they don't flip over the top).
+            M = dict(U)
+            for sd in "LR":
+                arm(M, sd, fwd=1.6, elbow=0.5, out=0.3, curl=1.35)
+            key(t + 7, M, z=-0.02 + 0.08)
+            for d, h in ((9, 0.22), (11, 0.3), (13, 0.26), (14, 0.18)):
                 key(t + d, U, z=-0.02 + h)
             L = {}
             torso(L, lean=0.25, look=0.4)
@@ -1364,6 +1369,14 @@ def extra_clips():
     arm(P, "L", fwd=-0.9, elbow=0.6, out=0.2, curl=0.8)
     arm(P, "R", fwd=-0.8, elbow=0.6, out=0.2, curl=0.8)
     key(9, P, )
+    # The arm swings up through the front on the way (not through the gimbal over the top).
+    P = {}
+    torso(P, lean=0.25, look=0.4)
+    leg(P, "L", hip=1.0, knee=1.45, ankle=0.0)
+    leg(P, "R", hip=-0.25, knee=0.6, ankle=0.55, toe=0.3)
+    arm(P, "R", fwd=1.4, elbow=0.55, out=0.12, curl=1.2, twist=0.1)
+    arm(P, "L", fwd=0.1, elbow=0.7, out=0.5, curl=0.8)
+    key(12, P, lift=0.25)
     P = {}
     torso(P, lean=0.05, look=0.35)
     leg(P, "L", hip=1.25, knee=1.6, ankle=0.1)
@@ -1762,7 +1775,7 @@ def obstacle_clips():
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
     torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)
-    leg(T2, "L", hip=0.9, knee=2.3, ankle=-0.2, yaw=VY)
+    leg(T2, "L", hip=0.9, knee=2.3, ankle=-0.2, yaw=VY * 0.55)
     leg(T2, "R", hip=1.7, knee=2.1, ankle=-0.2, yaw=VY * 0.7)
     arm(T2, "R", fwd=0.95, elbow=0.1, out=0.1, wrist=-1.1, curl=0.2)
     # Plant (u 0.2 → 0.72): the arm sweeps from ahead of the shoulder to behind it as he passes over the
@@ -1799,7 +1812,7 @@ def obstacle_clips():
     arm(D, "R", fwd=0.4, elbow=1.2, out=0.3, curl=0.45)
     arm(D, "L", fwd=-0.1, elbow=1.1, out=0.45, curl=0.45)
     zl = solve_root(D)
-    air(6, V_LAND, [(0.0, T), (0.06, T2), (0.17, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
+    air(6, V_LAND, [(0.0, T), (0.15, T2), (0.24, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
     A = {}
     torso(A, lean=0.45, look=0.45, hp=0.2, hyaw=0.05)
     leg(A, "L", hip=0.45, knee=0.75, ankle=-0.15)
@@ -1812,7 +1825,7 @@ def obstacle_clips():
     # The palm on the stone: through the plant the right wrist is held (IK, baked) on the pillar's top,
     # which slides back past him with the floor at run pace (5 m/s in clip time).
     apex = 0.5 * (5 / 30 + (V_LAND - 1) / 30)
-    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.99))
+    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.99), ramp=3)
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":
