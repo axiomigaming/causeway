@@ -644,34 +644,6 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       lowWalls(b, -4, 2, [-1, 1], { gaps: 0 });
       for (const side of [-1, 1]) jungleBank(b, side, 7.5, -2, 0, 0.8);
       scenery(b, 12);
-      // Cinematics fix (round 17): the causeway's beginning. The plaza used to end 4 m behind the
-      // start line in a cut slab edge over open water, and a result shot at a low multiplier (he has
-      // barely left it) or the setup orbit could stand the lens over the water beyond it, looking
-      // back at the edge and the parapets ending in mid-air. Behind the plaza the causeway now runs
-      // on for 16 m between its parapets to a ruined gate, then a broad flight of steps goes down
-      // into the river: the route rises out of the water, it is not cut off.
-      const back = 4 + TILE * 4; // the far end of the approach, behind the start (local +z)
-      for (let i = 0; i < 4; i++) {
-        const z = 4 + TILE * (i + 1);
-        // Props, not walkable tiles: nothing is ever staged on them (the run starts at s = 0).
-        b.place(b.rng.chance(0.3) ? 'floor_2' : b.rng.pick(FLOORS.slice(0, 4)), 0, 0, z, 0);
-        b.pathRubble(z, 0, 1.2);
-      }
-      lowWalls(b, back, 4, [-1, 1], { gaps: 0.35 });
-      // The ruined gate the run sets out from, half way along, and its fallen lintel by the wall.
-      b.pillar('pillar_0', -(PATH_HALF + 0.55), 0, 4 + TILE * 2.5);
-      b.place('pillar_2', PATH_HALF + 0.55, 0, 4 + TILE * 2.5, 0.6, [0.9, 0.6, 0.9]);
-      b.place(`rubble_${b.rng.int(0, 3)}`, PATH_HALF - 0.6, 0, 4 + TILE * 2.1, b.rng.range(0, 6.28), 0.9);
-      // Two flights down into the water (turned end for end: each descends away from the start; the
-      // second is half drowned), foam where they meet it.
-      b.place('stairs_0', 0, 0, back, Math.PI);
-      b.place('stairs_0', 0, -1.6, back + TILE, Math.PI);
-      for (const side of [-1, 1]) {
-        b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), -1.6, back + TILE * 2, 0, [1, 1, 2]);
-        b.foam(side, PATH_HALF + 0.84, back + TILE * 2, TILE * 2);
-        b.place(`rock_mid_${b.rng.int(0, 2)}`, side * b.rng.range(3.4, 4.6), WL + 0.2, back + b.rng.range(3, 7), b.rng.range(0, 6.28), [0.6, 0.45, 0.6]);
-      }
-      b.foamRing(0, back + TILE * 1.4, 2.8);
       return { hazards: ['gate'], walls: 'low' };
     },
   },
