@@ -983,7 +983,10 @@ export class Game {
     const h = p.y - f.pos.y;
     const walls = this.track.sectionAt(s)?.layout.walls ?? 'low';
     const top = walls === 'tall' || walls === 'cliff' ? 6.4 : walls === 'low' ? 2.2 : 0;
-    const lim = h < top ? PATH_HALF - 0.3 : walls === 'none' ? PATH_HALF + 0.4 : Infinity;
+    let lim = h < top ? PATH_HALF - 0.3 : walls === 'none' ? PATH_HALF + 0.4 : Infinity;
+    // Round 17: the result shot stays over the way (its orbit swung out over the parapet, into
+    // whatever stands beyond it, and the band under the card filled with masonry).
+    if ((this.stage === 'cashout' || this.stage === 'crash') && this.rig.revealK > 0.05) lim = Math.min(lim, PATH_HALF + 0.3 + 8 * (1 - this.rig.revealK) ** 2); // eased in with the card
     if (Math.abs(lat) > lim) {
       const d = Math.sign(lat) * lim - lat;
       p.x += rx * d;
