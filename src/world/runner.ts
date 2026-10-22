@@ -281,6 +281,12 @@ export class Runner {
   /** Continuous run tier (see choreo.runDrive); eased so tier changes never pop. */
   drive = 0;
   private driveS = 0;
+  /**
+   * The highest run tier reached this round (the multiplier only climbs, so it is the tier at the
+   * cash-out). The escape celebration is picked from it: the game lets him run on for a beat after the
+   * cash-out (drive already back to 0) before it plays the escape clip.
+   */
+  private peakDrive = 0;
   private glanceT = -1;
   private glanceSide = 1;
   private stumbleT = -1;
@@ -440,7 +446,7 @@ export class Runner {
     // The celebration scales with the multiplier (the run tier the escape came at, a public value):
     // a fist pump below 2×, both fists up to 10×, the roar and jumping cheer above.
     if (name === 'win_cheer' || name === 'win_leap') {
-      const lv = Math.max(this.drive, this.driveS);
+      const lv = Math.max(this.drive, this.driveS, this.peakDrive);
       if (lv < 0.98 && this.actions.has('win_pump')) name = 'win_pump';
       else if (name === 'win_cheer' && lv >= 2.98 && this.actions.has('win_cheer_big')) name = 'win_cheer_big';
     }
@@ -482,6 +488,7 @@ export class Runner {
       a.play();
     }
     if (name === 'idle') this.idleT = 0;
+    if (name === 'idle' || name === 'ready') this.peakDrive = 0;
     if (fade <= 0) {
       for (const k of this.weights.keys()) this.weights.set(k, this.isActive(k) ? 1 : 0);
     }
@@ -621,6 +628,7 @@ export class Runner {
     // planted foot keeps pace with the floor (speed / stride length of the blend). Turnover tops out
     // near an elite sprinter's (~5 steps/s), a touch higher in the desperate dash.
     this.driveS += (this.drive - this.driveS) * (1 - Math.exp(-dt * 1.5));
+    if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
     const d = this.driveS;
     const mix: Record<string, number> = gaitMix(this.actions.has('dash') ? d : Math.min(d, 2.2));
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
