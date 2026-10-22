@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MANIFEST, SampleBank, type Loaded } from '../src/audio/samples';
 import { mulberry32 } from '../src/audio/select';
-import { LIFT_RATE, ORDERS, ORDERS4, THEME_SOUNDS, ThemePlayer, fanfareFor, landingPlan, liftPlan, nextBar, phrasePlan, phrasePlan4 } from '../src/audio/theme';
+import { GROOVES, LIFT_RATE, ORDERS, ORDERS4, THEME_EXTRA, THEME_SOUNDS, ThemePlayer, fanfareFor, landingPlan, liftPlan, nextBar, phrasePlan, phrasePlan4 } from '../src/audio/theme';
 
 // A minimal AudioContext: records every source start (time, offset, rate).
 class P {
@@ -273,6 +273,84 @@ describe('results', () => {
     expect(th.state().mode).toBe('run');
     expect(th.state().idle).toBe(null);
     expect(th.state().tier).toBe(0);
+  });
+});
+
+describe('different every run (round 15)', () => {
+  const PERC = [...new Set(GROOVES.flat().map((h) => h[1]))];
+  const mk2 = (seed = 4) => {
+    const { ctx, starts } = fake();
+    const names = [...THEME_SOUNDS, ...THEME_EXTRA, ...PERC];
+    const meta = (n: string) => ({ group: 'theme', channels: 2, slices: [[0, 8, 1]] as [number, number, number][], bpm: n === 'th_calm' || n === 'th_safe' || n === 'th_tense' ? 84 : 112, webm: { file: '', bytes: 0, hash: '' }, m4a: { file: '', bytes: 0, hash: '' } });
+    const b = new SampleBank({ version: 1, sounds: Object.fromEntries(names.map((n) => [n, meta(n)])) }, 'audio/', 'webm');
+    for (const n of names) b.put(n, { buffer: { name: n, duration: n.startsWith('m_') ? 1 : n === 'th_awe' ? 11 : 17.14 } as unknown as AudioBuffer, slices: [{ start: 0, dur: n.startsWith('m_') ? 0.5 : 8 }], loop: false } as Loaded);
+    const th = new ThemePlayer(ctx as unknown as BaseAudioContext, b, new N() as unknown as AudioNode, new N() as unknown as AudioNode, mulberry32(seed));
+    return { ctx, starts, th };
+  };
+
+  it('consecutive runs alternate the layer-0 voicing and never repeat the groove', () => {
+    const { ctx, th } = mk2();
+    let last: { voice: number; groove: number } | null = null;
+    for (let i = 0; i < 12; i++) {
+      th.startRun(ctx.currentTime + 0.05);
+      const v = th.variety()!;
+      if (last) {
+        expect(v.voice).not.toBe(last.voice);
+        expect(v.groove).not.toBe(last.groove);
+      }
+      last = v;
+      th.fall();
+      ctx.currentTime += 3;
+    }
+  });
+
+  it('the harp voicing replaces layer 0 only, on the same phrase grid', () => {
+    const { ctx, starts, th } = mk2();
+    th.startRun(0.05); // voicing 0
+    th.fall();
+    ctx.currentTime = 3;
+    th.startRun(3.05); // voicing 1
+    play(ctx, th, 3.05 + PHRASE + 0.1);
+    const run2 = starts.filter((s) => s.at >= 3.05 - 1e-6 && s.name.startsWith('th_l'));
+    expect(run2.some((s) => s.name === 'th_l0v_a')).toBe(true);
+    expect(run2.some((s) => s.name === 'th_l0_a' || s.name === 'th_l0_b')).toBe(false);
+    for (const s of run2) expect(Math.abs((((s.at - 3.05) / PHRASE) % 1 + 1) % 1) < 1e-6 || Math.abs((((s.at - 3.05) / PHRASE) % 1) - 1) < 1e-6).toBe(true);
+  });
+
+  it('the groove stays out at tier 0, then sits on the bar grid with more hits per tier', () => {
+    const { ctx, starts, th } = mk2();
+    th.startRun(0);
+    play(ctx, th, 3 * BAR);
+    const perc = () => starts.filter((s) => s.name.startsWith('m_'));
+    expect(perc().length).toBe(0);
+    th.setTier(1);
+    play(ctx, th, 8 * BAR);
+    const n1 = perc().filter((s) => s.at >= 6 * BAR && s.at < 7 * BAR - 0.01).length;
+    expect(n1).toBeGreaterThan(0);
+    th.setTier(3);
+    play(ctx, th, 14 * BAR);
+    const n3 = perc().filter((s) => s.at >= 12 * BAR && s.at < 13 * BAR - 0.01).length;
+    expect(n3).toBeGreaterThan(n1);
+    // every hit within 5 ms of a sixteenth of the run's grid
+    for (const s of perc()) {
+      const k = s.at / (BAR / 16);
+      expect(Math.abs(k - Math.round(k)) * (BAR / 16)).toBeLessThan(0.0051);
+    }
+  });
+
+  it('a landmark reveal swells into a downbeat, once in a while, never across the pivot into tier 4', () => {
+    const { ctx, starts, th } = mk2();
+    th.startRun(0);
+    play(ctx, th, 5);
+    const land = th.awe(0.6);
+    expect(land).toBeGreaterThan(5);
+    expect(Math.abs(land / BAR - Math.round(land / BAR))).toBeLessThan(1e-6);
+    const a = starts.find((s) => s.name === 'th_awe')!;
+    expect(a.at).toBeLessThan(land); // it swells from before the downbeat into it
+    expect(th.awe(0.6)).toBe(-1); // not twice in 12 s
+    play(ctx, th, 20);
+    th.setTier(4);
+    expect(th.awe(0.6)).toBe(-1); // the pivot is the lift's moment
   });
 });
 

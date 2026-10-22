@@ -11,6 +11,7 @@ const BEAM_VERT = /* glsl */ `
   attribute vec4 aW; // width, alpha, seed, -
   varying vec2 vUv;
   varying vec4 vW;
+  varying float vFar;
   void main() {
     float t = position.y + 0.5;
     vec3 axis = aTop - aBot;
@@ -21,6 +22,8 @@ const BEAM_VERT = /* glsl */ `
     p += side * position.x * aW.x * (0.55 + 0.9 * t);
     vUv = vec2(position.x * 2.0, t);
     vW = aW;
+    // Round 17: a shaft the lens stands in (or right beside) washed the whole frame: fade it out.
+    vFar = smoothstep(1.2, 4.5, length(cameraPosition - p));
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
   }`;
 
@@ -30,12 +33,13 @@ const BEAM_FRAG = /* glsl */ `
   uniform vec3 uColor;
   varying vec2 vUv;
   varying vec4 vW;
+  varying float vFar;
   void main() {
     float across = 1.0 - abs(vUv.x);
     across *= across;
     float along = smoothstep(0.0, 0.18, vUv.y) * smoothstep(1.0, 0.45, vUv.y);
     float streak = 0.65 + 0.35 * sin(vUv.x * 9.0 + vW.z * 40.0 + uTime * 0.6) * sin(vUv.x * 4.0 - uTime * 0.35 + vW.z * 11.0);
-    float a = across * along * streak * vW.y * uStrength;
+    float a = across * along * streak * vW.y * uStrength * vFar;
     gl_FragColor = vec4(uColor * a, 1.0);
   }`;
 

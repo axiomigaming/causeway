@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent } from 'react';
 import { heatOf } from '../audio/feedback';
 import { formatCredits, formatMult, parseCredits, parseMult, payout } from '../engine/money';
 import { useStore } from '../state/store';
@@ -8,6 +8,43 @@ import { useHold } from './hold';
 import { IconMinus, IconPlus } from './icons';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Press-and-hold repeat for the stake steppers: one step on press, then after 400 ms repeating,
+ * easing from 120 ms to 60 ms between steps. Keyboard activation (click with detail 0) steps once.
+ * The latest handler is read through a ref, so every repeat sees the current stake.
+ */
+function useRepeat(fn: () => boolean) {
+  const latest = useRef(fn);
+  latest.current = fn;
+  const timer = useRef<number | undefined>(undefined);
+  const stop = () => {
+    if (timer.current !== undefined) window.clearTimeout(timer.current);
+    timer.current = undefined;
+  };
+  useEffect(() => stop, []);
+  return {
+    onPointerDown: (e: RPointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0 || e.currentTarget.disabled) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      latest.current();
+      let delay = 120;
+      const tick = () => {
+        if (!latest.current()) return stop(); // at a limit: nothing more to do
+        delay = Math.max(60, delay - 10);
+        timer.current = window.setTimeout(tick, delay);
+      };
+      stop();
+      timer.current = window.setTimeout(tick, 400);
+    },
+    onPointerUp: stop,
+    onPointerCancel: stop,
+    onLostPointerCapture: stop,
+    onClick: (e: RMouseEvent<HTMLButtonElement>) => {
+      if (e.detail === 0) latest.current();
+    },
+  };
+}
 
 /** Nice stake ladder for the − / + steppers. */
 const LADDER = [10, 20, 50, 100, 200, 250, 500, 1000, 1500, 2000, 2500, 5000, 7500, 10000, 15000, 20000, 25000, 50000, 75000, 100000];
@@ -71,6 +108,10 @@ function Setup() {
   const [text, setText] = useState(formatCredits(s.stake));
   const [autoText, setAutoText] = useState(formatMult(s.auto));
   const editing = useRef(false);
+  // the steppers' handlers are defined below the early return; the hooks read them through this ref
+  const steps = useRef<{ up: () => boolean; down: () => boolean }>({ up: () => false, down: () => false });
+  const holdDown = useRepeat(() => steps.current.down());
+  const holdUp = useRepeat(() => steps.current.up());
   useEffect(() => {
     if (!editing.current) setText(formatCredits(s.stake));
   }, [s.stake]);
@@ -82,11 +123,22 @@ function Setup() {
 
   const setStake = (v: number) => {
     const c = clamp(Math.round(v), limits.minStake, Math.max(limits.minStake, max));
-    if (c !== s.stake) ctl?.audio.ui('tick');
+    const changed = c !== useStore.getState().stake;
+    if (changed) ctl?.audio.ui('tick');
     s.set({ stake: c });
+    return changed;
   };
-  const stepUp = () => setStake(LADDER.find((x) => x > s.stake) ?? max);
-  const stepDown = () => setStake([...LADDER].reverse().find((x) => x < s.stake) ?? limits.minStake);
+  steps.current = {
+    // read the store, not this render's closure: a held stepper repeats faster than React renders
+    up: () => {
+      const cur = useStore.getState().stake;
+      return setStake(LADDER.find((x) => x > cur) ?? max);
+    },
+    down: () => {
+      const cur = useStore.getState().stake;
+      return setStake([...LADDER].reverse().find((x) => x < cur) ?? limits.minStake);
+    },
+  };
   const commit = () => {
     editing.current = false;
     const v = parseCredits(text);
@@ -107,8 +159,12 @@ function Setup() {
     <>
       <div className="setup glass">
         <div className="setup-head">
+          {/* the unit lives in the label, so the figure stands alone and nothing beside it can shift */}
           <label className="field-label" htmlFor="stake">
-            Stake
+            Stake{' '}
+            <span className="field-unit" id="stake-unit">
+              · CR
+            </span>
           </label>
           <span className="field-note limits">
             {formatCredits(limits.minStake)} – {formatCredits(limits.maxStake)}
@@ -153,7 +209,7 @@ function Setup() {
         <div className="setup-body">
           <div className="stake-col">
             <div className="stepper">
-              <button className="step" onClick={stepDown} disabled={busy || s.stake <= limits.minStake} aria-label="Lower stake">
+              <button className="step" {...holdDown} disabled={busy || s.stake <= limits.minStake} aria-label="Lower stake">
                 <IconMinus />
               </button>
               <div className="amount">
@@ -174,11 +230,8 @@ function Setup() {
                   }}
                   aria-describedby="stake-unit"
                 />
-                <span className="unit" id="stake-unit">
-                  CR
-                </span>
               </div>
-              <button className="step" onClick={stepUp} disabled={busy || s.stake >= max} aria-label="Raise stake">
+              <button className="step" {...holdUp} disabled={busy || s.stake >= max} aria-label="Raise stake">
                 <IconPlus />
               </button>
             </div>
@@ -190,11 +243,11 @@ function Setup() {
                 2×
               </button>
               {[500, 2500, 10000].map((v) => (
-                <button key={v} className="qchip" disabled={busy || v > max} onClick={() => setStake(v)}>
+                <button key={v} className="qchip" aria-pressed={s.stake === v} disabled={busy || v > max} onClick={() => setStake(v)}>
                   {formatCredits(v).replace('.00', '')}
                 </button>
               ))}
-              <button className="qchip" disabled={busy} onClick={() => setStake(max)}>
+              <button className="qchip" aria-pressed={s.stake === max} disabled={busy} onClick={() => setStake(max)}>
                 Max
               </button>
             </div>
@@ -231,8 +284,9 @@ function Setup() {
           </div>
         )}
       </div>
-      <div className="fine">
-        Cash out any time for stake × multiplier. If the way falls first, the stake is lost. <kbd>Space</kbd> to run
+      {/* The rules live in How it works; here only the keyboard shortcut (hidden on touch screens). */}
+      <div className="cash-meta kbd-hint setup-hint">
+        Press <kbd>Space</kbd> to run
       </div>
     </>
   );

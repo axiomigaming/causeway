@@ -44,7 +44,7 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
  */
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
   jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
-  leap_gap: { from: 0, to: 0.5, duration: 34 / 30, takeoff: 6 / 30, land: 21 / 30 },
+  leap_gap: { from: 0, to: 0.5, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
   slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
   vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
@@ -281,6 +281,12 @@ export class Runner {
   /** Continuous run tier (see choreo.runDrive); eased so tier changes never pop. */
   drive = 0;
   private driveS = 0;
+  /**
+   * The highest run tier reached this round (the multiplier only climbs, so it is the tier at the
+   * cash-out). The escape celebration is picked from it: the game lets him run on for a beat after the
+   * cash-out (drive already back to 0) before it plays the escape clip.
+   */
+  private peakDrive = 0;
   private glanceT = -1;
   private glanceSide = 1;
   private stumbleT = -1;
@@ -303,6 +309,7 @@ export class Runner {
    */
   surface: 'stone' | 'wood' = 'stone';
   private plankY = 0;
+  private hipsYaw = 0;
   private plankV = 0;
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
   lean = 0;
@@ -440,7 +447,7 @@ export class Runner {
     // The celebration scales with the multiplier (the run tier the escape came at, a public value):
     // a fist pump below 2×, both fists up to 10×, the roar and jumping cheer above.
     if (name === 'win_cheer' || name === 'win_leap') {
-      const lv = Math.max(this.drive, this.driveS);
+      const lv = Math.max(this.drive, this.driveS, this.peakDrive);
       if (lv < 0.98 && this.actions.has('win_pump')) name = 'win_pump';
       else if (name === 'win_cheer' && lv >= 2.98 && this.actions.has('win_cheer_big')) name = 'win_cheer_big';
     }
@@ -482,6 +489,7 @@ export class Runner {
       a.play();
     }
     if (name === 'idle') this.idleT = 0;
+    if (name === 'idle' || name === 'ready') this.peakDrive = 0;
     if (fade <= 0) {
       for (const k of this.weights.keys()) this.weights.set(k, this.isActive(k) ? 1 : 0);
     }
@@ -621,6 +629,7 @@ export class Runner {
     // planted foot keeps pace with the floor (speed / stride length of the blend). Turnover tops out
     // near an elite sprinter's (~5 steps/s), a touch higher in the desperate dash.
     this.driveS += (this.drive - this.driveS) * (1 - Math.exp(-dt * 1.5));
+    if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
     const d = this.driveS;
     const mix: Record<string, number> = gaitMix(this.actions.has('dash') ? d : Math.min(d, 2.2));
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
@@ -1099,19 +1108,44 @@ export class Runner {
    * clip lifts it or the leg would have to stretch. Skids at speed are left to slide.
    */
   private plantFeet(dt: number): void {
-    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready';
+    // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
+    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm';
     const ground = this.root.position.y;
+    // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
+    // pinned foot would wind the leg up and unwind with a snap when it lifts).
+    const hips = this.bones.hips;
+    let turning = false;
+    if (hips && dt > 0) {
+      hips.getWorldQuaternion(this.qa);
+      const fwd = this.v1.set(0, 0, 1).applyQuaternion(this.qa);
+      const yaw = Math.atan2(fwd.x, fwd.z);
+      let dy = yaw - this.hipsYaw;
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      turning = Math.abs(dy) / dt > 1.2 && this.speed < 2;
+      this.hipsYaw = yaw;
+    }
     for (const s of ['L', 'R'] as const) {
       const f = this.feet[s];
       if (!f.thigh || !f.shin || !f.foot) continue;
       f.foot.updateWorldMatrix(true, false);
       const ankle = f.foot.getWorldPosition(this.v1);
       const h = ankle.y - ground;
-      if (!active || this.speed > 4.5) f.locked = false;
+      // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
+      // except where the feet are meant to move on the ground or leave it: the falls' skids, the
+      // slides, and any drop below the floor (the chasm, the ledge).
+      const t = this.actions.get(this.current)?.time ?? 0;
+      const sliding = this.current === 'slide' || (this.current === 'win_slide' && t < 1.6);
+      // Kneeling settled at the lip (fall_chasm_b from 1.3 s): the feet lay out flat on their tops, so a
+      // sole-levelling pin would flip them over; the clip already holds them still.
+      const kneeling = this.current === 'fall_chasm_b' && t > 1.3;
+      const free = !active || sliding || turning || kneeling || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      if (free) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
+      // Gone below the floor (the drop), or sliding along it: let go at once.
+      if (h < -0.05 || sliding || kneeling) f.w = 0;
       f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : 10)));
       if (f.w < 0.01) continue;
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);
@@ -1122,6 +1156,9 @@ export class Runner {
 
   /** Two-bone IK in world space, bending in the current knee plane. False if out of reach. */
   private solveLeg(f: FootLock, targetIn: THREE.Vector3): boolean {
+    // A true hinge: the thigh and shin share one hinge axis, the knee bends only in the plane it spans,
+    // and that plane faces where the foot points (the pole). The foot keeps the clip's pitch but turns
+    // with the leg: no yaw or roll of the foot against the shin, so a planted sole stays flat.
     let target = targetIn;
     const thigh = f.thigh!;
     const shin = f.shin!;
@@ -1130,11 +1167,14 @@ export class Runner {
     const K = shin.getWorldPosition(new THREE.Vector3());
     const A = foot.getWorldPosition(new THREE.Vector3());
     const footQ = foot.getWorldQuaternion(new THREE.Quaternion());
+    const thighQ = thigh.getWorldQuaternion(new THREE.Quaternion());
     const a = H.distanceTo(K);
     const b = K.distanceTo(A);
     const toT = target.clone().sub(H);
     let d = toT.length();
     let reach = true;
+    // Nearly out of reach: let go early (the knee would snap straight, then bent, as the hip passes).
+    if (d > (a + b) * 0.97) reach = false;
     if (d > (a + b) * 0.995) {
       // Out of reach (the clip pulled the hip away): aim as far as the leg goes and report it, so the
       // lock fades out over a few frames instead of snapping the foot back to the clip.
@@ -1144,24 +1184,57 @@ export class Runner {
       reach = false;
     }
     if (d < Math.abs(a - b) + 0.02) return true;
-    const u = toT.divideScalar(d);
-    // Bend direction: where the knee points now, made perpendicular to the hip→target line.
-    const n = K.clone().sub(H);
-    n.addScaledVector(u, -n.dot(u));
+    const u = toT.clone().divideScalar(d);
+    // Pole: where the clip points the knee (it never flips through the leg), falling back on the foot's
+    // forward when the leg is nearly straight.
+    const footFwd = new THREE.Vector3(0, 1, 0).applyQuaternion(footQ);
+    const n = K.clone().sub(H).addScaledVector(u, -K.clone().sub(H).dot(u));
+    if (n.lengthSq() < 1e-4) n.copy(footFwd).addScaledVector(u, -footFwd.dot(u));
     if (n.lengthSq() < 1e-8) return true;
     n.normalize();
     const cosA = THREE.MathUtils.clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1);
     const sinA = Math.sqrt(1 - cosA * cosA);
     const K2 = H.clone().addScaledVector(u, a * cosA).addScaledVector(n, a * sinA);
-    this.applyWorld(thigh, new THREE.Quaternion().setFromUnitVectors(K.clone().sub(H).normalize(), K2.clone().sub(H).normalize()));
-    const K3 = shin.getWorldPosition(new THREE.Vector3());
-    const A3 = foot.getWorldPosition(new THREE.Vector3());
-    this.applyWorld(shin, new THREE.Quaternion().setFromUnitVectors(A3.sub(K3).normalize(), target.clone().sub(K3).normalize()));
-    // The foot keeps the orientation the clip gave it.
-    const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
-    foot.quaternion.copy(sq.multiply(footQ));
-    foot.updateMatrixWorld(true);
+    // Hinge axis: normal to the leg plane, on the same side as the thigh's own X axis.
+    const yT = K2.clone().sub(H).normalize();
+    const yS = target.clone().sub(K2).normalize();
+    const xNow = new THREE.Vector3(1, 0, 0).applyQuaternion(thighQ);
+    let hinge = new THREE.Vector3().crossVectors(u, n);
+    if (hinge.lengthSq() < 1e-8) hinge = xNow.clone();
+    hinge.normalize();
+    if (hinge.dot(xNow) < 0) hinge.negate();
+    this.setWorldBasis(thigh, hinge, yT);
+    this.setWorldBasis(shin, hinge, yS);
+    // The foot: turned with the leg (no twist against the shin); planted, its sole is kept level (the
+    // ankle takes the leg's tilt) so it never stands on an edge. Pitch stays the clip's.
+    const xF = hinge.clone();
+    const level = THREE.MathUtils.clamp(f.w, 0, 1);
+    xF.y *= 1 - level;
+    xF.normalize();
+    const yF = footFwd.clone().addScaledVector(xF, -footFwd.dot(xF));
+    if (yF.lengthSq() > 1e-6) this.setWorldBasis(foot, xF, yF.normalize());
+    else {
+      const sq = shin.getWorldQuaternion(new THREE.Quaternion()).invert();
+      foot.quaternion.copy(sq.multiply(footQ));
+      foot.updateMatrixWorld(true);
+    }
     return reach;
+  }
+
+  /** Orient a bone in world space from its X (hinge) and Y (along the bone) axes. */
+  private setWorldBasis(bone: THREE.Bone, x: THREE.Vector3, y: THREE.Vector3): void {
+    const X = x.clone().addScaledVector(y, -x.dot(y)).normalize();
+    // Keep the bone's own X side: a bone whose rest X points the other way must not flip 180°.
+    const xNow = new THREE.Vector3(1, 0, 0).applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion()));
+    if (X.dot(xNow) < 0) X.negate();
+    const Z = new THREE.Vector3().crossVectors(X, y).normalize();
+    const m = new THREE.Matrix4().makeBasis(X, y, Z);
+    const wq = new THREE.Quaternion().setFromRotationMatrix(m);
+    const parent = bone.parent!;
+    parent.updateWorldMatrix(true, false);
+    const pq = parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    bone.quaternion.copy(pq.multiply(wq));
+    bone.updateMatrixWorld(true);
   }
 
   private rotate(b: THREE.Bone | undefined, x: number, y: number, z: number) {

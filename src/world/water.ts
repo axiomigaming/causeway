@@ -25,6 +25,14 @@ export class Water {
         uMark: { value: 1 },
         uDetail: { value: 2 },
         uCamPos: { value: new THREE.Vector3() },
+        // Cinematics (round 17): up to four splashes (x, z, start time, strength) ringing out.
+        // QA (?qa&water0): the round-16 water without the round-17 ripples, for before/after crops.
+        uRipple: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
+        // Round 17: the causeway's centre line near the lens (x, z), so the water over its submerged
+        // footings reads shallow: stone showing through, warmer, with caustics.
+        uPath: { value: Array.from({ length: 16 }, () => new THREE.Vector2(1e5, 1e5)) },
+        uShelf: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
+        uSplash: { value: [new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0)] },
       },
     ]);
     this.uniforms.uSky!.value = backdrop;
@@ -53,7 +61,65 @@ export class Water {
         uniform vec3 uCamPos;
         uniform float uSkyYaw;
         uniform float uMark;
+        uniform vec4 uSplash[4];
+        uniform float uRipple;
+        uniform vec2 uPath[16];
+        uniform float uShelf;
+        // Distance from p to the centre-line polyline.
+        float pathDist(vec2 p) {
+          float d = 1e9;
+          for (int i = 0; i < 15; i++) {
+            vec2 a = uPath[i], b = uPath[i + 1];
+            vec2 ab = b - a;
+            float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+            d = min(d, length(p - a - ab * t));
+          }
+          return d;
+        }
         varying vec3 vWorld;
+
+        // Gradient noise and its analytic derivative (value noise, quintic): the close-range ripple
+        // field. Three octaves at ~1.6 m, 0.6 m and 0.22 m, drifting in different directions.
+        float wh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        vec3 wnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+          vec2 du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+          float a = wh(i), b = wh(i + vec2(1, 0)), c = wh(i + vec2(0, 1)), d = wh(i + vec2(1, 1));
+          float k1 = b - a, k2 = c - a, k4 = a - b - c + d;
+          return vec3(a + k1 * u.x + k2 * u.y + k4 * u.x * u.y, du * vec2(k1 + k4 * u.y, k2 + k4 * u.x));
+        }
+        vec2 ripples(vec2 p, float t, float dist) {
+          vec2 g = vec2(0.0);
+          float near = smoothstep(60.0, 6.0, dist);
+          g += wnoise(p * 0.62 + vec2(t * 0.11, t * 0.07)).yz * 0.62 * 0.045;
+          g += wnoise(p * 1.7 + vec2(-t * 0.23, t * 0.19)).yz * 1.7 * 0.016 * near;
+          // The finest octave only where a pixel still covers less than its wavelength (no shimmer).
+          float fine = smoothstep(18.0, 3.0, dist);
+          g += wnoise(p * 4.6 + vec2(t * 0.41, -t * 0.37)).yz * 4.6 * 0.0055 * fine;
+          return g;
+        }
+        // Splashes: a ring of waves running out from the impact (gradient of a damped radial wave)
+        // and the foam it throws, both fading as it spreads.
+        vec2 splashGrad(vec2 p, float t, out float foam) {
+          vec2 g = vec2(0.0);
+          foam = 0.0;
+          for (int i = 0; i < 4; i++) {
+            vec4 s = uSplash[i];
+            float age = t - s.z;
+            if (age < 0.0 || age > 4.0 || s.w <= 0.0) continue;
+            vec2 d = p - s.xy;
+            float r = length(d) + 1e-4;
+            float front = 0.6 + age * 2.6;
+            float env = exp(-age * 0.9) * s.w * smoothstep(front + 0.6, front - 0.4, r) * exp(-max(0.0, front - r) * 0.55);
+            float ph = (r - front) * 7.0;
+            g += d / r * cos(ph) * 0.09 * env;
+            // Foam: a churned patch at the centre and a broken lace on the leading crest.
+            float lace = wh(floor(p * 9.0) + floor(age * 6.0));
+            foam += exp(-age * 1.1) * s.w * (smoothstep(1.0 + age * 0.5, 0.0, r) * 0.9 + smoothstep(0.35, 0.0, abs(r - front)) * (0.4 + 0.6 * lace) * 0.7);
+          }
+          return g;
+        }
 
         vec2 waveGrad(vec2 p, float t) {
           vec2 g = vec2(0.0);
@@ -85,6 +151,10 @@ export class Water {
           vec2 g = waveGrad(vWorld.xz, uTime);
           // Flatten waves with distance to avoid shimmer.
           g *= 1.0 / (1.0 + dist * 0.02);
+          // Round 17: multi-scale ripples on every tier (the close water read as a flat sheet).
+          g += ripples(vWorld.xz, uTime, dist) * uRipple;
+          float splashFoam;
+          g += splashGrad(vWorld.xz, uTime, splashFoam);
           // Round 11: fine ripples close to the eye break the mirror into glitter (ref17).
           if (uDetail > 1) {
             vec2 rp = vWorld.xz * 3.1;
@@ -114,6 +184,26 @@ export class Water {
             float ca = pow(abs(sin(q.x * 2.2) * sin(q.y * 2.0)), 3.0);
             body += vec3(0.55, 0.85, 0.7) * ca * 0.22 * depthLook * smoothstep(45.0, 6.0, dist);
           }
+          // The causeway's submerged footings: within ~3 m of its edge the water is shallow over
+          // stone — warmer, lighter, the courses of the blocks and the caustics showing through, and
+          // less of the sky's mirror (looking down into it).
+          float shelf = 0.0;
+          if (uShelf > 0.0) {
+            float pd = pathDist(vWorld.xz);
+            shelf = smoothstep(5.6, 2.9, pd) * uShelf * smoothstep(60.0, 8.0, dist);
+            if (shelf > 0.0) {
+              vec2 bp = vWorld.xz * vec2(0.55, 1.1) + g * 6.0;
+              vec2 cell = floor(bp);
+              float course = smoothstep(0.0, 0.08, fract(bp.x)) * smoothstep(0.0, 0.08, fract(bp.y));
+              float tone = 0.8 + 0.2 * wh(cell);
+              vec3 stone = vec3(0.42, 0.42, 0.3) * tone * mix(0.55, 1.0, course);
+              vec3 seen = mix(uShallow, stone, 0.62) * 0.9;
+              vec2 q2 = vWorld.xz * 0.9;
+              for (int k = 0; k < 2; k++) q2 += vec2(sin(q2.y * 1.3 + uTime * 0.9), cos(q2.x * 1.1 - uTime * 0.8)) * 0.45;
+              seen += vec3(0.6, 0.8, 0.55) * pow(abs(sin(q2.x * 2.2) * sin(q2.y * 2.0)), 3.0) * 0.28;
+              body = mix(body, seen, shelf * (0.35 + 0.55 * depthLook));
+            }
+          }
           // Glossy: the sky and the far world mirror strongly toward grazing angles.
           // The panorama near the sun is several times brighter than paper white: mirrored at a
           // grazing angle it turned whole sheets of water pure white (a hole in the world). Roll the
@@ -123,11 +213,13 @@ export class Water {
           // Light through the water toward the sun: a warm green glow in the body (backlit shallows).
           float toSunV = max(dot(-V, normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);
           body += vec3(0.32, 0.5, 0.24) * pow(toSunV, 4.0) * 0.35 * (1.0 - depthLook);
-          vec3 col = mix(body, refl * vec3(0.9, 0.97, 0.95), clamp(fres * 1.05, 0.0, 0.95));
+          vec3 col = mix(body, refl * vec3(0.9, 0.97, 0.95), clamp(fres * 1.05 * (1.0 - 0.35 * shelf), 0.0, 0.95));
           vec3 H = normalize(uSunDir + V);
           float spec = pow(max(dot(N, H), 0.0), 420.0) * 22.0 + pow(max(dot(N, H), 0.0), 60.0) * 0.35;
           // The glint itself stays hot (it blooms), but only the narrow core: the broad lobe is capped.
           col += uSunColor * min(spec, 6.0);
+          // Splash foam: churned white water fading as the rings spread.
+          col = mix(col, vec3(0.86, 0.93, 0.9) * (0.75 + 0.25 * depthLook), clamp(splashFoam, 0.0, 0.85));
           // Alpha marks water for the screen-space reflections (the canvas itself is opaque).
           gl_FragColor = vec4(col, uMark);
           #include <tonemapping_fragment>
@@ -141,6 +233,23 @@ export class Water {
     this.mesh.name = 'water';
     this.mesh.frustumCulled = false;
     this.mesh.receiveShadow = false;
+  }
+
+  private splashI = 0;
+  /** Cinematics (round 17): a splash at (x, z) — waves ringing out through the normals, and foam. */
+  splash(x: number, z: number, strength = 1): void {
+    const v = (this.uniforms.uSplash!.value as THREE.Vector4[])[this.splashI++ % 4]!;
+    v.set(x, z, this.uniforms.uTime!.value as number, Math.min(1.5, strength));
+  }
+
+  /** Round 17: the causeway's centre line around the lens (up to 16 points, nearest first or in order). */
+  setPath(pts: { x: number; z: number }[]): void {
+    const u = this.uniforms.uPath!.value as THREE.Vector2[];
+    for (let i = 0; i < 16; i++) {
+      const p = pts[Math.min(i, pts.length - 1)];
+      if (p) u[i]!.set(p.x, p.z);
+      else u[i]!.set(1e5, 1e5);
+    }
   }
 
   update(t: number, cam: THREE.Camera): void {

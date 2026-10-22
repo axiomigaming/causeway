@@ -158,9 +158,13 @@ const GLORY_VERT = /* glsl */ `
   uniform vec3 uCenter;
   uniform float uSize;
   varying vec2 vUv;
+  varying float vFar;
   void main() {
     vUv = position.xy * 2.0;
     vec4 mv = viewMatrix * vec4(uCenter, 1.0);
+    // Round 17: a lens standing within the burst's own size (a result shot facing back from beyond
+    // him) saw it fill the frame as a wash: it fades out as the lens comes inside it.
+    vFar = smoothstep(uSize * 0.5, uSize * 1.2, length(mv.xyz));
     mv.xy += position.xy * uSize;
     gl_Position = projectionMatrix * mv;
   }`;
@@ -170,6 +174,7 @@ const GLORY_FRAG = /* glsl */ `
   uniform float uTime;
   uniform vec3 uColor;
   varying vec2 vUv;
+  varying float vFar;
   void main() {
     float r = length(vUv);
     // atan(0, 0) is undefined: on some GPUs (SwiftShader) it is NaN, and one NaN pixel spread by the
@@ -179,7 +184,7 @@ const GLORY_FRAG = /* glsl */ `
     float rays = pow(0.5 + 0.5 * sin(ang * 13.0 + uTime * 0.25), 6.0) * 0.6 + pow(0.5 + 0.5 * sin(ang * 7.0 - uTime * 0.18 + 1.3), 8.0) * 0.5;
     rays *= smoothstep(1.0, 0.15, r) * smoothstep(0.0, 0.12, r);
     float halo = exp(-r * 3.2) * 0.9 + exp(-r * 9.0) * 1.6;
-    float a = (rays + halo) * uLevel * smoothstep(1.0, 0.85, r);
+    float a = (rays + halo) * uLevel * smoothstep(1.0, 0.85, r) * vFar;
     gl_FragColor = vec4(uColor * a, 1.0);
   }`;
 

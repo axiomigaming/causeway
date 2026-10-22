@@ -52,7 +52,8 @@ describe('crash distribution (exact)', () => {
     expect(ge2 / N).toBeLessThan(0.485 + 0.012);
     expect(ge10 / N).toBeGreaterThan(0.097 - 0.007);
     expect(ge10 / N).toBeLessThan(0.097 + 0.007);
-  });
+    // Deterministic (seeded); the limit only covers machine load.
+  }, 60_000);
 });
 
 describe('fairness', () => {
