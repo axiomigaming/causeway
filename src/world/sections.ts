@@ -556,7 +556,7 @@ function turnCorner(b: Builder): ReturnType<Build> {
   b.place(`rubble_${b.rng.int(0, 3)}`, -R + 0.4, 0, -1.6, b.rng.range(0, 6.28));
   if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, -R + 1.6, 0, -0.4, 0, 0.8);
   if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, -R + 0.6, 0, -0.6, 0, 0.7);
-  // Green behind the outer corner; scenery only on the outside of the bend (the
+  // Green behind the outer corner (the
   // inside is where the exit leg's own world begins).
   jungleBank(b, 1, PATH_HALF + 4.5, -3, 0, 0.8);
   // No canopy here: its limb arched across the entry lane runs right along the exit leg, and the camera
@@ -567,7 +567,8 @@ function turnCorner(b: Builder): ReturnType<Build> {
     b.place(`tree_big_${t}_trunk`, PATH_HALF + 6.5, WL, -R - 4.5, ry, 0.8);
     b.place(`tree_big_${t}_crown`, PATH_HALF + 6.5, WL, -R - 4.5, ry, 0.8);
   }
-  scenery(b, TURN_LEN, { sides: [1], minX: 10 });
+  // (No scenery of its own: it is built after the corner's clearance check and could stand in the way
+  // the route takes next.)
   return { turn: Math.PI / 2, hazards: ['rockfall'], walls: 'low' };
 }
 
@@ -643,6 +644,23 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       }
       lowWalls(b, -4, 2, [-1, 1], { gaps: 0 });
       for (const side of [-1, 1]) jungleBank(b, side, 7.5, -2, 0, 0.8);
+      // World round 16: the causeway's beginning, behind the start (the result shots look back down
+      // the way): a flight of steps rising out of the water to the plaza, stepping stones across the
+      // shallows, a ruined gate over them, and rock and jungle closing the view — never a cut edge.
+      b.place('stairs_0', 0, 0, 4, Math.PI);
+      b.place('stairs_0', 0, -1.6, 8, Math.PI);
+      b.place('steps_water_0', 0.4, WL + 0.3, 20, 0, 1.2);
+      b.place('lintel_gate_0', 0, WL + 0.2, 14.5, Math.PI, 1.05);
+      for (const side of [-1, 1]) {
+        b.place('foundation_0', side * (PATH_HALF + 0.42), -1.6, 8, Math.PI, [1, 1, 1]);
+        b.place(`rock_mid_${b.rng.int(0, 2)}`, side * 3.6, WL + 0.4, 11, b.rng.range(0, 6.28), [0.8, 0.6, 0.9]);
+        b.foamRing(side * 3.6, 11, 1.6);
+        jungleBank(b, side, 6.5, 16, 0, 1);
+        b.place(`rock_big_${side > 0 ? 1 : 2}`, side * 14, WL - 1, 30, b.rng.range(0, 6.28), 0.75);
+      }
+      b.place('rock_big_0', 0, WL - 2, 38, 0.6, [1.1, 0.8, 1.0]);
+      if (b.foliage(1)) b.place('tree_big_0_trunk', -5, WL, 26, 1.2, 1.0);
+      if (b.foliage(1)) b.place('tree_big_0_crown', -5, WL, 26, 1.2, 1.0);
       scenery(b, 12);
       return { hazards: ['gate'], walls: 'low' };
     },
