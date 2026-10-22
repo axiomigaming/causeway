@@ -774,9 +774,17 @@ export class Game {
     // He is still running: he carries on through the last strides to safe ground before the gate of
     // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
     // money is settled already; only the picture runs on.
-    const runOn = v > 3 && this.motion === 'full' ? 0.75 + 0.55 * E.g : 0;
+    let runOn = v > 3 && this.motion === 'full' ? 0.75 + 0.55 * E.g : 0;
+    // Safe ground is on the straight: with a corner coming up, he pulls up (and the gate stands)
+    // before it — the celebration orbit inside a corner plaza ran the lens into its walls.
+    const gateGap = 3.4 + 1.6 * E.g;
+    const corner = this.track.sections.find((sec) => (sec.type === 'turnL' || sec.type === 'turnR') && sec.s0 + sec.len > this.s - 2 && sec.s0 < this.s + v * runOn + (v * T) / 2 + gateGap + 4);
+    if (corner) {
+      const room = corner.s0 - 3 - gateGap - (v * T) / 2 - this.s;
+      runOn = room > v * 0.3 ? Math.min(runOn, room / v) : 0;
+    }
     const stop = this.s + v * runOn + (v * T) / 2;
-    const gateAt = stop + 3.4 + 1.6 * E.g;
+    const gateAt = stop + gateGap;
     const fg = this.track.path.sample(gateAt);
     this.placeEscapeGate(fg.pos, fg.yaw);
     this.escapeGateAt = gateAt;
@@ -1993,7 +2001,7 @@ export class Game {
       this.rig.focus.copy(rp);
     }
     // Corners: the lens leads into the bend ahead (Temple Run style), half the turn over the next 6 m.
-    if (this.stage === 'run' || this.stage === 'lead') {
+    if (this.stage === 'run' || this.stage === 'lead' || (this.stage === 'cashout' && this.runOn)) {
       const y0 = this.runner.root.rotation.y;
       const d = this.track.path.sample(this.s + 6).yaw - y0;
       const want = 0.45 * Math.atan2(Math.sin(d), Math.cos(d));
