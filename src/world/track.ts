@@ -259,7 +259,10 @@ export class Track {
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
     // (It keeps one planar fetch on the near paving: one texture read on the pixels nearest the lens.)
     causticUniforms.uDetailLite.value = density.scenery >= 0.5 ? 0 : 1;
-    ensureDetailMap();
+    // (Phones fetch the scan after the first load, ~90 KB off the critical path; until it arrives the
+    // term is off.)
+    if (causticUniforms.uDetail.value > 0) ensureDetailMap();
+    else if (typeof window !== 'undefined') window.setTimeout(ensureDetailMap, 6000);
     // Build into a fresh map and swap at the end: the route keeps spawning from the old
     // variants meanwhile, and their geometry is retired only when the world next resets.
     const next = new Map<SectionType, Variant[]>();
