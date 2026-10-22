@@ -778,7 +778,7 @@ export class AudioEngine implements WorldSounds {
   }
 
   /** The FX side sends these itself (then the guesses from strengths below stand down). */
-  private fxSends = { corner: false, splash: false };
+  private fxSends = { corner: false, splash: false, groan: false };
 
   /** Play a recorded obstacle sound if it is loaded; else false (the caller layers a stand-in). */
   private rec(name: string, o: PlayOpts): boolean {
@@ -838,6 +838,7 @@ export class AudioEngine implements WorldSounds {
         return true;
       case 'slab_groan':
         // A slab tearing free and grinding off sideways (explicit FX event).
+        this.fxSends.groan = true;
         this.slabGroan(s, t, p);
         return true;
       case 'slab_splash':
@@ -891,7 +892,7 @@ export class AudioEngine implements WorldSounds {
       return;
     }
     if (!this.rec('crack_stone', { strength: 0.6 + 0.4 * s, pan: p, priority: 2 })) this.sample('impact', { strength: 0.55 + 0.4 * s, rate: 1.25, pan: p });
-    this.slabGroan(s, t + 0.04, p);
+    if (s >= 0.75 || !this.fxSends.groan) this.slabGroan(s, t + 0.04, p);
     this.sample('debris', { strength: 0.3 + 0.3 * s, when: t + 0.15, pan: p });
     if (s < 0.75 && !this.fxSends.splash) this.slabSplash(s, t + 1.1, p);
   }
