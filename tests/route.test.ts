@@ -38,7 +38,8 @@ describe('route generation', () => {
       expect(Math.abs(a.yaw - b.yaw)).toBeLessThan(0.01);
     }
     // Variety: every type appears, and no type other than corridor repeats back to back.
-    for (const t of SECTION_TYPES.filter((x) => x !== 'start' && x !== 'stairsUp' && x !== 'stairsDown')) expect(counts.get(t) ?? 0).toBeGreaterThan(5);
+    // ('approach' is only ever forced, as the run-up to a landmark.)
+    for (const t of SECTION_TYPES.filter((x) => x !== 'start' && x !== 'stairsUp' && x !== 'stairsDown' && x !== 'approach')) expect(counts.get(t) ?? 0).toBeGreaterThan(5);
     expect(maxRun).toBeLessThan(6);
   });
 
