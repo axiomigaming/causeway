@@ -775,7 +775,10 @@ export class Game {
     this.staging = st;
     this.epic = st.epic;
     this.escape = E;
-    this.setStage('cashout');
+    // The stage changes now; the lens keeps its chase (no mode change, no reset) until he pulls up —
+    // land() below switches it to the celebration.
+    this.stage = 'cashout';
+    this.stageT = 0;
     // Round 13 — "made it": no set piece or near miss from here on (honesty: nothing staged after a
     // cash-out); pieces still ahead crumble away, the way ahead is clear.
     this.obstacles.settle();
@@ -816,7 +819,6 @@ export class Game {
     if (runOn > 0) {
       this.runOn = true;
       // The chase lens stays on him (calming as the tier falls away) until he pulls up.
-      this.rig.setMode('run');
       this.sounds.event?.('made_it', E.g);
       // Relief: half a stride before he pulls up, a stumble of exhausted relief.
       this.later(Math.max(0, runOn - 0.45), () => this.stage === 'cashout' && this.runOn && this.runner.stumble());
@@ -1742,14 +1744,31 @@ export class Game {
     return -((p.x - r.x) * -Math.sin(ry) + (p.z - r.z) * -Math.cos(ry));
   }
 
-  private guardCamera(): void {
+  private guardCamera(dt = 1 / 60): void {
     const cam = this.rig.camera;
     const p = cam.position;
     const q = cam.quaternion;
-    const bad = ![p.x, p.y, p.z, q.x, q.y, q.z, q.w, cam.fov].every(Number.isFinite) || ((this.stage === 'crash' || this.stage === 'cashout') && this.insideSolid(p));
-    if (!bad) return;
-    this.rig.safeShot(this.runner.root.position, this.runner.root.rotation.y);
+    if (![p.x, p.y, p.z, q.x, q.y, q.z, q.w, cam.fov].every(Number.isFinite)) {
+      this.rig.safeShot(this.runner.root.position, this.runner.root.rotation.y);
+      this.guardK = 0;
+      return;
+    }
+    // Round 16: a settled shot whose lens slips into a wall or a pillar no longer cuts to the safe
+    // shot (an 8 m jump in one frame). The lens is drawn out, fast but continuously, toward a
+    // chase position above and behind him, looking at his chest; it hands back as the rig clears.
+    const inside = (this.stage === 'crash' || this.stage === 'cashout') && this.insideSolid(p);
+    this.guardK += ((inside ? 1 : 0) - this.guardK) * (1 - Math.exp(-dt * (inside ? 14 : 3)));
+    if (this.guardK < 0.002) return;
+    const r = this.runner.root.position;
+    const ry = this.runner.root.rotation.y;
+    const safe = this.guardP.set(r.x + Math.sin(ry) * 3.6 + Math.cos(ry) * 0.8, r.y + 2.2, r.z + Math.cos(ry) * 3.6 - Math.sin(ry) * 0.8);
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(q).multiplyScalar(5).add(p);
+    p.lerp(safe, this.guardK);
+    look.lerp(new THREE.Vector3(r.x, r.y + 1.1, r.z), this.guardK);
+    cam.lookAt(look);
+    cam.updateMatrixWorld();
   }
+  private guardK = 0;
 
   private guardBox = new THREE.Box3();
   private guardP = new THREE.Vector3();
@@ -2040,10 +2059,10 @@ export class Game {
       const want = 0.45 * Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yawLead += (want - this.rig.yawLead) * (1 - Math.exp(-rawDt * 5));
     } else this.rig.yawLead = 0;
-    this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' ? I : 0);
+    this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
     const cam = this.rig.camera;
     this.ceiling(rawDt);
-    this.guardCamera();
+    this.guardCamera(rawDt);
     if (this.debugPin) {
       const d = this.debugPin;
       const ry = this.runner.root.rotation.y;
