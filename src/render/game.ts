@@ -914,16 +914,19 @@ export class Game {
   };
 
   /** Solid near-path props of a section (walls, pillars, arches, stelae — not leaves, not far scenery). */
-  private solids(sec: { root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }) {
+  private solids(sec: { type?: string; root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }) {
     let list = this.occl.cache.get(sec);
     if (list) return list;
     list = [];
     const p = new THREE.Vector3();
+    // A corner's exit leg runs off along the section's local x: there "near the way" is not |x|
+    // small (its walls and piers stood at |x| > 7.5 and the lens could sit inside them unseen).
+    const corner = sec.type === 'turnL' || sec.type === 'turnR';
     for (const pl of sec.layout.props) {
       const geo = this.kit.geo.get(pl.piece);
       const mat = this.kit.matOf.get(pl.piece);
       if (!geo || !mat || mat === 'leaf') continue;
-      if (Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
+      if (!corner && Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
       if (!geo.boundingBox) geo.computeBoundingBox();
       const world = sec.root.matrix.clone().multiply(pl.m);
       list.push({ geo, world, inv: world.clone().invert() });
@@ -1793,8 +1796,31 @@ export class Game {
         if (o.hits.length % 2 === 1) return true;
       }
     }
+    // World round 12's landmarks (a drowned pyramid, a colossus, a giant head) stand well clear of
+    // the way, but a corner can swing a settled lens round into one.
+    for (const lm of this.track.landmarks.list) {
+      if (Math.abs(lm.s - this.s) > 60) continue;
+      lm.root.updateMatrixWorld();
+      for (const c of lm.root.children) {
+        const mesh = c as THREE.Mesh;
+        if (!mesh.isMesh) continue;
+        const g = mesh.geometry;
+        if (!g.boundingBox) g.computeBoundingBox();
+        this.guardP.copy(p).applyMatrix4(this.tmpInvL.copy(mesh.matrixWorld).invert());
+        if (!g.boundingBox!.containsPoint(this.guardP)) continue;
+        const o = this.occl;
+        o.mesh.geometry = g;
+        o.mesh.matrixWorld.copy(mesh.matrixWorld);
+        o.rc.set(p, UP);
+        o.rc.far = 200;
+        o.hits.length = 0;
+        o.mesh.raycast(o.rc, o.hits);
+        if (o.hits.length % 2 === 1) return true;
+      }
+    }
     return this.debris.containsHeavy(p);
   }
+  private tmpInvL = new THREE.Matrix4();
 
   private tremor(I: number, k = I) {
     this.rig.addTrauma(0.1 + I * 0.25);
