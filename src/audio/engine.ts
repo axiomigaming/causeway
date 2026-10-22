@@ -29,6 +29,8 @@ type Scene = 'title' | 'setup' | 'lead' | 'run' | 'escaped' | 'fallen';
 export type UiSound = 'hover' | 'tick' | 'press' | 'confirm' | 'bet' | 'cashout' | 'deny' | 'open' | 'close' | 'stamp' | 'toggle';
 
 const BEDS: Bed[] = ['jungle', 'insects', 'river', 'waterfall'];
+/** Master drive into the dynamics chain (see applyLevels). */
+const DRIVE = 1.45;
 
 const ROOT = 146.83; // D3
 const hz = (semi: number, base = ROOT) => base * Math.pow(2, semi / 12);
@@ -332,7 +334,9 @@ export class AudioEngine implements WorldSounds {
   private applyLevels() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const m = this.levels.muted ? 0 : this.levels.master;
+    // DRIVE: the whole mix 3.2 dB hotter into the master compressor and limiter, measured on a full run
+    // (music included) to sit near -16 LUFS for phones with true peaks under -1 dBTP (review/audio14).
+    const m = this.levels.muted ? 0 : this.levels.master * DRIVE;
     this.master.gain.setTargetAtTime(m, t, 0.05);
     this.music.gain.setTargetAtTime(this.levels.music * 0.95, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(this.levels.sfx, t, 0.05);
@@ -724,6 +728,11 @@ export class AudioEngine implements WorldSounds {
    */
   sfx(name: string, strength = 0.7): void {
     if (!this.ctx) return;
+    if (name === 'made_it') {
+      // The runner carries on to safe ground and pulls up 0.75 + 0.55 g s from now (render/game.ts cashout).
+      if (this.escapePending) this.escapePending.landIn = 0.75 + 0.55 * Math.min(1, Math.max(0, strength));
+      return;
+    }
     if (name === 'tier_up') {
       // A run tier arrives (strength = tier / 4, from the multiplier on screen). Not a separate
       // ding: the score lands an accent on its next downbeat, the bar where the new layer enters.
@@ -1204,6 +1213,47 @@ export class AudioEngine implements WorldSounds {
     }
   }
 
+  private escapePending: { landIn: number | null } | null = null;
+
+  /**
+   * A cash-out is settled: the game calls escape() and, in the same moment, event('made_it', g) when the
+   * runner still carries on for a few strides before pulling up (0.75 + 0.55 g seconds). The request waits a
+   * microtask so made_it can say when that is; the fanfare then lands on the beat nearest the pull-up, and
+   * the theme keeps playing until it does. Without made_it (slow runner, reduced motion), the next eighth.
+   */
+  private requestEscape() {
+    if (this.escapePending || !this.theme || this.theme.mode === 'result') return;
+    this.escapePending = { landIn: null };
+    queueMicrotask(() => this.flushEscape());
+  }
+
+  private flushEscape() {
+    const p = this.escapePending;
+    this.escapePending = null;
+    const ctx = this.ctx;
+    if (!p || !ctx || !this.theme || this.theme.mode === 'result') return;
+    const g = this.grade;
+    const now = ctx.currentTime;
+    const at = this.theme.escape(g, p.landIn !== null ? now + p.landIn : undefined);
+    const t = at > 0 ? at : now;
+    // Gold, a sparkle and the runner's breath with the fanfare; more of everything at high multipliers.
+    this.sample('coins', { strength: 0.75 + 0.05 * g, when: t + 0.02 });
+    this.sample('sparkle', { strength: 0.6 + 0.07 * g, when: t + 0.12 });
+    this.sample('pant', { strength: 0.8, when: t + 0.9 });
+    if (g >= 2) {
+      // A big escape: a deep boom under the fanfare and gold pouring for a moment (more of it from 10x).
+      this.sample('m_boom', { strength: 0.45 + 0.1 * g, dest: this.sfxBus, when: t + 0.02 });
+      const n = g >= 4 ? 5 : g >= 3 ? 3 : 2;
+      for (let i = 1; i <= n; i++) this.sample('coins', { strength: 0.75 - 0.06 * i, when: t + 0.12 + i * 0.13 + this.rnd() * 0.05, pan: this.rnd() * 0.8 - 0.4 });
+    }
+    if (g >= 3) this.sample('sparkle', { strength: 0.7, rate: 1.26, when: t + 0.55 });
+    if (g >= 4) {
+      // From 25x: a bright gong rings over it all.
+      this.sample('m_gong', { strength: 0.55, rate: 1.5, when: t + 0.3, maxDur: 4, dest: this.sfxBus });
+      this.sample('sparkle', { strength: 0.65, rate: 1.5, when: t + 0.95 });
+    }
+  }
+
   escape(): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
@@ -1215,23 +1265,8 @@ export class AudioEngine implements WorldSounds {
     this.score.gain.setTargetAtTime(0, t, 0.25);
     this.breath?.gain.gain.setTargetAtTime(0, t, 0.2);
     if (this.themeOn && this.sp?.has('coins')) {
-      // The theme's fanfare (sized by the cash-out tier) over gold, a sparkle and the runner's breath.
-      this.theme!.escape(g);
-      this.sample('coins', { strength: 0.75 + 0.05 * g, when: t + 0.02 });
-      this.sample('sparkle', { strength: 0.6 + 0.07 * g, when: t + 0.12 });
-      this.sample('pant', { strength: 0.8, when: t + 0.9 });
-      if (g >= 2) {
-        // A big escape: a deep boom under the fanfare and gold pouring for a moment (more of it from 10x).
-        this.sample('m_boom', { strength: 0.45 + 0.1 * g, dest: this.sfxBus, when: t + 0.02 });
-        const n = g >= 4 ? 5 : g >= 3 ? 3 : 2;
-        for (let i = 1; i <= n; i++) this.sample('coins', { strength: 0.75 - 0.06 * i, when: t + 0.12 + i * 0.13 + this.rnd() * 0.05, pan: this.rnd() * 0.8 - 0.4 });
-      }
-      if (g >= 3) this.sample('sparkle', { strength: 0.7, rate: 1.26, when: t + 0.55 });
-      if (g >= 4) {
-        // From 25x: a bright gong rings over it all and the ground answers with a sub swell already rising.
-        this.sample('m_gong', { strength: 0.55, rate: 1.5, when: t + 0.3, maxDur: 4, dest: this.sfxBus });
-        this.sample('sparkle', { strength: 0.65, rate: 1.5, when: t + 0.95 });
-      }
+      // The fanfare lands on the music's clock when the runner pulls up (see requestEscape / made_it).
+      this.requestEscape();
       return;
     }
     if (this.sp?.has('coins') && this.sp.has('swell')) {
@@ -1284,9 +1319,10 @@ export class AudioEngine implements WorldSounds {
     if (!this.sp?.has('ui_tap') || !this.sp.has('ui_tick')) return false;
     switch (s) {
       case 'hover':
-        if (t - this.lastHover < 0.09) return true;
+        // Barely there: a felt-soft wood touch, at most every 150 ms.
+        if (t - this.lastHover < 0.15) return true;
         this.lastHover = t;
-        return this.sample('ui_tick', { strength: 0.25, rate: 1.25 });
+        return this.sample('ui_tick', { strength: 0.12, rate: 1.15 });
       case 'tick':
         return this.sample('ui_tick', { strength: 0.8 });
       case 'press':
@@ -1312,7 +1348,9 @@ export class AudioEngine implements WorldSounds {
         this.sample('sparkle', { strength: 0.55, when: t + 0.025 });
         return true;
       case 'stamp':
-        this.sample('impact', { strength: 0.45, rate: 1.1, priority: 2 });
+        // The result card settles: a stone set down (a low tap with a soft frame-drum body), not a hit.
+        this.sample('ui_tap', { strength: 0.9, rate: 0.82 });
+        this.sample('m_frame', { strength: 0.35, rate: 0.9, dest: this.bus.ui, when: t + 0.005 });
         return true;
       case 'deny':
         this.sample('ui_tap', { strength: 0.7, rate: 0.7 });
@@ -1434,7 +1472,7 @@ export class AudioEngine implements WorldSounds {
         th.startRun(t + 0.01);
         this.sample('m_taiko', { strength: 0.9, dest: this.sting });
       } else if (s === 'title' || s === 'setup') th.rest();
-      else if (s === 'escaped') th.escape(this.grade);
+      else if (s === 'escaped') this.requestEscape();
       else if (s === 'fallen') th.fall();
       return;
     }
