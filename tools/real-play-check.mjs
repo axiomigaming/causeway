@@ -95,7 +95,16 @@ async function nextRoundOk(page, problems) {
   const s = await state(page);
   if (s.cam !== 'setup') problems.push(`camera stuck in '${s.cam}' after back to setup`);
 }
-const waitPhase = (page, ph, ms = 240000) => page.waitForFunction((p) => window.__store.getState().phase === p, ph, { timeout: ms, polling: 250 });
+async function waitPhase(page, ph, ms = 240000) {
+  try {
+    await page.waitForFunction((p) => window.__store.getState().phase === p, ph, { timeout: ms, polling: 250 });
+  } catch (e) {
+    const s = await state(page).catch(() => null);
+    throw new Error(`waiting for phase '${ph}': still ${JSON.stringify(s && { phase: s.phase, stage: s.stage, cam: s.cam })}`);
+  }
+  // The result card is held until the fall or escape has landed (Game.reveal): wait for it.
+  if (ph === 'result') await page.waitForSelector('.result', { timeout: 120000 }).catch(() => {});
+}
 
 const cases = {
   async instantFall() {
