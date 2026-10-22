@@ -183,17 +183,26 @@ function History({ onClose }: { onClose: () => void }) {
           <div className="hhead" aria-hidden>
             <span>Fell at</span>
             <span>Your run</span>
+            <span>Profit</span>
           </div>
-          {history.map((h) => (
-            <button key={h.id} className="hrow" onClick={() => set({ modal: 'fair', fairFocus: h.id })}>
-              <span className={`c num ${tierOf(h.crash)}`}>{formatMult(h.crash)}×</span>
-              <span>
-                {h.outcome === 'cashout' ? `Cashed out at ${formatMult(h.cashoutMult!)}×${h.auto ? ' (auto)' : ''}` : 'Not cashed out'} · stake {formatCredits(h.stake)}
-              </span>
-              <span className={`out num ${h.outcome === 'cashout' ? 'won' : 'lost'}`}>{h.outcome === 'cashout' ? `+${formatCredits(h.payout)}` : `−${formatCredits(h.stake)}`}</span>
-              <span className="when">#{h.nonce}</span>
-            </button>
-          ))}
+          {history.map((h) => {
+            // The money column is the signed profit (the only signed figure); the return is secondary.
+            const won = h.outcome === 'cashout';
+            const profit = won ? h.payout - h.stake : -h.stake;
+            return (
+              <button key={h.id} className="hrow" onClick={() => set({ modal: 'fair', fairFocus: h.id })}>
+                <span className={`c num ${tierOf(h.crash)}`}>
+                  {formatMult(h.crash)}
+                  <span className="x">×</span>
+                </span>
+                <span>
+                  {won ? `Cashed out at ${formatMult(h.cashoutMult!)}×${h.auto ? ' (auto)' : ''} · return ${formatCredits(h.payout)}` : `Not cashed out · stake ${formatCredits(h.stake)}`}
+                </span>
+                <span className={`out num${profit > 0 ? ' won' : ' lost'}`}>{formatCredits(profit, { sign: true })}</span>
+                <span className="when">#{h.nonce}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </Sheet>
