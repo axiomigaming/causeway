@@ -36,6 +36,13 @@ export function Dock() {
         if (e) bar = Math.max(bar, e.offsetTop + e.offsetHeight);
       }
       ctl.game.rig.setInsets(bar, window.innerHeight - top, window.innerHeight);
+      // Cinematics hook (round 17): the interface column's horizontal extent (dock + result card)
+      // and the top bar alone, so a landscape result shot can stand the runner beside the column.
+      const col = [el, document.querySelector<HTMLElement>('.result')].filter((x): x is HTMLElement => !!x).map((x) => x.getBoundingClientRect()).filter((r) => r.width > 0);
+      if (col.length) {
+        const tb = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0;
+        ctl.game.rig.setUiColumn?.(Math.min(...col.map((r) => r.left)), Math.max(...col.map((r) => r.right)), tb, window.innerWidth, window.innerHeight);
+      }
     };
     report();
     const ro = new ResizeObserver(report);

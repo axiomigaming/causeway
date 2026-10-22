@@ -175,6 +175,7 @@ export class CameraRig {
     this.swing = this.swingTarget = 0;
     this.pull = this.pullTarget = 1;
     this.standBack = this.standBackV = 0;
+    this.sideK = this.sideV = 0;
     this.fov = 58;
     const c = this.camera;
     c.position.copy(this.pos);
@@ -275,10 +276,15 @@ export class CameraRig {
       const g: Frame = { along: -D, lat: 0.45 * D * Math.sign(f.lat || 1), up: 1.4, lAlong: A * 0.5, lLat: 0, lUp: 1.9, fov: f.fov, focus: 0 };
       return mixFrame(f, g, k);
     }
-    const need = 1.95 / (0.75 * band * 2 * tanH);
+    // Round 17: beside the interface column (landscape, sideK) he is no longer squeezed into the
+    // band between card and dock: frame him at ~36 % of the frame height, at that distance exactly
+    // (closer or further), and let keepInFrame stand him on the third beside the column.
+    const needBand = 1.95 / (0.75 * band * 2 * tanH);
+    const needSide = 1.95 / (0.36 * 2 * tanH);
     const dy = f.up - 1.0;
     const d0 = Math.max(0.3, Math.hypot(f.along, f.lat, dy));
-    const m = d0 < need ? need / d0 : 1;
+    const mBand = d0 < needBand ? needBand / d0 : 1;
+    const m = lerp(mBand, needSide / d0, this.sideK);
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
     return mixFrame(f, out, k);
   }
@@ -760,12 +766,47 @@ export class CameraRig {
   private standBackV = 0;
   private tmp2 = new THREE.Vector3();
   private tmp3 = new THREE.Vector3();
+  /**
+   * Round 17 — the result shot. Once the result card is up (revealK), the runner is framed big (head
+   * to boots ≥ ~30 % of the frame height) and, on a landscape screen whose interface is a centre
+   * column (card + dock), composed on a third beside that column so the card never covers him.
+   * Portrait keeps him centred in the band between card and dock. `sideK` and the size target ease
+   * in critically damped.
+   */
+  setUiColumn(left: number, right: number, topBar: number, widthPx: number, heightPx: number): void {
+    this.uiCol = widthPx > 0 ? [left / widthPx, right / widthPx] : null;
+    this.uiTopBar = Math.min(0.3, Math.max(0, topBar / Math.max(1, heightPx)));
+  }
+  private uiCol: [number, number] | null = null;
+  private uiTopBar = 0;
+  private sideK = 0;
+  private sideV = 0;
+  private sideX = 0;
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
     if (this.mode === 'crash' && this.gap > 0.3) return; // looking down into the gap after him
     const c = this.camera;
     const s = this.shift;
-    const lo = -1 - 2 * s + 2 * this.insetBottom + 0.11;
-    const hi = 1 - 2 * s - 2 * this.insetTop - 0.05;
+    const result = (this.mode === 'cashout' || this.mode === 'crash') ? this.revealK : 0;
+    // Landscape with a centre interface column: compose beside it, on the wider free side.
+    let sideWant = 0;
+    if (result > 0.01 && c.aspect > 1.15 && this.uiCol) {
+      const [l, r] = this.uiCol;
+      if (r - l < 0.62) {
+        sideWant = 1;
+        const leftRoom = l;
+        const rightRoom = 1 - r;
+        // The centre of the wider free side, in NDC x (a third of the way in from the edge).
+        const target = leftRoom >= rightRoom ? l * 0.55 : r + (1 - r) * 0.45;
+        if (this.sideK < 0.02) this.sideX = target * 2 - 1;
+      }
+    }
+    const ws = 4.5;
+    this.sideV += (ws * ws * (sideWant - this.sideK) - 2 * ws * this.sideV) * dt;
+    this.sideK = THREE.MathUtils.clamp(this.sideK + this.sideV * dt, 0, 1);
+    const side = this.sideK;
+    // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
+    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, -1 - 2 * s + 0.08, side);
+    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side);
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
@@ -808,9 +849,10 @@ export class CameraRig {
       let want = 0;
       if (settled) {
         const needV = (m.head - m.feet) / ((hi - lo) * tanV * 0.92);
-        const needH = (m.right - m.left) / (2 * mx * tanH * 0.92);
+        const needH = (m.right - m.left) / ((side > 0.5 ? 0.6 : 2 * mx) * tanH * 0.92);
         const k = Math.max(needV, needH);
         if (k > 1) want = Math.min(3.5, m.depth * (k - 1));
+
         // Never back into the scenery behind the lens (a wall, a statue): stop short of the first
         // solid on the way out from his chest.
         if (want > 0.05) {
@@ -826,7 +868,7 @@ export class CameraRig {
       const w = 4;
       this.standBackV += (w * w * (want - this.standBack) - 2 * w * this.standBackV) * dt;
       this.standBack = Math.max(0, this.standBack + this.standBackV * dt);
-      if (this.standBack > 0.01) {
+      if (Math.abs(this.standBack) > 0.01) {
         c.getWorldDirection(this.tmp);
         c.position.addScaledVector(this.tmp, -this.standBack);
         if (!measure()) return;
@@ -846,6 +888,12 @@ export class CameraRig {
     let pan = 0;
     if (m.left < -mT) pan = Math.atan(-mT) - Math.atan(m.left);
     else if (m.right > mT) pan = -(Math.atan(m.right) - Math.atan(mT));
+    // The result shot on landscape: pan so he stands on a third, beside the interface column.
+    if (side > 0.001) {
+      const cx = (m.left + m.right) / 2;
+      const want = Math.atan(this.sideX * tanH) - Math.atan(cx);
+      pan = THREE.MathUtils.lerp(pan, want, side);
+    }
     if (Math.abs(pan) > 1e-4) c.rotateY(pan);
   }
   private framePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
@@ -883,7 +931,7 @@ export class CameraRig {
     // A settled shot under the result card centres the band between the card and the dock, which
     // can sit higher than the run's own limits allow.
     const cine = this.revealK > 0.001 ? Math.min(0.32, Math.max(-0.3, (this.insetBottom - this.insetTop) / 2)) : this.shiftTarget;
-    const target = lerp(this.shiftTarget, cine, this.revealK);
+    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, this.sideK);
     this.shift += (target - this.shift) * (1 - Math.exp(-dt * 3));
     const c = this.camera;
     if (Math.abs(this.shift) < 0.001) {
