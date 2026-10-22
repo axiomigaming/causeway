@@ -610,9 +610,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .setup-body { gap: 12px; }
   .stake-col { gap: 8px; }
 }
-/* short desktops: the fine print goes, so the runner keeps its room */
+/* short desktops: the fine print goes and the dock tightens, so the runner keeps its room */
 @media (min-width: 761px) and (min-height: 521px) and (max-height: 820px) {
   .fine { display: none; }
+  .setup { padding: 8px 16px 12px; }
+  .btn-cta { height: 56px; }
   .dock { bottom: calc(16px + var(--safe-b)); }
 }
 @media (prefers-reduced-motion: reduce) {
