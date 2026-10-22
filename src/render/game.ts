@@ -1240,7 +1240,10 @@ export class Game {
           const p = this.runner.root.position.clone().addScaledVector(h.fwd, 0.4).setY(WATER_Y);
           this.particles.burst(p, 40, { spread: 1.2, up: 7, speed: 3, size: 0.32, life: 1.2, color: SPRAY, alpha: 0.8, gravity: 9.5, drag: 0.5, grow: 0.6 });
           B.puff(p, { count: 3, spread: 1.4, jitter: 0.8, vel: new THREE.Vector3(0, 2.4, 0), size: [0.8, 3], life: 1.8, alpha: 0.4, tint: MIST_T, rise: 0.2, floor: WATER_Y });
-          this.cine.rings.spawn(p, 4.5, 1);
+          this.water.splash(p.x, p.z, 1.2);
+          // A second, lighter column as he goes under, and bubbles of foam rising where he went.
+          this.later(0.25, () => this.particles.burst(p, 24, { spread: 0.6, up: 4, speed: 1.6, size: 0.24, life: 0.9, color: SPRAY, alpha: 0.7, gravity: 9.5, drag: 0.5, grow: 0.5 }));
+          for (let k = 1; k <= 5; k++) this.later(0.4 + k * 0.22, () => this.particles.burst(p, 4, { spread: 0.5, up: 0.4, speed: 0.3, size: 0.16, life: 0.7, color: SPRAY, alpha: 0.55, gravity: -0.5, drag: 1.5, grow: 0.8 }));
           this.sounds.impact(0.9, true);
         });
         // Gone under: the clip ends deep below the floor.
@@ -1462,7 +1465,9 @@ export class Game {
       this.particles.burst(e.pos, 14 + heavy * 22, { spread: 0.8 + heavy, up: 4.5 + heavy * 4, speed: 2.5 + heavy, size: 0.3, life: 1.1, color: SPRAY, alpha: 0.75, gravity: 9.5, drag: 0.5, grow: 0.6 });
       if (heavy > 0.25) {
         B.puff(e.pos, { count: 1 + Math.round(heavy * 2), spread: 1 + heavy, jitter: 0.8, vel: new THREE.Vector3(0, 1.5 + heavy * 1.5, 0), size: [0.6, 2 + 2.5 * heavy], life: 1.6, alpha: 0.38, tint: MIST_T, rise: 0.2, floor: WATER_Y });
-        this.cine.rings.spawn(e.pos, 1.5 + heavy * 3.5, 0.55 + 0.45 * Math.min(1, heavy));
+        // Round 17: the shockwave is waves through the water's own normals and churned foam (a ring
+        // decal read as a flat white circle up close).
+        this.water.splash(e.pos.x, e.pos.z, 0.4 + 0.5 * Math.min(1, heavy));
       }
       this.sounds.impact(heavy * 0.6, true);
     } else {
