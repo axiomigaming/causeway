@@ -298,7 +298,7 @@ describe('shipped audio', () => {
       }
       expect(s.slices.length).toBeGreaterThan(0);
     }
-  });
+  }, 30000); // hashes every shipped file: slow on a loaded machine
 
   it('every shipped sound has a catalog entry (and so a bus, level and voice limits)', () => {
     for (const n of names) if (n !== 'ir_room' && MANIFEST.sounds[n]!.group !== 'theme') expect(SOUNDS[n], n).toBeDefined();
