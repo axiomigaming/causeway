@@ -3,6 +3,7 @@ import { heatOf } from '../audio/feedback';
 import { formatCredits, formatMult, parseCredits, parseMult, payout } from '../engine/money';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
+import { css, plateFill } from './heat';
 import { useHold } from './hold';
 import { IconMinus, IconPlus } from './icons';
 
@@ -260,6 +261,8 @@ function CashOut({ held }: { held: boolean }) {
       const heat = heatOf(ctl.currentMult());
       if (btnRef.current && Math.abs(heat - lastHeat) > 0.004) {
         btnRef.current.style.setProperty('--heat', heat.toFixed(3));
+        // the fill itself, as a plain rgb() on the cream → orange segment (see ./heat)
+        btnRef.current.style.setProperty('--heat-fill', css(plateFill(heat)));
         lastHeat = heat;
       }
     };

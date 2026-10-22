@@ -46,9 +46,9 @@
   font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
   /* cream, warming toward amber as the run climbs: the colour carries the tension */
-  color: color-mix(in oklab, var(--text), var(--amber-hi) calc(var(--heat) * 70%));
+  /* computed in ui/heat.ts and set per frame (plain rgb(), no color-mix(), no transition) */
+  color: var(--heat-ink, var(--text));
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
-  transition: color 0.4s var(--ease);
 }
 .hud .mult-glow { display: inline-flex; align-items: baseline; transform-origin: 50% 60%; }
 .hud .mult .mi, .hud .mult .mf { display: inline-block; }
