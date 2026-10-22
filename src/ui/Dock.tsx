@@ -159,8 +159,12 @@ function Setup() {
     <>
       <div className="setup glass">
         <div className="setup-head">
+          {/* the unit lives in the label, so the figure stands alone and nothing beside it can shift */}
           <label className="field-label" htmlFor="stake">
-            Stake
+            Stake{' '}
+            <span className="field-unit" id="stake-unit">
+              · CR
+            </span>
           </label>
           <span className="field-note limits">
             {formatCredits(limits.minStake)} – {formatCredits(limits.maxStake)}
@@ -226,9 +230,6 @@ function Setup() {
                   }}
                   aria-describedby="stake-unit"
                 />
-                <span className="unit" id="stake-unit">
-                  CR
-                </span>
               </div>
               <button className="step" {...holdUp} disabled={busy || s.stake >= max} aria-label="Raise stake">
                 <IconPlus />

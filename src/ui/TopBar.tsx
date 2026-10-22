@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { formatCredits, formatMult } from '../engine/money';
 import { countUp } from '../audio/feedback';
 import { useStore } from '../state/store';
@@ -20,7 +20,7 @@ export function TopBar() {
   const [bump, setBump] = useState(false);
   const prev = useRef(balance);
   const figRef = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = figRef.current;
     const from = prev.current;
     prev.current = balance;
@@ -39,20 +39,25 @@ export function TopBar() {
     const t0 = performance.now();
     const dur = 600;
     let raf = 0;
-    const step = () => {
-      const k = (performance.now() - t0) / dur;
-      el.textContent = formatCredits(countUp(from, balance, k));
-      if (k < 1) raf = requestAnimationFrame(step);
-      else {
-        el.style.minWidth = '';
-        setBump(false);
-      }
-    };
-    step();
-    return () => {
+    const finish = () => {
       cancelAnimationFrame(raf);
       el.textContent = final;
       el.style.minWidth = '';
+      setBump(false);
+    };
+    const step = () => {
+      const k = (performance.now() - t0) / dur;
+      if (k >= 1) return finish();
+      el.textContent = formatCredits(countUp(from, balance, k));
+      raf = requestAnimationFrame(step);
+    };
+    el.textContent = formatCredits(from);
+    raf = requestAnimationFrame(step);
+    // frames can stall (a hidden tab, a starved device): the settled figure lands on time regardless
+    const guard = window.setTimeout(finish, dur + 50);
+    return () => {
+      window.clearTimeout(guard);
+      finish();
     };
   }, [balance, settings.motion]);
   const open = (m: 'fair' | 'settings' | 'menu' | 'history') => {
@@ -98,10 +103,10 @@ export function TopBar() {
           <span className="wide-only">Demo </span>Balance
         </div>
         <div className="v num">
-          {/* written by the count-up above; React sets the settled figure */}
-          <span className="fig" ref={figRef}>
-            {formatCredits(balance)}
-          </span>
+          {/* the figure's text is written only by the effect above (never by React), so a count
+              in progress and React can't disagree */}
+          <span className="fig" ref={figRef} aria-hidden />
+          <span className="sr">{formatCredits(balance)}</span>
           <small>CR</small>
         </div>
       </div>
