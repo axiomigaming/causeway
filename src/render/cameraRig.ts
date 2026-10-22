@@ -104,7 +104,8 @@ export class CameraRig {
    * the band between the card (reported as the top inset) and the dock.
    */
   revealed = false;
-  private revealK = 0;
+  /** 0..1 as the result card is up (read by the game to keep the result shot over the way). */
+  revealK = 0;
   /** 0..1: how far a settled escape ends on a vista over the runner's shoulder. */
   private reveal = 0;
   /** Continuous run tier (see world/choreo): camera energy rises with it. */
