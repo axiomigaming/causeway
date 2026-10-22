@@ -383,3 +383,73 @@ def moss_clump(name, seed, radius=0.6, n=5):
         _merge(bm, t, col[:3] + (0.0,))
     ob = finish_obj(name, bm, 80)
     return ob
+
+
+def _limb(pts, radii, segs=14):
+    """A smooth limb along the points: rings of `segs` vertices, the radius eased between the given
+    ones (round knuckles), capped at both ends with a rounded fan."""
+    t = bmesh.new()
+    rings = []
+    for i, (p, r) in enumerate(zip(pts, radii)):
+        d = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
+        q = d.to_track_quat("Z", "Y")
+        rings.append([t.verts.new(p + q @ Vector((math.cos(2 * math.pi * j / segs) * r, math.sin(2 * math.pi * j / segs) * r, 0)))
+                      for j in range(segs)])
+    for a, b in zip(rings, rings[1:]):
+        for j in range(segs):
+            t.faces.new((a[j], a[(j + 1) % segs], b[(j + 1) % segs], b[j]))
+    for ring, p, sgn in ((rings[0], pts[0], -1), (rings[-1], pts[-1], 1)):
+        d = (pts[-1] - pts[-2]).normalized() if sgn > 0 else (pts[0] - pts[1]).normalized()
+        tip = t.verts.new(p + d * (radii[-1] if sgn > 0 else radii[0]) * 0.8)
+        for j in range(segs):
+            f = (ring[j], ring[(j + 1) % segs], tip) if sgn > 0 else (ring[(j + 1) % segs], ring[j], tip)
+            t.faces.new(f)
+    bmesh.ops.recalc_face_normals(t, faces=t.faces)
+    return t
+
+
+def colossal_hand(name, seed):
+    """World round 15: the stone hand of a drowned colossus breaking the water, palm toward the sky,
+    fingers curled as if reaching (≈2.2 m tall at scale 1: placed at 6–8× in the river). The wrist is at
+    the origin, the hand rising along +Z, the palm facing −Y (the runner)."""
+    rng = random.Random(seed)
+    bm = bmesh.new()
+    stone = sand(rng)
+    # Forearm and wrist rising from the water, a little bent.
+    arm = [Vector((0, 0.15, -1.2)), Vector((0, 0.08, -0.4)), Vector((0, 0.0, 0.25))]
+    _merge(bm, _limb(arm, [0.4, 0.34, 0.24], 24), jitter_color(stone, rng, 0.05, 0.02))
+    # The palm: a flattened, rounded block.
+    palm = bmesh.new()
+    bmesh.ops.create_icosphere(palm, subdivisions=3, radius=1.0)
+    for v in palm.verts:
+        # Squared off toward a palm (a superellipse), thicker at the heel of the hand.
+        sq = lambda c: math.copysign(abs(c) ** 0.6, c)
+        v.co = Vector((sq(v.co.x) * 0.46, v.co.y * (0.2 - 0.04 * v.co.z), sq(v.co.z) * 0.52 + 0.68))
+    _merge(bm, palm, jitter_color(stone, rng, 0.05, 0.02))
+    # Four fingers from the top of the palm, each three joints, curling toward the runner (−Y).
+    for i, (x, ln, spread) in enumerate(((-0.27, 0.88, -0.12), (-0.09, 1.0, -0.04), (0.09, 0.95, 0.04), (0.26, 0.74, 0.12))):
+        curl = rng.uniform(0.35, 0.6) + i * 0.05
+        p = Vector((x, 0.0, 1.12))
+        d = Vector((spread, 0.0, 1.0)).normalized()
+        pts = [p.copy()]
+        for k, seg in enumerate((0.42, 0.3, 0.24)):
+            ang = curl * (k + 1) * 0.55
+            dk = Vector((d.x, -math.sin(ang), math.cos(ang))).normalized()
+            p = p + dk * seg * ln
+            pts.append(p.copy())
+        r = 0.105 if i < 3 else 0.095
+        _merge(bm, _limb(pts, [r, r * 0.97, r * 0.9, r * 0.8], 12), jitter_color(stone, rng, 0.06, 0.02))
+    # The thumb, out to the side and up.
+    tp = [Vector((-0.4, -0.05, 0.6)), Vector((-0.62, -0.18, 0.85)), Vector((-0.72, -0.3, 1.1)), Vector((-0.74, -0.42, 1.28))]
+    _merge(bm, _limb(tp, [0.14, 0.12, 0.11, 0.09], 12), jitter_color(stone, rng, 0.06, 0.02))
+    # Weathering: the stone eroded and pitted, a little moss on the upward faces (vertex colour).
+    bm.normal_update()
+    off = Vector((seed * 0.17, 0, 0))
+    cl = bm.loops.layers.float_color.get("Col")
+    for v in bm.verts:
+        v.co += v.normal * noise.fractal(v.co * 4.0 + off, 0.6, 2.0, 4) * 0.025
+    for f in bm.faces:
+        if f.normal.z > 0.55 and noise.noise(f.calc_center_median() * 6 + off) > 0.15:
+            for l in f.loops:
+                l[cl] = jitter_color(hexcol("#5a6e2c"), rng, 0.1, 0.04)
+    return finish_obj(name, bm, 60)
