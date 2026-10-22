@@ -88,6 +88,11 @@ export const ROUTE_CLEARANCE = 8;
 
 const MIRROR_X = new THREE.Matrix4().makeScale(-1, 1, 1);
 const TURN_LEN_M = (TURN_R * Math.PI) / 2;
+/**
+ * Sections stay built this far behind the runner (m): the result shots turn the camera round to face
+ * the runner, and the way behind must run on, not end in a cut slab and parapets in mid-air.
+ */
+export const KEEP_BEHIND = 90;
 
 /** Length along the path of each walkable piece (metres). */
 const TILE_LENGTH: Record<string, number> = { floor_wide_0: 8 };
@@ -405,7 +410,7 @@ export class Track {
     const probe = new Path();
     probe.reset(this.path.tail);
     probe.push(len, turn, 0);
-    probe.push(150, 0, 0);
+    probe.push(this.viewDistance + 20, 0, 0);
     const f = { pos: new THREE.Vector3(), yaw: 0 };
     const pts: THREE.Vector3[] = [];
     for (let q = 1; q <= probe.length; q += 3) pts.push(probe.sample(q, f).pos.clone());
@@ -472,12 +477,12 @@ export class Track {
       if (this.turnBlock.n > 0) this.turnBlock.n--;
       this.maybeLandmark(t);
     }
-    while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - 45) {
+    while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - KEEP_BEHIND) {
       this.despawn(this.sections.shift()!);
     }
     this.obstacles.trim(s);
     this.landmarks.trim(s);
-    this.path.trim(s - 60);
+    this.path.trim(s - KEEP_BEHIND - 20);
   }
 
   /**

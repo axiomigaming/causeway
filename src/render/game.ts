@@ -48,6 +48,8 @@ export interface WorldSounds {
    * into the water already sound through impact(size, true).
    */
   event?(name: string, strength: number): void;
+  /** The world's style (world/style.ts: turquoise, jade, lagoon, dry, rainforest), once per new world. */
+  setWorldStyle?(name: string): void;
   /**
    * Seconds until the score's next bar line (downbeat), or null when no score is running. The
    * progression director lands a tier-up's visual punch on it, together with the music's accent.
@@ -379,7 +381,20 @@ export class Game {
    * Round 11 crescendo, every frame: the look's light and air pushed toward a gathering storm (storm
    * look) or a deepening, ominous dusk (the others) by the run's drive (0..1), punctuated by gusts.
    */
+  /** Hero landmarks already announced to the audio (once each, as they come into clear view). */
+  private revealed = new Set<object>();
+
   private applyMood(d: number, g: number): void {
+    // World round 16: a hero landmark comes into clear view ~55 m before its corner (presentation only).
+    if (this.stage === 'run') {
+      for (const l of this.track.landmarks.list) {
+        const ahead = l.s - this.s;
+        if (!this.revealed.has(l) && ahead < 58 && ahead > 10) {
+          this.revealed.add(l);
+          this.sounds.event?.('landmark_reveal', 0.6);
+        }
+      }
+    }
     const L = this.lookApplied;
     if (!L) return;
     const storm = (L.rain ?? 0) > 0;
@@ -507,6 +522,8 @@ export class Game {
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);
+    this.sounds.setWorldStyle?.(this.track.style.name);
+    this.revealed.clear();
     this.obstacles.reset();
     this.runOn = false;
     this.escapeGateAt = 0;

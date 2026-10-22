@@ -156,23 +156,26 @@ describe('walkable tiles', () => {
       track.reset(`clearance-${w}`);
       // Every other world forces corners right after the sections that end in a vista or scenery.
       if (w % 2) for (let k = 0; k < 6; k++) track.forceNext.push('corridor', 'corridor', 'corridor', k % 2 ? 'turnR' : 'turnL');
-      const seen: { s1: number; yaw: number; solid: [number, number, number][] }[] = [];
+      let built = 0;
       for (let s = 0; s < 2500; s += 20) {
         track.update(s, 0.5);
-        for (const sec of track.sections) if (!seen.some((x) => x.s1 === sec.s0 + sec.len)) seen.push({ s1: sec.s0 + sec.len, yaw: sec.seg.yaw0 + sec.seg.turn, solid: sec.solid });
-        // Every stretch of route after a corner keeps clear of the scenery of the sections before it
-        // (on the same heading, scenery stands beside the way by design).
-        for (const { s1, yaw, solid } of seen) {
-          for (let q = Math.max(s1 + 1, s - 30); q < track.path.length; q += 4) {
+        // The route built in this update keeps clear of the scenery of every section still standing
+        // before it (despawned scenery is gone and cannot be run through). On the same heading,
+        // scenery stands beside the way by design: only stretches after a corner are checked.
+        for (const sec of track.sections) {
+          const s1 = sec.s0 + sec.len;
+          const yaw = sec.seg.yaw0 + sec.seg.turn;
+          for (let q = Math.max(s1 + 1, built); q < track.path.length; q += 4) {
             track.path.sample(q, f);
             if (Math.abs(Math.sin(f.yaw - yaw)) < 0.3) continue;
-            for (const [x, z, r] of solid) {
+            for (const [x, z, r] of sec.solid) {
               if (r === 0) continue;
               checked++;
               expect(Math.hypot(f.pos.x - x, f.pos.z - z), `route at ${q.toFixed(0)} vs scenery`).toBeGreaterThan(r + 4);
             }
           }
         }
+        built = track.path.length;
       }
     }
     expect(checked).toBeGreaterThan(1000);
