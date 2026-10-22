@@ -44,7 +44,7 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
  */
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
   jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
-  leap_gap: { from: 0, to: 0.5, duration: 34 / 30, takeoff: 6 / 30, land: 21 / 30 },
+  leap_gap: { from: 0, to: 0.5, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
   slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
   vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
@@ -309,6 +309,7 @@ export class Runner {
    */
   surface: 'stone' | 'wood' = 'stone';
   private plankY = 0;
+  private hipsYaw = 0;
   private plankV = 0;
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
   lean = 0;
@@ -1107,8 +1108,22 @@ export class Runner {
    * clip lifts it or the leg would have to stretch. Skids at speed are left to slide.
    */
   private plantFeet(dt: number): void {
-    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready';
+    // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
+    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm';
     const ground = this.root.position.y;
+    // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
+    // pinned foot would wind the leg up and unwind with a snap when it lifts).
+    const hips = this.bones.hips;
+    let turning = false;
+    if (hips && dt > 0) {
+      hips.getWorldQuaternion(this.qa);
+      const fwd = this.v1.set(0, 0, 1).applyQuaternion(this.qa);
+      const yaw = Math.atan2(fwd.x, fwd.z);
+      let dy = yaw - this.hipsYaw;
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      turning = Math.abs(dy) / dt > 1.2 && this.speed < 2;
+      this.hipsYaw = yaw;
+    }
     for (const s of ['L', 'R'] as const) {
       const f = this.feet[s];
       if (!f.thigh || !f.shin || !f.foot) continue;
@@ -1119,8 +1134,11 @@ export class Runner {
       // except where the feet are meant to move on the ground or leave it: the falls' skids, the
       // slides, and any drop below the floor (the chasm, the ledge).
       const t = this.actions.get(this.current)?.time ?? 0;
-      const sliding = this.current === 'slide' || (this.current === 'win_slide' && t < 1.3);
+      const sliding = this.current === 'slide' || (this.current === 'win_slide' && t < 1.6);
       if (!active || sliding || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'))) f.locked = false;
+      // Gone below the floor (the drop), or sliding along it: let go at once.
+      if (h < -0.05 || sliding) f.w = 0;
+      if (turning) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
         f.pos.copy(ankle);

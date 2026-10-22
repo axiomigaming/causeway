@@ -1720,8 +1720,9 @@ def obstacle_clips():
         arm(A, "L", fwd=1.0 + 0.2 * k, elbow=0.4, out=0.35, wrist=-0.4, curl=0.6)
         arm(A, "R", fwd=0.9 + 0.2 * k, elbow=0.5, out=0.35, wrist=-0.4, curl=0.6)
         key(fr, A)
-    P = gkey(31, 0.28, k=0.85)
-    gkey(35, 0.5)
+    # Out of the absorb over a few more frames (the first step drives up out of the crouch).
+    P = gkey(32, 0.25, k=0.8)
+    gkey(37, 0.5)
 
     # ---------------------------------------------------------- slide: under a low beam (head ≤ ~1.0 m), up running
     new_action("slide")
