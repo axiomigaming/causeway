@@ -1691,20 +1691,39 @@ export class Game {
       const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
       this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
     }
-    // A set piece overhead (a lintel he slides under): looked for every frame, a third of a second
-    // ahead, since at speed it passes the lens in a blink.
+    // A set piece overhead (a lintel he slides under): looked for every frame, up to 0.6 s ahead,
+    // since at speed it passes the lens in a blink. The duck is an S-curve ramp (no surge): down
+    // under the lintel and in toward the path's centre line, clear of the bushes and vines at its
+    // edges, then back out the same way.
     const sCam = this.s - this.lensAlong();
-    let want = this.ceilWant;
-    for (const ahead of [0, 0.15, 0.3]) {
+    let near = false;
+    let depth = 0;
+    for (const ahead of [0, 0.15, 0.3, 0.45, 0.6]) {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
-      if (y !== null) want = Math.max(want, cam.position.y - (y - 0.4));
+      if (y !== null) {
+        near = true;
+        depth = Math.max(depth, cam.position.y - (y - 0.4));
+      }
     }
-    this.ceilDrop += (want - this.ceilDrop) * (1 - Math.exp(-dt * (want > this.ceilDrop ? 14 : 2.5)));
-    if (this.ceilDrop < 1e-3) return;
+    if (near) this.duckDepth = depth;
+    this.duckT = near ? Math.min(1, this.duckT + dt * 2.8) : Math.max(0, this.duckT - dt * 1.6);
+    const k = this.duckT * this.duckT * (3 - 2 * this.duckT);
+    this.ceilDrop += (this.ceilWant - this.ceilDrop) * (1 - Math.exp(-dt * (this.ceilWant > this.ceilDrop ? 10 : 2.5)));
+    const total = Math.max(this.ceilDrop, k * this.duckDepth);
+    if (total < 1e-3 && k < 1e-3) return;
     const p = cam.position;
     const floor = this.track.path.sample(this.s).pos.y + 0.5;
-    const drop = Math.min(this.ceilDrop, Math.max(0, p.y - floor));
+    const drop = Math.min(total, Math.max(0, p.y - floor));
     p.y -= drop;
+    if (k > 0) {
+      const f = this.track.path.sample(sCam, this.cframe);
+      const rx = Math.cos(f.yaw);
+      const rz = -Math.sin(f.yaw);
+      const lat = (p.x - f.pos.x) * rx + (p.z - f.pos.z) * rz;
+      const d = (THREE.MathUtils.clamp(lat, -0.15, 0.15) - lat) * k;
+      p.x += rx * d;
+      p.z += rz * d;
+    }
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
@@ -1712,6 +1731,8 @@ export class Game {
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
+  private duckT = 0;
+  private duckDepth = 0;
 
   /** How far behind the runner, along his heading, the lens is (m; negative when it is ahead). */
   private lensAlong(): number {
