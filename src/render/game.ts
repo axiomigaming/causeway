@@ -1148,10 +1148,18 @@ export class Game {
         const gap = 0.07 * (1 + 0.8 * e);
         tiles.forEach((t, i) => {
           this.later(0.02 + i * gap, () => {
+            // A slab in his fall line (the first metres beyond the lip, where he goes over at ~1.1 s)
+            // drops fast and tips out sideways, so he never lands on, rides or clips a falling slab.
+            const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
+            const along = tp.dot(h.fwd);
+            const inLine = along > -0.5 && along < 3.5;
+            const out = Math.sign(tp.dot(h.right) || (r.chance(0.5) ? 1 : -1));
             this.debris.spawn(
               t.piece,
               t.world,
-              new THREE.Vector3(r.range(-0.6, 0.6), r.range(-1.5, 0), r.range(-0.6, 0.6)),
+              inLine
+                ? h.right.clone().multiplyScalar(out * r.range(2.2, 3.2)).setY(-r.range(3.5, 4.5))
+                : new THREE.Vector3(r.range(-0.6, 0.6), r.range(-1.5, 0), r.range(-0.6, 0.6)),
               new THREE.Vector3(r.range(-1.2, 1.2), r.range(-0.3, 0.3), r.range(-1.2, 1.2)),
               () => null,
               // Slabs crack up as they drop: the nearer ones a moment after they go.
@@ -1188,7 +1196,8 @@ export class Game {
           });
         }
       };
-      if (walls !== 'none') blocks(n(4), 1, 8, F.pre + 0.3, false);
+      // (From 2.5 m beyond the lip: blocks off the walls never cross his fall line.)
+      if (walls !== 'none') blocks(n(4), 2.5, 8, F.pre + 0.3, false);
       // Big falls: the walls beside the gap come down too, in waves, the gap still widening.
       if (F.waves >= 1) {
         this.later(F.pre + 1.0, () => kick(0.5));
@@ -1209,13 +1218,15 @@ export class Game {
       // over the lip and down (its root leaves the floor at ~1.1 s), to the water below — a splash,
       // never anything worse. The camera stays at the lip and tilts down after him. Where there is
       // no slab to give, or for the other variant, he kneels at the edge instead (fall_chasm_b).
-      const dropT = 1.0;
+      // The slab under him goes just as fall_chasm's root leaves the floor (1.1 s; runner round 17).
+      const dropT = 1.1;
       const under = st.variant % 2 === 0 ? this.tileUnder(this.stopAt) : null;
       if (st.variant % 2 === 0 && !under) this.runner.play('fall_chasm_b', 0.12);
       if (under) {
         this.later(dropT - 0.06, () => {
           this.track.hideTile(under);
-          this.debris.spawn(under.piece, under.world, new THREE.Vector3(0, -0.6, 0), new THREE.Vector3(r.range(-0.8, 0.8), 0, r.range(-0.8, 0.8)), () => null, { breakInto: 3, breakAfter: 0.3 });
+          // It drops out from under him (fast, back under the lip, tipping), never riding down with him.
+          this.debris.spawn(under.piece, under.world, h.fwd.clone().multiplyScalar(-1.5).setY(-3), h.right.clone().multiplyScalar(r.chance(0.5) ? 2.5 : -2.5), () => null, { breakInto: 3, breakAfter: 0.3 });
           const p = this.runner.root.position.clone();
           this.particles.burst(p, 10, { spread: 2.2, up: 1.2, speed: 2, size: 0.5, life: 1.4, color: DUST, alpha: 0.3 });
           B.puff(p, { count: 2 + Math.round(2 * F.dust), spread: 2.4, jitter: 0.8, vel: new THREE.Vector3(0, 1.4, 0), size: [0.9, 2.8 + 1.5 * e], life: 2.4, alpha: 0.36, tint: DUST_T, rise: 0.3 });
