@@ -914,8 +914,9 @@ export class Game {
   };
 
   /** Solid near-path props of a section (walls, pillars, arches, stelae — not leaves, not far scenery). */
-  private solids(sec: { type?: string; root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }) {
-    let list = this.occl.cache.get(sec);
+  private solids(sec: { type?: string; root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }, all = false) {
+    const cache = all ? this.occlAll : this.occl.cache;
+    let list = cache.get(sec);
     if (list) return list;
     list = [];
     const p = new THREE.Vector3();
@@ -926,12 +927,12 @@ export class Game {
       const geo = this.kit.geo.get(pl.piece);
       const mat = this.kit.matOf.get(pl.piece);
       if (!geo || !mat || mat === 'leaf') continue;
-      if (!corner && Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
+      if (!all && !corner && Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
       if (!geo.boundingBox) geo.computeBoundingBox();
       const world = sec.root.matrix.clone().multiply(pl.m);
       list.push({ geo, world, inv: world.clone().invert() });
     }
-    this.occl.cache.set(sec, list);
+    cache.set(sec, list);
     return list;
   }
 
@@ -1779,8 +1780,9 @@ export class Game {
     if (!this.track) return false;
     if (p.y < WATER_Y + 0.15) return true;
     for (const sec of this.track.sections) {
-      if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 25) continue;
-      for (const e of this.solids(sec)) {
+      if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 45) continue; // a settled lens can stand well back
+      // Every solid prop, the far scenery too: after a corner the way can pass a section's vista.
+      for (const e of this.solids(sec, true)) {
         this.guardP.copy(p).applyMatrix4(e.inv);
         this.guardBox.copy(e.geo.boundingBox!).expandByScalar(-0.15);
         if (!this.guardBox.containsPoint(this.guardP)) continue;
@@ -1821,6 +1823,7 @@ export class Game {
     return this.debris.containsHeavy(p);
   }
   private tmpInvL = new THREE.Matrix4();
+  private occlAll = new WeakMap<object, { geo: THREE.BufferGeometry; world: THREE.Matrix4; inv: THREE.Matrix4 }[]>();
 
   private tremor(I: number, k = I) {
     this.rig.addTrauma(0.1 + I * 0.25);
