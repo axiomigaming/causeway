@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SOUNDS } from '../src/audio/catalog';
@@ -286,19 +287,28 @@ describe('shipped audio', () => {
   const dir = join(__dirname, '..', 'public', 'audio');
   const names = Object.keys(MANIFEST.sounds);
 
-  it('every manifest file exists with the recorded size and hash, in both formats', () => {
-    for (const n of names) {
-      const s = MANIFEST.sounds[n]!;
-      for (const f of [s.webm, s.m4a]) {
-        const p = join(dir, f.file);
-        expect(existsSync(p), f.file).toBe(true);
-        const buf = readFileSync(p);
-        expect(buf.length).toBe(f.bytes);
-        expect(createHash('sha256').update(buf).digest('hex').slice(0, 10)).toBe(f.hash);
-      }
-      expect(s.slices.length).toBeGreaterThan(0);
+  // Every shipped file, both formats: present, the recorded size, the recorded hash. One test per sound,
+  // each hashing its files as a stream: the old single synchronous test read and hashed ~12 MB in one go
+  // and, on a machine loaded by Blender bakes, overran vitest's 5 s deadline (a sync test that runs past it
+  // fails with a timeout). Streaming yields to the event loop, and each sound has its own 30 s budget.
+  const sha = (p: string) =>
+    new Promise<string>((resolve, reject) => {
+      const h = createHash('sha256');
+      createReadStream(p).on('data', (c) => h.update(c)).on('error', reject).on('end', () => resolve(h.digest('hex')));
+    });
+  it('the manifest lists shipped sounds', () => {
+    expect(names.length).toBeGreaterThan(0);
+  });
+  it.each(names)('%s: both formats exist with the recorded size and hash', async (n) => {
+    const s = MANIFEST.sounds[n]!;
+    expect(s.slices.length).toBeGreaterThan(0);
+    for (const f of [s.webm, s.m4a]) {
+      const p = join(dir, f.file);
+      expect(existsSync(p), f.file).toBe(true);
+      expect((await stat(p)).size, f.file).toBe(f.bytes);
+      expect((await sha(p)).slice(0, 10), f.file).toBe(f.hash);
     }
-  }, 30000); // hashes every shipped file: slow on a loaded machine
+  }, 30000);
 
   it('every shipped sound has a catalog entry (and so a bus, level and voice limits)', () => {
     for (const n of names) if (n !== 'ir_room' && MANIFEST.sounds[n]!.group !== 'theme') expect(SOUNDS[n], n).toBeDefined();
