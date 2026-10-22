@@ -37,7 +37,7 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // A colossal guardian (≈45 m) toppled across the river on its side, its shoulders and head reared out
   // of the water, its feet sunk; the broken-off head of another lies face-up in the shallows nearby.
   fallen_colossus: [
-    { piece: 'guardian_1', x: -20, y: WATER_Y - 8, z: -16, rotY: Math.PI, tilt: [0, -(Math.PI / 2 - 0.32)], s: 9.5 },
+    { piece: 'guardian_1', x: -24, y: WATER_Y + 1, z: -10, rotY: 0, tilt: [0, -(Math.PI / 2 - 0.5)], s: 11.5 },
     { piece: 'head_0', x: 14, y: WATER_Y - 6, z: 6, rotY: 0.6, tilt: [-1.1, 0.25], s: 4.4 },
     // Fragments of it in the water beside the approach.
     { piece: 'column_fallen_0', x: 0, y: WATER_Y - 0.6, z: 48, rotY: 0.9, s: 2.2, near: true },
@@ -59,9 +59,9 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   // A step pyramid ≈75 m across, sunk so that its upper tiers and shrine break the water: broad
   // stepped terraces, wider than they are tall in the frame, its stair toward the runner.
   sunken_temple: [
-    { piece: 'temple_0', x: 4, y: WATER_Y - 22, z: -28, rotY: 0, s: [4.3, 3.0, 4.3] },
+    { piece: 'temple_0', x: 4, y: WATER_Y - 6, z: -36, rotY: 0, s: [4.5, 3.0, 4.5] },
     // A drowned stele and a feathered-serpent post beside the approach.
-    { piece: 'stele_0', x: -1, y: WATER_Y - 1.5, z: 50, rotY: 0.4, tilt: [0.1, 0.15], s: 2.8, near: true },
+    { piece: 'stele_0', x: -2, y: WATER_Y - 1.2, z: 50, rotY: 0.4, tilt: [0.1, 0.15], s: 1.7, near: true },
     { piece: 'serpent_0', x: -21, y: WATER_Y - 0.8, z: 58, rotY: -0.8, s: 3.0, near: true },
     { piece: 'rubble_1', x: -2, y: WATER_Y - 0.6, z: 66, rotY: 1.3, s: 2.5, near: true },
   ],
@@ -122,8 +122,8 @@ export class Landmarks {
     let m = this.hazed.get(key);
     if (!m) {
       const c = base.clone();
-      c.color.multiply(new THREE.Color(0.66, 0.72, 0.8));
-      c.emissive = HAZE.clone().multiplyScalar(0.16);
+      c.color.multiply(new THREE.Color(0.72, 0.78, 0.86));
+      c.emissive = HAZE.clone().multiplyScalar(0.11);
       this.hazed.set(key, c);
       m = c;
     }
