@@ -72,7 +72,19 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
           // so distant crowns read as flat, pale cut-outs against the haze. Past ~30 m the silhouette
           // fills in (a softer alpha threshold) and the green deepens.
           float leafFar = smoothstep(30.0, 90.0, length(vLeafW - cameraPosition));
-          diffuseColor.a = mix(diffuseColor.a, smoothstep(0.12, 0.5, diffuseColor.a), leafFar);
+          #ifdef USE_MAP
+          // Round 14 (clarity): the alpha comes from a mip no coarser than level 2. At the small mips a
+          // whole card's alpha averages to one value, so with the softened threshold below each distant
+          // card turned into one solid square (blocky 8-16 px tiles over the crowns, lit bright by the
+          // translucency near the sun). The clamped mip keeps the card's leaf cut-out.
+          {
+            vec2 leafTs = vec2(textureSize(map, 0));
+            vec2 lx = dFdx(vMapUv * leafTs), ly = dFdy(vMapUv * leafTs);
+            float leafLod = 0.5 * log2(max(max(dot(lx, lx), dot(ly, ly)), 1e-8));
+            diffuseColor.a = textureLod(map, vMapUv, clamp(leafLod, 0.0, 2.0)).a * opacity;
+          }
+          #endif
+          diffuseColor.a = mix(diffuseColor.a, smoothstep(0.22, 0.55, diffuseColor.a), leafFar);
           diffuseColor.rgb *= mix(vec3(1.0), vec3(0.72, 0.82, 0.7), leafFar);
         }
         #include <alphatest_fragment>
