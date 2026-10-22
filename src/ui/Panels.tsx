@@ -12,12 +12,14 @@ function Sheet({ title, eyebrow, children, wide, onClose }: { title: string; eye
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>('button, input')?.focus();
+    // Focus the dialog itself (not its first control), so opening it never paints a focus ring on
+    // the close button; the next Tab lands inside it.
+    ref.current?.focus({ preventScroll: true });
     return () => prev?.focus?.();
   }, []);
   return (
     <div className="veil" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
+      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}>
         <div className="sheet-head">
           <div>
             <div className="eyebrow">{eyebrow}</div>
@@ -105,9 +107,7 @@ function Fair({ onClose }: { onClose: () => void }) {
             </button>
           </div>
           <span className="k">Run number (nonce)</span>
-          <span className="num" style={{ fontSize: 18 }}>
-            {s.nextNonce}
-          </span>
+          <span className="num kv-fig">{s.nextNonce}</span>
         </div>
       </div>
       <div className="sect">

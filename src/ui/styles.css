@@ -414,6 +414,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .veil { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(8, 6, 4, 0.56); pointer-events: auto; animation: fadein 0.2s; }
 .sheet { position: relative; width: min(560px, 100%); max-height: min(84vh, 760px); display: flex; flex-direction: column; overflow: hidden; animation: sheetIn 0.22s var(--ease); }
 .sheet.wide { width: min(720px, 100%); }
+.sheet:focus { outline: none; }
 @keyframes sheetIn { from { opacity: 0; transform: translateY(12px); } }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 16px 16px 24px; border-bottom: 1px solid var(--hair); }
 .sheet-head .eyebrow { display: block; }
@@ -426,6 +427,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .sect > h3 { margin: 0 0 12px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
 .kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; align-items: center; font-size: var(--t14); }
 .kv .k { color: var(--label); }
+.kv .kv-fig { font-size: var(--t20); line-height: 24px; color: var(--text); }
 .kv select { min-height: 48px; font: inherit; border-radius: 10px; }
 .hash { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--hair); background: rgba(0, 0, 0, 0.2); font-size: var(--t12); line-height: 16px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--text); word-break: break-all; user-select: text; }
 .hash button { position: relative; flex: none; min-width: 24px; min-height: 24px; padding: 0; border: 0; background: none; color: var(--label); pointer-events: auto; }
