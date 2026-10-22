@@ -205,11 +205,11 @@ def configure(rig):
 G_ACC = 9.81
 
 RUN = dict(
-    ts=0.28, D=0.72, xtd=0.24, knee=(0.38, 0.97, 0.24), v=5.0,
+    ts=0.28, D=0.78, xtd=0.24, knee=(0.38, 0.97, 0.24), v=6.0,
     af=[(0.0, 0.14), (0.14, 0.0), (0.42, 0.0), (1.0, -1.15)],
     swing=[(0.18, -0.34, 1.05, 0.45), (0.42, 0.12, 1.85, 0.12), (0.68, 0.72, 1.42, -0.12), (0.86, 0.66, 0.66, -0.16)],
-    hp=0.16, lean=0.21, hyaw=0.12, hroll=0.05, chest=0.85, head_down=0.14,
-    arm_c=0.22, arm_a=0.95, elbow=1.62, elbow_a=0.4, out=0.25, curl=0.95, peak=0.76, frames=48,
+    hp=0.17, lean=0.25, hyaw=0.12, hroll=0.05, chest=0.85, head_down=0.14,
+    arm_c=0.24, arm_a=1.02, elbow=1.62, elbow_a=0.4, out=0.25, curl=0.95, peak=0.76, frames=48,
 )
 SPRINT = dict(
     ts=0.225, D=0.88, xtd=0.18, knee=(0.42, 0.9, 0.18), v=9.0,
@@ -936,22 +936,31 @@ AKIMBO = dict(fwd=-0.2, elbow=1.55, out=0.55, twist=0.6, curl=0.6)
 FISTS = dict(fwd=0.5, elbow=1.9, out=0.3, curl=1.35)
 
 
+DECEL = 30  # frames from the run to the braking plant (decel())
+
+
 def decel(f0=1):
-    """Run → stop in three slowing steps (~0.55 s), the arm swing dying away, a last braking plant."""
+    """Run → stop over ~1 s: four slowing steps, each a little longer, the stride shortening, the arm
+    swing dying away and the trunk coming up and back to brake; a last braking plant, a glance back over
+    the shoulder at what he got away from, and the arms swinging on through it."""
     run_in(f0)
-    for d, ph, k in ((5, 0.5, 0.75), (10, 0.0, 0.5), (15, 0.5, 0.28)):
+    for d, ph, k, back in ((5, 0.5, 0.8, 0.0), (11, 0.0, 0.6, 0.07), (18, 0.5, 0.42, 0.13), (26, 0.0, 0.26, 0.17)):
         P, x = loco(ph, RUN, k)
+        nudge(P, "spine", dx=0.55 * back)
+        nudge(P, "chest", dx=0.45 * back)
+        nudge(P, "neck", dx=-0.3 * back)
         key(f0 + d - 1, P, z=gait_root(ph, RUN, k), x=x)
     P = {}
-    torso(P, lean=-0.05, look=0.25, hp=0.0)
-    leg(P, "L", hip=0.35, knee=0.25, ankle=-0.15)
-    leg(P, "R", hip=0.0, knee=0.35, ankle=0.15)
-    arm(P, "L", fwd=0.35, elbow=0.9, out=0.3, curl=0.5)
-    arm(P, "R", fwd=0.25, elbow=0.9, out=0.3, curl=0.5)
-    key(f0 + 18, P)
+    torso(P, lean=-0.1, look=0.3, hp=-0.02, head_yaw=0.55, yaw=0.12)
+    leg(P, "L", hip=0.4, knee=0.3, ankle=-0.18)
+    leg(P, "R", hip=0.0, knee=0.4, ankle=0.18, toe=0.2)
+    arm(P, "L", fwd=0.55, elbow=0.8, out=0.3, curl=0.4)
+    arm(P, "R", fwd=0.4, elbow=0.9, out=0.3, curl=0.4)
+    key(f0 + DECEL, P)
+    return f0 + DECEL
 
 
-def turn_to(f0, yaw, arms):
+def turn_to(f0, yaw, arms, y=0.0):
     """Three small steps round to `yaw`, the head leading the body."""
     for d, k, lift_leg in ((4, 0.3, "R"), (8, 0.65, "L"), (12, 0.92, "R"), (14, 1.0, None)):
         P = {}
@@ -962,10 +971,10 @@ def turn_to(f0, yaw, arms):
         arm(P, "L", **arms)
         arm(P, "R", **arms)
         standing_turned(P, yaw * k)
-        key(f0 + d, P)
+        key(f0 + d, P, y=y)
 
 
-def hold(f0, yaw, arms, n=8, step=14):
+def hold(f0, yaw, arms, n=8, step=14, y=0.0):
     """The held payoff: breathing, the weight rocking from foot to foot, a nod, the head never still."""
     for i in range(n):
         side = 1 if i % 2 else -1
@@ -978,7 +987,7 @@ def hold(f0, yaw, arms, n=8, step=14):
         leg(P, "R" if side > 0 else "L", hip=0.1, knee=0.24, ankle=0.12, out=0.1)
         arms(P, i)
         standing_turned(P, yaw)
-        key(f0 + i * step, P, x=0.025 * side)
+        key(f0 + i * step, P, x=0.025 * side, y=y)
 
 
 
@@ -1146,17 +1155,18 @@ def extra_clips():
         decel(1)
         if lvl == 0:
             # Head back, a long breath out, hands to the hips.
-            for fr, br in ((20, 0.0), (27, 1.0), (34, 0.3)):
+            for fr, br in ((DECEL + 4, 0.0), (DECEL + 11, 1.0), (DECEL + 18, 0.3)):
                 P = {}
                 torso(P, lean=-0.08 - 0.06 * br, look=0.35 + 0.35 * br, hp=-0.04, breath=0.07 * br)
                 standing(P, wide=0.11, bend=0.08)
                 for sd in "LR":
                     arm(P, sd, **AKIMBO)
                 key(fr, P)
-            t = 34
+            t = DECEL + 18
         else:
             # Hands on the knees, back heaving, eyes up the road.
-            heave = ((21, 0.0), (27, 1.0), (33, 0.0), (39, 1.0)) if lvl == 2 else ((21, 0.0), (27, 1.0), (33, 0.0), (39, 1.0), (45, 0.0))
+            heave = ((5, 0.0), (11, 1.0), (17, 0.0), (23, 1.0)) if lvl == 2 else ((5, 0.0), (11, 1.0), (17, 0.0), (23, 1.0), (29, 0.0))
+            heave = tuple((DECEL + d, br) for d, br in heave)
             for fr, br in heave:
                 P = {}
                 torso(P, lean=0.95 - 0.06 * br, look=0.85, hp=0.35, breath=0.07 * br)
@@ -1411,13 +1421,29 @@ def epic_clips():
     arm(P, "R", fwd=0.5, elbow=2.1, out=0.2, curl=1.35)
     arm(P, "L", fwd=0.3, elbow=1.0, out=0.3, curl=1.0)
     key(37, P, y=1.8)
-    for fr, br in ((44, 0.0), (58, 1.0), (72, 0.0), (90, 1.0), (110, 0.0)):
+    # A breath on his feet, hands to the thighs, a look back at the gate he went under …
+    for fr, br, hy in ((42, 0.0, 0.2), (48, 1.0, 0.75), (54, 0.0, 0.9)):
         P = {}
-        torso(P, lean=-0.08, look=0.32, breath=0.045 * br)
-        standing(P, wide=0.12, bend=0.05)
-        arm(P, "R", fwd=2.85, elbow=0.12, out=-0.3, curl=1.35)
-        arm(P, "L", fwd=-0.2, elbow=1.55, out=0.55, twist=0.6, curl=0.6)
+        torso(P, lean=0.55 - 0.05 * br, look=0.6, hp=0.2, breath=0.07 * br, head_yaw=hy)
+        standing(P, wide=0.13, bend=0.22)
+        for sd in "LR":
+            arm(P, sd, fwd=0.75, elbow=0.35, out=0.22, wrist=-0.3, curl=0.35, shrug=0.05 * br)
         key(fr, P, y=1.8)
+    # … then round to it (and the lens), both fists punched up, and the living hold.
+    turn_to(56, 2.9, arms=FISTS, y=1.8)
+    for d, up, bend in ((6, 1.0, 0.04), (11, 0.88, 0.16), (16, 1.0, 0.03), (24, 0.95, 0.08)):
+        P = {}
+        torso(P, lean=-0.2 * up, look=0.5 * up, breath=0.05)
+        standing(P, wide=0.14, bend=bend)
+        for sd in "LR":
+            arm(P, sd, fwd=2.85 * up, elbow=0.05 + (1 - up) * 1.6, out=-0.45 * up + 0.3 * (1 - up), curl=1.35)
+        standing_turned(P, 2.9)
+        key(70 + d, P, y=1.8)
+
+    def arms_s(P, i):
+        arm(P, "R", fwd=2.75 - 0.05 * (i % 2), elbow=0.15, out=-0.4, curl=1.35)
+        arm(P, "L", **AKIMBO)
+    hold(104, 2.9, arms_s, y=1.8)
 
     # ---------------------------------------------------------- fall_ledge: the floor goes; a desperate leap for the
     # far lip, a catch, a hang, one hand slips, and the drop (root below the floor: for collapse staging only)

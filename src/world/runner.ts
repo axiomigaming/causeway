@@ -51,8 +51,8 @@ export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: n
   turn_cut_R: { from: 0.5, to: 0.5, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
   stumble_land: { from: -1, to: 0.6, duration: 19 / 30, takeoff: 0, land: 2 / 30 },
 };
-/** The run clip's cadence at the pace the moves were authored (5 m/s over its 2.571 m stride). */
-const OBST_CADENCE = 5 / 2.571;
+/** The stride cadence the moves were authored at (one stride cycle per ~0.51 s of clip time). */
+const OBST_CADENCE = 1.945;
 
 /** Clip seconds per real second for a move started at this cadence: it keeps step with the run. */
 export function obstacleRate(cadence: number): number {
@@ -66,10 +66,27 @@ export function obstacleRate(cadence: number): number {
 export function obstacleTiming(name: Obstacle, cadence: number, speed: number, distance = 2.25): { takeoff: number; land: number; duration: number; flight: number } {
   const O = OBSTACLES[name];
   const r = obstacleRate(cadence);
+  if (name === 'vault') {
+    // The plant plays at the floor's pace (see VAULT_PLANT); the rest at the move's rate.
+    const [p0, p1] = VAULT_PLANT;
+    const plant = (p1 - p0) / vaultPlantRate(speed);
+    const land = (O.land - (p1 - p0)) / r + plant;
+    return { takeoff: O.takeoff / r, land, duration: land + (O.duration - O.land) / r, flight: land - O.takeoff / r };
+  }
   if (name !== 'leap_gap') return { takeoff: O.takeoff / r, land: O.land / r, duration: O.duration / r, flight: (O.land - O.takeoff) / r };
   const flight = leapFlight(distance, speed);
   const takeoff = O.takeoff / r;
   return { takeoff, land: takeoff + flight, duration: takeoff + flight + (O.duration - O.land) / r, flight };
+}
+
+/**
+ * The vault's palm is baked onto the pillar top with the floor going by at 5 m/s of clip time (clip
+ * seconds 9/30–15/30). Through that window the clip plays at speed / 5, so at any speed the floor, and
+ * the pillar on it, passes under the hand at the rate it was baked for: the palm stays put.
+ */
+export const VAULT_PLANT: readonly [number, number] = [9 / 30, 15 / 30];
+export function vaultPlantRate(speed: number): number {
+  return Math.min(2.6, Math.max(0.6, speed / 5));
 }
 
 /** leap_gap's time in the air for a gap at a speed (s), kept between a hop and a long bound. */
@@ -85,7 +102,7 @@ const GAITS = ['run', 'sprint', 'dash'] as const;
  * cadence to speed / S keeps the planted foot still on the floor. Keep in step with the clip builder
  * (it prints S for each gait).
  */
-export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.571, sprint: 3.911, dash: 4.842 };
+export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.786, sprint: 3.911, dash: 4.842 };
 
 /** Blend weights of the gait clips for a (continuous) run tier. */
 export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
@@ -122,9 +139,9 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   fall_chasm_b: [[0.12, 'L', 1], [0.3, 'R', 0.9], [0.52, 'L', 0.6]],
   fall_gate_b: [[0.15, 'L', 0.9], [0.5, 'R', 0.6], [0.8, 'L', 0.5]],
   fall_rock_b: [[0.12, 'L', 0.8], [0.3, 'R', 0.6], [0.52, 'L', 0.7]],
-  win_cheer: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.7, 'R', 0.2], [1.83, 'L', 0.2], [1.95, 'R', 0.2]],
-  win_pump: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.33, 'R', 0.2], [1.47, 'L', 0.2], [1.58, 'R', 0.2]],
-  win_cheer_big: [[0.13, 'R', 0.6], [0.3, 'L', 0.55], [0.47, 'R', 0.45], [0.6, 'L', 0.5], [1.5, 'R', 0.2], [1.63, 'L', 0.2], [1.75, 'R', 0.2], [2.77, 'L', 0.7], [2.78, 'R', 0.7], [3.33, 'L', 0.7], [3.34, 'R', 0.7]],
+  win_cheer: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [2.1, 'R', 0.2], [2.23, 'L', 0.2], [2.35, 'R', 0.2]],
+  win_pump: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.7, 'R', 0.2], [1.83, 'L', 0.2], [1.95, 'R', 0.2]],
+  win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.9, 'R', 0.2], [2.03, 'L', 0.2], [2.15, 'R', 0.2], [3.17, 'L', 0.7], [3.18, 'R', 0.7], [3.73, 'L', 0.7], [3.74, 'R', 0.7]],
   jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
   leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
   slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
@@ -134,7 +151,7 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
   win_salute: [[0.27, 'R', 0.4], [0.5, 'L', 0.25], [1.1, 'R', 0.2], [1.27, 'L', 0.2], [1.43, 'R', 0.2]],
   win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8], [2.63, 'R', 0.2], [2.77, 'L', 0.2], [2.88, 'R', 0.2]],
-  win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5]],
+  win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5], [2.03, 'R', 0.2], [2.17, 'L', 0.2], [2.28, 'R', 0.2]],
   fall_ledge: [[0.17, 'L', 0.9]],
 };
 
@@ -563,6 +580,7 @@ export class Runner {
       const O = OBSTACLES[this.obst.name];
       const a = this.actions.get(this.obst.name)!;
       a.timeScale = this.obst.rate;
+      if (this.obst.name === 'vault' && a.time >= VAULT_PLANT[0] && a.time < VAULT_PLANT[1]) a.timeScale = vaultPlantRate(this.speed);
       if (this.obst.name === 'leap_gap' && a.time >= O.takeoff && a.time < O.land) {
         const nominal = O.land - O.takeoff;
         a.timeScale = nominal / this.obst.flight;

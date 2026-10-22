@@ -141,6 +141,15 @@ describe('obstacle moves', () => {
     // Faster turnover plays the moves faster, within limits.
     expect(obstacleRate(2.4)).toBeGreaterThan(obstacleRate(1.9));
     expect(obstacleRate(10)).toBeLessThanOrEqual(1.45);
+    // The vault's plant plays at the floor's pace: the pillar passes under the palm at the baked 5 m/s
+    // of clip time whatever the speed, so the palm does not slide.
+    const { vaultPlantRate, VAULT_PLANT } = await import('../src/world/runner');
+    for (const v of [6, 9, 12]) expect(v / vaultPlantRate(v)).toBeCloseTo(5, 6);
+    const slow = obstacleTiming('vault', 2.3, 6);
+    const fast = obstacleTiming('vault', 2.6, 12);
+    expect(fast.land - fast.takeoff).toBeLessThan(slow.land - slow.takeoff);
+    expect(VAULT_PLANT[0]).toBeGreaterThan(OBSTACLES.vault.takeoff);
+    expect(VAULT_PLANT[1]).toBeLessThan(OBSTACLES.vault.land);
     for (const [name, O] of Object.entries(OBSTACLES)) {
       expect(O.takeoff, name).toBeLessThanOrEqual(O.land);
       expect(O.land, name).toBeLessThan(O.duration);
