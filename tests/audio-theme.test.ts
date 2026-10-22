@@ -228,6 +228,21 @@ describe('results', () => {
     expect(starts.length).toBe(n);
   });
 
+  it('with the pull-up time, the fanfare lands on the beat of the run nearest it, and the run plays until then', () => {
+    const { ctx, starts, th } = mk();
+    th.startRun(0);
+    play(ctx, th, 5.01);
+    const t0 = Math.min(...starts.filter((s) => s.name.startsWith('th_l')).map((s) => s.at));
+    const want = 5.01 + 1.1;
+    const at = th.escape(2, want);
+    const f = starts.find((s) => s.name === 'th_win1')!;
+    expect(f.at).toBe(at);
+    const beats = (at - t0) / (BAR / 4);
+    expect(Math.abs(beats - Math.round(beats))).toBeLessThan(1e-6);
+    expect(Math.abs(at - want)).toBeLessThanOrEqual(BAR / 8 + 1e-6);
+    expect(th.escape(3, want)).toBe(-1); // settled once
+  });
+
   it('after the lift, the fanfare and the sting play in the lifted key', () => {
     const a = mk();
     a.th.startRun(0);
