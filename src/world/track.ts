@@ -6,6 +6,7 @@ import { Path, frameMatrix, type Frame, type Segment } from './path';
 import { Obstacles, type Obstacle, type ObstacleKind } from './obstacles';
 import { Landmarks } from './landmarks';
 import { STYLES, type LandmarkKind, type WorldStyle } from './style';
+import { TURN_R } from './sections';
 import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionType } from './sections';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
@@ -78,9 +79,15 @@ export interface SectionInstance {
   /** World-space feet of this section's waterfalls (xyz) and the reach of their spray (w). */
   feet: THREE.Vector4[];
   variant: Variant;
+  /** Its far scenery (|x| ≥ 7.5) as world-space footprints: x, z, horizontal radius. */
+  solid: [number, number, number][];
 }
 
+/** How close a later stretch of route may come to a piece of earlier scenery (m, edge to centreline). */
+export const ROUTE_CLEARANCE = 8;
+
 const MIRROR_X = new THREE.Matrix4().makeScale(-1, 1, 1);
+const TURN_LEN_M = (TURN_R * Math.PI) / 2;
 
 /** Length along the path of each walkable piece (metres). */
 const TILE_LENGTH: Record<string, number> = { floor_wide_0: 8 };
@@ -354,6 +361,64 @@ export class Track {
     }
   }
 
+  private radii = new Map<string, number>();
+  /** A kit piece's horizontal radius about its origin (0 when the kit has no geometry for it). */
+  private radius(piece: string): number {
+    let r = this.radii.get(piece);
+    if (r === undefined) {
+      const g = this.kit.geo.get(piece);
+      r = 0;
+      if (g) {
+        if (!g.boundingBox) g.computeBoundingBox();
+        const b = g.boundingBox!;
+        r = Math.max(Math.hypot(b.min.x, b.min.z), Math.hypot(b.max.x, b.max.z), Math.hypot(b.min.x, b.max.z), Math.hypot(b.max.x, b.min.z));
+      }
+      this.radii.set(piece, r);
+    }
+    return r;
+  }
+
+  /** World footprints of a section's far scenery (anything solid out beside the way). */
+  private footprints(layout: Layout, world: THREE.Matrix4): [number, number, number][] {
+    const out: [number, number, number][] = [];
+    const p = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
+    for (const pl of layout.props) {
+      if (isWaterPiece(pl.piece)) continue;
+      pl.m.decompose(p, q, sc);
+      if (Math.abs(p.x) < 7.5) continue;
+      const r = this.radius(pl.piece) * Math.max(Math.abs(sc.x), Math.abs(sc.z));
+      p.applyMatrix4(world);
+      out.push([p.x, p.z, r]);
+    }
+    return out;
+  }
+
+  /**
+   * Would a corner (`turn` rad) at the end of the route, and the straight 150 m after it, pass within
+   * ROUTE_CLEARANCE of scenery already built (a vista temple at the end of the last section, a bank,
+   * a landmark)? Then the corner is not taken: the scenery is shared, merged geometry and cannot be
+   * culled piece by piece, so the route keeps clear of it instead.
+   */
+  private cornerBlocked(turn: number, len: number): boolean {
+    const probe = new Path();
+    probe.reset(this.path.tail);
+    probe.push(len, turn, 0);
+    probe.push(150, 0, 0);
+    const f = { pos: new THREE.Vector3(), yaw: 0 };
+    const pts: THREE.Vector3[] = [];
+    for (let q = 1; q <= probe.length; q += 3) pts.push(probe.sample(q, f).pos.clone());
+    const near = (x: number, z: number, r: number) => pts.some((c) => Math.hypot(c.x - x, c.z - z) < r + ROUTE_CLEARANCE);
+    for (const sec of this.sections) for (const [x, z, r] of sec.solid) if (near(x, z, r)) return true;
+    const lp = new THREE.Vector3();
+    for (const l of this.landmarks.list) {
+      lp.setFromMatrixPosition(l.root.matrix);
+      if (near(lp.x, lp.z, 20)) return true;
+    }
+    return false;
+  }
+
   /** Keep the route built ahead of `s` and cleared behind it. */
   update(s: number, intensity: number): void {
     while (this.path.length < s + this.viewDistance) {
@@ -364,8 +429,15 @@ export class Track {
       // follows one (the exit leg ran through the gorge's cliff), and none follows a corner.
       const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
       const afterCorner = this.lastType === 'turnL' || this.lastType === 'turnR';
+      const blocked = new Map<SectionType, boolean>();
+      const clear = (t: SectionType) => {
+        if (!blocked.has(t)) blocked.set(t, this.cornerBlocked(t === 'turnL' ? Math.PI / 2 : -Math.PI / 2, TURN_LEN_M));
+        return !blocked.get(t);
+      };
       const allow = (t: SectionType) =>
-        afterCorner && BIG.includes(t)
+        (t === 'turnL' || t === 'turnR') && !clear(t)
+          ? false
+          : afterCorner && BIG.includes(t)
           ? false
           : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType)
             ? false
@@ -374,7 +446,23 @@ export class Track {
           : t === 'turnR'
             ? this.heading > -1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side > 0)
             : true;
-      const t = this.forceNext.shift() ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
+      let forced = this.forceNext.shift();
+      // A forced corner (a landmark's, or QA's) that would run into scenery already built turns the
+      // other way if it may, or becomes an open straight (the landmark then waits for its next chance).
+      if ((forced === 'turnL' || forced === 'turnR') && !clear(forced)) {
+        const other: SectionType = forced === 'turnL' ? 'turnR' : 'turnL';
+        const otherOk = (other === 'turnL' ? this.heading < 1 : this.heading > -1) && clear(other);
+        if (otherOk) forced = other;
+        else {
+          forced = 'approach';
+          if (this.pendingLandmark) {
+            this.landmarkQueue.unshift(this.pendingLandmark);
+            this.pendingLandmark = null;
+            this.forceNext = this.forceNext.filter((x) => x !== 'approach');
+          }
+        }
+      }
+      const t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
       this.spawn(t, intensity);
       this.lastType = t;
       if (t === 'turnL' || t === 'turnR') {
@@ -471,7 +559,7 @@ export class Track {
     fallFeet(layout.falls, world, toWater, feet);
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(layout, world) };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();

@@ -142,6 +142,42 @@ describe('walkable tiles', () => {
     expect(staged).toBeGreaterThan(5);
   });
 
+  it('never routes a later stretch of the way through scenery already built (natural and forced corners)', async () => {
+    // Stand-in geometry so the scenery has real footprints: a 6 m block (radius ≈4 m) for the big far pieces.
+    const kit = fakeKit();
+    const block = new THREE.BoxGeometry(6, 4, 6);
+    for (const n of ['temple_0', 'temple_1', 'tower_0', 'tower_1', 'rock_big_0', 'rock_big_1', 'rock_big_2', 'jungle_bank_0', 'jungle_bank_1', 'jungle_bank_2', 'arch_1', 'facade_0', 'facade_1', 'guardian_0', 'guardian_1'])
+      kit.geo.set(n, block);
+    const track = new Track(kit);
+    await track.prepare({ foliage: 1, scenery: 1 });
+    const f = { pos: new THREE.Vector3(), yaw: 0 };
+    let checked = 0;
+    for (let w = 0; w < 8; w++) {
+      track.reset(`clearance-${w}`);
+      // Every other world forces corners right after the sections that end in a vista or scenery.
+      if (w % 2) for (let k = 0; k < 6; k++) track.forceNext.push('corridor', 'corridor', 'corridor', k % 2 ? 'turnR' : 'turnL');
+      const seen: { s1: number; yaw: number; solid: [number, number, number][] }[] = [];
+      for (let s = 0; s < 2500; s += 20) {
+        track.update(s, 0.5);
+        for (const sec of track.sections) if (!seen.some((x) => x.s1 === sec.s0 + sec.len)) seen.push({ s1: sec.s0 + sec.len, yaw: sec.seg.yaw0 + sec.seg.turn, solid: sec.solid });
+        // Every stretch of route after a corner keeps clear of the scenery of the sections before it
+        // (on the same heading, scenery stands beside the way by design).
+        for (const { s1, yaw, solid } of seen) {
+          for (let q = Math.max(s1 + 1, s - 30); q < track.path.length; q += 4) {
+            track.path.sample(q, f);
+            if (Math.abs(Math.sin(f.yaw - yaw)) < 0.3) continue;
+            for (const [x, z, r] of solid) {
+              if (r === 0) continue;
+              checked++;
+              expect(Math.hypot(f.pos.x - x, f.pos.z - z), `route at ${q.toFixed(0)} vs scenery`).toBeGreaterThan(r + 4);
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(1000);
+  }, 120000);
+
   it('takes real 90° corners that alternate, stand apart and never double back', async () => {
     const track = new Track(fakeKit());
     await track.prepare({ foliage: 0.4, scenery: 0.4 });

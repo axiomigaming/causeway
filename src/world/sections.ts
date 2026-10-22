@@ -1369,8 +1369,8 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['ledge', 1.1 + 0.6 * intensity],
     // Real corners: more often as the run builds (the director's turns are part of the crescendo).
     ['stepping', 0.8 + 0.6 * intensity],
-    ['turnL', 0.9 + 0.6 * intensity],
-    ['turnR', 0.9 + 0.6 * intensity],
+    ['turnL', 1.8 + 0.8 * intensity],
+    ['turnR', 1.8 + 0.8 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
   ];
   const options = w.filter(([t]) => (t !== prev || t === 'corridor') && allow(t)).map(([t, k]) => [t, (beat.includes(t) ? k * 2.2 : k) * (favor.includes(t) ? 2.4 : 1)] as [SectionType, number]);
