@@ -4,6 +4,9 @@
 //
 //   URL=http://localhost:5180 node tools/framing-check.mjs [--n 20] [--q medium] [--run 0]
 //
+// Round 18: also the title fly-over (sampled every 2.3 s) and the 50x+ escape (win_slide), whose
+// figure is measured from the skeleton (head, hips, feet), not the root.
+//
 // Exits 1 if any frame fails. Headless Chromium (SwiftShader); time is stepped (Game.debugStep), so the
 // result does not depend on the frame rate.
 import { chromium } from 'playwright-core';
@@ -30,6 +33,18 @@ for (const v of VIEWS) {
   const page = await browser.newPage({ viewport: { width: v.w, height: v.h }, deviceScaleFactor: 1, isMobile: v.mobile, hasTouch: v.mobile });
   await page.goto(`${URL}/?qa&q=${q}&seed=framing`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
+  // Round 18: the title fly-over as loaded (its own interface, before Enter), every 2.3 s of its
+  // 46 s period: the whole figure on screen, the boots clear of the footer.
+  const title = await page.evaluate(() => {
+    const g = window.__game;
+    g.paused = true;
+    const out = [];
+    for (let t = 0; t < 46; t += 2.3) {
+      g.debugStep(2.3);
+      out.push({ stage: `title@${t.toFixed(1)}`, f: g.debugFraming(), title: true });
+    }
+    return out;
+  });
   await page.evaluate(async () => {
     const g = window.__game;
     g.paused = true;
@@ -88,6 +103,60 @@ for (const v of VIEWS) {
       if (!ok) failed++;
       console.log(`${ok ? 'ok  ' : 'FAIL'} ${v.name} world ${String(w).padStart(2)} ${stage.padEnd(8)} feet ${f.ndc[0].join(',')} head ${f.ndc[4].join(',')} band ${lo}..${hi} solid ${f.solid} leaf ${f.leaf}${ok ? '' : '  ← ' + problems.join('; ')}`);
     }
+  }
+  // Round 18: the title fly-over (its high pass had him just under the bottom edge) and the 50x+
+  // escape (win_slide carries him metres off the root, then turns): the figure itself — head, hips,
+  // feet from the skeleton — must stay in the frame throughout.
+  const extra = await page.evaluate(() => {
+    const g = window.__game;
+    const out = [];
+    const now = Date.now;
+    for (const id of ['slide-0', 'slide-2', 'slide-9']) {
+      Date.now = () => 7000 + id.length * 31 + +id.split('-')[1];
+      g.newWorld('setup');
+      Date.now = now;
+      g.debugStep(1);
+      const start = g.virtualNow + 1100 - 66000;
+      g.elapsed = () => g.virtualNow - start;
+      g.lead();
+      g.debugStep(2.6);
+      g.cashout(id);
+      g.elapsed = () => null;
+      let sawSlide = false;
+      for (let t = 0; t < 5; t += 0.15) {
+        g.debugStep(0.15);
+        if (g.runner.anim === 'win_slide') sawSlide = true;
+        if (t > 0.6) out.push({ stage: `${id}@${t.toFixed(2)}${g.runner.anim === 'win_slide' ? ' slide' : ''}`, f: g.debugFraming(), body: true });
+      }
+      if (!sawSlide) out.push({ stage: `${id} (no win_slide)`, f: null });
+    }
+    return out;
+  });
+  for (const { stage, f, body, title: isTitle } of [...title, ...extra]) {
+    if (!f) {
+      failed++;
+      console.log(`FAIL ${v.name} ${stage}`);
+      continue;
+    }
+    const [lo, hi] = f.band;
+    const pts = body ? f.body : [...f.ndc, ...f.body];
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const problems = [];
+    if (Math.min(...xs) < -0.95 || Math.max(...xs) > 0.95) problems.push('off the side');
+    if (isTitle) {
+      if (Math.min(...ys) < -0.9) problems.push(`boots on the footer (${Math.min(...ys).toFixed(2)})`);
+      if (Math.max(...ys) > 0.97) problems.push('off the top');
+    } else if (body) {
+      if (Math.min(...ys) < -0.97 || Math.max(...ys) > 0.97) problems.push('off the top/bottom');
+    } else {
+      if (Math.min(...ys) < lo - 0.03) problems.push(`below the band (${Math.min(...ys).toFixed(2)} < ${lo})`);
+      if (Math.max(...ys) > hi + 0.03) problems.push(`above the band (${Math.max(...ys).toFixed(2)} > ${hi})`);
+    }
+    if (pts.some((p) => p[2] !== undefined && p[2] > 1)) problems.push('behind the lens');
+    const ok = problems.length === 0;
+    if (!ok) failed++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${v.name} ${stage.padEnd(22)} head ${(f.body[0] ?? []).slice(0, 2).join(',')} hips ${(f.body[1] ?? []).slice(0, 2).join(',')} band ${lo}..${hi}${ok ? '' : '  ← ' + problems.join('; ')}`);
   }
   await page.close();
 }

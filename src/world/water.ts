@@ -32,6 +32,8 @@ export class Water {
         // footings reads shallow: stone showing through, warmer, with caustics.
         uPath: { value: Array.from({ length: 16 }, () => new THREE.Vector2(1e5, 1e5)) },
         uShelf: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
+        // QA (?qa&wdbg): the distance to the causeway's centre line (red bands a metre apart, green past its edge).
+        uDbg: { value: typeof location !== 'undefined' && /[?&]wdbg\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 1 : 0 },
         uSplash: { value: [new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0)] },
       },
     ]);
@@ -65,6 +67,7 @@ export class Water {
         uniform float uRipple;
         uniform vec2 uPath[16];
         uniform float uShelf;
+        uniform float uDbg;
         // Distance from p to the centre-line polyline.
         float pathDist(vec2 p) {
           float d = 1e9;
@@ -114,9 +117,18 @@ export class Water {
             float env = exp(-age * 0.9) * s.w * smoothstep(front + 0.6, front - 0.4, r) * exp(-max(0.0, front - r) * 0.55);
             float ph = (r - front) * 7.0;
             g += d / r * cos(ph) * 0.09 * env;
-            // Foam: a churned patch at the centre and a broken lace on the leading crest.
-            float lace = wh(floor(p * 9.0) + floor(age * 6.0));
-            foam += exp(-age * 1.1) * s.w * (smoothstep(1.0 + age * 0.5, 0.0, r) * 0.9 + smoothstep(0.35, 0.0, abs(r - front)) * (0.4 + 0.6 * lace) * 0.7);
+            // Foam: churned white water at the centre, breaking up into drifting patches (smooth
+            // noise, never a dotted ring) and fading over 2–3 s; only a faint line on the crest.
+            // Round 18: a soft white disc read as a cotton ball from above. Now: a small core of
+            // white water that boils for a second, then marbled patches (sharp-edged noise,
+            // carried outward) inside the spreading front with dark water between, thinning out
+            // over 2–3 s.
+            vec2 adv = p - d / r * min(age, 2.0) * 0.5;
+            float churn = wnoise(adv * 2.6 + vec2(age * 0.5, -age * 0.35)).x * 0.6 + wnoise(adv * 6.5 - age * 0.8).x * 0.4;
+            float core = smoothstep(0.45 + age * 0.45, 0.0, r) * exp(-age * 2.2) * (0.75 + 0.25 * churn);
+            float band = smoothstep(front * 0.9 + 0.3, front * 0.55, r) * exp(-age * 0.75);
+            float marble = smoothstep(0.46 + age * 0.05, 0.68 + age * 0.05, churn) * (0.7 + 0.3 * wnoise(adv * 13.0 + age).x);
+            foam += s.w * (core * 0.9 + band * marble * 0.55);
           }
           return g;
         }
@@ -173,6 +185,9 @@ export class Water {
           // Deep teal-green in the middle distance, a clearer jade close under the eye.
           body = mix(body, uShallow * 1.15, smoothstep(14.0, 3.0, dist) * 0.35);
           body *= mix(0.7, 1.0, smoothstep(90.0, 8.0, dist));
+          // Looking down (little mirror) the ripples still read: the body brightens and darkens
+          // with the surface slope, as the bed's light refracts through it.
+          body *= clamp(1.0 + (g.x * 1.7 - g.y * 1.3) * 3.0 * depthLook, 0.75, 1.3);
           // Light scattered inside wave crests.
           float crest = clamp(g.x * 3.0 + g.y * 2.0, 0.0, 1.0);
           body += uShallow * crest * 0.25;
@@ -190,7 +205,37 @@ export class Water {
           float shelf = 0.0;
           if (uShelf > 0.0) {
             float pd = pathDist(vWorld.xz);
-            shelf = smoothstep(5.6, 2.9, pd) * uShelf * smoothstep(60.0, 8.0, dist);
+            // Under the causeway itself (seen only where it has fallen away: a chasm) the water is
+            // deep: dark green-blue, darkest mid-gorge, clearer toward the walls' footings.
+            // Round 18: seen through, not painted. The bed falls from ~0.5 m at the wall footings to
+            // ~7 m mid-gorge; light crossing that water loses red first (Beer-Lambert), so the stone
+            // of the footings shows warm and clear near the walls, going green then blue-black as
+            // the bed drops away. The path the eye takes through the water lengthens at a slant.
+            float gorge = (1.0 - smoothstep(1.6, 2.9, pd)) * uShelf;
+            if (gorge > 0.0) {
+              float bedD = mix(0.45, 7.0, smoothstep(2.5, 0.7, pd));
+              float run = bedD / max(dot(V, vec3(0.0, 1.0, 0.0)), 0.25);
+              vec3 T = exp(-run * vec3(0.6, 0.34, 0.4));
+              // The bed: the footing's courses near the walls, rubble further in; caustics on it,
+              // sharper the shallower it lies, drifting with the surface.
+              vec2 bp = vWorld.xz * vec2(1.1, 0.55) + g * 1.6;
+              vec2 cell = floor(bp);
+              float course = smoothstep(0.0, 0.07, fract(bp.x)) * smoothstep(0.0, 0.07, fract(bp.y));
+              // The joints blur out as the bed drops away (the surface warps them, the water softens).
+              vec3 bed = vec3(0.4, 0.38, 0.27) * (0.75 + 0.25 * wh(cell)) * mix(1.0 - 0.5 * exp(-bedD * 0.6), 1.0, course);
+              vec2 cq = vWorld.xz * 0.95 + g * 3.0;
+              for (int k = 0; k < 2; k++) cq += vec2(sin(cq.y * 1.3 + uTime * 0.9), cos(cq.x * 1.1 - uTime * 0.8)) * 0.45;
+              float caus = pow(abs(sin(cq.x * 2.2) * sin(cq.y * 2.0)), 3.0);
+              bed += vec3(1.0, 0.95, 0.75) * caus * 0.55 * exp(-bedD * 0.35);
+              // In-scatter: the colour the water itself glows where the bed is lost.
+              vec3 deepGlow = uDeep * 0.55 + uShallow * 0.03;
+              vec3 seen = bed * T + deepGlow * (1.0 - T);
+              // The surface still shapes the light: ripple slopes brighten and shade it a little.
+              seen *= clamp(1.0 + (g.x * 1.7 - g.y * 1.3) * 2.0, 0.8, 1.2);
+              body = mix(body, seen, gorge * (0.6 + 0.4 * depthLook));
+            }
+            // The footings: a band just outside the edge.
+            shelf = smoothstep(1.9, 2.9, pd) * smoothstep(5.6, 3.4, pd) * uShelf * smoothstep(60.0, 8.0, dist);
             if (shelf > 0.0) {
               vec2 bp = vWorld.xz * vec2(0.55, 1.1) + g * 6.0;
               vec2 cell = floor(bp);
@@ -219,9 +264,10 @@ export class Water {
           // The glint itself stays hot (it blooms), but only the narrow core: the broad lobe is capped.
           col += uSunColor * min(spec, 6.0);
           // Splash foam: churned white water fading as the rings spread.
-          col = mix(col, vec3(0.86, 0.93, 0.9) * (0.75 + 0.25 * depthLook), clamp(splashFoam, 0.0, 0.85));
+          col = mix(col, vec3(0.86, 0.93, 0.9) * (0.75 + 0.25 * depthLook), clamp(splashFoam, 0.0, 0.8));
           // Alpha marks water for the screen-space reflections (the canvas itself is opaque).
           gl_FragColor = vec4(col, uMark);
+          if (uDbg > 0.5) gl_FragColor = vec4(fract(pathDist(vWorld.xz)), step(2.2, pathDist(vWorld.xz)), 0.0, uMark);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
           #include <fog_fragment>

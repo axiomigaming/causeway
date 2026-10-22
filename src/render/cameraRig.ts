@@ -706,8 +706,9 @@ export class CameraRig {
     this.camera.position.y += sy + this.bob + breathe + hy;
     this.camera.lookAt(this.look);
     this.camera.fov = this.fov;
-    if (this.mode !== 'title') this.keepInFrame(runnerPos, dt);
-    else this.standBack = this.standBackV = 0;
+    // Round 18: the title too (its high pass looked down the way ahead with him just under the
+    // bottom edge): the boots tilt up into the band, never a stand-back (settled shots only).
+    this.keepInFrame(this.bodyAt ?? runnerPos, dt);
     this.rollKick *= Math.exp(-dt * 2.6);
     this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.25 + this.dutch + hr + this.rollKick);
     this.camera.fov = this.fov;
@@ -783,6 +784,16 @@ export class CameraRig {
   private sideK = 0;
   private sideV = 0;
   private sideX = 0;
+  /**
+   * Round 18: where the figure actually is (ground height), when a clip carries him off the
+   * composition's subject (the 50x+ slide turns about a point metres from his hips). The shot
+   * composes on the eased subject; keeping him in frame measures the body itself.
+   */
+  bodyAt: THREE.Vector3 | null = null;
+  /** Round 18: world positions of the posed limbs (head, hands, feet) to keep in frame, or null. */
+  bodyPts: THREE.Vector3[] | null = null;
+  private tmp4 = new THREE.Vector3();
+
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
     if (this.mode === 'crash' && this.gap > 0.3) return; // looking down into the gap after him
     const c = this.camera;
@@ -806,7 +817,8 @@ export class CameraRig {
     this.sideK = THREE.MathUtils.clamp(this.sideK + this.sideV * dt, 0, 1);
     const side = this.sideK;
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
-    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, -1 - 2 * s + 0.08, side);
+    // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
+    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side);
     const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side);
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
@@ -832,13 +844,26 @@ export class CameraRig {
         if (i === 0) m.feet = y;
         if (i === 1) m.head = y;
         if (i === 0 || i === 1) m.depth += -p.z / 2;
-        if (i === 2) m.left = Math.min(x, (pts[0]!.x / -pts[0]!.z));
-        if (i === 3) m.right = Math.max(x, (pts[0]!.x / -pts[0]!.z));
+        // Round 18: the extent over every point. (It took the shoulder points by name, so with the
+        // lens looking back at him, his right on the frame's left, both collapsed onto the feet:
+        // no width, no side margin, no stand-back for it.)
+        m.left = i === 0 ? x : Math.min(m.left, x);
+        m.right = i === 0 ? x : Math.max(m.right, x);
       }
-      const l = Math.min(m.left, m.right);
-      const r = Math.max(m.left, m.right);
-      m.left = l;
-      m.right = r;
+      // Round 18: the limbs as posed (a slide throws the legs a metre out from the hips): widen
+      // the extent to take them in (never narrower than the standing figure above).
+      if (this.bodyPts) {
+        for (const b of this.bodyPts) {
+          const p = this.tmp4.copy(b).applyMatrix4(inv);
+          if (p.z > -0.3) continue;
+          const x = p.x / -p.z;
+          const y = p.y / -p.z;
+          m.left = Math.min(m.left, x);
+          m.right = Math.max(m.right, x);
+          m.feet = Math.min(m.feet, y);
+          m.head = Math.max(m.head, y);
+        }
+      }
       return true;
     };
     if (!measure()) return;
@@ -894,6 +919,11 @@ export class CameraRig {
       const cx = (m.left + m.right) / 2;
       const want = Math.atan(this.sideX * tanH) - Math.atan(cx);
       pan = THREE.MathUtils.lerp(pan, want, side);
+      // Round 18: the third never pushes a limb past the side margins (the 50x+ slide's turn
+      // swings him a metre or two across the frame).
+      const pMin = Math.atan(-mT) - Math.atan(m.left);
+      const pMax = Math.atan(mT) - Math.atan(m.right);
+      if (pMin <= pMax) pan = THREE.MathUtils.clamp(pan, pMin, pMax);
     }
     if (Math.abs(pan) > 1e-4) c.rotateY(pan);
   }

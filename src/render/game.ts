@@ -800,7 +800,9 @@ export class Game {
     // Round 13 — "made it": no set piece or near miss from here on (honesty: nothing staged after a
     // cash-out); pieces still ahead crumble away, the way ahead is clear.
     this.obstacles.settle();
-    const clip = st.variant === 'lookback' ? 'win_cheer' : st.clip;
+    // Round 18: the biggest escapes (50x+, from the settled multiplier and the round's own staging)
+    // slide in on the knees instead of the leap (the runner's payoff clip for those rounds).
+    const clip = st.variant === 'lookback' ? 'win_cheer' : st.variant === 'leap' && this.live.mult >= 50 ? 'win_slide' : st.clip;
     // Stop distance v·T/2 matches each clip's braking: cheer/lookback decelerate over four steps
     // (~1 s, runner round 16), so the root stops with the feet and they never slide.
     const T = { lookback: 1.0, cheer: 1.0, salute: 1.0, leap: 1.15 }[st.variant];
@@ -1243,12 +1245,16 @@ export class Game {
         this.later(1.1, () => this.sounds.event?.('fall_drop', 1));
         this.later(1.75, () => {
           const p = this.runner.root.position.clone().addScaledVector(h.fwd, 0.4).setY(WATER_Y);
-          this.particles.burst(p, 40, { spread: 1.2, up: 7, speed: 3, size: 0.32, life: 1.2, color: SPRAY, alpha: 0.8, gravity: 9.5, drag: 0.5, grow: 0.6 });
-          B.puff(p, { count: 3, spread: 1.4, jitter: 0.8, vel: new THREE.Vector3(0, 2.4, 0), size: [0.8, 3], life: 1.8, alpha: 0.4, tint: MIST_T, rise: 0.2, floor: WATER_Y });
+          // Round 18: a crown, not a cotton ball. Droplets leave a ring round the entry, outward and
+          // up, and fall back under gravity; a narrow column follows him down; only a thin veil of
+          // mist. The white water, the rings running out through the normals and the foam that
+          // breaks up over 2–3 s are the water shader's (splash()).
+          this.splashCrown(p, 1);
+          B.puff(p, { count: 2, spread: 1.0, jitter: 0.6, vel: new THREE.Vector3(0, 1.6, 0), size: [0.6, 1.8], life: 1.4, alpha: 0.2, tint: MIST_T, rise: 0.2, floor: WATER_Y });
           this.water.splash(p.x, p.z, 1.2);
-          // A second, lighter column as he goes under, and bubbles of foam rising where he went.
-          this.later(0.25, () => this.particles.burst(p, 24, { spread: 0.6, up: 4, speed: 1.6, size: 0.24, life: 0.9, color: SPRAY, alpha: 0.7, gravity: 9.5, drag: 0.5, grow: 0.5 }));
-          for (let k = 1; k <= 5; k++) this.later(0.4 + k * 0.22, () => this.particles.burst(p, 4, { spread: 0.5, up: 0.4, speed: 0.3, size: 0.16, life: 0.7, color: SPRAY, alpha: 0.55, gravity: -0.5, drag: 1.5, grow: 0.8 }));
+          // The column as he goes under, then bubbles breaking on the surface where he went.
+          this.later(0.18, () => this.particles.burst(p, 18, { spread: 0.35, up: 6.5, speed: 0.9, size: 0.09, life: 1.0, color: SPRAY, alpha: 0.85, gravity: 9.8, drag: 0.25, grow: 0 }));
+          for (let k = 1; k <= 9; k++) this.later(0.35 + k * 0.24, () => this.splashBubbles(p, 1.1 + k * 0.12, 1 - k * 0.07));
           this.sounds.impact(0.9, true);
         });
         // Gone under: the clip ends deep below the floor.
@@ -1467,9 +1473,11 @@ export class Game {
     if (e.water) {
       // Spray thrown up, a mist that hangs, and a shockwave spreading over the water.
       const heavy = Math.min(1.5, e.mass * Math.max(0.5, e.speed / 8));
-      this.particles.burst(e.pos, 14 + heavy * 22, { spread: 0.8 + heavy, up: 4.5 + heavy * 4, speed: 2.5 + heavy, size: 0.3, life: 1.1, color: SPRAY, alpha: 0.75, gravity: 9.5, drag: 0.5, grow: 0.6 });
+      // Round 18: droplets in a crown (small, hard, falling back), not big soft sprites: those
+      // piled up into a white cotton ball over the water seen from above.
+      this.splashCrown(e.pos.clone().setY(WATER_Y), Math.max(0.25, Math.min(1, heavy * 0.7)));
       if (heavy > 0.25) {
-        B.puff(e.pos, { count: 1 + Math.round(heavy * 2), spread: 1 + heavy, jitter: 0.8, vel: new THREE.Vector3(0, 1.5 + heavy * 1.5, 0), size: [0.6, 2 + 2.5 * heavy], life: 1.6, alpha: 0.38, tint: MIST_T, rise: 0.2, floor: WATER_Y });
+        B.puff(e.pos, { count: 1 + Math.round(heavy), spread: 0.8 + heavy, jitter: 0.6, vel: new THREE.Vector3(0, 1.2 + heavy, 0), size: [0.5, 1.2 + 1.2 * heavy], life: 1.3, alpha: 0.18, tint: MIST_T, rise: 0.2, floor: WATER_Y });
         // Round 17: the shockwave is waves through the water's own normals and churned foam (a ring
         // decal read as a flat white circle up close).
         this.water.splash(e.pos.x, e.pos.z, 0.4 + 0.5 * Math.min(1, heavy));
@@ -2136,7 +2144,37 @@ export class Game {
       const want = 0.45 * Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yawLead += (want - this.rig.yawLead) * (1 - Math.exp(-rawDt * 5));
     } else this.rig.yawLead = 0;
-    this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), rp, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
+    // Round 18 (character audit, win_slide): the celebration clips carry him off the root (the
+    // 50x+ slide travels metres along the way, then turns), and a lens framing the root lost him
+    // at the frame edge. Once he pulls up, the rig frames the hips (ground height of the root),
+    // the offset eased so the sway of a stride never reaches the lens.
+    let subject = rp;
+    if (this.stage === 'cashout' && !this.runOn) {
+      const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
+      if (hips) {
+        hips.updateWorldMatrix(true, false);
+        this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).sub(rp).setY(0);
+        if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
+        // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
+        // second: chasing that flew the lens metres); keepInFrame measures the body at once.
+        this.subjOff.lerp(this.tmpSubj, 1 - Math.exp(-rawDt * 2.2));
+        this.rig.bodyAt = this.bodyPos.copy(rp).add(this.tmpSubj);
+        // The limbs as posed, for the frame's margins (the slide's legs reach a metre out).
+        if (!this.limbBones) {
+          const b = this.runner.body;
+          this.limbBones = ['head', 'footL', 'footR', 'forearmL', 'forearmR'].map((n) => b.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
+          this.limbPts = this.limbBones.map(() => new THREE.Vector3());
+        }
+        this.limbBones.forEach((o, i) => this.limbPts[i]!.setFromMatrixPosition(o.matrixWorld));
+        this.rig.bodyPts = this.limbPts;
+      }
+      subject = this.subjPos.copy(rp).add(this.subjOff);
+    } else {
+      this.subjOff.set(0, 0, 0);
+      this.rig.bodyAt = null;
+      this.rig.bodyPts = null;
+    }
+    this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), subject, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
     const cam = this.rig.camera;
     this.ceiling(rawDt);
     this.guardCamera(rawDt);
@@ -2355,6 +2393,49 @@ export class Game {
    * each sight line from the lens is raycast against the whole scene; leaf cards are counted apart
    * (their cut-out alpha lets most of the view through).
    */
+  /**
+   * Round 18: the crown of a splash: droplets thrown from a ring round the entry point, outward and
+   * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
+   */
+  private splashCrown(p: THREE.Vector3, k: number): void {
+    const n = Math.round(56 * k * this.particles.budget);
+    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 1, size: 0.1, grow: 0, color: SPRAY, alpha: 0.9, drag: 0.3, gravity: 9.8 };
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
+      const r0 = 0.45 + Math.random() * 0.3;
+      const out = 1.2 + Math.random() * 1.8;
+      const up = (3.6 + Math.random() * 3.2) * Math.sqrt(k);
+      e.pos.set(p.x + Math.cos(a) * r0, p.y + 0.05, p.z + Math.sin(a) * r0);
+      e.vel.set(Math.cos(a) * out, up, Math.sin(a) * out);
+      e.life = 0.9 + Math.random() * 0.5;
+      e.size = 0.05 + Math.random() * 0.07;
+      this.particles.emit(e);
+    }
+  }
+
+  /** Round 18: bubbles breaking on the surface over the entry, spreading as the foam drifts. */
+  private splashBubbles(p: THREE.Vector3, spread: number, k: number): void {
+    const n = Math.round(7 * k * this.particles.budget);
+    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 1, size: 0.05, grow: 0.6, color: SPRAY, alpha: 0.7, drag: 2, gravity: 0 };
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * spread;
+      e.pos.set(p.x + Math.cos(a) * r, WATER_Y + 0.03, p.z + Math.sin(a) * r);
+      e.vel.set(0, 0.15, 0);
+      e.life = 0.35 + Math.random() * 0.5;
+      e.size = 0.035 + Math.random() * 0.06;
+      this.particles.emit(e);
+    }
+  }
+
+  private hipsBone: THREE.Object3D | null | undefined;
+  private tmpSubj = new THREE.Vector3();
+  private subjOff = new THREE.Vector3();
+  private subjPos = new THREE.Vector3();
+  private bodyPos = new THREE.Vector3();
+  private limbBones: THREE.Object3D[] | null = null;
+  private limbPts: THREE.Vector3[] = [];
+
   debugFraming() {
     const cam = this.rig.camera;
     cam.updateMatrixWorld();
@@ -2393,8 +2474,17 @@ export class Game {
         hits.push(`${m.name || m.parent?.name}@${hit.distance.toFixed(1)}`);
       }
     }
+    // Round 18: the figure itself (head, hips, feet), not only the root's column: the celebration
+    // clips carry him off the root.
+    const body: number[][] = [];
+    for (const n of ['head', 'hips', 'footL', 'footR']) {
+      const b = this.runner.body.getObjectByName(n);
+      if (!b) continue;
+      const q = new THREE.Vector3().setFromMatrixPosition(b.matrixWorld).project(cam);
+      body.push([+q.x.toFixed(3), +q.y.toFixed(3), +q.z.toFixed(3)]);
+    }
     const r = this.rig as unknown as { insetTop: number; insetBottom: number; shift: number };
-    return { mode: this.rig.mode, ndc, solid, leaf, hits, near: +cam.near.toFixed(2), band: [+(-1 + 2 * r.insetBottom).toFixed(3), +(1 - 2 * r.insetTop).toFixed(3)] };
+    return { mode: this.rig.mode, ndc, body, solid, leaf, hits, near: +cam.near.toFixed(2), band: [+(-1 + 2 * r.insetBottom).toFixed(3), +(1 - 2 * r.insetTop).toFixed(3)] };
   }
 
   /**
