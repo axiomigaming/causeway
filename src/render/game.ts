@@ -2368,6 +2368,7 @@ export class Game {
       for (const c of o.children) walk(c);
     };
     walk(this.scene);
+    for (const o of targets) if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).computeBoundingSphere();
     const rc = new THREE.Raycaster();
     const ndc: number[][] = [];
     let solid = 0;
@@ -2394,6 +2395,59 @@ export class Game {
     }
     const r = this.rig as unknown as { insetTop: number; insetBottom: number; shift: number };
     return { mode: this.rig.mode, ndc, solid, leaf, hits, near: +cam.near.toFixed(2), band: [+(-1 + 2 * r.insetBottom).toFixed(3), +(1 - 2 * r.insetTop).toFixed(3)] };
+  }
+
+  /**
+   * QA (tools/result-shot-check.mjs): what the lens sees between itself and the runner. A grid of
+   * rays through the screen region below the runner's feet (down to the dock line, ±2.5 runner widths
+   * across) is cast into the scene; returns the share whose first hit is the open water, and whether
+   * the runner stands on the way (a path tile under him). A result shot that looks at the runner across
+   * a cut edge of the causeway shows a large flat sheet of water there.
+   */
+  debugForeground() {
+    const cam = this.rig.camera;
+    cam.updateMatrixWorld();
+    this.scene.updateMatrixWorld();
+    const rp = this.runner.root.position;
+    const skip = new Set<THREE.Object3D>([this.runner.root, this.cine.root, this.particles.points, this.motes.points, this.ambient.root, this.sunDisc, this.contact.mesh]);
+    const targets: THREE.Object3D[] = [];
+    const walk = (o: THREE.Object3D) => {
+      if (skip.has(o) || !o.visible) return;
+      if ((o as THREE.Mesh).isMesh) targets.push(o);
+      for (const c of o.children) walk(c);
+    };
+    walk(this.scene);
+    // Instanced tiles are re-placed as the route grows; their cached bounds would make rays miss them.
+    for (const o of targets) if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).computeBoundingSphere();
+    const rc = new THREE.Raycaster();
+    // On the way: a track mesh right under the feet.
+    rc.set(new THREE.Vector3(rp.x, rp.y + 1, rp.z), new THREE.Vector3(0, -1, 0));
+    rc.far = 1.4;
+    const under = rc.intersectObjects(targets, false)[0];
+    const onPath = !!under && under.object !== this.water.mesh;
+    const feet = rp.clone().project(cam);
+    const head = rp.clone().setY(rp.y + 1.8).project(cam);
+    const r = this.rig as unknown as { insetBottom: number };
+    const bottom = -1 + 2 * r.insetBottom + 0.02;
+    const halfW = Math.max(0.12, Math.abs(head.y - feet.y) * 0.35 / Math.max(0.3, cam.aspect)) * 2.5;
+    let water = 0;
+    let n = 0;
+    rc.far = 400;
+    if (feet.y - bottom > 0.04) {
+      for (let iy = 0; iy < 8; iy++) {
+        const y = bottom + ((feet.y - bottom) * (iy + 0.5)) / 8;
+        for (let ix = 0; ix < 9; ix++) {
+          const x = feet.x - halfW + (2 * halfW * (ix + 0.5)) / 9;
+          if (x < -1 || x > 1) continue;
+          rc.setFromCamera(new THREE.Vector2(x, y), cam);
+          rc.near = cam.near;
+          const hit = rc.intersectObjects(targets, false)[0];
+          n++;
+          if (hit && hit.object === this.water.mesh) water++;
+        }
+      }
+    }
+    return { stage: this.stage, onPath, samples: n, water: n ? water / n : 0, feetY: +feet.y.toFixed(3), dockY: +bottom.toFixed(3) };
   }
 
   get debugState() {
