@@ -58,7 +58,8 @@ export function TopBar() {
             </span>
             {shown.slice(0, 14).map((h) => (
               <span key={h.id} className="chip" title={`Round fell at ${formatMult(h.crash)}×`}>
-                {formatMult(h.crash)}×
+                {formatMult(h.crash)}
+                <span className="x">×</span>
               </span>
             ))}
           </>
