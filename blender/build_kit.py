@@ -105,6 +105,7 @@ groups["statue"] += [
     S.guardian("guardian_1", 711, broken=True),
     S.fallen_column("column_fallen_0", 720),
     S.fallen_column("column_fallen_1", 721, radius=0.6, n=4),
+    S.colossal_hand("hand_colossal_0", 740),
     S.stepping_stones("steps_water_0", 730),
 ]
 # Round 10: the FX door (gate_0 with relief_wall_0/1 and the gold mask as children) is drawn in the statue
