@@ -2198,6 +2198,16 @@ export class Game {
       this.cine.rimLevelTarget = ln === 'golden' ? 0.16 : ln === 'afternoon' ? 0.1 : 0;
     }
     this.water.update(this.worldT, cam);
+    // The causeway's line for the water's shallow shelf (submerged footings): 16 points around him.
+    {
+      const pts: { x: number; z: number }[] = [];
+      const s0 = Math.max(this.track.path.length > 0 ? this.s - 30 : 0, -40);
+      for (let i = 0; i < 16; i++) {
+        const f = this.track.path.sample(Math.max(0, s0 + i * 6), this.cframe);
+        pts.push({ x: f.pos.x, z: f.pos.z });
+      }
+      this.water.setPath(pts);
+    }
     this.track.tick(this.worldT, this.s);
     for (let i = this.queue.length - 1; i >= 0; i--) {
       if (this.queue[i]!.at <= this.worldT) {

@@ -28,6 +28,10 @@ export class Water {
         // Cinematics (round 17): up to four splashes (x, z, start time, strength) ringing out.
         // QA (?qa&water0): the round-16 water without the round-17 ripples, for before/after crops.
         uRipple: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
+        // Round 17: the causeway's centre line near the lens (x, z), so the water over its submerged
+        // footings reads shallow: stone showing through, warmer, with caustics.
+        uPath: { value: Array.from({ length: 16 }, () => new THREE.Vector2(1e5, 1e5)) },
+        uShelf: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
         uSplash: { value: [new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0)] },
       },
     ]);
@@ -59,6 +63,19 @@ export class Water {
         uniform float uMark;
         uniform vec4 uSplash[4];
         uniform float uRipple;
+        uniform vec2 uPath[16];
+        uniform float uShelf;
+        // Distance from p to the centre-line polyline.
+        float pathDist(vec2 p) {
+          float d = 1e9;
+          for (int i = 0; i < 15; i++) {
+            vec2 a = uPath[i], b = uPath[i + 1];
+            vec2 ab = b - a;
+            float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+            d = min(d, length(p - a - ab * t));
+          }
+          return d;
+        }
         varying vec3 vWorld;
 
         // Gradient noise and its analytic derivative (value noise, quintic): the close-range ripple
@@ -167,6 +184,26 @@ export class Water {
             float ca = pow(abs(sin(q.x * 2.2) * sin(q.y * 2.0)), 3.0);
             body += vec3(0.55, 0.85, 0.7) * ca * 0.22 * depthLook * smoothstep(45.0, 6.0, dist);
           }
+          // The causeway's submerged footings: within ~3 m of its edge the water is shallow over
+          // stone — warmer, lighter, the courses of the blocks and the caustics showing through, and
+          // less of the sky's mirror (looking down into it).
+          float shelf = 0.0;
+          if (uShelf > 0.0) {
+            float pd = pathDist(vWorld.xz);
+            shelf = smoothstep(5.6, 2.9, pd) * uShelf * smoothstep(60.0, 8.0, dist);
+            if (shelf > 0.0) {
+              vec2 bp = vWorld.xz * vec2(0.55, 1.1) + g * 6.0;
+              vec2 cell = floor(bp);
+              float course = smoothstep(0.0, 0.08, fract(bp.x)) * smoothstep(0.0, 0.08, fract(bp.y));
+              float tone = 0.8 + 0.2 * wh(cell);
+              vec3 stone = vec3(0.42, 0.42, 0.3) * tone * mix(0.55, 1.0, course);
+              vec3 seen = mix(uShallow, stone, 0.62) * 0.9;
+              vec2 q2 = vWorld.xz * 0.9;
+              for (int k = 0; k < 2; k++) q2 += vec2(sin(q2.y * 1.3 + uTime * 0.9), cos(q2.x * 1.1 - uTime * 0.8)) * 0.45;
+              seen += vec3(0.6, 0.8, 0.55) * pow(abs(sin(q2.x * 2.2) * sin(q2.y * 2.0)), 3.0) * 0.28;
+              body = mix(body, seen, shelf * (0.35 + 0.55 * depthLook));
+            }
+          }
           // Glossy: the sky and the far world mirror strongly toward grazing angles.
           // The panorama near the sun is several times brighter than paper white: mirrored at a
           // grazing angle it turned whole sheets of water pure white (a hole in the world). Roll the
@@ -176,7 +213,7 @@ export class Water {
           // Light through the water toward the sun: a warm green glow in the body (backlit shallows).
           float toSunV = max(dot(-V, normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);
           body += vec3(0.32, 0.5, 0.24) * pow(toSunV, 4.0) * 0.35 * (1.0 - depthLook);
-          vec3 col = mix(body, refl * vec3(0.9, 0.97, 0.95), clamp(fres * 1.05, 0.0, 0.95));
+          vec3 col = mix(body, refl * vec3(0.9, 0.97, 0.95), clamp(fres * 1.05 * (1.0 - 0.35 * shelf), 0.0, 0.95));
           vec3 H = normalize(uSunDir + V);
           float spec = pow(max(dot(N, H), 0.0), 420.0) * 22.0 + pow(max(dot(N, H), 0.0), 60.0) * 0.35;
           // The glint itself stays hot (it blooms), but only the narrow core: the broad lobe is capped.
@@ -203,6 +240,16 @@ export class Water {
   splash(x: number, z: number, strength = 1): void {
     const v = (this.uniforms.uSplash!.value as THREE.Vector4[])[this.splashI++ % 4]!;
     v.set(x, z, this.uniforms.uTime!.value as number, Math.min(1.5, strength));
+  }
+
+  /** Round 17: the causeway's centre line around the lens (up to 16 points, nearest first or in order). */
+  setPath(pts: { x: number; z: number }[]): void {
+    const u = this.uniforms.uPath!.value as THREE.Vector2[];
+    for (let i = 0; i < 16; i++) {
+      const p = pts[Math.min(i, pts.length - 1)];
+      if (p) u[i]!.set(p.x, p.z);
+      else u[i]!.set(1e5, 1e5);
+    }
   }
 
   update(t: number, cam: THREE.Camera): void {
