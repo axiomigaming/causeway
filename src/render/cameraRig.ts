@@ -174,6 +174,7 @@ export class CameraRig {
     this.bob = this.bobV = this.sway = this.swayV = 0;
     this.swing = this.swingTarget = 0;
     this.pull = this.pullTarget = 1;
+    this.standBack = 0;
     this.fov = 58;
     const c = this.camera;
     c.position.copy(this.pos);
@@ -193,6 +194,7 @@ export class CameraRig {
     this.pull = this.pullTarget = 1;
     // A new round starts clean: no leftover shake, lens punch or jolt from the last cinematic.
     this.trauma = 0;
+    this.standBack = 0;
     this.fovKick = 0;
     this.bob = this.bobV = this.sway = this.swayV = 0;
     const fov = this.computeTarget(runnerPos, runnerYaw, 0, 1 / 60, true);
@@ -697,7 +699,8 @@ export class CameraRig {
     this.camera.position.y += sy + this.bob + breathe + hy;
     this.camera.lookAt(this.look);
     this.camera.fov = this.fov;
-    if (this.mode !== 'title') this.keepInFrame(runnerPos);
+    if (this.mode !== 'title') this.keepInFrame(runnerPos, dt);
+    else this.standBack = 0;
     this.rollKick *= Math.exp(-dt * 2.6);
     this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.25 + this.dutch + hr + this.rollKick);
     this.camera.fov = this.fov;
@@ -752,7 +755,9 @@ export class CameraRig {
    *    the crown leaves the band), and pan so no arm leaves the side margin (~16 pt on a phone).
    * In unshifted NDC the band runs from -1 - 2s + 2b (the dock's top edge) to 1 - 2s - 2t.
    */
-  private keepInFrame(runnerPos: THREE.Vector3): void {
+  /** Eased stand-back distance of a settled shot (m along the view; see keepInFrame). */
+  private standBack = 0;
+  private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
     if (this.mode === 'crash' && this.gap > 0.3) return; // looking down into the gap after him
     const c = this.camera;
     const s = this.shift;
@@ -793,14 +798,21 @@ export class CameraRig {
     };
     if (!measure()) return;
     const m = this.frameM;
-    if (settled) {
-      // Too big for the band (or the width): stand back along the view.
-      const needV = (m.head - m.feet) / ((hi - lo) * tanV * 0.92);
-      const needH = (m.right - m.left) / (2 * mx * tanH * 0.92);
-      const k = Math.max(needV, needH);
-      if (k > 1) {
+    {
+      // Too big for the band (or the width): stand back along the view. Eased (round 16): when the
+      // result card and dock arrive (or the shot settles) the band shrinks at once, and an instant
+      // stand-back cut the lens several metres back in one frame.
+      let want = 0;
+      if (settled) {
+        const needV = (m.head - m.feet) / ((hi - lo) * tanV * 0.92);
+        const needH = (m.right - m.left) / (2 * mx * tanH * 0.92);
+        const k = Math.max(needV, needH);
+        if (k > 1) want = m.depth * (k - 1);
+      }
+      this.standBack += (want - this.standBack) * (1 - Math.exp(-dt * 3.5));
+      if (this.standBack > 0.01) {
         c.getWorldDirection(this.tmp);
-        c.position.addScaledVector(this.tmp, -m.depth * (k - 1));
+        c.position.addScaledVector(this.tmp, -this.standBack);
         if (!measure()) return;
       }
     }
