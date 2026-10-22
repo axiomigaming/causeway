@@ -1188,11 +1188,11 @@ def extra_clips():
                 torso(P, lean=0.12 if ph == 1 else -0.02, look=0.25 if ph == 1 else 0.38, yaw=0.08)
                 standing(P, wide=0.11, bend=0.16 if ph == 1 else 0.06)
                 if ph == 0:
-                    arm(P, "R", fwd=1.2, elbow=2.0, out=0.25, curl=1.35, twist=0.2)
+                    arm(P, "R", fwd=1.75, elbow=1.15, out=-0.35, curl=1.35, twist=0.1)  # cocked: fist up and out, above the shoulder
                 elif ph == 1:
-                    arm(P, "R", fwd=0.25, elbow=2.25, out=0.2, curl=1.35, twist=0.2)
+                    arm(P, "R", fwd=-0.2, elbow=1.7, out=0.15, curl=1.35, twist=0.1)  # yanked down to the hip
                 else:
-                    arm(P, "R", fwd=0.55, elbow=2.1, out=0.25, curl=1.35, twist=0.2)
+                    arm(P, "R", fwd=0.15, elbow=1.8, out=0.2, curl=1.35, twist=0.1)
                 arm(P, "L", **AKIMBO)
                 standing_turned(P, FACE)
                 key(t + d, P)
