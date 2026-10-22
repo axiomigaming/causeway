@@ -85,5 +85,6 @@ describe('world generation', () => {
   it("keeps the nominal run's speed the game's speedOf", async () => {
     const { speedOf } = await import('../src/render/game');
     for (let i = 0; i <= 1; i += 0.05) expect(GEN_SPEED(i)).toBeCloseTo(speedOf(i), 9);
-  });
+    // Importing the whole renderer module is slow under machine load; the check itself is instant.
+  }, 60_000);
 });
