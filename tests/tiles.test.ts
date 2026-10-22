@@ -74,7 +74,7 @@ describe('walkable tiles', () => {
     let prev = { theme: '', look: '' };
     const seen = new Set<string>();
     for (let i = 0; i < 40; i++) {
-      track.reset(`plan-${i}`);
+      track.reset(track.vary(`plan-${i}`));
       const cur = { theme: track.theme, look: track.look.name };
       expect(cur.theme).not.toBe(prev.theme);
       expect(cur.look).not.toBe(prev.look);
@@ -184,35 +184,43 @@ describe('walkable tiles', () => {
   it('takes real 90° corners that alternate, stand apart and never double back', async () => {
     const track = new Track(fakeKit());
     await track.prepare({ foliage: 0.4, scenery: 0.4 });
-    track.reset('corners');
-    const types: string[] = [];
-    let s = 0;
-    let seen = 0;
-    while (s < 6000) {
-      s += 50;
-      track.update(s, 0.6);
-      for (const sec of track.sections) if (sec.s0 >= seen) ((seen = sec.s0 + 1e-6), types.push(sec.type));
+    // (Round 17: a section's crescendo comes from its distance along the route, so a long route runs
+    // at full intensity, where the big walled sections that keep corners away are favoured: corners are
+    // counted over several worlds.)
+    let total = 0;
+    for (const seed of ['corners', 'corners-2', 'corners-3', 'corners-4']) {
+      track.reset(seed);
+      const types: string[] = [];
+      let s = 0;
+      let seen = 0;
+      while (s < 6000) {
+        s += 50;
+        track.update(s, 0.6);
+        for (const sec of track.sections) if (sec.s0 >= seen) ((seen = sec.s0 + 1e-6), types.push(sec.type));
+      }
+      let heading = 0;
+      let since = 99;
+      let corners = 0;
+      for (const t of types) {
+        if (t === 'turnL' || t === 'turnR') {
+          heading += t === 'turnL' ? 1 : -1;
+          expect(Math.abs(heading)).toBeLessThanOrEqual(1);
+          expect(since).toBeGreaterThanOrEqual(3);
+          since = 0;
+          corners++;
+        } else since++;
+      }
+      expect(corners).toBeGreaterThanOrEqual(2);
+      total += corners;
+      // No cliffs or tall walls next to a corner (their sides reach past the section ends).
+      const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
+      types.forEach((t, i) => {
+        if (t !== 'turnL' && t !== 'turnR') return;
+        expect(BIG).not.toContain(types[i - 1]);
+        if (i + 1 < types.length) expect(BIG).not.toContain(types[i + 1]);
+      });
     }
-    let heading = 0;
-    let since = 99;
-    let corners = 0;
-    for (const t of types) {
-      if (t === 'turnL' || t === 'turnR') {
-        heading += t === 'turnL' ? 1 : -1;
-        expect(Math.abs(heading)).toBeLessThanOrEqual(1);
-        expect(since).toBeGreaterThanOrEqual(3);
-        since = 0;
-        corners++;
-      } else since++;
-    }
-    expect(corners).toBeGreaterThan(5);
-    // No cliffs or tall walls next to a corner (their sides reach past the section ends).
-    const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
-    types.forEach((t, i) => {
-      if (t !== 'turnL' && t !== 'turnR') return;
-      expect(BIG).not.toContain(types[i - 1]);
-      if (i + 1 < types.length) expect(BIG).not.toContain(types[i + 1]);
-    });
+    expect(total).toBeGreaterThan(12);
     // Every corner is a quarter turn, whichever way.
     for (const sec of track.sections) {
       if (sec.type === 'turnL') expect(sec.seg.turn).toBeCloseTo(Math.PI / 2, 6);

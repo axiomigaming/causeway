@@ -518,7 +518,8 @@ export class Game {
   // ------------------------------------------------------------------ stages
   /** A fresh stretch of causeway with the runner at its start. */
   private newWorld(stage: 'title' | 'setup'): void {
-    const seed = `${Date.now()}-${Math.random()}`;
+    // (World round 17: a world is a function of its seed; vary() picks one unlike the last world.)
+    const seed = this.track.vary(`${Date.now()}-${Math.random()}`);
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);

@@ -14,6 +14,8 @@ import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall'
 import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { atmosphereUniforms } from './atmosphere';
+import { intensityOf } from './choreo';
+import { GROWTH_PER_MS } from '../engine/config';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
 // QA (?w=<seed>): the same world every time, whatever world came before it.
@@ -24,6 +26,46 @@ const QA_STYLE = import.meta.env.DEV && typeof location !== 'undefined' ? STYLES
 /** World round 13: sections that make an open approach to a landmark (water in view, low or no walls). */
 const OPEN_APPROACH: SectionType[] = ['bridge', 'stepping', 'boardwalk', 'plaza', 'corridor', 'ruins', 'sunken'];
 const QA_OBS = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('obs') ?? '').split(',').filter(Boolean) : [];
+
+/**
+ * World round 17: world generation is a pure function of the seed. Nothing the route builder reads may
+ * depend on the clock, the frame rate, the quality tier or the live multiplier:
+ * - a section's crescendo (biome, ruin) comes from where it stands on the route — the multiplier a
+ *   nominal run has when it gets there — not from the live multiplier when it happened to be built;
+ * - corner clearance looks only at scenery that is still standing however the runner got there (not at
+ *   what the despawn behind him, which follows frame timing, happens to have kept), measured on the
+ *   full-density layouts (a tier, or the quality governor stepping down, must not change the route),
+ *   over a fixed probe length (not the tier's view distance);
+ * - variants are spread by how often this world has used them, not by how many happen to be standing.
+ */
+/** Nominal speed used by genIntensity (exported for the test that keeps it equal to speedOf). */
+export const GEN_SPEED = (i: number): number => Math.max(6.5, 5.0 + 7.6 * Math.pow(i, 0.85));
+/** The nominal run's intensity when it reaches route distance `d` (m from the start line). */
+export const genIntensity = (() => {
+  // Speed as render/game.ts speedOf (a test keeps them equal), reached at 6 m/s² as the game does.
+  const speed = GEN_SPEED;
+  const table: number[] = []; // intensity at every 5 m
+  let t = 0, s = 0, v = 0;
+  const dt = 0.02;
+  while (table.length < 1200 && t < 600) {
+    const i = intensityOf(Math.exp(GROWTH_PER_MS * t * 1000));
+    while (table.length * 5 <= s) table.push(i);
+    const target = speed(i);
+    v += Math.sign(target - v) * Math.min(Math.abs(target - v), 6 * dt);
+    s += v * dt;
+    t += dt;
+  }
+  return (d: number) => table[Math.max(0, Math.min(table.length - 1, Math.floor(d / 5)))]!;
+})();
+/** Corner clearance probe after the bend (m): fixed, whatever the tier's view distance. */
+const CLEAR_PROBE = 210;
+/**
+ * The despawn behind the runner follows the route's built end, not the runner (whose position at any
+ * build depends on frame timing): a section goes when it ends more than KEEP_BEHIND + DESPAWN_LEAD m
+ * short of the built end. DESPAWN_LEAD is the longest view distance (ultra builds 200 m ahead), so
+ * every tier still keeps at least KEEP_BEHIND m behind the runner.
+ */
+const DESPAWN_LEAD = 200;
 
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
@@ -56,6 +98,10 @@ interface Variant {
   layout: Layout;
   group: THREE.Group; // merged props, shared by every instance
   inUse: number;
+  /** Its layout at full density: what corner clearance measures (the same on every tier). */
+  solidLayout: Layout;
+  /** `${type}#${i}`: its key in the world's use count. */
+  key: string;
 }
 
 export interface TileSlot {
@@ -272,8 +318,11 @@ export class Track {
       const list: Variant[] = [];
       for (let i = 0; i < n; i++) {
         // Round 11 crescendo: variants run from intact (0) to ruined (1); see spawn().
-        const layout = buildLayout(type, `${type}#${i}`, density, undefined, n > 1 ? i / (n - 1) : 0);
-        list.push({ layout, group: this.mergeProps(layout), inUse: 0 });
+        const ruin = n > 1 ? i / (n - 1) : 0;
+        const layout = buildLayout(type, `${type}#${i}`, density, undefined, ruin);
+        const full = density.foliage >= 1 && density.scenery >= 1;
+        const solidLayout = full ? layout : buildLayout(type, `${type}#${i}`, { foliage: 1, scenery: 1 }, undefined, ruin);
+        list.push({ layout, solidLayout, key: `${type}#${i}`, group: this.mergeProps(layout), inUse: 0 });
         onStep?.(++done, total);
         await new Promise((r) => setTimeout(r, 0));
       }
@@ -284,6 +333,8 @@ export class Track {
   }
 
   private retired: THREE.Group[] = [];
+  /** The variants of this world's last ten sections (spreads the repeats; never follows the despawn). */
+  private recent: string[] = [];
 
   private mergeProps(layout: Layout): THREE.Group {
     // Near the path (walls, pillars, arches) casts shadows; scenery out over the water does not,
@@ -335,23 +386,40 @@ export class Track {
     return group;
   }
 
+  /** A world's plan, a pure function of its seed. */
+  static planOf(seed: string): { theme: number; look: number; style: number } {
+    const plan = new Rng(`plan/${seed}`);
+    return { theme: plan.int(0, THEMES.length - 1), look: plan.int(0, LOOKS.length - 1), style: plan.int(0, STYLES.length - 1) };
+  }
+
+  /**
+   * `base`, or the first of `base~`, `base~~`, … whose plan shares no theme, look or style with the
+   * world now built (so no two rounds in a row look alike, while each world stays a function of its seed).
+   */
+  vary(base: string): string {
+    if (QA_SEEDED || this.styleIndex < 0) return base;
+    let seed = base;
+    for (let k = 0; k < 64; k++, seed += '~') {
+      const p = Track.planOf(seed);
+      if (p.theme !== this.themeIndex && p.look !== this.lookIndex && p.style !== this.styleIndex) return seed;
+    }
+    return seed;
+  }
+
   reset(seed: string): void {
     for (const s of this.sections) this.despawn(s);
     this.sections.length = 0;
     for (const g of this.retired) disposeGroup(g);
     this.retired.length = 0;
     this.rng = new Rng(`world/${seed}`);
-    // Round 11: the run plan — a theme of favoured scenarios and a time-of-day look, from the world's
-    // own seed, each different from the last world's (so no two rounds in a row look alike).
-    const plan = new Rng(`plan/${seed}`);
-    const pick = (n: number, last: number) => {
-      const k = plan.int(0, n - 2);
-      return last < 0 || QA_SEEDED ? plan.int(0, n - 1) : k >= last ? k + 1 : k;
-    };
-    this.themeIndex = pick(THEMES.length, this.themeIndex);
-    this.lookIndex = pick(LOOKS.length, this.lookIndex);
-    // World round 12: a style too (water, season, air, which landmarks), never the last world's.
-    this.styleIndex = QA_STYLE >= 0 ? QA_STYLE : pick(STYLES.length, this.styleIndex);
+    this.recent.length = 0;
+    // Round 11: the run plan — a theme of favoured scenarios, a time-of-day look and (round 12) a style
+    // (water, season, air, which landmarks). Round 17: from the seed alone (see planOf); no two worlds in
+    // a row alike is the caller's choice of seed (vary()).
+    const plan = Track.planOf(seed);
+    this.themeIndex = plan.theme;
+    this.lookIndex = plan.look;
+    this.styleIndex = QA_STYLE >= 0 ? QA_STYLE : plan.style;
     this.lmRng = new Rng(`landmark/${seed}`);
     this.landmarks.clear();
     this.landmarkQueue = [...STYLES[this.styleIndex]!.landmarks];
@@ -417,7 +485,7 @@ export class Track {
     const probe = new Path();
     probe.reset(this.path.tail);
     probe.push(len, turn, 0);
-    probe.push(this.viewDistance + 20, 0, 0);
+    probe.push(CLEAR_PROBE, 0, 0);
     const f = { pos: new THREE.Vector3(), yaw: 0 };
     const pts: THREE.Vector3[] = [];
     for (let q = 1; q <= probe.length; q += 3) pts.push(probe.sample(q, f).pos.clone());
@@ -432,7 +500,8 @@ export class Track {
   }
 
   /** Keep the route built ahead of `s` and cleared behind it. */
-  update(s: number, intensity: number): void {
+  /** (`_live`, the live intensity, is no longer read: see genIntensity.) */
+  update(s: number, _live = 0): void {
     while (this.path.length < s + this.viewDistance) {
       // Corners alternate (the route never doubles back on itself) and stand at least three
       // sections apart (the legs between them keep the lanes' scenery from meeting).
@@ -474,6 +543,8 @@ export class Track {
           }
         }
       }
+      this.clearBehind(this.path.length);
+      const intensity = genIntensity(this.path.length);
       const t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
       this.spawn(t, intensity);
       this.lastType = t;
@@ -484,12 +555,18 @@ export class Track {
       if (this.turnBlock.n > 0) this.turnBlock.n--;
       this.maybeLandmark(t);
     }
-    while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < s - KEEP_BEHIND) {
+    this.clearBehind(this.path.length);
+    this.obstacles.trim(s);
+  }
+
+  /** Despawn by the built end (see DESPAWN_LEAD): what stands at each build is a function of the route alone. */
+  private clearBehind(end: number): void {
+    const cut = end - DESPAWN_LEAD - KEEP_BEHIND;
+    while (this.sections.length > 1 && this.sections[0]!.s0 + this.sections[0]!.len < cut) {
       this.despawn(this.sections.shift()!);
     }
-    this.obstacles.trim(s);
-    this.landmarks.trim(s);
-    this.path.trim(s - KEEP_BEHIND - 20);
+    this.landmarks.trim(cut + KEEP_BEHIND);
+    this.path.trim(cut - 20);
   }
 
   /**
@@ -524,11 +601,13 @@ export class Track {
     // (intact and lush early, broken and dramatic late; presentation only), then the least-used one,
     // with a random tiebreak, so repeats are spread out.
     const ruinTarget = Number.isFinite(QA_RUIN) ? QA_RUIN : Math.min(1, intensity * 1.25);
-    const score = (v: Variant) => Math.abs(v.layout.ruin - ruinTarget) * 3 + v.inUse;
+    const score = (v: Variant) => Math.abs(v.layout.ruin - ruinTarget) * 3 + this.recent.filter((k) => k === v.key).length;
     const min = Math.min(...list.map(score));
     const candidates = list.filter((v) => score(v) <= min + 0.35);
     const variant = this.rng.pick(candidates);
     variant.inUse++;
+    this.recent.push(variant.key);
+    if (this.recent.length > 10) this.recent.shift();
     const layout = variant.layout;
     // Corners: turnL is built as a left turn and turnR is its mirror image.
     const mirror = type === 'turnR' ? true : type === 'turnL' || type === 'start' ? false : this.rng.chance(0.5);
@@ -571,7 +650,7 @@ export class Track {
     fallFeet(layout.falls, world, toWater, feet);
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(layout, world) };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world) };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
