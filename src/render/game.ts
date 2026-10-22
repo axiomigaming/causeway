@@ -1754,14 +1754,18 @@ export class Game {
     const q = cam.quaternion;
     if (![p.x, p.y, p.z, q.x, q.y, q.z, q.w, cam.fov].every(Number.isFinite)) {
       this.rig.safeShot(this.runner.root.position, this.runner.root.rotation.y);
-      this.guardK = 0;
+      this.guardK = this.guardV = 0;
       return;
     }
     // Round 16: a settled shot whose lens slips into a wall or a pillar no longer cuts to the safe
     // shot (an 8 m jump in one frame). The lens is drawn out, fast but continuously, toward a
     // chase position above and behind him, looking at his chest; it hands back as the rig clears.
     const inside = (this.stage === 'crash' || this.stage === 'cashout') && this.insideSolid(p);
-    this.guardK += ((inside ? 1 : 0) - this.guardK) * (1 - Math.exp(-dt * (inside ? 14 : 3)));
+    // Critically damped (from rest: the draw-out starts gently, no lurch on its first frame).
+    const w = inside ? 9 : 4;
+    this.guardV += (w * w * ((inside ? 1 : 0) - this.guardK) - 2 * w * this.guardV) * dt;
+    this.guardK = THREE.MathUtils.clamp(this.guardK + this.guardV * dt, 0, 1);
+    if (this.guardK === 0 || this.guardK === 1) this.guardV = 0;
     if (this.guardK < 0.002) return;
     const r = this.runner.root.position;
     const ry = this.runner.root.rotation.y;
@@ -1773,6 +1777,7 @@ export class Game {
     cam.updateMatrixWorld();
   }
   private guardK = 0;
+  private guardV = 0;
 
   private guardBox = new THREE.Box3();
   private guardP = new THREE.Vector3();
