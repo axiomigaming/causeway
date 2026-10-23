@@ -877,3 +877,44 @@ def column_lone(name, seed, height=10.0, radius=0.62):
     blk(bm, rng, (radius * 3.0, radius * 3.0, 0.55), (lean[0] * z, lean[1] * z, z + 0.27), (0.03, -0.02, 0.2), radius=0.35, erode=0.8)
     drop_faces_below(bm, zmax=0.2)
     return finish_obj(name, bm, 50)
+
+
+def broken_chunk(name, seed, size=(0.9, 0.7, 0.6)):
+    """World round 21: a block broken off masonry for crash debris — dressed, weathered faces on one
+    side, a raw fracture on the other: rough, faceted, the fresh pale stone inside (no lichen, no grime).
+    z=0 is its lowest point."""
+    rng = random.Random(seed)
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=4, use_grid_fill=True)
+    sx, sy, sz = size
+    # The fracture: a tilted plane cutting off a corner of the block; everything beyond it is pushed
+    # onto it and roughened (conchoidal, faceted).
+    nrm = Vector((rng.uniform(0.4, 1.0), rng.uniform(-0.6, 0.6), rng.uniform(0.2, 0.9))).normalized()
+    d0 = rng.uniform(0.05, 0.25)
+    off = Vector((seed * 1.7, seed * 0.3, 0.0))
+    raw = set()
+    for v in bm.verts:
+        p = v.co.copy()
+        h = p.dot(nrm) - d0
+        if h > 0:
+            p -= nrm * h
+            rough = 0.12 * noise.noise(p * 3.1 + off) + 0.05 * noise.noise(p * 9.0 + off)
+            p += nrm * rough
+            raw.add(v.index)
+        else:
+            # Dressed faces: worn, slightly pillowed.
+            p *= 1.0 + 0.03 * noise.noise(p * 4.0 + off)
+        v.co = Vector((p.x * sx, p.y * sy, p.z * sz))
+    zmin = min(v.co.z for v in bm.verts)
+    for v in bm.verts:
+        v.co.z -= zmin
+    stone = sand(rng)
+    fresh = (min(1.0, stone[0] * 1.25 + 0.06), min(1.0, stone[1] * 1.22 + 0.05), min(1.0, stone[2] * 1.18 + 0.04), 1.0)
+    cl = bm.loops.layers.float_color.get("Col") or bm.loops.layers.float_color.new("Col")
+    bm.verts.index_update()
+    for f in bm.faces:
+        is_raw = all(v.index in raw for v in f.verts)
+        for l in f.loops:
+            l[cl] = fresh if is_raw else stone
+    return finish_obj(name, bm, 25)
