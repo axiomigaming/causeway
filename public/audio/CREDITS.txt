@@ -24,6 +24,9 @@ See tools/audio-sources.json for which file each sound comes from.
 "20080928.coins.05.wav" by dobroide is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/dobroide/sounds/60769
 
+"20120808_064004 Cathedral Mountain rock slide, slow blocky chunks.wav" by betchkal is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/betchkal/sounds/500638
+
 "A Tree Falling Down.wav" by ecfike is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/ecfike/sounds/139952
 
@@ -36,14 +39,32 @@ See tools/audio-sources.json for which file each sound comes from.
 "Body falling on the ground 1" by ihitokage is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/ihitokage/sounds/395331
 
+"Body falling to floor 1" by JakLocke is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/JakLocke/sounds/261295
+
+"Body falling to floor 2" by JakLocke is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/JakLocke/sounds/261294
+
+"Body falling to floor 4" by JakLocke is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/JakLocke/sounds/261292
+
 "body-fall-2.wav" by CosmicEmbers is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
   https://freesound.org/people/CosmicEmbers/sounds/160740
+
+"body-fall-4" by CosmicEmbers is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/CosmicEmbers/sounds/160738
 
 "Boots Gravel Feet Slide 1_5" by Joao_Janz is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/Joao_Janz/sounds/504383
 
 "Boots Gravel Feet Slide 1_8" by Joao_Janz is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/Joao_Janz/sounds/504380
+
+"Boots Slow Dirt Footstep 1_6" by Joao_Janz is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Joao_Janz/sounds/504193
+
+"Boots Slow Dirt Footstep 1_8" by Joao_Janz is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/Joao_Janz/sounds/504195
 
 "Braddons Lookout Wind Gusts #1.m4a" by guyburns is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/guyburns/sounds/474894
@@ -87,6 +108,9 @@ See tools/audio-sources.json for which file each sound comes from.
 "Djembe Hit 6 Rim.wav" by carlmartin is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/carlmartin/sounds/158968
 
+"dry branches cracking.aiff" by SoundCollectah is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/SoundCollectah/sounds/109357
+
 "earthquake.aif" by dingus23 is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/dingus23/sounds/275809
 
@@ -95,6 +119,9 @@ See tools/audio-sources.json for which file each sound comes from.
 
 "Egg SHaker 2" by kramsttop is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
   https://freesound.org/people/kramsttop/sounds/170911
+
+"Exotic Birds sound" by bolkmar is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.
+  https://freesound.org/people/bolkmar/sounds/423804
 
 "Fireplace Granite Drum.WAV" by RayGunV is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/RayGunV/sounds/628971
@@ -107,6 +134,12 @@ See tools/audio-sources.json for which file each sound comes from.
 
 "footsteps - wood & stairs 02.wav" by Anthousai is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/Anthousai/sounds/398781
+
+"Footsteps Gravel (Various speeds)" by DaniloSFX is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/DaniloSFX/sounds/672742
+
+"Footsteps Gravel 1.wav" by HenKonen is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/HenKonen/sounds/682129
 
 "Footsteps Gravel Running-Stop" by KikeVilaplana is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/KikeVilaplana/sounds/436525
@@ -159,6 +192,12 @@ See tools/audio-sources.json for which file each sound comes from.
 "JBF Plywood Breaking 2.aif" by cmusounddesign is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/cmusounddesign/sounds/96167
 
+"Kicking Large Stones Down Shoreline on Stony Beach 3.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/F.M.Audio/sounds/574447
+
+"Kicking Large Stones Down Shoreline on Stony Beach 4.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/F.M.Audio/sounds/574446
+
 "Kicking Large Stones Down Shoreline on Stony Beach 5.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/F.M.Audio/sounds/574445
 
@@ -195,6 +234,18 @@ See tools/audio-sources.json for which file each sound comes from.
 "patting stone wall.wav" by vestibule-door is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/vestibule-door/sounds/669723
 
+"pencil snap break wood crack fruit stem branch twig.flac" by kyles is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
+  https://freesound.org/people/kyles/sounds/637746
+
+"Ploppy_1.wav" by digifishmusic is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/digifishmusic/sounds/53684
+
+"Ploppy_2.wav" by digifishmusic is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/digifishmusic/sounds/53685
+
+"Ploppy_3.wav" by digifishmusic is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/digifishmusic/sounds/53686
+
 "puddlewalk.wav" by j1987 is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/j1987/sounds/106395
 
@@ -207,8 +258,17 @@ See tools/audio-sources.json for which file each sound comes from.
 "rock falls with cracking.mp3" by SoundCollectah is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/SoundCollectah/sounds/157804
 
+"rockfall 05.flac" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/tim.kahn/sounds/49620
+
+"rockfall 06.flac" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/tim.kahn/sounds/49621
+
 "rockfall 07.flac" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/tim.kahn/sounds/49622
+
+"rockfall 08.flac" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/tim.kahn/sounds/49623
 
 "rockfall 09.flac" by tim.kahn is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
   https://freesound.org/people/tim.kahn/sounds/49624
@@ -221,6 +281,9 @@ See tools/audio-sources.json for which file each sound comes from.
 
 "sand pour on slate FF670.aif" by martinimeniscus is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/martinimeniscus/sounds/199331
+
+"Scraping and Clunking Large Stone 1.wav" by F.M.Audio is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.
+  https://freesound.org/people/F.M.Audio/sounds/572754
 
 "Shaker Riff.wav" by HUMANOISEMAKER is marked with CC0 1.0. To view the terms, visit https://creativecommons.org/publicdomain/zero/1.0/.
   https://freesound.org/people/HUMANOISEMAKER/sounds/148935

@@ -125,8 +125,9 @@ export function findOnset(data: Float32Array, from: number, to: number, threshol
 
 // ------------------------------------------------------------------ world mapping
 
-export type Surface = 'stone' | 'wood' | 'gravel' | 'wet';
-export type Bed = 'jungle' | 'insects' | 'river' | 'waterfall';
+export type Surface = 'stone' | 'wood' | 'gravel' | 'wet' | 'dirt';
+/** The beds: the causeway's four, and (round 16) the forest's denser chorus and the dry ravine's hollow wind. */
+export type Bed = 'jungle' | 'insects' | 'river' | 'waterfall' | 'forest' | 'ravine';
 
 /**
  * Round 15: each world style (world/style.ts names) has its own air. Multipliers on the section mix per bed,
@@ -145,15 +146,15 @@ export interface StyleAir {
 
 export const STYLE_AIR: Record<string, StyleAir> = {
   // The reference world: the mix as it was.
-  turquoise: { beds: { jungle: 1, insects: 1, river: 1, waterfall: 1 }, wind: 1, birdRate: 1, insectRate: 1, insectTop: -9, rain: 0 },
+  turquoise: { beds: { jungle: 1, insects: 1, river: 1, waterfall: 1, forest: 1, ravine: 1 }, wind: 1, birdRate: 1, insectRate: 1, insectTop: -9, rain: 0 },
   // Jade river, greener and wetter: the river forward, birds a touch lower, fewer insects, less wind.
-  jade: { beds: { jungle: 1.1, insects: 0.8, river: 1.4, waterfall: 1.1 }, wind: 0.8, birdRate: 0.97, insectRate: 0.98, insectTop: -10, rain: 0 },
+  jade: { beds: { jungle: 1.1, insects: 0.8, river: 1.4, waterfall: 1.1, forest: 1.1, ravine: 0.8 }, wind: 0.8, birdRate: 0.97, insectRate: 0.98, insectTop: -10, rain: 0 },
   // A clear lagoon, clean open air: water lapping, sparse brighter birds, few insects, more breeze.
-  lagoon: { beds: { jungle: 0.75, insects: 0.55, river: 1.25, waterfall: 0.9 }, wind: 1.3, birdRate: 1.05, insectRate: 1, insectTop: -11, rain: 0 },
+  lagoon: { beds: { jungle: 0.75, insects: 0.55, river: 1.25, waterfall: 0.9, forest: 0.8, ravine: 1.2 }, wind: 1.3, birdRate: 1.05, insectRate: 1, insectTop: -11, rain: 0 },
   // Dry season: the cicadas take over (higher, brighter), birds thin out, the water low, a dusty wind.
-  dry: { beds: { jungle: 0.6, insects: 1.7, river: 0.45, waterfall: 0.6 }, wind: 1.45, birdRate: 1.03, insectRate: 1.07, insectTop: -4, rain: 0 },
+  dry: { beds: { jungle: 0.6, insects: 1.7, river: 0.45, waterfall: 0.6, forest: 0.7, ravine: 1.4 }, wind: 1.45, birdRate: 1.03, insectRate: 1.07, insectTop: -4, rain: 0 },
   // Deep rainforest: dense, dark and wet; more of everything that lives, water everywhere, still air.
-  rainforest: { beds: { jungle: 1.35, insects: 1.15, river: 1.3, waterfall: 1.25 }, wind: 0.7, birdRate: 0.95, insectRate: 0.97, insectTop: -8, rain: 0.8 },
+  rainforest: { beds: { jungle: 1.35, insects: 1.15, river: 1.3, waterfall: 1.25, forest: 1.35, ravine: 0.7 }, wind: 0.7, birdRate: 0.95, insectRate: 0.97, insectTop: -8, rain: 0.8 },
 };
 
 export function styleAir(name: string | null | undefined): StyleAir {
@@ -166,6 +167,13 @@ const WATERFALL = new Set(['cliff', 'gorge']);
 const WATER = new Set(['bridge', 'boardwalk', 'avenue']);
 /** Loose ground: rubble, ruins, stairs. */
 const LOOSE = new Set(['ruins', 'tunnel', 'stairsDown', 'stairsUp', 'statues']);
+/** Round 16, land sections (world/sections.ts LAND_TYPES): earth and leaf litter underfoot. */
+const EARTH = new Set(['forest', 'forestWall', 'cutting']);
+
+/** Whether a section's ground is earth (for the leaf-litter and root layer on footsteps). */
+export function earthy(section: string | null): boolean {
+  return !!section && (EARTH.has(section) || section === 'overgrown' || section === 'ravine');
+}
 
 /**
  * The surface under a footstep. The world reports stone or wood; the section refines stone
@@ -178,6 +186,11 @@ export function surfaceFor(section: string | null, base: 'stone' | 'wood', rnd: 
   if (section && WATERFALL.has(section)) return r < 0.75 ? 'wet' : 'stone';
   if (section && LOOSE.has(section)) return r < 0.6 ? 'gravel' : 'stone';
   if (section && WATER.has(section)) return r < 0.3 ? 'wet' : 'stone';
+  // Land: the forest floor is earth; the overgrown plaza is paved, earth at its edges; the ravine footing is
+  // grit over earth and stone.
+  if (section && EARTH.has(section)) return r < 0.8 ? 'dirt' : 'gravel';
+  if (section === 'overgrown') return r < 0.35 ? 'dirt' : 'stone';
+  if (section === 'ravine') return r < 0.45 ? 'gravel' : r < 0.8 ? 'dirt' : 'stone';
   return r < 0.15 ? 'gravel' : 'stone';
 }
 
@@ -186,10 +199,18 @@ export function surfaceFor(section: string | null, base: 'stone' | 'wood', rnd: 
  * jungle and insects with water lapping. Escapes and menus sit in the jungle by the river.
  */
 export function bedMix(section: string | null): Record<Bed, number> {
-  if (section && WATERFALL.has(section)) return { jungle: 0.45, insects: 0.25, river: 0.3, waterfall: 1 };
-  if (section && WATER.has(section)) return { jungle: 0.6, insects: 0.4, river: 1, waterfall: 0 };
-  if (section === 'tunnel') return { jungle: 0.2, insects: 0.15, river: 0.25, waterfall: 0 };
-  return { jungle: 1, insects: 0.6, river: 0.55, waterfall: 0 };
+  const z = { forest: 0, ravine: 0 };
+  if (section && WATERFALL.has(section)) return { jungle: 0.45, insects: 0.25, river: 0.3, waterfall: 1, ...z };
+  if (section && WATER.has(section)) return { jungle: 0.6, insects: 0.4, river: 1, waterfall: 0, ...z };
+  if (section === 'tunnel') return { jungle: 0.2, insects: 0.15, river: 0.25, waterfall: 0, ...z };
+  // Land (round 16): away from the water the forest closes in; the walls of trunks are the densest; a cutting
+  // between rock faces is quieter with wind in it; the dry ravine is wind over a dry riverbed and cicadas.
+  if (section === 'forest') return { jungle: 0.8, insects: 0.7, river: 0.15, waterfall: 0, forest: 0.85, ravine: 0 };
+  if (section === 'forestWall') return { jungle: 0.6, insects: 0.85, river: 0.05, waterfall: 0, forest: 1.15, ravine: 0 };
+  if (section === 'overgrown') return { jungle: 0.9, insects: 0.7, river: 0.25, waterfall: 0, forest: 0.6, ravine: 0 };
+  if (section === 'cutting') return { jungle: 0.45, insects: 0.5, river: 0.05, waterfall: 0, forest: 0.35, ravine: 0.45 };
+  if (section === 'ravine') return { jungle: 0.3, insects: 0.85, river: 0, waterfall: 0, forest: 0, ravine: 1 };
+  return { jungle: 1, insects: 0.6, river: 0.55, waterfall: 0, ...z };
 }
 
 // ------------------------------------------------------------------ generic sfx names
