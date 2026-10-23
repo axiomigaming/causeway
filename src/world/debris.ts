@@ -46,6 +46,12 @@ interface Body {
   chips: number;
   shard: boolean;
   tag?: string;
+  /** Contact points: the 8 corners, plus points along the long edges of a long piece (a pier lying
+   * across the way rests on its length, not just its two ends). */
+  npts: number;
+  /** Index of the long axis (0 x, 1 y, 2 z) and how many stations along it. */
+  longAxis: number;
+  stations: number;
 }
 
 /** A gorge's side walls: below `top`, the lateral offset from `origin` along `right` stays within ±half. */
@@ -232,6 +238,7 @@ export class Debris {
       chips: 0,
       shard: piece.startsWith('shard_'),
       tag: opts.tag,
+      ...Debris.stationsOf(half),
     });
     return mesh;
   }
@@ -282,6 +289,32 @@ export class Debris {
   private tw = new THREE.Vector3();
   private corner = new THREE.Vector3();
   private qi = new THREE.Quaternion();
+
+  /** Long pieces get contact stations every ~0.8 m along their long edges. */
+  private static stationsOf(half: THREE.Vector3): { npts: number; longAxis: number; stations: number } {
+    const h = [half.x, half.y, half.z];
+    const longAxis = h.indexOf(Math.max(...h));
+    const short = Math.min(...h.filter((_, i) => i !== longAxis));
+    const stations = h[longAxis]! > 2.5 * short ? Math.min(6, Math.floor((2 * h[longAxis]!) / 0.8)) : 0;
+    return { npts: 8 + stations * 4, longAxis, stations };
+  }
+
+  /** Contact point `i` of body b, relative to its centre, in world orientation (into this.tr). */
+  private point(b: Body, i: number): THREE.Vector3 {
+    if (i < 8) return this.tr.set(i & 1 ? b.half.x : -b.half.x, i & 2 ? b.half.y : -b.half.y, i & 4 ? b.half.z : -b.half.z).applyQuaternion(b.q);
+    const k = i - 8;
+    const st = Math.floor(k / 4);
+    const edge = k % 4;
+    const t = -1 + (2 * (st + 1)) / (b.stations + 1);
+    const h = [b.half.x, b.half.y, b.half.z];
+    const a1 = (b.longAxis + 1) % 3;
+    const a2 = (b.longAxis + 2) % 3;
+    const v = [0, 0, 0];
+    v[b.longAxis] = t * h[b.longAxis]!;
+    v[a1] = edge & 1 ? h[a1]! : -h[a1]!;
+    v[a2] = edge & 2 ? h[a2]! : -h[a2]!;
+    return this.tr.set(v[0]!, v[1]!, v[2]!).applyQuaternion(b.q);
+  }
 
   /** World inverse inertia applied to a vector: R · I⁻¹ · Rᵀ · v. */
   private invIw(b: Body, v: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
@@ -390,8 +423,8 @@ export class Debris {
       let hits = 0;
       if (!b.splashed) {
         for (let pass = 0; pass < 2; pass++) {
-          for (let cidx = 0; cidx < 8; cidx++) {
-            const r = this.tr.set(cidx & 1 ? b.half.x : -b.half.x, cidx & 2 ? b.half.y : -b.half.y, cidx & 4 ? b.half.z : -b.half.z).applyQuaternion(b.q);
+          for (let cidx = 0; cidx < b.npts; cidx++) {
+            const r = this.point(b, cidx);
             const px = b.x.x + r.x;
             const py = b.x.y + r.y;
             const pz = b.x.z + r.z;
@@ -414,8 +447,8 @@ export class Debris {
       // Gorge walls: the box's corners against the two side planes below the lip.
       if (b.walls && !b.splashed && b.x.y < b.walls.top) {
         const W = b.walls;
-        for (let cidx = 0; cidx < 8; cidx++) {
-          const r = this.tr.set(cidx & 1 ? b.half.x : -b.half.x, cidx & 2 ? b.half.y : -b.half.y, cidx & 4 ? b.half.z : -b.half.z).applyQuaternion(b.q);
+        for (let cidx = 0; cidx < b.npts; cidx++) {
+          const r = this.point(b, cidx);
           const lat = (b.x.x + r.x - W.origin.x) * W.right.x + (b.x.z + r.z - W.origin.z) * W.right.z;
           const over = Math.abs(lat) - W.half;
           if (over <= 0) continue;
@@ -441,8 +474,11 @@ export class Debris {
       }
       // Rolling resistance and sleep: a piece lying still on the floor goes to rest.
       if (touching) {
-        // Rolling resistance; a piece barely moving loses its spin fast (no shimmer at rest).
-        b.spin.multiplyScalar(Math.exp(-(b.vel.lengthSq() < 0.05 ? 6 : 1.2) * dt));
+        // Rolling resistance on small pieces; anything barely moving and barely turning loses the
+        // rest of its spin fast (no shimmer at rest). A pier pivoting on its foot keeps its swing.
+        const w2 = b.spin.lengthSq();
+        if (b.vel.lengthSq() < 0.05 && w2 < 0.4) b.spin.multiplyScalar(Math.exp(-6 * dt));
+        else if (b.shard) b.spin.multiplyScalar(Math.exp(-1.2 * dt));
         if (b.vel.lengthSq() < 0.03 && b.spin.lengthSq() < 0.12) {
           b.sleepT += dt;
           if (b.sleepT > 0.35) {
