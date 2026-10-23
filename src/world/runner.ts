@@ -243,6 +243,10 @@ export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number
  */
 export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30, win_cheer: 4 / 30, win_cheer_big: 4 / 30, win_leap: 4 / 30, win_salute: 7 / 30, win_slide: 3 / 30 };
 
+/** Reactions the feet are never pinned in: the drop to the stone below (the feet leave the floor the root
+ * stands on) and the spin of the side hit (a pinned foot fights the spin and flips the leg). */
+const UNPINNED = new Set(['fall_drop', 'fall_side_hit']);
+
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
   const A = AIR_SPANS[clip];
@@ -1223,7 +1227,7 @@ export class Runner {
    */
   private plantFeet(dt: number): void {
     // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
-    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm';
+    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current);
     const ground = this.root.position.y;
     // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
     // pinned foot would wind the leg up and unwind with a snap when it lifts).

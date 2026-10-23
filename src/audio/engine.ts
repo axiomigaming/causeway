@@ -23,12 +23,12 @@ import { SampleBank, SamplePlayer, type PlayOpts, type Voice } from './samples';
 import { ScorePlayer } from './score';
 import { ThemePlayer } from './theme';
 import { worldMood } from '../world/mood';
-import { bedMix, mulberry32, resolveSfx, STYLE_AIR, styleAir, surfaceFor, voiceCap, type Bed } from './select';
+import { bedMix, earthy, mulberry32, resolveSfx, STYLE_AIR, styleAir, surfaceFor, voiceCap, type Bed } from './select';
 
 type Scene = 'title' | 'setup' | 'lead' | 'run' | 'escaped' | 'fallen';
 export type UiSound = 'hover' | 'tick' | 'press' | 'confirm' | 'bet' | 'cashout' | 'deny' | 'open' | 'close' | 'stamp' | 'toggle';
 
-const BEDS: Bed[] = ['jungle', 'insects', 'river', 'waterfall'];
+const BEDS: Bed[] = ['jungle', 'insects', 'river', 'waterfall', 'forest', 'ravine'];
 /** Master drive into the dynamics chain (see applyLevels). */
 const DRIVE = 1.62;
 
@@ -756,6 +756,7 @@ export class AudioEngine implements WorldSounds {
       if (this.scene === 'run') this.reveal(Math.min(1, Math.max(0, strength)));
       return;
     }
+    if (this.crashEvent(name, Math.min(1, Math.max(0, Number.isFinite(strength) ? strength : 0.7)))) return;
     if (name === 'fall_drop') {
       // The runner goes over the lip: the body dropping away through the air (the splash comes with impact()).
       this.sample('whoosh', { strength: 0.8, rate: 0.6 });
@@ -871,6 +872,119 @@ export class AudioEngine implements WorldSounds {
     return false;
   }
 
+  private toppleSent = false;
+  private recentDebris: number[] = [];
+
+  /**
+   * Round-16 crash variants, each hit on the frame the FX director sends it (render/game.ts, sounds.event):
+   * a pier cracking and toppling, it landing, the runner slamming into it or tripping over it, a drop to a
+   * lower level, falling chunks and what they do in the water. Real takes throughout, no voice; the debris
+   * settles after the big hits. True when the name is one of them.
+   */
+  private crashEvent(name: string, k: number): boolean {
+    const ctx = this.ctx;
+    if (!ctx) return false;
+    const t = ctx.currentTime;
+    const p = this.rnd() * 0.3 - 0.15;
+    switch (name) {
+      case 'pillar_crack':
+        // The pier's foot gives: a stone crack, the groan of it leaning (the topple follows ~0.05 s later).
+        if (!this.rec('crack_stone', { strength: 0.7 + 0.3 * k, rate: 0.82, pan: p, priority: 3 })) this.sample('impact', { strength: 0.8, rate: 1.1, pan: p });
+        this.sample('grind', { strength: 0.45 + 0.35 * k, maxDur: 1.1, rate: 0.7, fadeIn: 0.06, when: t + 0.04, pan: p });
+        this.sample('debris', { strength: 0.3 + 0.2 * k, when: t + 0.12, pan: p });
+        this.toppleSent = false;
+        this.later(0.4, () => {
+          if (!this.toppleSent) this.topple(k, p);
+        });
+        return true;
+      case 'pillar_topple':
+        this.toppleSent = true;
+        this.topple(k, p);
+        return true;
+      case 'pillar_hit':
+        // A pier or column lands: stone on stone, the slam's weight, rubble thrown, then it settles.
+        this.sample('slam', { strength: 0.6 + 0.4 * k, rate: 0.92, pan: p });
+        this.rec('stone_crash', { strength: 0.45 + 0.35 * k, rate: 0.9, pan: p, when: t + 0.005 });
+        if (k > 0.6) this.sample('m_boom', { strength: 0.3 + 0.3 * k, rate: 0.8, dest: this.sfxBus, when: t + 0.01 });
+        this.sample('rockfall', { strength: 0.35 + 0.3 * k, when: t + 0.05, pan: p });
+        this.sample('dust', { strength: 0.4 + 0.3 * k, when: t + 0.1, pan: p });
+        this.settleTail(k, t + 0.7, p);
+        return true;
+      case 'body_slam':
+        // Chest-first into the fallen pier: the body's weight on stone, the knock of it; a breath out after.
+        if (!this.rec('body_hit', { strength: 0.75 + 0.25 * k, pan: p, priority: 3 })) this.rec('land_body', { strength: 1, pan: p, priority: 3 });
+        this.sample('impact', { strength: 0.35 + 0.3 * k, rate: 0.7, pan: p, when: t + 0.005 });
+        this.sample('dust', { strength: 0.3, when: t + 0.06, pan: p });
+        if (k > 0.5) this.sample('pant', { strength: 0.45, when: t + 0.95 });
+        return true;
+      case 'trip_fall':
+        // He goes down over the column: the body hits the stone, then rolls and scrapes; grit after.
+        if (!this.rec('body_hit', { strength: 0.65 + 0.3 * k, pan: p, priority: 3 })) this.rec('land_body', { strength: 0.9, pan: p });
+        this.sample('impact', { strength: 0.4 + 0.3 * k, rate: 0.75, pan: p, when: t + 0.004 });
+        this.rec('skid', { strength: 0.45 + 0.35 * k, rate: 0.85, maxDur: 0.7, when: t + 0.12, pan: -p });
+        this.sample('dust', { strength: 0.35, when: t + 0.15, pan: p });
+        this.settleTail(0.4 * k, t + 0.6, p);
+        return true;
+      case 'ledge_land':
+        // A 2-3 m drop onto stone: the heaviest body impact, the feet, stones knocked loose pattering down.
+        if (!this.rec('body_hit', { strength: 0.85 + 0.15 * k, pan: p, priority: 3 })) this.sample('impact', { strength: 0.9, rate: 0.8, pan: p });
+        this.rec('land_body', { strength: 0.7 + 0.3 * k, maxDur: 0.4, pan: p, when: t + 0.01 });
+        this.sample('rock_bounce', { strength: 0.35 + 0.3 * k, when: t + 0.08 + this.rnd() * 0.05, pan: -p });
+        this.sample('rock_bounce', { strength: 0.25 + 0.2 * k, when: t + 0.3 + this.rnd() * 0.15, pan: p * 2 });
+        this.settleTail(0.6 * k, t + 0.5, p);
+        return true;
+      case 'rock_knock':
+        // A boulder from the side takes him down: rock on the body, then the rock bouncing on.
+        this.rec('body_hit', { strength: 0.8 + 0.2 * k, pan: p, priority: 3 });
+        this.sample('impact', { strength: 0.7 + 0.3 * k, rate: 0.85, pan: p });
+        this.sample('rock_bounce', { strength: 0.6 + 0.3 * k, when: t + 0.25, pan: -p * 2 });
+        this.settleTail(0.5 * k, t + 0.6, p);
+        return true;
+      case 'debris_hit': {
+        // A chunk lands (the FX caps these at ~8/s); a crowd thins itself so a collapse never turns to mush.
+        this.recentDebris = this.recentDebris.filter((x) => t - x < 0.3);
+        if (this.recentDebris.length >= 4) return true;
+        this.recentDebris.push(t);
+        const crowd = 1 / Math.sqrt(this.recentDebris.length);
+        const pan = this.rnd() * 0.8 - 0.4;
+        // A real chunk is a stone knock (the bigger, the lower); small ones are the patter of loose stones.
+        if (k >= 0.4) this.sample('impact', { strength: (0.3 + 0.6 * k) * crowd, rate: 0.95 - 0.25 * k + this.rnd() * 0.1, pan });
+        this.sample('rock_bounce', { strength: (0.2 + 0.5 * k) * crowd, rate: 0.8 + 0.2 * this.rnd(), pan, when: t + (k >= 0.4 ? 0.03 : 0) });
+        return true;
+      }
+      case 'debris_splash':
+        if (k >= 0.55) {
+          if (!this.rec('sink', { strength: 0.4 + 0.5 * k, pan: p })) this.sample('splash_big', { strength: 0.4 + 0.5 * k, pan: p });
+        } else this.sample('splash_small', { strength: 0.3 + 0.6 * k, pan: p });
+        return true;
+      case 'water_bubbles': {
+        // Bubbles rising after something sinks: a few soft plops, low and spread out.
+        const n = 2 + Math.round(3 * k);
+        for (let i = 0; i < n; i++) this.sample('plop', { strength: 0.25 + 0.35 * k * this.rnd(), rate: 0.7 + this.rnd() * 0.35, when: t + 0.05 + i * (0.12 + this.rnd() * 0.2), pan: this.rnd() * 0.6 - 0.3 });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** The pier going over: the air of it sweeping down and the stone grinding at its foot. */
+  private topple(k: number, p: number) {
+    const t = this.ctx?.currentTime ?? 0;
+    this.sample('whoosh', { strength: 0.65 + 0.35 * k, rate: 0.5, pan: p });
+    if (!this.rec('stone_scrape', { strength: 0.5 + 0.3 * k, rate: 0.85, pan: p, when: t + 0.02 })) this.sample('grind', { strength: 0.4, maxDur: 0.8, rate: 0.8, pan: p, when: t + 0.02 });
+  }
+
+  /** After a big hit: grit and small stones trickling and settling for a second or two. */
+  private settleTail(k: number, at: number, p: number) {
+    if (!this.rec('settle', { strength: 0.35 + 0.5 * k, when: at, fadeIn: 0.15, maxDur: 1.4 + 1.2 * k, pan: p })) this.sample('debris', { strength: 0.25 + 0.4 * k, when: at, pan: p });
+    this.sample('debris', { strength: 0.2 + 0.3 * k, when: at + 0.5 + this.rnd() * 0.4, pan: -p });
+  }
+
+  /** Run `fn` after `delay` s (main-thread timer: a cue that must wait for a possible FX event first). */
+  private later(delay: number, fn: () => void) {
+    setTimeout(fn, delay * 1000);
+  }
+
   /** The foot planted hard at a corner: a heavy step, a short skid of grit, the body swinging round. */
   private cornerPlant(s: number, t: number, p: number) {
     this.sample('step_gravel', { strength: 1, gain: 1.25, rate: 0.92, pan: p });
@@ -957,7 +1071,13 @@ export class AudioEngine implements WorldSounds {
     // Higher tiers land harder: louder and a touch lower (heavier), from the multiplier on screen.
     const tier = this.scene === 'run' ? tierOf(this.mult) : 0;
     const step = { strength: Math.min(1, (0.35 + 0.65 * Math.min(1, strength)) * (1 + 0.07 * tier)), gain: 1 + 0.09 * tier, rate: 1 - 0.018 * tier, pan: this.stepSide * 0.08 };
-    if (this.sample(`step_${under}`, step) || this.sample(`step_${surface}`, step)) {
+    if (this.sample(`step_${under}`, step) || (under === 'dirt' && this.sample('step_gravel', { ...step, gain: step.gain * 0.8, rate: step.rate * 0.9 })) || this.sample(`step_${surface}`, step)) {
+      if (earthy(this.section) && under !== 'wood') {
+        // The forest floor: dry leaves crackle under some steps, a twig or a root now and then.
+        const r = this.rnd();
+        if (r < 0.4) this.sample('litter', { strength: 0.4 + 0.5 * strength, pan: this.stepSide * 0.12, when: t + 0.01 });
+        else if (r < 0.46 && this.section !== 'ravine') this.sample('twig', { strength: 0.5 + 0.4 * strength, pan: this.stepSide * 0.15, when: t + 0.02 });
+      }
       // At a hard sprint on loose ground the push-off kicks grit too.
       if (strength > 0.85 && this.intensity > 0.5 && under !== 'wood' && this.rnd() < 0.3) this.sample('debris', { strength: 0.15, pan: this.stepSide * 0.1 });
       return;
@@ -1294,7 +1414,16 @@ export class AudioEngine implements WorldSounds {
     this.score.gain.setTargetAtTime(0, t, 0.03);
     this.settleCues(t, 0.02);
     this.breath?.gain.gain.setTargetAtTime(0, t, 0.08);
-    if (this.themeOn && this.sample(kind === 'gate' ? 'grind' : kind === 'chasm' ? 'crumble' : 'rockfall', { strength: 1 })) {
+    // The opening sound of the fall: the gate's grind, the chasm's crumble, the rockfall's roar. The round-16
+    // variants (pillar, trip, ledge) open quietly: their hits come as FX events, each on its frame.
+    const open = kind === 'gate' ? 'grind' : kind === 'chasm' ? 'crumble' : kind === 'rockfall' ? 'rockfall' : kind === 'ledge' ? 'crumble' : null;
+    const quiet = kind === 'pillar' || kind === 'trip' || kind === 'ledge';
+    if (this.themeOn && quiet) {
+      this.theme!.fall();
+      if (kind === 'ledge') this.sample('crumble', { strength: 0.55 });
+      return;
+    }
+    if (this.themeOn && open && this.sample(open, { strength: 1 })) {
       // The theme cuts dead into its loss sting (low brass falling, timpani); the world adds the collapse.
       this.theme!.fall();
       if (kind === 'chasm') {
