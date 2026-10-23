@@ -628,7 +628,7 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
           if (b.rng.chance(0.35)) {
             const rx = side * b.rng.range(3.2, 4.4);
             const rz = z - b.rng.range(0.5, 3.5);
-            b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz), rz, b.rng.range(0, 6.28), 0.7);
+            b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.55), rz, b.rng.range(0, 6.28), 0.5);
           }
           if (b.rich && b.foliage(0.3)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 7), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
         }
@@ -661,7 +661,7 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
           if (b.rng.chance(0.3)) {
             const rx = side * b.rng.range(3.2, 4.4);
             const rz = z - b.rng.range(0.5, 3.5);
-            b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz), rz, b.rng.range(0, 6.28), 0.7);
+            b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.55), rz, b.rng.range(0, 6.28), 0.5);
           }
           if (b.rich && b.foliage(0.35)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 8), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
         }
@@ -963,7 +963,7 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
         for (let k = 0; k < 2; k++) {
           const rx = side * b.rng.range(3.4, 6);
           const rz = -b.rng.range(0, len);
-          b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.55), rz, b.rng.range(0, 6), 0.8);
+          b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.6), rz, b.rng.range(0, 6), 0.55);
         }
         {
           const dx = side * b.rng.range(3.4, 5);
