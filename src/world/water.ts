@@ -127,22 +127,28 @@ export class Water {
             // over 2–3 s.
             vec2 adv = p - d / r * min(age, 2.0) * 0.5;
             float churn = wnoise(adv * 2.6 + vec2(age * 0.5, -age * 0.35)).x * 0.6 + wnoise(adv * 6.5 - age * 0.8).x * 0.4;
-            // Round 19: crisp. Patches are cut from the churn with a narrow edge, holed by a finer
-            // lace, carry a bright rim where the foam piles up at their edge, and the water between
-            // them is darker (churned, aerated, shaded by the foam): white water, not a soft blob.
-            float lace = wnoise(adv * 11.0 + age * 0.9).x;
-            float th = 0.5 + age * 0.06;
-            float cell = smoothstep(th, th + 0.035, churn) * smoothstep(0.28, 0.36, lace);
-            float edge = smoothstep(th, th + 0.02, churn) * (1.0 - smoothstep(th + 0.04, th + 0.1, churn));
-            float coreR = 0.5 + age * 0.5;
-            float core = smoothstep(coreR, coreR * 0.6, r) * exp(-age * 1.8);
-            float band = smoothstep(front * 0.92 + 0.3, front * 0.6, r) * exp(-age * 0.7);
-            float w = s.w * max(core, band);
-            // (Inside a patch: fine bubbly texture, not a flat white fill.)
-            float fizz = 0.72 + 0.28 * wnoise(adv * 26.0 - age * 1.3).x;
-            foam += w * cell * mix(0.62, 0.95, core) * fizz;
-            rim += w * edge;
-            gap += w * (1.0 - cell) * 0.6;
+            // Round 19b: foam as foam. Its density, not a flat fill: a dense bright rim just inside
+            // each patch's edge, fading into a see-through bubbly interior where the water shows.
+            // Lacy edges (the threshold itself wanders with a finer noise). Where it lies: a ring
+            // around the entry, thin streaks running out from it, a small core for the first beat;
+            // little else, so most of the water stays water. (Lit by the normals in main().)
+            float fine = wnoise(adv * 9.0 + age * 0.7).x;
+            float bub = wnoise(adv * 28.0 - age * 1.1).x;
+            // The edge frays at two scales (no smooth outline): the threshold wanders with the fine
+            // noise and, finer still, with the bubbles.
+            float th = 0.56 + age * 0.05 + (fine - 0.5) * 0.16 + (bub - 0.5) * 0.09;
+            float inside = smoothstep(th, th + 0.07, churn);
+            float rimB = inside * (1.0 - smoothstep(th + 0.03, th + 0.12 + 0.08 * fine, churn));
+            float interior = inside * (0.22 + 0.32 * smoothstep(0.42, 0.78, bub));
+            float dens = max(rimB * 0.9, interior);
+            float ringR = 0.55 + age * 1.1;
+            float ring = exp(-pow((r - ringR) / (0.28 + age * 0.16), 2.0));
+            float ang = atan(d.y, d.x);
+            float streak = smoothstep(0.64, 0.8, wnoise(vec2(ang * 4.0 + s.z * 7.0, r * 0.7 - age * 0.5)).x) * smoothstep(ringR + 1.5, ringR, r) * smoothstep(ringR * 0.5, ringR * 0.8, r);
+            float coreF = smoothstep(0.45 + age * 0.3, 0.0, r) * exp(-age * 2.6);
+            float where = max(max(ring, streak * 0.75), coreF) * exp(-age * 0.75) * s.w;
+            foam += where * mix(dens, 0.85 * inside, coreF);
+            gap += where * (1.0 - inside) * 0.3;
           }
           return g;
         }
@@ -285,8 +291,10 @@ export class Water {
           // Splash foam: churned white water fading as the rings spread.
           // Splash: darker churned water between the patches, then the foam, with a bright rim.
           col *= 1.0 - 0.35 * clamp(splashGap, 0.0, 1.0);
-          col = mix(col, vec3(0.86, 0.93, 0.9) * (0.75 + 0.25 * depthLook), clamp(splashFoam, 0.0, 0.92));
-          col += vec3(0.32, 0.36, 0.34) * clamp(splashRim, 0.0, 1.0);
+          // Foam lit by the surface it rides: brighter facing the sun, shaded in the troughs.
+          float foamLit = 0.7 + 0.42 * clamp(dot(N, normalize(uSunDir)), 0.0, 1.0) + 0.25 * (N.y - 0.98) * 20.0;
+          vec3 foamCol = vec3(0.88, 0.94, 0.91) * clamp(foamLit, 0.55, 1.15) * (0.8 + 0.2 * depthLook);
+          col = mix(col, foamCol, clamp(splashFoam, 0.0, 0.92));
           // Alpha marks water for the screen-space reflections (the canvas itself is opaque).
           gl_FragColor = vec4(col, uMark);
           if (uDbg > 0.5) gl_FragColor = vec4(fract(pathDist(vWorld.xz)), step(2.2, pathDist(vWorld.xz)), 0.0, uMark);
