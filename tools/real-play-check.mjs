@@ -199,14 +199,28 @@ const cases = {
     const s = await state(page);
     const ids = new Set(rounds.map((r) => r.id));
     if (ids.size !== rounds.length) p.push(`duplicate settlements ${rounds.length} rounds / ${ids.size} ids`);
+    // The ledger is every round the store settled (a RUN tapped while the last round had already
+    // fallen starts one more round, which the tap loop may not observe): each payout must follow the
+    // money rule, every observed round must be in it, and the balance must add up to it.
+    const hist = await page.evaluate(() => window.__store.getState().history.map((r) => ({ id: r.id, outcome: r.outcome, stake: r.stake, payout: r.payout, cashout: r.cashoutMult ?? null, crash: r.crash })));
+    const hids = new Set(hist.map((r) => r.id));
+    if (hids.size !== hist.length) p.push(`duplicate rounds in history`);
+    for (const r of rounds) if (!hids.has(r.id)) p.push(`round ${r.id} missing from history`);
     let want = b0;
-    for (const r of rounds) want += -r.stake + (r.won ? payout(r.stake, r.cashout) : 0);
-    if (s.balance !== want) p.push(`balance ${s.balance} != ${want}`);
+    for (const r of hist) {
+      const pay = r.outcome === 'cashout' ? payout(r.stake, r.cashout) : 0;
+      if (r.payout !== pay) p.push(`round ${r.id} paid ${r.payout} != ${pay}`);
+      want += pay - r.stake;
+    }
+    if (s.balance !== want) {
+      p.push(`balance ${s.balance} != ${want}`);
+      console.log(`  store  ${hist.map((r) => `${r.id}:${r.outcome}:${r.stake}:${r.payout}:${r.cashout ?? '-'}:${r.crash}`).join(' ')}`);
+    }
     if (s.history < rounds.length) p.push(`history ${s.history} < ${rounds.length}`);
     await frameProblems(page, 'rapid', p);
     await nextRoundOk(page, p);
     p.push(...issues);
-    report('rapid RUN/CASH/RUN', p, `${rounds.length} rounds, balance ${b0} -> ${s.balance}`);
+    report('rapid RUN/CASH/RUN', p, `${rounds.length} observed / ${hist.length} settled rounds, balance ${b0} -> ${s.balance}`);
     await ctx.close();
   },
   async hiddenMidRun() {
@@ -227,9 +241,16 @@ const cases = {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await page.waitForTimeout(3000);
+    // The game catches up on its next frames; a software-rendered frame can take seconds, so allow up
+    // to 30 s (the round lasts far longer) and report how long the stage took to follow the phase.
+    const t0 = Date.now();
+    await page
+      .waitForFunction(() => window.__store.getState().phase !== 'running' || window.__game.debugState.stage === 'run', null, { timeout: 30000, polling: 250 })
+      .catch(() => {});
+    const lag = ((Date.now() - t0) / 1000).toFixed(1);
     const mid = await state(page);
-    if (mid.phase === 'running' && mid.stage !== 'run') p.push(`resumed: phase running but stage ${mid.stage}`);
+    if (mid.phase === 'running' && mid.stage !== 'run') p.push(`resumed: phase running but stage ${mid.stage} after ${lag} s`);
+    console.log(`  hidden: stage followed the phase ${lag} s after resume (${mid.phase}/${mid.stage})`);
     await frameProblems(page, 'hidden-resumed', p);
     if (mid.phase === 'running') await page.evaluate(() => window.__ctl.cashout());
     await waitPhase(page, 'result', 240000);
