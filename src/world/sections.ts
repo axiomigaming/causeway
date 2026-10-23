@@ -717,7 +717,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       // A fallen log or column across the forest floor beside the way (crash: trip).
       if (b.rng.chance(0.6)) {
         const side = b.rng.pick([-1, 1]);
-        b.place(b.rng.chance(0.5) ? 'log_fallen_0' : `column_fallen_${b.rng.int(0, 1)}`, side * 4.2, gy(b, side * 4.2, -len / 2) + 0.05, -len * b.rng.range(0.3, 0.7), b.rng.range(-0.4, 0.4));
+        b.place(b.rng.chance(0.5) ? 'log_fallen_0' : `column_fallen_${b.rng.int(0, 1)}`, side * 5.4, gy(b, side * 5.4, -len / 2) + 0.05, -len * b.rng.range(0.3, 0.7), b.rng.range(-0.4, 0.4));
       }
       canopy(b, b.rng.pick([-1, 1]), -len * b.rng.range(0.3, 0.7), 0, 0.7);
       return { hazards: ['gate', 'rockfall'], walls: 'low', ground: 'land', features: { trip: true } };
