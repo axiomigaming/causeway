@@ -14,7 +14,7 @@ export default async function (page, out) {
     for (const p of new URLSearchParams(location.search).get('px').split(';')) {
       const [x, y] = p.split(',').map(Number);
       rc.setFromCamera(new THREE.Vector2((x / W) * 2 - 1, -(y / H) * 2 + 1), cam);
-      const hits = rc.intersectObjects(g.scene.children, true).filter((h) => h.object.visible && !/leaf|grit|glyph/.test(h.object.name)).slice(0, 4);
+      const hits = rc.intersectObjects(g.scene.children, true).filter((h) => h.object.visible && !(new URLSearchParams(location.search).has('skipleaf') && /leaf|grit|glyph/.test(h.object.name))).slice(0, 5);
       res.push(`${p}: ` + hits.map((h) => {
         const o = h.object;
         const n = o.name || o.parent?.name || o.type;

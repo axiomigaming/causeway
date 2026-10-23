@@ -1238,7 +1238,7 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       lowWalls(b, 0, n, [-1, 1], { gaps: 0.4 });
       for (const side of [-1, 1]) {
         for (let z = -7; z > -len - 4; z -= 14) jungleBank(b, side, PATH_HALF + 2.0, z);
-        for (let z = -b.rng.range(2, 4); z > -len + 4; z -= b.rng.range(4.5, 7.5)) {
+        for (let z = -b.rng.range(2, 4); z > -len + 5; z -= b.rng.range(4.5, 7.5)) {
           // Giant roots heaved over the parapet (round 17: buttress roots that arch over the crest, flare
           // into fins on the paving and sink into its joints, a branch down the outer face to the water;
           // they were hanging tubes stretched into stakes). Modelled on the right wall, 4 m along −Z

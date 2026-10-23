@@ -40,6 +40,25 @@ def cliff(name="cliff"):
     return _inject(M.cliff(name), "rock_face", (0.12, 0.45), 0.8, 0.8)
 
 
+def _scan_flat(nt, vec, asset, scale, desat):
+    """A scan mapped flat on a surface UV (`vec`): (normalised colour factor, height) sockets. For the
+    roots' "grain" UV, so the bark's ridges run along the root (materials.scan box-projects)."""
+    mp = N(nt, "ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (scale, scale, scale)
+    L(nt, vec, mp.inputs[0])
+    dim = M._scan_img(asset, "diff", "sRGB")
+    d = N(nt, "ShaderNodeTexImage", _image=dim)
+    L(nt, mp.outputs[0], d.inputs["Vector"])
+    h = N(nt, "ShaderNodeTexImage", _image=M._scan_img(asset, "disp", "Non-Color"))
+    L(nt, mp.outputs[0], h.inputs["Vector"])
+    k = 1.0 / max(0.02, M._mean_lum(dim))
+    grey = N(nt, "ShaderNodeRGBToBW")
+    L(nt, d.outputs[0], grey.inputs[0])
+    c = mix(nt, desat, d.outputs[0], grey.outputs[0], "MIX")
+    c = mix(nt, 1.0, c, (k, k, k, 1), "MULTIPLY")
+    return c, h.outputs[0]
+
+
 def bark(name="bark"):
     """The bark material with a bark scan (Poly Haven "bark_brown_02", CC0) worked in, moss on the
     sky-facing side (a fallen log's back, a root's crest), and pale, splintered heartwood where a face
@@ -54,15 +73,32 @@ def bark(name="bark"):
     c1, h1, r1 = M.scan(nt, vec, "bark_brown_02", 0.55, 0.55, 1.15)
     c2, h2, _r2 = M.scan(nt, vec, "bark_brown_02", 1.7, 0.7, 1.0)
     c = mix(nt, 0.4, c1, c2, "MULTIPLY")
+    h = math_node(nt, "ADD", h1, math_node(nt, "MULTIPLY", h2, 0.4))
+    # Round 18: pieces flagged `grainw` (the buttress roots) carry a "grain" UV (round the root, along
+    # it, in metres): there the scan runs along the root, its ridges with the grain, and the bark is
+    # darker. Elsewhere the box projection as before (the flag reads 0).
+    gw = N(nt, "ShaderNodeAttribute", _attribute_name="grainw")
+    uvg = N(nt, "ShaderNodeUVMap")
+    uvg.uv_map = "grain"
+    gc1, gh1 = _scan_flat(nt, uvg.outputs[0], "bark_brown_02", 0.9, 0.55)
+    gc2, gh2 = _scan_flat(nt, uvg.outputs[0], "bark_brown_02", 2.3, 0.7)
+    gcol = mix(nt, 0.4, gc1, gc2, "MULTIPLY")
+    gcol = mix(nt, 1.0, gcol, (0.72, 0.7, 0.68, 1), "MULTIPLY")
+    c = mix(nt, gw.outputs["Fac"], c, gcol, "MIX")
+    gh = math_node(nt, "ADD", gh1, math_node(nt, "MULTIPLY", gh2, 0.4))
+    h = math_node(nt, "ADD", math_node(nt, "MULTIPLY", h, math_node(nt, "SUBTRACT", 1.0, gw.outputs["Fac"])),
+                  math_node(nt, "MULTIPLY", gh, math_node(nt, "MULTIPLY", gw.outputs["Fac"], 1.4)))
     L(nt, mix(nt, 1.0, hexcol("#6a5440"), c, "MULTIPLY"), bsdf.inputs["Base Color"])
     L(nt, maprange(nt, r1, 0.3, 1.0, 0.75, 0.97), bsdf.inputs["Roughness"])
-    L(nt, M._bump(nt, math_node(nt, "ADD", h1, math_node(nt, "MULTIPLY", h2, 0.4)), 1.0, 0.06), bsdf.inputs["Normal"])
+    L(nt, M._bump(nt, h, 1.0, 0.06), bsdf.inputs["Normal"])
     geo = N(nt, "ShaderNodeNewGeometry")
     sep = N(nt, "ShaderNodeSeparateXYZ")
     L(nt, geo.outputs["Normal"], sep.inputs[0])
     up = maprange(nt, sep.outputs[2], 0.35, 0.85, 0.0, 1.0)
     patches = M._noise(nt, vec, 1.6, 4, 0.6)
     moss = math_node(nt, "MULTIPLY", up, maprange(nt, patches.outputs[0], 0.38, 0.6, 0.0, 0.9))
+    # The roots' crests (flagged `grainw`) carry more moss: a green back over the dark bark.
+    moss = math_node(nt, "MINIMUM", 1.0, math_node(nt, "ADD", moss, math_node(nt, "MULTIPLY", up, math_node(nt, "MULTIPLY", gw.outputs["Fac"], 0.45))))
     tufts = M._noise(nt, vec, 60, 4, 0.6)
     mc = ramp(nt, tufts.outputs[0], [(0.3, (0.07, 0.11, 0.03, 1)), (0.7, (0.2, 0.27, 0.07, 1))])
     base_in = bsdf.inputs["Base Color"]
