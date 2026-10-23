@@ -347,6 +347,7 @@ export class Game {
     if (this.ledgeBed) {
       this.scene.remove(this.ledgeBed);
       this.ledgeBed = null;
+      this.water.setDry(null);
     }
     void probe;
     onProgress(1, 'Ready');
@@ -559,6 +560,7 @@ export class Game {
     if (this.ledgeBed) {
       this.scene.remove(this.ledgeBed);
       this.ledgeBed = null;
+      this.water.setDry(null);
     }
     this.particles.clear();
     this.spray.clear();
@@ -1198,7 +1200,10 @@ export class Game {
         const lat = Math.abs((x - h.pos.x) * h.right.x + (z - h.pos.z) * h.right.z);
         return lat < PATH_HALF + 0.15 ? bedY : lat < PATH_HALF + 1.5 ? h.pos.y : null;
       };
-      this.rig.focus.copy(h.pos).setY(h.pos.y - 1);
+      // The lens cranes over the lip looking down to where he will lie (not the chasm's tilt
+      // straight down at the root: that lost him as he rolled on along the trough).
+      const lands = frameAt(this.s + 2.5);
+      this.rig.focus.copy(lands.pos).setY(bedY + 0.4);
       this.cine.cracks.spawn(h.pos.clone().setY(h.pos.y + 0.05), h.yaw, PATH_HALF * 2 + 0.2, 2 + e, 0.12, 0);
       this.sounds.tremor(0.6 + 0.4 * e);
       this.sounds.event?.('fall_drop', 1);
@@ -1217,7 +1222,6 @@ export class Game {
         kick(0.6);
         this.sounds.impact(0.6 + 0.3 * e, false);
       });
-      this.gapAt = this.worldT + 0.3;
       this.slowFloorTarget = 0.92;
       // Grit and chips fall with him, streaking past.
       const hips = this.runner.body.getObjectByName('hips');
@@ -2738,17 +2742,40 @@ export class Game {
    * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
    */
   /** Round 20: the causeway's lower course, revealed under a ledge cave-in (cleared with the world). */
-  private ledgeBed: THREE.Mesh | null = null;
+  private ledgeBed: THREE.Object3D | null = null;
   private placeLedgeBed(h: { pos: THREE.Vector3; yaw: number; fwd: THREE.Vector3 }, y: number, len: number): void {
     if (this.ledgeBed) this.scene.remove(this.ledgeBed);
-    const mat = this.kit.mat.get('stoneB') ?? this.kit.mat.values().next().value;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(2 * PATH_HALF + 0.6, 0.6, len), mat as THREE.Material);
-    m.position.copy(h.pos).addScaledVector(h.fwd, len / 2 - 1.2).setY(y - 0.3);
-    m.rotation.y = h.yaw;
-    m.receiveShadow = true;
-    m.name = 'ledgeBed';
-    this.scene.add(m);
-    this.ledgeBed = m;
+    const mat = (this.kit.mat.get('stoneB') ?? this.kit.mat.values().next().value) as THREE.Material;
+    // A dry stone trough under the causeway: the course he lands on (below the waterline, so the
+    // water is kept out of its footprint) and its two side walls up to the floor.
+    const g = new THREE.Group();
+    g.name = 'ledgeBed';
+    const W = 2 * PATH_HALF + 0.6;
+    const depth = h.pos.y - y;
+    const bedM = new THREE.Mesh(new THREE.BoxGeometry(W, 0.6, len), mat);
+    bedM.position.set(0, -0.3, 0);
+    bedM.receiveShadow = true;
+    g.add(bedM);
+    for (const sd of [-1, 1]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, depth + 0.6, len), mat);
+      wall.position.set(sd * (W / 2 + 0.25), (depth + 0.6) / 2 - 0.6, 0);
+      wall.receiveShadow = true;
+      wall.castShadow = true;
+      g.add(wall);
+    }
+    // And its two ends.
+    for (const sd of [-1, 1]) {
+      const end = new THREE.Mesh(new THREE.BoxGeometry(W + 1, depth + 0.6, 0.5), mat);
+      end.position.set(0, (depth + 0.6) / 2 - 0.6, sd * (len / 2 + 0.25));
+      end.receiveShadow = true;
+      g.add(end);
+    }
+    const c = h.pos.clone().addScaledVector(h.fwd, len / 2 - 1.2);
+    g.position.copy(c).setY(y);
+    g.rotation.y = h.yaw;
+    this.scene.add(g);
+    this.ledgeBed = g;
+    this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 0.5, halfL: len / 2 + 0.5 });
   }
 
   private splashCrown(p: THREE.Vector3, k: number): void {
