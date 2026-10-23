@@ -284,7 +284,9 @@ export class CameraRig {
     const needSide = 1.95 / (0.36 * 2 * tanH);
     const dy = f.up - 1.0;
     const d0 = Math.max(0.3, Math.hypot(f.along, f.lat, dy));
-    const mBand = d0 < needBand ? needBand / d0 : 1;
+    // Round 20: and never so far that he is a dot: pull in until he fills ~38 % of the band.
+    const needFar = 1.95 / (0.38 * band * 2 * tanH);
+    const mBand = d0 < needBand ? needBand / d0 : d0 > needFar ? needFar / d0 : 1;
     const m = lerp(mBand, needSide / d0, this.sideK);
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
     return mixFrame(f, out, k);

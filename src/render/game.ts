@@ -1204,8 +1204,9 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      this.setStop(this.s + 0.01);
-      const h = frameAt(this.s);
+      const halt = v * 0.06;
+      this.setStop(this.s + halt);
+      const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
       const span = 4 + 2 * e;
       this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 3.2);
@@ -1583,7 +1584,8 @@ export class Game {
       const contactT = trip ? 0.2 : palms ? 0.33 : 0.27;
       const contactY = trip ? 0.9 : palms ? 1.77 : 1.85;
       const side = r.chance(0.5) ? 1 : -1;
-      // (The trip: the toppling pier piece at its own girth, about 0.9 m: heavy, not a pole.)
+      // (The trip: the toppling pier piece, uniformly scaled to about 0.5 m across: a stout carved
+      // drum, not a pole, and low enough for fall_trip's hooked toe and swinging leg.)
       const piece = trip ? 'pillar_topple_0' : 'pillar_0';
       const geo = this.kit.geo.get(piece);
       if (geo && !geo.boundingBox) geo.computeBoundingBox();
@@ -1592,17 +1594,20 @@ export class Game {
       const across = bb ? Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) : 0.95;
       // Long enough to span the way and rest on the far side.
       const reach = 2 * PATH_HALF + 1.4;
-      const sc = trip ? 0.7 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
+      const sc = trip ? 0.385 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
       // The trip's column is slim (about 0.4 m across lying down: a toe catches its top).
       const girth = 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
-      const tFall = trip ? 0.9 : 0.84;
+      const tFall = trip ? 0.62 : 0.84;
       // He keeps his speed until the clip starts, then the root halts there (the clip carries the
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
       const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
-      const sPlay = this.s + v * tPlay;
+      // The root runs out over ~0.12 s as the clip starts (a dead stop in one frame read as a pop),
+      // HALT m further on; the contact geometry is measured from there.
+      const HALT = v * 0.06;
+      const sPlay = this.s + v * tPlay + HALT;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
       const sPlayPoint = (ahead: number, up: number) => {
@@ -1613,13 +1618,14 @@ export class Game {
       this.setStop(this.s + v * tPlay + 60);
       this.runner.play('run', 0.08);
       this.later(tPlay, () => {
-        this.setStop(this.s + 0.01);
+        this.setStop(this.s + HALT);
         this.runner.play(clip, 0.06);
         crashCam();
       });
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
-      const foot = at.pos.clone().addScaledVector(at.right, side * (PATH_HALF + 0.35));
+      // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
+      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF + 0.35));
       // Floor under it: the way and the footing at its foot; beyond the far edge, the far wall's
       // footing (raised for the pier, so it ends up leaning across the way at chest height).
       const far = trip ? 0 : 1.5;
@@ -1693,8 +1699,9 @@ export class Game {
       // where the clip starts); he spins and goes down on his left side. The root halts as the clip
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
-        this.setStop(this.s + 0.01);
-        const h0 = frameAt(this.s);
+        const halt = v * 0.06;
+        this.setStop(this.s + halt);
+        const h0 = frameAt(this.s + halt);
         const tt = 0.23;
         const target = h0.pos.clone().addScaledVector(h0.fwd, 1.38).addScaledVector(h0.right, 0.35).setY(h0.pos.y + 1.38);
         const from = target.clone().addScaledVector(h0.right, 3).addScaledVector(h0.fwd, 0.4).setY(target.y + 1.4);
@@ -2508,7 +2515,9 @@ export class Game {
     // at the frame edge. Once he pulls up, the rig frames the hips (ground height of the root),
     // the offset eased so the sway of a stride never reaches the lens.
     let subject = rp;
-    if (this.stage === 'cashout' && !this.runOn) {
+    // (Round 20: the crash too, except the chasm, where he goes under: the clips carry him metres
+    // off the root, a slam, a trip, a fall onto the stone below.)
+    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'gate')) {
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips) {
         // This frame's pose (the bones' world matrices otherwise update only at render).
