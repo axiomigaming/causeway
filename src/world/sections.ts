@@ -208,6 +208,18 @@ function cliffWall(b: Builder, side: number, x: number, z: number, i = b.rng.int
   b.place(piece, side * x, WL, z, ry, s);
   b.place(`${piece}_veg`, side * x, WL, z, ry, s);
   if (b.rich) b.place(`${piece}_trees`, side * x, WL, z, ry, s);
+  // World round 19: the cliff's end toward the runner is a sheer cut face 7 m deep, flat and dark in
+  // its own shadow (a hard-edged slab in front of the rock): a big tree and a boulder grow against it.
+  const L = CLIFFS[i]![1];
+  if (b.foliage(0.9)) {
+    const t = b.rng.int(0, 1);
+    const tr = b.rng.range(0, 6.28);
+    const ts = b.rng.range(0.95, 1.15);
+    b.place(`tree_big_${t}_trunk`, side * (x + 2.6), WL, z + L / 2 + 2.6, tr, ts);
+    b.place(`tree_big_${t}_crown`, side * (x + 2.6), WL, z + L / 2 + 2.6, tr, ts);
+  }
+  b.place(`rock_big_${b.rng.int(0, 2)}`, side * (x + 4.5), WL - 1.4, z + L / 2 + 1.2, b.rng.range(0, 6.28), [0.5, 0.6, 0.45]);
+  if (b.foliage(0.8)) jungleBank(b, side, x + 0.5, z + L / 2 + 4, 0, 1);
   return h * sy;
 }
 

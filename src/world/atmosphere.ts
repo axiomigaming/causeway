@@ -153,7 +153,8 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
       float mOpt = ${o.mistDensity.toFixed(4)} * fogMist.y * fogDist * fogNearClear * exp(-mb * mh) * fogLayer(mb, fogDy);
       vec3 fogP = cameraPosition + fogW;
       float bank = 0.55 + 0.45 * sin(fogP.x * 0.07 + fogMist.x * 0.11) * sin(fogP.z * 0.05 - fogMist.x * 0.07 + 1.3);
-      float mist = (1.0 - exp(-mOpt * bank)) * 0.5;
+      // (Round 19: at most 0.38 — at 0.5 a ruin 100 m out turned milky white, a ghost on the water.)
+      float mist = (1.0 - exp(-mOpt * bank)) * 0.38;
       vec3 mistCol = mix(mix(vec3(0.84, 0.89, 0.87), ${glslVec3(sun)} * 1.05, pow(fogSun, 6.0) * 0.5 * (1.0 - fogMist.w)), fogColor * 1.25, fogMist.w * 0.7);
       gl_FragColor.rgb = mix(gl_FragColor.rgb, mistCol, mist);
     }
@@ -199,8 +200,8 @@ function installSkyGrade(): void {
         // not fogged: the scene's own haze (as the 3D world gets it) laid over the horizon band, so a
         // ruin 100 m out, already hazed, is never paler than the land behind it (it read as a ghost).
         {
-          float band = smoothstep(0.2, 0.0, skyD.y) * smoothstep(-0.35, -0.05, skyD.y);
-          float hz = clamp(1.0 - exp(-skyHaze.w * 260.0), 0.0, 0.86) * band;
+          float band = smoothstep(0.06, 0.0, skyD.y) * smoothstep(-0.3, -0.04, skyD.y);
+          float hz = clamp(1.0 - exp(-skyHaze.w * 160.0), 0.0, 0.4) * band;
           texColor.rgb = mix(texColor.rgb, skyHaze.rgb, hz);
         }
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.

@@ -18,4 +18,5 @@ su setup-w19 "w=19&look=golden"
 run run-w7 "w=7&adv=60&t=3"
 run morning-w7 "w=7&look=morning&adv=20&t=3"
 run morning-falls "w=3&look=morning&sec=cliff,cliff,corridor&adv=4&t=3"
+[ -f "review/world19/$P-approach-w7.png" ] || DPR=1 node tools/shoot.mjs "$U&w=7&off=40" "review/world19/$P-approach-w7" 1280 720 ../review/world13/reveal.mjs 2>&1 | grep -E "STATE|FAILED" | cut -c1-160
 echo ALLDONE
