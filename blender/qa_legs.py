@@ -14,7 +14,16 @@ Per clip, sampled every frame, the worst value and where:
   pop        the largest change of any bone's rotation from one frame to the next (deg)
   slide      a planted foot drifting while it stays planted (cm per frame); plants inside a clip's
              running stretch, moving straight back at run pace with the floor, are not slides
-Flags: hinge > 10°, foot yaw > 25°, roll > 20°, cross > 2 cm, hands > 2 cm, slide > 1 cm.
+  still      a frozen body in the air: the longest run of airborne frames (no part of the body on the
+             floor, or the pelvis dropping faster than 1 m/s) whose total joint angular speed (sum over
+             the trunk, head and limb joints) stays under STILL deg/frame (frames)
+  spine      the trunk (chest against the pelvis) at its worst, as % of the natural range: twist 45°,
+             forward bend 75°, back arch 35°, side bend 40°
+  neck       the head against the chest, % of range: turn 70°, chin down 55°, back 60°, tilt 40°
+  wrist      the hand against the forearm, % of 75°
+  shrug      a shoulder hiked toward the neck (the shoulder bone's rotation), % of 25°
+Flags: hinge > 10°, foot yaw > 25°, roll > 20°, cross > 2 cm, hands > 2 cm, slide > 1 cm, still > 3 frames,
+spine / neck / wrist / shrug > 100 %.
 (The gaits' slip against the moving floor is qa_gait_audit.py's job; root motion is subtracted here.)
 """
 import math
@@ -38,7 +47,12 @@ sc = bpy.context.scene
 pb = rig.pose.bones
 M = rig.matrix_world
 only = [a for a in sys.argv[1:] if not a.startswith("-")]
-LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0, pop=60.0)
+LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0, pop=60.0, still=3.0,
+           spine=100.0, neck=100.0, wrist=100.0, shrug=100.0)
+STILL = 25.0  # deg per frame (at 30 fps), summed over MOVERS: under it, a body in the air reads as a held pose
+RAD = {"hips": 0.12, "spine": 0.11, "chest": 0.12, "neck": 0.06, "head": 0.1, "upper_arm": 0.05, "forearm": 0.04,
+       "hand": 0.03, "thigh": 0.075, "shin": 0.05}
+MOVERS = ["hips", "spine", "chest", "neck", "head"] + [f"{b}.{s}" for s in "LR" for b in ("thigh", "shin", "foot", "upper_arm", "forearm", "hand")]
 
 
 def axis(b, i):
@@ -52,6 +66,21 @@ def P(b, tail=False):
 
 def ang(u, v):
     return math.degrees(math.acos(max(-1.0, min(1.0, abs(u.dot(v))))))
+
+
+def wq(b):
+    return (M @ pb[b].matrix).to_quaternion()
+
+
+def rom(parent, child, twist, flex, ext, side):
+    """% of the natural range used by `child` against `parent` (twist about the bone, bend forward/back,
+    bend sideways). Forward bend is −X in this rig (torso() leans with negative X rotations)."""
+    rest = rig.data.bones[parent].matrix_local.to_quaternion().inverted() @ rig.data.bones[child].matrix_local.to_quaternion()
+    q = rest.inverted() @ (wq(parent).inverted() @ wq(child))  # in the child's rest frame, from rest
+    sw, tw = q.to_swing_twist("Y")
+    e = sw.to_euler("XYZ")
+    pitch, roll = math.degrees(e.x), math.degrees(e.z)
+    return max(abs(math.degrees(tw)) / twist, (-pitch / flex if pitch < 0 else pitch / ext), abs(roll) / side) * 100
 
 
 def seg_dist(p, a, b):
@@ -72,8 +101,15 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
     prev = {}
     qprev = {}
     popbone = [""]
+    run = 0
+    hz_prev = 0.0
     for f in range(f0, f1 + 1):
         sc.frame_set(f)
+        speed = 0.0
+        for b in MOVERS:
+            if b in pb and b in qprev:
+                d = math.degrees(pb[b].matrix_basis.to_quaternion().rotation_difference(qprev[b]).angle)
+                speed += min(d, 360 - d)
         for b in pb:
             q = b.matrix_basis.to_quaternion()
             if b.name in qprev:
@@ -86,6 +122,24 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
         hips = P("hips")
         root = P("root") if "root" in pb else Vector((0, 0, 0))
         side = axis("hips", 0)  # the pelvis's left (+X)
+        soles = []
+        for s in "LR":
+            hz = P(f"foot.{s}").z - 0.09
+            tz = (P(f"toe.{s}", tail=True) if f"toe.{s}" in pb else P(f"foot.{s}", tail=True)).z
+            soles.append(min(hz, tz))
+        body = min(min((M @ b.head).z, (M @ b.tail).z) - RAD[b.name.split(".")[0]] for b in pb if b.name.split(".")[0] in RAD)
+        hz = hips.z
+        falling = f > f0 and (hz - hz_prev) * 30 < -1.0
+        hz_prev = hz
+        airborne = (min(soles) > 0.05 and body > 0.04) or falling
+        if os.environ.get("QA_SPEED") and airborne:
+            print(f"  {act.name} f{f} air speed {speed:5.1f}", flush=True)
+        if airborne and f > f0 and speed < STILL:
+            run += 1
+            if run > worst["still"][0]:
+                worst["still"] = (run, f)
+        else:
+            run = 0
         for s in "LR":
             w = abs(ang(axis(f"thigh.{s}", 0), axis(f"shin.{s}", 0)))
             if w > worst["hinge"][0]:
@@ -96,7 +150,8 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
             heel = P(f"foot.{s}")
             toe = P(f"toe.{s}", tail=True) if f"toe.{s}" in pb else P(f"foot.{s}", tail=True)
             sole = min(heel.z - 0.09, toe.z)
-            planted = -0.05 < sole < 0.03
+            # (A foot lying on its side under a body that is down is not a plant.)
+            planted = -0.05 < sole < 0.03 and hips.z - sole > 0.45
             if planted:
                 w = math.degrees(math.asin(min(1.0, abs(axis(f"foot.{s}", 0).z))))
                 if w > worst["roll"][0]:
@@ -105,7 +160,8 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
                 w = max(0.0, -lat * 100)
                 if w > worst["cross"][0]:
                     worst["cross"] = (w, f)
-                rel = heel - root
+                # Measured at the ball of the foot: the pivot of a turn on the spot and of a heel rolling up.
+                rel = (P(f"toe.{s}") if f"toe.{s}" in pb else heel) - root
                 if s in prev and prev[s] is not None:
                     dx, dy = rel.x - prev[s].x, rel.y - prev[s].y
                     w = math.hypot(dx, dy) * 100
@@ -117,6 +173,18 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
                 prev[s] = rel
             else:
                 prev[s] = None
+        for k, w in (("spine", rom("hips", "chest", 45, 75, 35, 40)), ("neck", rom("chest", "head", 70, 55, 60, 40))):
+            if w > worst[k][0]:
+                worst[k] = (w, f)
+        for s in "LR":
+            a = math.degrees(pb[f"hand.{s}"].matrix_basis.to_quaternion().angle)
+            w = min(a, 360 - a) / 75 * 100
+            if w > worst["wrist"][0]:
+                worst["wrist"] = (w, f)
+            if f"shoulder.{s}" in pb:
+                w = math.degrees(pb[f"shoulder.{s}"].matrix_basis.to_quaternion().angle) / 25 * 100
+                if w > worst["shrug"][0]:
+                    worst["shrug"] = (w, f)
         a0, a1 = P("spine"), P("neck")
         for s in "LR":
             for pt in (P(f"hand.{s}"), P(f"hand.{s}", tail=True)):
