@@ -21,6 +21,7 @@ describe('surface sweep', () => {
       for (let v = 0; v < 6; v++) {
         for (const d of [1, 0.4]) {
           const L = buildLayout(type, `${type}#${v}`, { foliage: d, scenery: d }, undefined, v / 5);
+          if (L.ground) continue; // (land: everything stands on the ground mesh)
           const solids = [...L.props.filter((pl) => SOLID.test(pl.piece)), ...L.tiles];
           for (const pl of L.props) {
             if (!LOOSE.test(pl.piece)) continue;

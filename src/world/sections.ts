@@ -1,4 +1,5 @@
 import { intensityOf } from './choreo';
+import { groundY, type GroundKind } from './land';
 import * as THREE from 'three';
 import { Rng } from '../engine/rng';
 import { evalSeg, type Segment } from './path';
@@ -33,7 +34,13 @@ export type SectionType =
   | 'turnL'
   | 'turnR'
   | 'stepping'
-  | 'approach';
+  | 'approach'
+  // World round 21: land.
+  | 'forest'
+  | 'forestWall'
+  | 'cutting'
+  | 'overgrown'
+  | 'ravine';
 
 export interface Placement {
   piece: string;
@@ -64,6 +71,14 @@ export interface Layout {
   walls: 'none' | 'low' | 'tall' | 'cliff';
   /** Round 11 crescendo: 0 intact .. 1 ruined (see Builder.ruin). */
   ruin: number;
+  /** World round 21: the section runs on land (a ground mesh: forest floor or a dry ravine), not water. */
+  ground?: GroundKind;
+  /**
+   * World round 21, for the crash stagings: what this place offers — a pillar at the edge that can
+   * topple across (topple), a fallen log or column beside the way (trip), rock faces close at the side
+   * (rockfall), a lower stone level a drop down on side -1/1 (lower).
+   */
+  features?: { topple?: boolean; trip?: boolean; rockfall?: boolean; lower?: number };
 }
 
 export const PATH_HALF = 2.2;
@@ -85,6 +100,8 @@ class Builder {
   props: Placement[] = [];
   tiles: Placement[] = [];
   falls: Waterfall[] = [];
+  /** The section's length (set before it is built; land seats things on the ground by it). */
+  len = 0;
   constructor(
     readonly rng: Rng,
     readonly density: { foliage: number; scenery: number },
@@ -448,7 +465,8 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
   const d = b.density.scenery;
   for (const side of sides) {
     for (let z = -2; z > -len; z -= b.rng.range(5, 9)) {
-      if (!b.rng.chance(0.75 * d + 0.15)) continue;
+      // (Round 21: a floor on the thinning — at phone density half the slots stood empty: bare water.)
+      if (!b.rng.chance(0.5 * d + 0.45)) continue;
       const x = side * b.rng.range(minX, minX + 22);
       const zz = z + b.rng.range(-2, 2);
       const kind = b.rng.weighted([
@@ -548,7 +566,7 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
 }
 
 // ------------------------------------------------------------------ section builders
-type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number };
+type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number; ground?: GroundKind; features?: Layout['features'] };
 
 /**
  * Round 11: a real 90° corner, Temple Run style. The path is one quarter circle of radius TURN_R (≈ 7 m)
@@ -608,7 +626,203 @@ function turnCorner(b: Builder): ReturnType<Build> {
   return { turn: Math.PI / 2, hazards: ['rockfall'], walls: 'low' };
 }
 
-const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
+
+// ------------------------------------------------------------------ world round 21: land
+/** Section types that run on land (Layout.ground set): forest floor, forest walls, cutting, overgrown plaza, ravine. */
+export const LAND_TYPES: SectionType[] = ['forest', 'forestWall', 'cutting', 'overgrown', 'ravine'];
+export const isLand = (t: SectionType | string | undefined): boolean => !!t && (LAND_TYPES as string[]).includes(t);
+
+/** Height of the ground at (x, z) in a land section (see land.ts), less a little so nothing hovers on a bump. */
+function gy(b: Builder, x: number, z: number, kind: GroundKind = 'land'): number {
+  return groundY(kind, x, z, b.len) - 0.12 - 0.05 * b.rng.range(0, 1);
+}
+
+/** A tree on the forest floor: trunk and crown together (never a bare trunk on a phone). */
+function landTree(b: Builder, x: number, z: number, s: number, kind: GroundKind = 'land', p = 1) {
+  if (!b.foliage(p)) return;
+  const ry = b.rng.range(0, 6.28);
+  const y = gy(b, x, z, kind) - 0.2;
+  const k = b.rng.int(0, 3);
+  if (k < 2) {
+    b.place(`tree_big_${k}_trunk`, x, y, z, ry, s);
+    b.place(`tree_big_${k}_crown`, x, y, z, ry, s);
+  } else if (k === 2) {
+    const j = b.rng.int(0, 1);
+    b.place(`jungle_${j}_trunk`, x, y, z, ry, s * 1.1);
+    b.place(`jungle_${j}_crown`, x, y, z, ry, s * 1.1);
+  } else {
+    const j = b.rng.int(0, 2);
+    b.place(`palm_${j}_trunk`, x, y, z, ry, s * 0.95);
+    b.place(`palm_${j}_crown`, x, y, z, ry, s * 0.95);
+  }
+}
+
+/**
+ * The near band of a forest side (2.8–6 m out): undergrowth at the causeway's foot — ferns, grass,
+ * bushes, a banana, moss, low roots and leaf litter — then the mid band (6–16 m): big trunks with
+ * buttress roots and crowns, shrubs between them; and the far band (16–40 m): more crowns and banks of
+ * jungle rising up the slope, so the frame is full and layered to the hills.
+ */
+function forestSide(b: Builder, side: number, len: number, dense = 1) {
+  for (let z = -b.rng.range(0, 1.5); z > -len; z -= b.rng.range(1.6, 2.8) / dense) {
+    const x = side * b.rng.range(2.9, 5.5);
+    const r = b.rng.range(0, 1);
+    const y = gy(b, x, z);
+    if (r < 0.3 && b.foliage(0.9)) b.place(`fern_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.4));
+    else if (r < 0.5 && b.foliage(0.8)) b.place(`grass_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.3));
+    else if (r < 0.68 && b.foliage(0.85)) b.place(`bush_${b.rng.int(0, 3)}`, x + side * 0.6, y + 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.25));
+    else if (r < 0.76 && b.foliage(0.7)) b.place(`banana_${b.rng.int(0, 1)}`, x + side * 0.8, y - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.2));
+    else if (r < 0.86 && b.rich) b.place(`moss_${b.rng.int(0, 2)}`, x, y + 0.02, z, b.rng.range(0, 6.28), b.rng.range(1, 1.6));
+    else if (r < 0.93) b.place(`scatter_edge_${b.rng.int(0, 2)}`, side * 3.4, y + 0.08, z, side > 0 ? 0 : Math.PI);
+    else if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, x, y + 0.2, z, b.rng.range(0, 6.28), [0.8, 0.25, 0.7], [Math.PI / 2, 0]);
+  }
+  for (let z = -b.rng.range(1, 4); z > -len - 2; z -= b.rng.range(5, 8) / dense) {
+    const x = side * b.rng.range(6.5, 12);
+    landTree(b, x, z, b.rng.range(0.9, 1.25), 'land', 0.95);
+    if (b.foliage(0.7)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * b.rng.range(5.5, 9), gy(b, side * 7, z - 2.5) - 0.2, z - 2.5, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+  }
+  for (let z = -b.rng.range(0, 6); z > -len - 4; z -= b.rng.range(7, 11) / dense) {
+    const x = side * b.rng.range(16, 34);
+    landTree(b, x, z, b.rng.range(1.0, 1.4), 'land', 0.8);
+  }
+  for (let z = -8; z > -len - 8; z -= 16) jungleBank(b, side, b.rng.range(13, 18), z, gy(b, side * 15, z) - 0.4, 0.9);
+}
+
+/** A tall pillar standing at the causeway's edge, close enough to topple across it (crash: topple). */
+function edgePillar(b: Builder, side: number, z: number) {
+  b.place(b.rng.chance(0.5) ? 'pillar_topple_0' : 'pillar_1', side * (PATH_HALF + 0.7), gy(b, side * 3, z) + 0.1, z, b.rng.range(0, 6.28));
+}
+
+/** A lower stone terrace beside the way on `side` (crash: a drop to a lower level): slabs 1.6 m down, a footing face. */
+function lowerTerrace(b: Builder, side: number, z0: number, n: number) {
+  for (let i = 0; i < n; i++) {
+    const z = z0 - TILE * i;
+    b.place(b.rng.pick(FLOORS.slice(0, 4)), side * (PATH_HALF + 2.6), -1.6, z, b.rng.chance(0.5) ? 0 : Math.PI, [1.15, 1, 1]);
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), -1.6, z, 0);
+    if (b.foliage(0.5)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF + b.rng.range(1.6, 3.6)), -1.6, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 1.1);
+  }
+  b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 3.2), -1.6, z0 - TILE * n * 0.5, b.rng.range(0, 6.28));
+}
+
+const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Build }>> = {
+  forest: {
+    // The causeway on the forest floor: undergrowth to its edges, big trees close by, the hills beyond.
+    lengths: [16, 20, 24],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.18, 0.04);
+      for (const side of [-1, 1]) for (let i = 0; i < n; i++) b.edgeRubble(side, -TILE * i);
+      lowWalls(b, 0, n, [b.rng.pick([-1, 1])], { gaps: 0.5, foundation: false });
+      for (const side of [-1, 1]) forestSide(b, side, len);
+      // A fallen log or column across the forest floor beside the way (crash: trip).
+      if (b.rng.chance(0.6)) {
+        const side = b.rng.pick([-1, 1]);
+        b.place(b.rng.chance(0.5) ? 'log_fallen_0' : `column_fallen_${b.rng.int(0, 1)}`, side * 5.4, gy(b, side * 5.4, -len / 2) + 0.05, -len * b.rng.range(0.3, 0.7), b.rng.range(-0.4, 0.4));
+      }
+      canopy(b, b.rng.pick([-1, 1]), -len * b.rng.range(0.3, 0.7), 0, 0.7);
+      return { hazards: ['gate', 'rockfall'], walls: 'low', ground: 'land', features: { trip: true } };
+    },
+  },
+  forestWall: {
+    // Dense forest walls: big trunks with buttress roots right at the causeway's edge, crowns closing
+    // overhead, a canopy limb across the way.
+    lengths: [20, 24],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.25, 0.03);
+      for (const side of [-1, 1]) {
+        for (let z = -b.rng.range(1, 3); z > -len + 2; z -= b.rng.range(5, 7.5)) {
+          const x = side * b.rng.range(4.2, 5.6);
+          landTree(b, x, z, b.rng.range(1.1, 1.35));
+          // Buttress roots running from the trunk to the causeway's edge.
+          if (b.foliage(0.9)) {
+            const k = b.rng.int(0, 1);
+            if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, gy(b, 3, z), z + 2, 0, [0.9, 0.8, 0.9]);
+            else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), gy(b, -3, z), z - 2, Math.PI, [0.9, 0.8, 0.9]);
+          }
+        }
+        forestSide(b, side, len, 1.2);
+      }
+      edgePillar(b, b.rng.pick([-1, 1]), -len * b.rng.range(0.4, 0.7));
+      canopy(b, -1, -len * 0.3, 0, 0.9);
+      canopy(b, 1, -len * 0.75, 0, 0.9);
+      return { hazards: ['gate', 'rockfall'], walls: 'tall', ground: 'land', features: { topple: true, trip: true } };
+    },
+  },
+  cutting: {
+    // A hillside cutting: the causeway passes through the hill between faces of exposed rock, jungle
+    // hanging over their crests, boulders at their feet (crash: rockfall from the side).
+    lengths: [20, 24],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.3, 0);
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < n; i++) b.edgeRubble(side, -TILE * i);
+        cliffWall(b, side, b.rng.range(7.5, 8.2), -len / 2, b.rng.int(0, 1), b.rng.range(0.42, 0.55));
+        for (let z = -2; z > -len; z -= b.rng.range(4, 7)) {
+          b.place(`rock_mid_${b.rng.int(0, 2)}`, side * b.rng.range(3.6, 4.6), gy(b, side * 4, z) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.35, 0.6));
+          // The cut's lower face: exposed rock stepping up to the cliff.
+          if (b.rng.chance(0.7)) b.place(`rock_big_${b.rng.int(0, 2)}`, side * b.rng.range(5.6, 6.6), gy(b, side * 6, z) - 0.8, z - 1, b.rng.range(0, 6.28), [0.32, 0.35, 0.28]);
+          if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, side * b.rng.range(3.0, 3.8), gy(b, side * 3.3, z), z - 1.5, b.rng.range(0, 6.28), 1.2);
+        }
+        for (let z = -4; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(14, 22), z, b.rng.range(1.0, 1.3), 'land', 0.9);
+      }
+      return { hazards: ['rockfall', 'gate'], walls: 'cliff', ground: 'land', features: { rockfall: true } };
+    },
+  },
+  overgrown: {
+    // An overgrown plaza in the forest: a wide paved court, toppled and standing pillars, stelae, roots
+    // across the slabs, and on one side a lower terrace a flight down (crash: a drop to a lower level).
+    lengths: [16, 20],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.45, 0.12);
+      const low = b.rng.pick([-1, 1]);
+      lowerTerrace(b, low, 0, n);
+      const hi = -low;
+      for (let i = 0; i < n; i++) {
+        const z = -TILE * i;
+        b.place(b.rng.pick(FLOORS.slice(0, 4)), hi * (PATH_HALF + 2.0), -0.02, z, b.rng.chance(0.5) ? 0 : Math.PI, [1, 1, 1]);
+        b.pathRubble(z, 0, 1.4);
+      }
+      for (let z = -2; z > -len; z -= b.rng.range(5, 8)) {
+        if (b.rng.chance(0.55)) edgePillar(b, hi, z);
+        else b.place(b.rng.pick(['stele_0', 'stele_1', 'pillar_0', 'pillar_2']), hi * (PATH_HALF + 3.2), 0, z, b.rng.range(0, 6.28));
+        if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 1.4), 0.15, z - 1, b.rng.range(0, 6.28), [0.9, 0.3, 0.8], [Math.PI / 2, 0]);
+      }
+      b.place(`column_fallen_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 2.2), 0.05, -len * b.rng.range(0.3, 0.7), b.rng.range(-0.5, 0.5));
+      forestSide(b, hi, len, 0.9);
+      // Beyond the lower terrace the forest goes on at its level.
+      for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
+      for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9);
+      return { hazards: ['gate', 'rockfall'], walls: 'low', ground: 'land', features: { topple: true, trip: true, lower: low } };
+    },
+  },
+  ravine: {
+    // A ravine with a dry riverbed: the causeway on its footing across the bed, boulders and drift on
+    // the stones below, banks of rock and jungle rising either side (crash: rockfall; chasm, a drop to the bed).
+    lengths: [20, 24],
+    build: (b, len) => {
+      const n = len / TILE;
+      floorRun(b, 0, n, 0, 0.2, 0);
+      lowWalls(b, 0, n, [-1, 1], { gaps: 0.4 });
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < n; i++) b.wall('foundation_1', side, PATH_HALF + 0.42, 0, -TILE * i);
+        for (let z = -1; z > -len; z -= b.rng.range(2.5, 4.5)) {
+          const x = side * b.rng.range(3.4, 7);
+          b.place(`rock_mid_${b.rng.int(0, 2)}`, x, gy(b, x, z, 'ravine') - 0.2, z, b.rng.range(0, 6.28), b.rng.range(0.25, 0.6));
+          if (b.rng.chance(0.25)) b.place('log_fallen_0', x, gy(b, x, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 0.8);
+          if (b.foliage(0.4)) b.place(`grass_${b.rng.int(0, 1)}`, x + side, gy(b, x + side, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 1.2);
+        }
+        cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.rng.int(0, 2), b.rng.range(0.55, 0.75));
+        for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
+      }
+      return { hazards: ['chasm', 'rockfall'], walls: 'cliff', ground: 'ravine', features: { rockfall: true } };
+    },
+  },
+};
+
+const BUILDERS = {
   turnL: { lengths: [TURN_LEN], build: (b) => turnCorner(b) },
   stepping: {
     // Round 11: the causeway as separate slabs over open water — each 4 m slab on its own pier, no
@@ -667,8 +881,30 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
         }
         b.foamRing(0, z, 2.6);
       }
-      // No scenery: the view down the approach is water, sky and the landmark (which brings its own
-      // dressing beside the way: landmarks.ts), so no two reveals share the same islands.
+      // The view down the approach stays open for the landmark (which brings its own dressing:
+      // landmarks.ts), but its sides are never empty water (round 21: four of these in a row, on a
+      // phone, read as a bugged, empty map): islets close beside the way, a palm or a shrub on them,
+      // a broken pier, drowned columns further out.
+      for (const side of [-1, 1]) {
+        for (let z = -b.rng.range(2, 5); z > -len; z -= b.rng.range(6, 9)) {
+          const x = side * b.rng.range(5.5, 11);
+          const top = islet(b, x, z, b.rng.range(0.6, 0.9));
+          const r = b.rng.range(0, 1);
+          if (r < 0.4) {
+            const j = b.rng.int(0, 2);
+            const ry = b.rng.range(0, 6.28);
+            b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
+            b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
+          } else if (r < 0.75) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
+          else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
+        }
+        if (b.rng.chance(0.6)) {
+          const cx = side * b.rng.range(13, 20);
+          const cz = -b.rng.range(2, len - 2);
+          b.place('column_lone_0', cx, WL - 1.5, cz, b.rng.range(0, 6.28), b.rng.range(0.9, 1.1));
+          b.foamRing(cx, cz, 1.6);
+        }
+      }
       return { hazards: ['chasm'], walls: 'none' };
     },
   },
@@ -1377,7 +1613,8 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       return { hazards: ['rockfall', 'chasm'], walls: 'cliff' };
     },
   },
-};
+  ...LAND_BUILDERS,
+} as Record<SectionType, { lengths: number[]; build: Build }>;
 
 /**
  * Round 11 crescendo: in the ruined variants, towers in the distance lean and break, their fallen
@@ -1400,9 +1637,11 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   const def = BUILDERS[type];
   const L = len ?? rng.pick(def.lengths);
   const b = new Builder(rng, density, Number(seed.split('#')[1] ?? 0) || 0, ruin);
+  b.len = L;
   const r = def.build(b, L);
-  if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel') ruinedSkyline(b, L, ruin);
-  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin };
+  // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
+  if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin);
+  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: r.features };
 }
 
 export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];
@@ -1416,10 +1655,10 @@ export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];
  */
 export const BIOMES: { until: number; types: SectionType[] }[] = [
   // [Progression director] the beats change exactly at the run tiers (2×, 5×, 10×), on the shared model.
-  { until: intensityOf(2), types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots'] },
-  { until: intensityOf(5), types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi'] },
-  { until: intensityOf(10), types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots'] },
-  { until: 2, types: ['cliff', 'gorge', 'bridge', 'tunnel', 'ledge'] },
+  { until: intensityOf(2), types: ['corridor', 'bridge', 'boardwalk', 'plaza', 'ruins', 'sunken', 'roots', 'forest', 'overgrown'] },
+  { until: intensityOf(5), types: ['gate', 'statues', 'avenue', 'arcade', 'corridor', 'colossi', 'forestWall', 'forest'] },
+  { until: intensityOf(10), types: ['tunnel', 'tall', 'gorge', 'arcade', 'statues', 'roots', 'cutting'] },
+  { until: 2, types: ['cliff', 'gorge', 'bridge', 'tunnel', 'ledge', 'ravine', 'cutting'] },
 ];
 
 export function biomeOf(intensity: number): number {
@@ -1433,7 +1672,7 @@ export function biomeOf(intensity: number): number {
  */
 export const THEMES: { name: string; types: SectionType[] }[] = [
   { name: 'causeway', types: ['corridor', 'bridge', 'boardwalk', 'sunken'] },
-  { name: 'jungle', types: ['roots', 'boardwalk', 'cliff', 'tunnel'] },
+  { name: 'jungle', types: ['roots', 'boardwalk', 'cliff', 'tunnel', 'forest', 'forestWall'] },
   { name: 'colossi', types: ['colossi', 'statues', 'avenue', 'gate'] },
   { name: 'gorge', types: ['ledge', 'gorge', 'cliff', 'bridge'] },
   { name: 'temples', types: ['sunken', 'plaza', 'ruins', 'arcade', 'tall'] },
@@ -1464,6 +1703,12 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['turnL', 1.8 + 0.8 * intensity],
     ['turnR', 1.8 + 0.8 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
+    // World round 21: land (a run of two to four; see Track.update).
+    ['forest', 2.4],
+    ['forestWall', 1.5],
+    ['cutting', 1.1 + 0.7 * intensity],
+    ['overgrown', 1.3],
+    ['ravine', 0.9 + 0.9 * intensity],
   ];
   const options = w.filter(([t]) => (t !== prev || t === 'corridor') && allow(t)).map(([t, k]) => [t, (beat.includes(t) ? k * 2.2 : k) * (favor.includes(t) ? 2.4 : 1)] as [SectionType, number]);
   return rng.weighted(options);

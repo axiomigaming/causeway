@@ -65,6 +65,8 @@ for i, o in enumerate(list(groups["stoneA"])):
         groups["leaf"].append(F.wall_ivy(o.name + "_ivy", 1100 + i, K.CRESTS[o.name], depth=0.8 if "mid" in o.name else 0.7, density=0.85))
 groups["stoneA"].append(K.foundation("foundation_0", 160))
 groups["stoneA"].append(K.foundation("foundation_1", 161, height=4.0))
+# Round 21: broken masonry for crash debris (a raw fracture face, the fresh stone inside).
+groups["stoneA"] += [K.broken_chunk(f"chunk_broken_{i}", 1500 + i, size=sz) for i, sz in enumerate([(0.9, 0.7, 0.6), (1.2, 0.6, 0.5), (0.6, 0.55, 0.7), (1.5, 0.8, 0.7)])]
 
 # ---- stone B: architecture
 groups["stoneB"] += [

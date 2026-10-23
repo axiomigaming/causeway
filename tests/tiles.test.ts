@@ -173,7 +173,7 @@ describe('walkable tiles', () => {
             for (const [x, z, r] of sec.solid) {
               if (r === 0) continue;
               checked++;
-              expect(Math.hypot(f.pos.x - x, f.pos.z - z), `route at ${q.toFixed(0)} vs scenery`).toBeGreaterThan(r + 4);
+              expect(Math.hypot(f.pos.x - x, f.pos.z - z), `route at ${q.toFixed(0)} vs scenery of ${sec.type}@${sec.s0.toFixed(0)} (world ${w})`).toBeGreaterThan(r + 4);
             }
           }
         }
