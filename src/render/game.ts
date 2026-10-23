@@ -1156,7 +1156,9 @@ export class Game {
     const sec = this.track.sectionAt(this.s);
     const openSide = sec?.layout.walls === 'cliff' ? (sec.mirror ? 1 : -1) : r.chance(0.5) ? 1 : -1;
     this.timeScale = 1;
-    const shot = kind === 'chasm' || kind === 'ledge' ? 'chasm' : kind === 'rockfall' || kind === 'trip' ? 'rockfall' : 'gate';
+    // (Pillar and trip take the close over-the-shoulder chasm framing: the gate's and the rockfall's
+    // pull wide and high, and he lies only a couple of metres from where the clip starts.)
+    const shot = kind === 'chasm' || kind === 'ledge' || kind === 'pillar' || kind === 'trip' ? 'chasm' : kind === 'rockfall' ? 'rockfall' : 'gate';
     // (Pillar and trip: he runs on while the column comes down, so the chase lens stays with him
     // until the clip starts; see there.)
     const crashCam = () => this.rig.setMode('crash', { side: st.variant ? -openSide : openSide, shot, variant: st.variant, epic: e });
