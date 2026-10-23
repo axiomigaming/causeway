@@ -1594,7 +1594,7 @@ export class Game {
       const ground = (x: number, z: number) => {
         const lat = ((x - at.pos.x) * at.right.x + (z - at.pos.z) * at.right.z) * side;
         if (lat > PATH_HALF + 1.4) return null;
-        if (lat < -(PATH_HALF + 0.1)) return lat < -(PATH_HALF + 1.8) ? null : at.pos.y + far;
+        if (lat < -(PATH_HALF + 0.1)) return lat < -(PATH_HALF + 3.5) ? null : at.pos.y + far;
         return at.pos.y;
       };
       // Standing, leaning a few degrees in, already turning about the line along the way.
@@ -1605,7 +1605,11 @@ export class Game {
       this.sounds.event?.('pillar_crack', trip ? 0.6 : 1);
       this.cine.cracks.spawn(foot.clone().setY(at.pos.y + 0.05), at.yaw + Math.PI / 2, 1.2, 1.2, 0.25, 0.05);
       this.particles.burst(foot.clone().setY(at.pos.y + 0.3), 10, { spread: 0.6, up: 1.2, speed: 1.6, size: 0.06, life: 0.9, color: DUST_DARK, alpha: 0.7, gravity: 9, drag: 0.4, grow: 0 });
-      const col = this.debris.spawn(piece, m, new THREE.Vector3(), axis.clone().multiplyScalar(trip ? 2.2 : 1.6), ground, { tag: 'column', restitution: 0.12 });
+      // Already turning about its foot (not about its middle: that drove the foot into the floor
+      // and the contact ate the swing): the centre moves as ω × (centre − foot).
+      const w0 = axis.clone().multiplyScalar(trip ? 2.3 : 1.9);
+      const comOff = new THREE.Vector3(0, ((bb ? bb.max.y + bb.min.y : tall) / 2) * sc, 0).applyQuaternion(q);
+      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: 0.12 });
       this.later(0.05, () => this.sounds.event?.('pillar_topple', trip ? 0.6 : 1));
       // Grit streams off its head as it comes over.
       for (let k = 1; k <= 3; k++) {
