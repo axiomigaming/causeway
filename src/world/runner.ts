@@ -28,7 +28,6 @@ export type RunnerAnim =
   /** Payoffs for the biggest settled rounds (50x+), picked by the FX director. */
   | 'win_slide'
   | 'fall_ledge'
-  /** Round 20 crash variants (FX): slammed into a toppled pier; tripped over a fallen column. */
   | 'fall_pillar'
   | 'fall_pillar_b'
   | 'fall_trip'
@@ -133,7 +132,7 @@ export function gaitCadence(speed: number, drive: number): number {
   return Math.min(Math.max(speed / stride, 1.1), cadenceCap(drive));
 }
 const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
-const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'fall_pillar', 'fall_pillar_b', 'fall_trip', 'fall_side_hit', 'fall_drop', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
+const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'fall_pillar', 'fall_pillar_b', 'fall_trip', 'fall_side_hit', 'fall_drop', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
   start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.83, 'R', 0.65], [0.95, 'L', 0.6]],
@@ -145,9 +144,9 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   fall_chasm_b: [[0.12, 'L', 1], [0.3, 'R', 0.9], [0.52, 'L', 0.6]],
   fall_gate_b: [[0.15, 'L', 0.9], [0.5, 'R', 0.6], [0.8, 'L', 0.5]],
   fall_rock_b: [[0.12, 'L', 0.8], [0.3, 'R', 0.6], [0.52, 'L', 0.7]],
-  win_cheer: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [2.1, 'R', 0.2], [2.23, 'L', 0.2], [2.35, 'R', 0.2]],
-  win_pump: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.7, 'R', 0.2], [1.83, 'L', 0.2], [1.95, 'R', 0.2]],
-  win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.9, 'R', 0.2], [2.03, 'L', 0.2], [2.15, 'R', 0.2], [3.17, 'L', 0.7], [3.18, 'R', 0.7], [3.73, 'L', 0.7], [3.74, 'R', 0.7]],
+  win_cheer: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [2.167, 'R', 0.2], [2.367, 'L', 0.2], [2.567, 'R', 0.2], [2.767, 'L', 0.2]],
+  win_pump: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.767, 'R', 0.2], [1.967, 'L', 0.2], [2.167, 'R', 0.2], [2.367, 'L', 0.2]],
+  win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.967, 'R', 0.2], [2.167, 'L', 0.2], [2.367, 'R', 0.2], [2.567, 'L', 0.2], [3.5, 'L', 0.7], [3.51, 'R', 0.7], [4.07, 'L', 0.7], [4.08, 'R', 0.7]],
   jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
   leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
   slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
@@ -156,8 +155,8 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   turn_cut_R: [[0.267, 'L', 0.85]],
   stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
   win_salute: [[0.27, 'R', 0.4], [0.5, 'L', 0.25], [1.1, 'R', 0.2], [1.27, 'L', 0.2], [1.43, 'R', 0.2]],
-  win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8], [2.63, 'R', 0.2], [2.77, 'L', 0.2], [2.88, 'R', 0.2]],
-  win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5], [2.03, 'R', 0.2], [2.17, 'L', 0.2], [2.28, 'R', 0.2]],
+  win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8], [2.667, 'R', 0.2], [2.867, 'L', 0.2], [3.067, 'R', 0.2], [3.267, 'L', 0.2]],
+  win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5], [2.067, 'R', 0.2], [2.267, 'L', 0.2], [2.467, 'R', 0.2], [2.667, 'L', 0.2]],
   fall_ledge: [[0.17, 'L', 0.9]],
 };
 
@@ -217,6 +216,41 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
 }
 
 /** A damped angular spring (one axis), driven by an external acceleration. */
+/**
+ * Airborne spans (clip seconds) that get the secondary-motion layer: the limbs keep reaching and
+ * kicking, the trunk twists and the head reacts, so a body in the air never reads as a held pose,
+ * even under the crash slow motion (the layer runs on real time). Gains per part: arms, legs, trunk.
+ */
+export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number; legs: number; trunk: number }> = {
+  jump_log: { spans: [[5 / 30, 23 / 30]], arms: 0.35, legs: 0.2, trunk: 0.45 },
+  leap_gap: { spans: [[6 / 30, 21 / 30]], arms: 0.4, legs: 0.25, trunk: 0.45 },
+  // The vault's hand is on the pillar until 15/30: the layer starts as it leaves.
+  vault: { spans: [[15 / 30, 21 / 30]], arms: 0.3, legs: 0.2, trunk: 0.35 },
+  win_leap: { spans: [[10 / 30, 27 / 30]], arms: 0.35, legs: 0.35, trunk: 0.5 },
+  // (The two jumping cheers come after the four-step turn to the lens.)
+  win_cheer_big: { spans: [[96 / 30, 107 / 30], [113 / 30, 125 / 30]], arms: 0.2, legs: 0.3, trunk: 0.4 },
+  fall_chasm: { spans: [[33 / 30, 99]], arms: 1, legs: 1, trunk: 1 },
+  fall_ledge: { spans: [[5 / 30, 17 / 30], [56 / 30, 99]], arms: 0.8, legs: 1, trunk: 0.8 },
+  fall_drop: { spans: [[5 / 30, 28 / 30]], arms: 1, legs: 1, trunk: 1 },
+  fall_trip: { spans: [[13 / 30, 17 / 30]], arms: 0.4, legs: 0.6, trunk: 0.4 },
+  fall_side_hit: { spans: [[9 / 30, 16 / 30]], arms: 0.5, legs: 0.5, trunk: 0.3 },
+};
+
+/**
+ * The escapes open on the run's left strike (phase 0) and reach its right strike (phase 0.5) at these clip
+ * times: a cash-out pressed mid-stride joins the clip at whichever strike comes first, so the feet carry on
+ * in step instead of cross-fading out of a stride into another (a foot snap).
+ */
+export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30, win_cheer: 4 / 30, win_cheer_big: 4 / 30, win_leap: 4 / 30, win_salute: 7 / 30, win_slide: 3 / 30 };
+
+/** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
+export function airWeight(clip: string, t: number): number {
+  const A = AIR_SPANS[clip];
+  if (!A) return 0;
+  for (const [a, b] of A.spans) if (t > a && t < b) return Math.min(smoothstep(a, a + 0.08, t), 1 - smoothstep(b - 0.08, b, t));
+  return 0;
+}
+
 class Spring {
   x = 0;
   v = 0;
@@ -380,6 +414,13 @@ export class Runner {
   private v3 = new THREE.Vector3();
   private v4 = new THREE.Vector3();
   private inv = new THREE.Quaternion();
+  /** The airborne layer: its weight (eased in real time), its noise clock (real seconds), and the
+   * trunk's follow-through springs (pitch and head lag the body's change of vertical speed). */
+  private airW = 0;
+  private airT = 0;
+  private airVy = 0;
+  private airPrevY = 0;
+  private airSpr = { pitch: new Spring(55, 7), head: new Spring(70, 6) };
 
   constructor(kit: Kit) {
     this.body = cloneSkinned(kit.runner.scene);
@@ -458,17 +499,26 @@ export class Runner {
       else if (name === 'win_cheer' && lv >= 2.98 && this.actions.has('win_cheer_big')) name = 'win_cheer_big';
     }
     if (name !== 'run' && !this.actions.has(name)) {
-      // (Round 20, FX: the new crash clips stand in with their nearest kin until the GLB has them.)
-      const fallback = name.startsWith('win') ? 'win' : name === 'fall_pillar' || name === 'fall_pillar_b' ? 'fall_gate_b' : name === 'fall_trip' ? 'fall_rock' : name === 'fall_side_hit' ? 'fall_rock_b' : name === 'fall_drop' ? 'fall_ledge' : name.startsWith('fall_') ? name.replace(/_b$/, '').replace('fall_start', 'fall_gate') : null;
+      // The crash director's newer reactions fall back to the nearest older one in an older export.
+      const NEW_FALLS: Record<string, string> = { fall_pillar: 'fall_gate_b', fall_pillar_b: 'fall_gate_b', fall_trip: 'fall_rock', fall_side_hit: 'fall_rock_b', fall_drop: 'fall_ledge' };
+      const fallback = name.startsWith('win') ? 'win' : NEW_FALLS[name] ?? (name.startsWith('fall_') ? name.replace(/_b$/, '').replace('fall_start', 'fall_gate') : null);
       if (!fallback || !this.actions.has(fallback)) return;
       name = fallback as RunnerAnim;
     }
     this.pending = null;
     if (name === this.current) return;
     if (this.current === 'run' && ONE_SHOT.has(name) && name !== 'start' && offset === 0 && fade > 0) {
-      const wait = ((1 - this.phase) % 1) / Math.max(0.5, this.cadence);
+      let wait = ((1 - this.phase) % 1) / Math.max(0.5, this.cadence);
+      const half = WIN_HALF[name];
+      if (half !== undefined) {
+        const waitR = ((1.5 - this.phase) % 1) / Math.max(0.5, this.cadence);
+        if (waitR < wait) {
+          wait = waitR;
+          offset = half;
+        }
+      }
       // Escapes can afford a beat to land on the right foot; falls react almost at once.
-      const budget = name.startsWith('win') ? 0.26 : 0.12;
+      const budget = name.startsWith('win') ? 0.34 : 0.12;
       if (wait > 0.001 && wait < budget) {
         this.pending = { name, fade, offset, until: this.t + wait };
         return;
@@ -580,8 +630,7 @@ export class Runner {
   }
 
   /** `speed` in m/s drives the gait; emits footsteps; runs the procedural layer. */
-  // (rawDt: real time, for the airborne secondary motion the character agent is adding; round 20.)
-  update(dt: number, speed: number, _rawDt: number = dt): void {
+  update(dt: number, speed: number, rawDt = dt): void {
     this.t += dt;
     this.speed = speed;
     if (this.pending && (this.t >= this.pending.until || this.current !== 'run')) {
@@ -688,6 +737,7 @@ export class Runner {
     }
     this.mixer.update(dt);
     this.overlays(dt);
+    this.airLayer(dt, rawDt);
 
     // Footfalls.
     const k = Math.min(1, speed / 10);
@@ -779,6 +829,62 @@ export class Runner {
     this.catchDir = dir >= 0 ? 1 : -1;
   }
 
+  /**
+   * The secondary-motion layer in the air: on top of the clip, the arms keep reaching and clawing, the legs
+   * kick (knees only ever bend further: the hinge holds), the trunk twists and rolls, the head looks about,
+   * and the trunk and head lag the body's change of vertical speed on springs (the take-off, the drop, the
+   * landing). It runs on real time, so a crash's slow motion slows the fall, not the struggle.
+   */
+  private airLayer(dt: number, rawDt: number): void {
+    const a = this.actions.get(this.current);
+    const want = a ? airWeight(this.current, a.time) : 0;
+    const rt = Math.max(rawDt, dt);
+    this.airW += (want - this.airW) * (1 - Math.exp(-rt * 14));
+    const s = this.airSpr;
+    const hips = this.bones.hips;
+    if (hips && dt > 0) {
+      hips.updateWorldMatrix(true, false);
+      const y = this.v1.setFromMatrixPosition(hips.matrixWorld).y;
+      const vy = (y - this.airPrevY) / dt;
+      this.airPrevY = y;
+      // Teleports (a new round) must not kick the springs.
+      const dv = Number.isFinite(vy) && Math.abs(vy) < 30 ? vy - this.airVy : 0;
+      if (Math.abs(vy) < 30) this.airVy = vy;
+      const kick = AIR_SPANS[this.current] ? THREE.MathUtils.clamp(dv / dt, -60, 60) : 0;
+      // A sudden drop pitches the trunk back and lifts the head; a landing folds them forward.
+      s.pitch.step(0, -kick * 0.05, rt, -0.22, 0.22);
+      s.head.step(0, -kick * 0.07, rt, -0.28, 0.28);
+    }
+    this.rotate(this.bones.chest, s.pitch.x, 0, 0);
+    this.rotate(this.bones.head, s.head.x, 0, 0);
+    const w = this.airW;
+    if (w < 0.01) return;
+    this.airT += rt;
+    const A = AIR_SPANS[this.current] ?? { arms: 0, legs: 0, trunk: 0 };
+    const t = this.airT;
+    const n = (f: number, ph: number) => Math.sin(2 * Math.PI * f * t + ph);
+    const ga = A.arms * w;
+    const gl = A.legs * w;
+    const gt = A.trunk * w;
+    // Arms: reach and claw (the shoulder swings and spreads, the elbow works), the sides out of step.
+    for (const [side, sg, ph] of [['L', 1, 0], ['R', -1, 2.1]] as const) {
+      this.rotate(this.bones[`upper_arm${side}`], ga * (0.32 * n(2.3, ph) + 0.12 * n(3.9, ph + 1)), 0, sg * ga * (0.22 * n(1.7, ph + 0.5) + 0.08 * n(4.3, ph)));
+      this.rotate(this.bones[`forearm${side}`], -ga * (0.3 + 0.28 * n(2.9, ph + 0.7)), 0, 0);
+    }
+    // Legs: a kick at the hip and a knee that pumps (it only bends further), the feet flicking.
+    for (const [side, ph] of [['L', 0.4], ['R', 3.3]] as const) {
+      const f = this.feet[side];
+      this.rotate(f.thigh, gl * (0.26 * n(2.1, ph) + 0.08 * n(3.7, ph + 1.3)), 0, 0);
+      this.rotate(f.shin, gl * (0.22 + 0.22 * n(2.6, ph + 0.9)), 0, 0);
+      this.rotate(f.foot, gl * 0.14 * n(3.1, ph + 2), 0, 0);
+    }
+    // Trunk: twist and roll; the head looks about.
+    this.rotate(this.bones.spine, 0, gt * 0.07 * n(1.3, 0.2), gt * 0.05 * n(1.1, 1.4));
+    this.rotate(this.bones.chest, gt * 0.05 * n(1.9, 2.2), gt * 0.1 * n(1.3, 0.9), gt * 0.06 * n(1.6, 0.3));
+    this.rotate(this.bones.neck, gt * 0.06 * n(1.7, 1.1), gt * 0.1 * n(1.2, 2.6), 0);
+    this.rotate(this.bones.head, gt * 0.1 * n(2.2, 0.4), gt * 0.16 * n(1.5, 1.8), gt * 0.06 * n(1.9, 0.6));
+  }
+
   /** Additive beats on top of the gait: a glance back, a stumble and recover, a catch step. */
   private overlays(dt: number): void {
     const b = this.bones;
@@ -839,10 +945,10 @@ export class Runner {
       const g = smoothstep(0, 0.25, t) * (1 - smoothstep(0.6, 0.95, t)) * G;
       const s = -this.glanceSide;
       // Up-pointing bones yaw about local Y; the shoulder drops a touch as the chest turns.
-      this.rotate(b.spine, 0, s * 0.1 * g, 0);
-      this.rotate(b.chest, 0, s * 0.22 * g, 0);
-      this.rotate(b.neck, 0.05 * g, s * 0.6 * g, 0);
-      this.rotate(b.head, 0.05 * g, s * 0.55 * g, -s * 0.05 * g);
+      this.rotate(b.spine, 0, s * 0.13 * g, 0);
+      this.rotate(b.chest, 0, s * 0.28 * g, 0);
+      this.rotate(b.neck, 0.05 * g, s * 0.5 * g, 0);
+      this.rotate(b.head, 0.05 * g, s * 0.45 * g, -s * 0.05 * g);
       if (t > 0.95) this.glanceT = -1;
     }
     if (this.stumbleT >= 0) {
