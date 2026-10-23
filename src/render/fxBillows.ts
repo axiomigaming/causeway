@@ -257,6 +257,12 @@ export class Billows {
     }
   }
 
+  /**
+   * Round 19: below this height (e.g. a chasm's lip) dust settles out fast: a cloud that sinks
+   * into the gorge thins and is gone within ~0.4 s instead of hanging over the water. Null: off.
+   */
+  settleBelow: number | null = null;
+
   private camPos = new THREE.Vector3();
   private camFwd = new THREE.Vector3();
   private sunV = new THREE.Vector3();
@@ -278,6 +284,11 @@ export class Billows {
       this.p[p] = this.p[p]! + this.v[p]! * dt;
       this.p[p + 1] = this.p[p + 1]! + this.v[p + 1]! * dt;
       this.p[p + 2] = this.p[p + 2]! + this.v[p + 2]! * dt;
+      if (this.settleBelow !== null && this.p[p + 1]! < this.settleBelow && this.d[d]! > 0.4) {
+        const age = this.d[d + 1]! - this.d[d]!;
+        this.d[d] = 0.4;
+        this.d[d + 1] = age + 0.4;
+      }
       const t = 1 - this.d[d]! / this.d[d + 1]!;
       const size = this.d[d + 2]! + (this.d[d + 3]! - this.d[d + 2]!) * (1 - (1 - t) * (1 - t));
       const fl = this.d[d + 10]! + size * 0.28;
@@ -343,6 +354,7 @@ export class Billows {
 
   clear(): void {
     this.n = 0;
+    this.settleBelow = null;
     this.geo.instanceCount = 0;
   }
 }

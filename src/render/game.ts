@@ -22,6 +22,7 @@ import { WATER_Y, Water } from '../world/water';
 import { Ambient } from './ambient';
 import { CameraRig } from './cameraRig';
 import { Motes, Particles } from './particles';
+import { Spray } from './fxSpray';
 import { Fx } from './fx';
 import { escapeScale, fallScale, nextDangerCue, revealHold, type DangerCue, type EscapeScale } from './fxScale';
 import { Post } from './post';
@@ -103,6 +104,8 @@ export class Game {
   /** Round 13: set pieces on the way (log jumps, slides, vaults, leaps, near misses). */
   private obstacles!: ObstacleDirector;
   private particles = new Particles(1100);
+  /** Round 19: splash spray as streaks along their motion (fxSpray). */
+  private spray = new Spray(320);
   private motes = new Motes(420);
   private rain = new Rain();
   private contact = new ContactShadow(); // grounds the runner on every tier
@@ -299,7 +302,8 @@ export class Game {
     scene.add(this.runner.root);
     this.contact.attach(this.runner.root);
     scene.add(this.contact.mesh);
-    scene.add(this.particles.points, this.motes.points, this.ambient.root, this.rain.mesh);
+    scene.add(this.particles.points, this.motes.points, this.ambient.root, this.rain.mesh, this.spray.mesh);
+    this.spray.floor = WATER_Y - 0.05;
     // Cinematic fx (before the fog patch and the program warm-up below).
     this.cine.attachRunner(this.runner.root);
     scene.add(this.cine.root);
@@ -471,6 +475,7 @@ export class Game {
     this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     this.track.viewDistance = q.viewDistance;
     this.particles.budget = q.dust;
+    this.spray.budget = Math.max(0.5, q.dust);
     this.applyFxBudget();
     this.ambient.setBudget(q.ambientLife);
     this.water.setDetail(q.waterDetail);
@@ -533,6 +538,7 @@ export class Game {
     resetMood();
     this.debris.clear();
     this.particles.clear();
+    this.spray.clear();
     this.cine.clear();
     this.releaseReveal();
     this.gapAt = null;
@@ -1134,6 +1140,13 @@ export class Game {
       const edge = this.tileEdge(Math.max(this.s + 1.4, want - 2.2), want + 4) ?? want;
       this.setStop(edge - 0.5);
       const h = frameAt(edge);
+      // Round 19: dust that sinks below the lip settles out fast (it hung over the gorge's water
+      // as a brown veil seen from above).
+      B.settleBelow = h.pos.y - 0.4;
+      // Once he is going under, the gorge clears: what still hangs just over the lip thins too.
+      this.later(1.6, () => {
+        if (B.settleBelow !== null) B.settleBelow = h.pos.y + 1.0;
+      });
       this.rig.focus.copy(h.pos).addScaledVector(h.fwd, 2).setY(h.pos.y + 0.2);
       // Pre-impact: the fissure spreads across the seam, grit jumps from it, the ground groans.
       this.cine.cracks.spawn(h.pos.clone().setY(h.pos.y + 0.05).addScaledVector(h.fwd, 0.3), h.yaw, PATH_HALF * 2 + 0.2, 2.2 + 2 * e, F.pre * 0.9, F.pre * 0.1 + 0.12);
@@ -1167,14 +1180,15 @@ export class Game {
                 : new THREE.Vector3(r.range(-0.6, 0.6), r.range(-1.5, 0), r.range(-0.6, 0.6)),
               new THREE.Vector3(r.range(-1.2, 1.2), r.range(-0.3, 0.3), r.range(-1.2, 1.2)),
               () => null,
-              // Slabs crack up as they drop: the nearer ones a moment after they go.
-              { breakInto: 4, breakAfter: r.range(0.3, 0.6) },
+              // Slabs crack up as they drop: the nearer ones a moment after they go. (Round 19: into
+              // fewer pieces; four apiece filled the gorge with a hail of look-alike chunks.)
+              { breakInto: 2, breakAfter: r.range(0.3, 0.6) },
             );
             const p = new THREE.Vector3().setFromMatrixPosition(t.world);
             p.y += 0.1;
             this.particles.burst(p, 10, { spread: 3, up: 1.4, speed: 2.6, size: 0.6, life: 1.6, color: DUST, alpha: 0.25 });
             // A cloud boils up out of the gap and rolls back over the lip.
-            B.puff(p, { count: 2 + Math.round(2 * F.dust), spread: 3, jitter: 1.2, vel: new THREE.Vector3(0, 1.6 + 1.2 * e, 0).addScaledVector(h.fwd, -0.4), size: [1.2, 3.6 + 2.5 * e], life: 2.6 + 1.6 * e, alpha: 0.36, tint: DUST_T, rise: 0.35, drag: 1.1 });
+            B.puff(p, { count: 1 + Math.round(2 * F.dust), spread: 3, jitter: 1.2, vel: new THREE.Vector3(0, 1.6 + 1.2 * e, 0).addScaledVector(h.fwd, -0.4), size: [1.2, 3.2 + 2 * e], life: 1.6 + 1.0 * e, alpha: 0.2, tint: DUST_T, rise: 0.35, drag: 1.1 });
             if (i === 0) kick();
             else if (i < 3) this.rig.addTrauma(0.15);
           });
@@ -1196,13 +1210,14 @@ export class Game {
           const side = walls === 'cliff' ? -openSide : k % 2 ? 1 : -1;
           const p = h.pos.clone().addScaledVector(h.fwd, at0 + r.range(0, spanK)).addScaledVector(h.right, side * r.range(2.5, 3.2)).setY(h.pos.y + r.range(0.8, big ? 3.2 : 1.6));
           this.later(t0 + k * 0.12, () => {
-            this.debris.spawn(big ? r.pick(['rubble_2', 'rubble_3', 'rock_mid_0']) : `rubble_${r.int(0, 1)}`, new THREE.Matrix4().makeTranslation(p.x, p.y, p.z), h.fwd.clone().multiplyScalar(r.range(-1, 1)).addScaledVector(h.right, -side * r.range(0.5, 2.5)), new THREE.Vector3(r.range(-3, 3), r.range(-3, 3), r.range(-3, 3)), () => null, { scale: big ? r.range(0.7, 1.1) : r.range(0.5, 0.9), breakInto: big ? 3 : 0, breakAfter: big ? r.range(0.5, 0.9) : Infinity });
+            // (Round 19: small ones are irregular rocks, not the kit's little brick cubes.)
+            this.debris.spawn(big ? r.pick(['rubble_2', 'rubble_3', 'rock_mid_0']) : r.pick(['rock_mid_0', 'rock_mid_1', 'rock_mid_2']), new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), r.range(0, 6))), new THREE.Vector3(1, 1, 1)), h.fwd.clone().multiplyScalar(r.range(-1, 1)).addScaledVector(h.right, -side * r.range(0.5, 2.5)), new THREE.Vector3(r.range(-3, 3), r.range(-3, 3), r.range(-3, 3)), () => null, { scale: big ? r.range(0.7, 1.1) : r.range(0.3, 0.55), breakInto: big ? 3 : 0, breakAfter: big ? r.range(0.5, 0.9) : Infinity });
             if (walls !== 'none') B.puff(p, { count: 2, spread: 0.8, jitter: 0.5, vel: h.right.clone().multiplyScalar(-side * 2.2), size: [0.8, 2.4], life: 2, alpha: 0.45, tint: DUST_T, rise: 0.05 });
           });
         }
       };
       // (From 2.5 m beyond the lip: blocks off the walls never cross his fall line.)
-      if (walls !== 'none') blocks(n(4), 2.5, 8, F.pre + 0.3, false);
+      if (walls !== 'none') blocks(n(2), 2.5, 8, F.pre + 0.3, false);
       // Big falls: the walls beside the gap come down too, in waves, the gap still widening.
       if (F.waves >= 1) {
         this.later(F.pre + 1.0, () => kick(0.5));
@@ -1255,7 +1270,7 @@ export class Game {
           B.puff(p, { count: 2, spread: 1.0, jitter: 0.6, vel: new THREE.Vector3(0, 1.6, 0), size: [0.6, 1.8], life: 1.4, alpha: 0.2, tint: MIST_T, rise: 0.2, floor: WATER_Y });
           this.water.splash(p.x, p.z, 1.2);
           // The column as he goes under, then bubbles breaking on the surface where he went.
-          this.later(0.18, () => this.particles.burst(p, 18, { spread: 0.35, up: 6.5, speed: 0.9, size: 0.09, life: 1.0, color: SPRAY, alpha: 0.85, gravity: 9.8, drag: 0.25, grow: 0 }));
+          this.later(0.18, () => this.splashColumn(p, 1));
           for (let k = 1; k <= 9; k++) this.later(0.35 + k * 0.24, () => this.splashBubbles(p, 1.1 + k * 0.12, 1 - k * 0.07));
           this.sounds.impact(0.9, true);
         });
@@ -2262,6 +2277,7 @@ export class Game {
     }
     this.debris.update(dt);
     this.particles.update(dt);
+    this.spray.update(dt, cam.aspect);
     if (this.stage === 'cashout') this.cine.pool.place(rp, 1.5 + (this.escape?.g ?? 0));
     this.cine.update(dt, rawDt, cam, this.sunDir, this.worldT, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)));
     // Tension ramp (grade, vignette, dust in the air): from the live multiplier only, while running;
@@ -2404,18 +2420,47 @@ export class Game {
    * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
    */
   private splashCrown(p: THREE.Vector3, k: number): void {
-    const n = Math.round(56 * k * this.particles.budget);
-    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 1, size: 0.1, grow: 0, color: SPRAY, alpha: 0.9, drag: 0.3, gravity: 9.8 };
+    // Round 19: streaks (fxSpray), not soft dots. The crown: a ring of drops leaving the rim of the
+    // cavity steeply (60-75°), fanning out as they rise, then raining back; a few heavier blobs
+    // higher and slower; fine drops in between. Cosmetic RNG only.
+    const b = this.spray.budget;
+    const n = Math.round(90 * k * b);
+    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), size: 0.03, life: 1.2, alpha: 0.95, gravity: 9.8, drag: 0.2 };
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
-      const r0 = 0.45 + Math.random() * 0.3;
-      const out = 1.2 + Math.random() * 1.8;
-      const up = (3.6 + Math.random() * 3.2) * Math.sqrt(k);
+      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.18;
+      const r0 = 0.5 + Math.random() * 0.25;
+      const el = (60 + Math.random() * 16) * (Math.PI / 180);
+      const sp = (4.2 + Math.random() * 2.6) * Math.sqrt(k);
+      e.pos.set(p.x + Math.cos(a) * r0, p.y + 0.04, p.z + Math.sin(a) * r0);
+      e.vel.set(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp);
+      e.size = 0.01 + Math.random() * 0.016;
+      e.life = 1.0 + Math.random() * 0.6;
+      this.spray.emit(e);
+    }
+    for (let i = 0; i < Math.round(10 * k * b); i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = (5.5 + Math.random() * 2) * Math.sqrt(k);
+      const el = (68 + Math.random() * 14) * (Math.PI / 180);
+      e.pos.set(p.x + Math.cos(a) * 0.55, p.y + 0.05, p.z + Math.sin(a) * 0.55);
+      e.vel.set(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp);
+      e.size = 0.025 + Math.random() * 0.015;
+      e.life = 1.6;
+      this.spray.emit(e);
+    }
+    // A breath of fine mist at the impact, low and quickly gone.
+    this.particles.burst(p, Math.round(10 * k), { spread: 1.2, up: 1.5, speed: 1.5, size: 0.35, life: 0.7, color: SPRAY, alpha: 0.25, gravity: 2, drag: 1.5, grow: 1.2 });
+  }
+
+  /** Round 19: the column that follows a body down: fast, narrow, streaking straight up. */
+  private splashColumn(p: THREE.Vector3, k: number): void {
+    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), size: 0.03, life: 1.4, alpha: 0.95, gravity: 9.8, drag: 0.15 };
+    for (let i = 0; i < Math.round(28 * k * this.spray.budget); i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r0 = Math.random() * 0.25;
       e.pos.set(p.x + Math.cos(a) * r0, p.y + 0.05, p.z + Math.sin(a) * r0);
-      e.vel.set(Math.cos(a) * out, up, Math.sin(a) * out);
-      e.life = 0.9 + Math.random() * 0.5;
-      e.size = 0.05 + Math.random() * 0.07;
-      this.particles.emit(e);
+      e.vel.set(Math.cos(a) * Math.random() * 0.7, (6 + Math.random() * 2.5) * Math.sqrt(k), Math.sin(a) * Math.random() * 0.7);
+      e.size = 0.012 + Math.random() * 0.02;
+      this.spray.emit(e);
     }
   }
 
