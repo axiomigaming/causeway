@@ -242,6 +242,7 @@ class LensEffect extends Effect {
       uniform float exposure;
       uniform float flare;
       uniform float ghosts;
+      uniform float ghostNear;
       uniform float glowOnly;
       uniform vec3 sunTint;
       uniform float span;
@@ -304,7 +305,7 @@ class LensEffect extends Effect {
             // Round 19: the ghosts are faint and soft, and they give way to anything near the lens
             // (a coloured hexagon sat on the runner's back like a sticker): full over the far scene
             // and the sky, gone over what is nearer than ~8 m (him, the causeway under him).
-            ${occlusion ? 'float far = smoothstep(8.0, 22.0, -getViewZ(depth));' : 'float far = 1.0;'}
+            ${occlusion ? 'float far = mix(1.0, smoothstep(8.0, 22.0, -getViewZ(depth)), ghostNear);' : 'float far = 1.0;'}
             for (int i = 0; i < G; i++) {
               vec2 gp = sunPos + axis * gk[i];
               vec2 gd = uv - gp;
@@ -333,6 +334,8 @@ class LensEffect extends Effect {
           ['flare', new THREE.Uniform(1)],
           // QA (tools/ghost-check.mjs): 0 draws the flare without its ghosts and halo.
           ['ghosts', new THREE.Uniform(1)],
+          // QA (ghost-check --selftest): 0 restores the old ghosts over near things.
+          ['ghostNear', new THREE.Uniform(1)],
           ['glowOnly', new THREE.Uniform(occlusion ? 0 : 1)],
           ['span', new THREE.Uniform(1)],
           ['calm', new THREE.Uniform(0)],

@@ -16,6 +16,8 @@ const URL = process.env.URL ?? 'http://localhost:5180';
 const n = +arg('n', 4);
 const q = arg('q', 'high');
 const look = arg('look', 'golden');
+// --selftest: the near fade off (the old ghosts): the check should then catch some frames.
+const selftest = process.argv.includes('--selftest');
 const W = 1280;
 const H = 720;
 
@@ -50,6 +52,7 @@ for (let w = 1; w <= n; w++) {
     g.lead();
     g.debugStep(1.1);
   }, { w, look });
+  if (selftest) await page.evaluate(() => window.__game.post.lens.uniforms.get('ghostNear').value = 0);
   for (let k = 0; k < 8; k++) {
     const s = await page.evaluate(() => {
       const g = window.__game;
@@ -69,30 +72,40 @@ for (let w = 1; w <= n; w++) {
     const y1 = Math.min(H, Math.ceil(((1 - Math.min(...ys)) / 2) * H + 20));
     if (x1 - x0 < 8 || y1 - y0 < 8) continue;
     const clip = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+    const raw = {};
     const shot = async (ghosts) => {
       await page.evaluate((v) => {
         const g = window.__game;
         g.post.lens.uniforms.get('ghosts').value = v;
         g.frame(1e-6, true);
       }, ghosts);
-      return lum(await page.screenshot({ clip, type: 'png', timeout: 600000 }));
+      raw[ghosts] = await page.screenshot({ clip, type: 'png', timeout: 600000 });
+      return lum(raw[ghosts]);
     };
     const a = await shot(1);
     const b = await shot(0);
     let sum = 0;
     let max = 0;
-    for (let i = 0; i < a.data.length; i++) {
-      const d = Math.abs(a.data[i] - b.data[i]);
+    let lit = 0;
+    for (let i = 0; i < a.data.length; i += 3) {
+      const d = Math.max(Math.abs(a.data[i] - b.data[i]), Math.abs(a.data[i + 1] - b.data[i + 1]), Math.abs(a.data[i + 2] - b.data[i + 2]));
       sum += d;
       if (d > max) max = d;
+      if (d > 3) lit++;
     }
-    const mean = sum / a.data.length;
+    const mean = sum / (a.data.length / 3);
+    const area = lit / (a.data.length / 3);
     tested++;
-    // A ghost over him shows as a patch several levels bright even after the blur; single-pixel
-    // noise from re-rendering does not survive it.
-    const ok = mean < 0.6 && max < 8;
+    // A ghost over him is a patch: hundreds of pixels a few levels brighter. Re-render noise (a
+    // mote, a sparkle) is a handful of isolated dots, so the test is the area that changed.
+    const ok = mean < 0.6 && area < 0.006;
     if (!ok) failed++;
-    console.log(`${ok ? 'ok  ' : 'FAIL'} world ${w} t${k} sun ${s.on.toFixed(2)} rect ${clip.width}x${clip.height} mean ${mean.toFixed(2)} max ${max}`);
+    // DUMP=<dir>: the two crops of a failing frame, to look at.
+    if (!ok && process.env.DUMP) {
+      await sharp(raw[1]).toFile(`${process.env.DUMP}/ghost-w${w}-t${k}-on.png`);
+      await sharp(raw[0]).toFile(`${process.env.DUMP}/ghost-w${w}-t${k}-off.png`);
+    }
+    console.log(`${ok ? 'ok  ' : 'FAIL'} world ${w} t${k} sun ${s.on.toFixed(2)} rect ${clip.width}x${clip.height} mean ${mean.toFixed(2)} max ${max} area ${(area * 100).toFixed(2)}%`);
   }
 }
 await browser.close();
