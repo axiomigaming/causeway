@@ -7,7 +7,8 @@ import { Obstacles, type Obstacle, type ObstacleKind } from './obstacles';
 import { Landmarks } from './landmarks';
 import { STYLES, type LandmarkKind, type WorldStyle } from './style';
 import { TURN_R } from './sections';
-import { buildLayout, isWaterPiece, nextType, THEMES, type Layout, type SectionType } from './sections';
+import { buildLayout, isLand, isWaterPiece, LAND_TYPES, nextType, THEMES, type Layout, type SectionType } from './sections';
+import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
@@ -94,6 +95,11 @@ const VARIANTS: Record<SectionType, number> = {
   turnR: 2,
   stepping: 2,
   approach: 2,
+  forest: 4,
+  forestWall: 3,
+  cutting: 3,
+  overgrown: 3,
+  ravine: 3,
 };
 
 interface Variant {
@@ -131,6 +137,8 @@ export interface SectionInstance {
   variant: Variant;
   /** Its far scenery (|x| ≥ 7.5) as world-space footprints: x, z, horizontal radius. */
   solid: [number, number, number][];
+  /** World round 21: its ground (land sections). */
+  ground?: THREE.Mesh;
 }
 
 /** How close a later stretch of route may come to a piece of earlier scenery (m, edge to centreline). */
@@ -278,6 +286,10 @@ export class Track {
   }
   /** QA: section types to spawn next, in order, before the pacing rules resume. */
   forceNext: SectionType[] = [];
+  /** World round 21: the rest of the current run of land (cleared with the world). */
+  private landRun: SectionType[] = [];
+  /** A landmark's staging (run-up, corner, exit), cleared with the world (forceNext is QA's). */
+  private staged: SectionType[] = [];
   /** Round 11: obstacle props for the obstacle director (see obstacles.ts). */
   readonly obstacles: Obstacles;
 
@@ -335,6 +347,8 @@ export class Track {
   }
 
   private retired: THREE.Group[] = [];
+  /** World round 21: the forest floor (one material for every land section). */
+  private groundMat = makeGroundMaterial();
   /** The variants of this world's last ten sections (spreads the repeats; never follows the despawn). */
   private recent: string[] = [];
 
@@ -414,6 +428,8 @@ export class Track {
     for (const g of this.retired) disposeGroup(g);
     this.retired.length = 0;
     this.rng = new Rng(`world/${seed}`);
+    this.landRun.length = 0;
+    this.staged.length = 0;
     this.recent.length = 0;
     // Round 11: the run plan — a theme of favoured scenarios, a time-of-day look and (round 12) a style
     // (water, season, air, which landmarks). Round 17: from the seed alone (see planOf); no two worlds in
@@ -510,7 +526,8 @@ export class Track {
       // A landmark just set out on one side also holds back a corner toward it for a few sections.
       // Sections with cliffs or tall walls along their sides reach past their ends: a corner never
       // follows one (the exit leg ran through the gorge's cliff), and none follows a corner.
-      const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate'];
+      // (World round 21: land too: its forest runs far out to the sides, into the legs either side of a bend.)
+      const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate', ...LAND_TYPES];
       const afterCorner = this.lastType === 'turnL' || this.lastType === 'turnR';
       const blocked = new Map<SectionType, boolean>();
       const clear = (t: SectionType) => {
@@ -518,7 +535,9 @@ export class Track {
         return !blocked.get(t);
       };
       const allow = (t: SectionType) =>
-        (t === 'turnL' || t === 'turnR') && !clear(t)
+        isLand(t) && (Math.abs(this.elevation) > 0.01 || this.sinceTurn < 2)
+          ? false
+          : (t === 'turnL' || t === 'turnR') && !clear(t)
           ? false
           : afterCorner && BIG.includes(t)
           ? false
@@ -529,7 +548,7 @@ export class Track {
           : t === 'turnR'
             ? this.heading > -1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side > 0)
             : true;
-      let forced = this.forceNext.shift();
+      let forced = this.landRun.shift() ?? this.forceNext.shift() ?? this.staged.shift();
       // A forced corner (a landmark's, or QA's) that would run into scenery already built turns the
       // other way if it may, or becomes an open straight (the landmark then waits for its next chance).
       if ((forced === 'turnL' || forced === 'turnR') && !clear(forced)) {
@@ -541,13 +560,26 @@ export class Track {
           if (this.pendingLandmark) {
             this.landmarkQueue.unshift(this.pendingLandmark);
             this.pendingLandmark = null;
-            this.forceNext = this.forceNext.filter((x) => x !== 'approach');
+            this.staged = this.staged.filter((x) => x !== 'approach');
           }
         }
       }
       this.clearBehind(this.path.length);
       const intensity = genIntensity(this.path.length);
       const t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
+      // World round 21: land comes in runs (two to four sections of forest, cutting, plaza or ravine,
+      // no corner among them), so the causeway leaves the water, crosses a stretch of jungle and returns.
+      if (!forced && isLand(t) && !isLand(this.lastType)) {
+        const more = this.rng.int(1, 3);
+        let prev: SectionType = t;
+        const run: SectionType[] = [];
+        for (let k = 0; k < more; k++) {
+          const opts = LAND_TYPES.filter((x) => x !== prev);
+          prev = this.rng.pick(opts);
+          run.push(prev);
+        }
+        this.landRun.push(...run);
+      }
       this.spawn(t, intensity);
       this.lastType = t;
       if (t === 'turnL' || t === 'turnR') {
@@ -593,7 +625,7 @@ export class Track {
     const turn: SectionType = this.heading > 0 ? 'turnR' : this.heading < 0 ? 'turnL' : this.lmRng.chance(0.5) ? 'turnL' : 'turnR';
     // Four open sections of run-up (bridge or stepping slabs: water and sky in view), the corner, an open exit.
     const open = (): SectionType => 'approach';
-    this.forceNext.push(open(), open(), open(), open(), turn, open());
+    this.staged.push(open(), open(), open(), open(), turn, open());
     this.pendingLandmark = this.landmarkQueue.shift()!;
   }
 
@@ -650,9 +682,21 @@ export class Track {
     }
     const feet: THREE.Vector4[] = [];
     fallFeet(layout.falls, world, toWater, feet);
+    // World round 21: land sections stand on their own ground, shelving into the water where the run
+    // of land begins and ends.
+    let ground: THREE.Mesh | undefined;
+    if (layout.ground) {
+      const rampIn = !isLand(this.lastType);
+      const rampOut = !isLand(this.landRun[0] ?? this.forceNext[0] ?? this.staged[0]);
+      const gg = makeGroundGeometry(layout.ground, layout.len, rampIn, rampOut, toWater, Math.floor(seg.s0));
+      ground = new THREE.Mesh(gg, this.groundMat);
+      ground.name = 'ground';
+      ground.receiveShadow = true;
+      root.add(ground);
+    }
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world) };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -682,6 +726,7 @@ export class Track {
 
   private despawn(s: SectionInstance): void {
     this.root.remove(s.root);
+    s.ground?.geometry.dispose();
     for (const f of s.falls) f.geometry.dispose();
     for (const t of s.tiles) this.tiles.release(t);
     s.variant.inUse--;
