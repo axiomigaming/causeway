@@ -1157,7 +1157,10 @@ export class Game {
     const openSide = sec?.layout.walls === 'cliff' ? (sec.mirror ? 1 : -1) : r.chance(0.5) ? 1 : -1;
     this.timeScale = 1;
     const shot = kind === 'chasm' || kind === 'ledge' ? 'chasm' : kind === 'rockfall' || kind === 'trip' ? 'rockfall' : 'gate';
-    this.rig.setMode('crash', { side: st.variant ? -openSide : openSide, shot, variant: st.variant, epic: e });
+    // (Pillar and trip: he runs on while the column comes down, so the chase lens stays with him
+    // until the clip starts; see there.)
+    const crashCam = () => this.rig.setMode('crash', { side: st.variant ? -openSide : openSide, shot, variant: st.variant, epic: e });
+    if (kind !== 'pillar' && kind !== 'trip') crashCam();
     const wallsOf = (s: number) => this.track.sectionAt(s)?.layout.walls ?? 'low';
     const frameAt = (s: number) => {
       const f = this.track.path.sample(s);
@@ -1585,6 +1588,7 @@ export class Game {
       this.later(tPlay, () => {
         this.setStop(this.s + 0.01);
         this.runner.play(clip, 0.06);
+        crashCam();
       });
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
