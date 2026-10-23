@@ -84,21 +84,42 @@ for (let w = 1; w <= n; w++) {
     };
     const a = await shot(1);
     const b = await shot(0);
+    // His silhouette: the same frame with him hidden differs only where he stands. (Ghosts over
+    // the far scene beside him are fine; only those on him count.)
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.runner.root.visible = false;
+      g.post.lens.uniforms.get('ghosts').value = 0;
+      g.frame(1e-6, true);
+    });
+    const hid = await lum(await page.screenshot({ clip, type: 'png', timeout: 600000 }));
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.runner.root.visible = true;
+      g.post.lens.uniforms.get('ghosts').value = 1;
+    });
     let sum = 0;
     let max = 0;
     let lit = 0;
+    let body = 0;
     for (let i = 0; i < a.data.length; i += 3) {
+      const m = Math.max(Math.abs(b.data[i] - hid.data[i]), Math.abs(b.data[i + 1] - hid.data[i + 1]), Math.abs(b.data[i + 2] - hid.data[i + 2]));
+      if (m < 12) continue;
+      body++;
       const d = Math.max(Math.abs(a.data[i] - b.data[i]), Math.abs(a.data[i + 1] - b.data[i + 1]), Math.abs(a.data[i + 2] - b.data[i + 2]));
       sum += d;
       if (d > max) max = d;
       if (d > 3) lit++;
     }
-    const mean = sum / (a.data.length / 3);
-    const area = lit / (a.data.length / 3);
+    if (body < 200) continue;
+    const mean = sum / body;
+    const area = lit / body;
     tested++;
     // A ghost over him is a patch: hundreds of pixels a few levels brighter. Re-render noise (a
     // mote, a sparkle) is a handful of isolated dots, so the test is the area that changed.
-    const ok = mean < 0.6 && area < 0.006;
+    // (Measured: the fixed flare changes at most ~1.2% of his silhouette, its edge pixels where the
+    // far scene shows through; the old ghosts changed 17-39%.)
+    const ok = mean < 0.6 && area < 0.02;
     if (!ok) failed++;
     // DUMP=<dir>: the two crops of a failing frame, to look at.
     if (!ok && process.env.DUMP) {
