@@ -491,7 +491,8 @@ export class Debris {
       // Water: through the surface (a splash), then sinking.
       if (!b.splashed && b.x.y < WATER_Y) {
         const gy = b.ground(b.x.x, b.x.z);
-        if (gy === null || gy < WATER_Y) {
+        // (A floor below the waterline is a dry pit: no splash, it lands on it.)
+        if (gy === null) {
           b.splashed = true;
           this.onImpact({ pos: new THREE.Vector3(b.x.x, WATER_Y, b.x.z), speed: -b.vel.y, water: true, mass: sizeK(b) });
           // The surface takes most of the speed at once.
