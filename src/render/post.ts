@@ -225,6 +225,7 @@ class LensEffect extends Effect {
       uniform float aspectRatio;
       uniform float exposure;
       uniform float flare;
+      uniform float ghosts;
       uniform float glowOnly;
       uniform vec3 sunTint;
       uniform float span;
@@ -284,19 +285,23 @@ class LensEffect extends Effect {
             float gk[5] = float[5](0.55, 1.15, 1.45, 1.9, 2.4);
             float gs[5] = float[5](0.035, 0.075, 0.03, 0.12, 0.05);
             vec3 gc[5] = vec3[5](vec3(1.0, 0.7, 0.35), vec3(0.45, 0.75, 1.0), vec3(1.0, 0.55, 0.8), vec3(0.5, 1.0, 0.7), vec3(1.0, 0.85, 0.5));
+            // Round 19: the ghosts are faint and soft, and they give way to anything near the lens
+            // (a coloured hexagon sat on the runner's back like a sticker): full over the far scene
+            // and the sky, gone over what is nearer than ~8 m (him, the causeway under him).
+            ${occlusion ? 'float far = smoothstep(8.0, 22.0, -getViewZ(depth));' : 'float far = 1.0;'}
             for (int i = 0; i < G; i++) {
               vec2 gp = sunPos + axis * gk[i];
               vec2 gd = uv - gp;
               gd.x *= aspectRatio;
               float h = hexDist(gd) / gs[i];
-              float disc = smoothstep(1.0, 0.86, h) * (0.45 + 0.55 * smoothstep(0.3, 0.98, h));
-              add += gc[i] * disc * 0.035;
+              float disc = smoothstep(1.0, 0.62, h) * (0.5 + 0.5 * smoothstep(0.2, 0.95, h));
+              add += gc[i] * disc * 0.02 * far * ghosts;
             }
             // A halo ring at a fixed radius around the frame centre on the sun's side.
             vec2 hc = uv - (sunPos + axis * 1.0);
             hc.x *= aspectRatio;
             float ring = exp(-pow((length(hc) - 0.42) * 22.0, 2.0));
-            add += vec3(0.9, 0.8, 1.0) * ring * 0.03;
+            add += vec3(0.9, 0.8, 1.0) * ring * 0.03 * far * ghosts;
             c += add * vis;
           }
         }
@@ -310,6 +315,8 @@ class LensEffect extends Effect {
           ['aspectRatio', new THREE.Uniform(1.6)],
           ['exposure', new THREE.Uniform(1)],
           ['flare', new THREE.Uniform(1)],
+          // QA (tools/ghost-check.mjs): 0 draws the flare without its ghosts and halo.
+          ['ghosts', new THREE.Uniform(1)],
           ['glowOnly', new THREE.Uniform(occlusion ? 0 : 1)],
           ['span', new THREE.Uniform(1)],
           ['calm', new THREE.Uniform(0)],
