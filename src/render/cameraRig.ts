@@ -490,7 +490,8 @@ export class CameraRig {
    */
   private escapeFrame(T0: number, s: number): Frame {
     const e = this.epic;
-    const T = T0 / (1 + 0.4 * e);
+    // (Round 20: the celebration's beats come 0.33 s later now: four real steps to turn.)
+    const T = Math.max(0, T0 - 0.33) / (1 + 0.4 * e);
     let a: number;
     let r: number;
     let up: number;
