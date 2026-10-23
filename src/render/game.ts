@@ -2207,7 +2207,7 @@ export class Game {
     this.water.setSun(this.sunDir, this.skyYaw);
     setAtmosphereSun(this.sunDir);
     this.applyLook();
-    setAtmosphereMist(this.worldT, this.mistAmount * (this.lookApplied?.mist ?? 1));
+    setAtmosphereMist(this.worldT, this.mistAmount * (this.lookApplied?.mist ?? 1), this.scene.fog as THREE.FogExp2 | undefined);
     // Sun follows the runner so its shadow box stays tight: centred ahead (where the long shadows
     // fall toward the lens), snapped to whole shadow texels across the light.
     const ext = this.shadowExtent;

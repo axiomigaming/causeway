@@ -43,6 +43,8 @@ export const atmosphereUniforms = {
   fogMist: { value: { x: 0, y: 1, z: 0, w: 0 } },
   /** Round 11 looks: the sky's final tint (xyz) and desaturation (w), e.g. a storm's slate overcast. */
   skyLook: { value: { x: 1, y: 1, z: 1, w: 0 } },
+  /** World round 19: the scene fog's colour (xyz) and density (w), for the backdrop's own haze. */
+  skyHaze: { value: { x: 0.55, y: 0.7, z: 0.73, w: 0.0022 } },
 };
 
 export function setSkyLook(tint: readonly [number, number, number], desat: number, overcast = 0): void {
@@ -69,10 +71,17 @@ export function setAtmosphereSun(dir: THREE.Vector3): void {
   v.z = dir.z;
 }
 
-export function setAtmosphereMist(time: number, amount: number): void {
+export function setAtmosphereMist(time: number, amount: number, fog?: { color: THREE.Color; density: number }): void {
   const v = atmosphereUniforms.fogMist.value;
   v.x = time;
   v.y = amount;
+  if (fog) {
+    const h = atmosphereUniforms.skyHaze.value;
+    h.x = fog.color.r;
+    h.y = fog.color.g;
+    h.z = fog.color.b;
+    h.w = fog.density;
+  }
 }
 
 export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: AtmosphereOptions = ATMOSPHERE): void {
@@ -171,8 +180,9 @@ function installSkyGrade(): void {
   if (bc.uniforms.skySun) return;
   bc.uniforms.skySun = { value: atmosphereUniforms.fogSunDir.value };
   bc.uniforms.skyLook = { value: atmosphereUniforms.skyLook.value };
+  bc.uniforms.skyHaze = { value: atmosphereUniforms.skyHaze.value };
   bc.fragmentShader = bc.fragmentShader
-    .replace('uniform float backgroundIntensity;', 'uniform float backgroundIntensity;\nuniform vec3 skySun;\nuniform vec4 skyLook;')
+    .replace('uniform float backgroundIntensity;', 'uniform float backgroundIntensity;\nuniform vec3 skySun;\nuniform vec4 skyLook;\nuniform vec4 skyHaze;')
     .replace(
       'texColor.rgb *= backgroundIntensity;',
       `texColor.rgb *= backgroundIntensity;
@@ -185,6 +195,14 @@ function installSkyGrade(): void {
         // Round 10: further toward teal-blue (portrait frames are 35–45 % sky).
         texColor.rgb = mix(texColor.rgb, skyL * vec3(0.5, 0.9, 1.5), zen * 0.85) * (1.0 - zen * 0.2);
         texColor.rgb *= mix(vec3(1.0), vec3(1.07, 1.0, 0.88), pow(skyToSun, 3.0) * (1.0 - skyEl));
+        // World round 19: the panorama's shore and hills stand ~250 m out and more, but the sphere is
+        // not fogged: the scene's own haze (as the 3D world gets it) laid over the horizon band, so a
+        // ruin 100 m out, already hazed, is never paler than the land behind it (it read as a ghost).
+        {
+          float band = smoothstep(0.2, 0.0, skyD.y) * smoothstep(-0.35, -0.05, skyD.y);
+          float hz = clamp(1.0 - exp(-skyHaze.w * 260.0), 0.0, 0.86) * band;
+          texColor.rgb = mix(texColor.rgb, skyHaze.rgb, hz);
+        }
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
         float skyL2 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         texColor.rgb = mix(texColor.rgb, vec3(skyL2), skyLook.w) * skyLook.xyz;

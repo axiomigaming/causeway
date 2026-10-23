@@ -182,6 +182,19 @@ else if (uDetailLite > 0.0 && uDetailReady > 0.0) {
 }
 #endif`;
 
+/**
+ * World round 19: specular anti-aliasing (Kaplanyan / Tokuyoshi, after Toksvig). The final shading
+ * normal (normal map and scanned detail included) varies inside a pixel; widen the roughness by that
+ * variance so a sharp wet lobe cannot alias into per-pixel sparkle. Inserted after the normal is final.
+ */
+const FRAG_SPEC_AA = /* glsl */ `
+{
+  vec3 dnx = dFdx(normal), dny = dFdy(normal);
+  float variance = 0.25 * (dot(dnx, dnx) + dot(dny, dny));
+  float kernel = min(2.0 * variance, 0.18);
+  roughnessFactor = sqrt(clamp(roughnessFactor * roughnessFactor + kernel, 0.0, 1.0));
+}`;
+
 const FRAG_WET = /* glsl */ `
 #ifdef WET_MOSS
 {
@@ -198,7 +211,11 @@ const FRAG_WET = /* glsl */ `
 float wetK = max(wetAt(vWetPos), uRainWet * mix(0.55, 1.0, smoothstep(0.2, 0.8, vWetN.y)));
 diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 // Wet faces shine; flat ones less (a mirror-flat wet slab would just show the sky's blue).
-roughnessFactor = mix(roughnessFactor, mix(0.22, 0.45, abs(vWetN.y)), wetK);
+// (World round 19: wet stone shines less with distance: past ~10 m a pixel covers too many bumps for a
+// 0.22 lobe, and the low sun turned them into per-pixel glitter that bloom spread into soft squares.)
+float wetRough = mix(0.22, 0.45, abs(vWetN.y));
+wetRough = max(wetRough, mix(0.22, 0.42, smoothstep(10.0, 45.0, length(vViewPosition))));
+roughnessFactor = mix(roughnessFactor, wetRough, wetK);
 #ifdef WET_EDGES
 if (vHalf > 0.0) {
   // World round 12: where the paving meets the parapets — grime and wear in the last ~0.7 m, moss
@@ -267,11 +284,11 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       .replace('#include <project_vertex>', `#include <project_vertex>\n${VERT}`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAG_PARS}\n${detail > 0 ? DETAIL_PARS : ''}`)
-      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${detail > 0 ? FRAG_DETAIL : ''}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${detail > 0 ? FRAG_DETAIL : ''}\n${FRAG_SPEC_AA}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet19${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
   sm.needsUpdate = true;
 }
 

@@ -184,6 +184,8 @@ class Builder {
 
 // ------------------------------------------------------------------ shared dressing
 const LOW_WALLS = ['wall_low_0', 'wall_low_1', 'wall_low_2', 'wall_low_3'];
+/** Their heights (blender/build_kit.py): where a bush on the crest sits. */
+const LOW_WALL_H: Record<string, number> = { wall_low_0: 1.3, wall_low_1: 1.6, wall_low_2: 1.15, wall_low_3: 1.8 };
 /** Wall pieces modelled with an ivy companion (`<piece>_ivy`, the leaf atlas). */
 const IVY = new Set([...LOW_WALLS, 'wall_mid_0', 'wall_mid_1']);
 const FLOORS = ['floor_0', 'floor_1', 'floor_0', 'floor_1', 'floor_2'];
@@ -392,12 +394,16 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
         continue;
       }
       carvedRun = false;
-      b.wall(b.rng.pick(LOW_WALLS), side, PATH_HALF + 0.36, 0, z);
+      const lw = b.rng.pick(LOW_WALLS);
+      b.wall(lw, side, PATH_HALF + 0.36, 0, z);
       // Round 11 detail: now and then roots creeping over the parapet and down its sides.
       if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.5, z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
-      if (b.foliage(0.4)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.5), b.rng.range(0.9, 1.4), z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.55, 0.9));
-      // Green spilling over the wall's outer side, down toward the water.
-      else if (b.foliage(0.3)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 1.1), b.rng.range(0.2, 0.7), z - b.rng.range(1, 3), b.rng.range(0, 6.28), b.rng.range(0.55, 0.8));
+      // (World round 19: seated into the wall's crest by its own height; at a fixed 0.9–1.4 m one
+      // floated over the low, ragged walls and their gaps.)
+      if (b.foliage(0.4)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.42), LOW_WALL_H[lw]! * b.rng.range(0.42, 0.55), z - b.rng.range(0.8, 3.2), b.rng.range(0, 6.28), b.rng.range(0.55, 0.9));
+      // Green spilling over the wall's outer side, down toward the water: against the foundation's
+      // face (it stood 0.3 m out from it, over open water), only where there is one.
+      else if (opts.foundation !== false && b.foliage(0.3)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.9), b.rng.range(-0.5, -0.1), z - b.rng.range(1, 3), b.rng.range(0, 6.28), b.rng.range(0.6, 0.85));
       if (b.foliage(0.55)) b.place(`grass_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.2), 0, z - b.rng.range(0.3, 3.7), b.rng.range(0, 6.28), b.rng.range(0.7, 1.1));
       // Round 11: denser vegetation hanging off the parapets (ref17/19).
       if (b.foliage(0.38)) b.place(`vines_0`, side * (PATH_HALF + 0.95), b.rng.range(1.0, 1.5), z - 2, side * Math.PI / 2, [0.9, b.rng.range(0.5, 0.8), 1]);

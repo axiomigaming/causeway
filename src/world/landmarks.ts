@@ -77,7 +77,8 @@ const KINDS: Record<LandmarkKind, Part[]> = {
   ],
   // A sheer jungle cliff rising straight out of the river.
   jungle_cliff: [
-    { piece: 'cliff_wall_2', x: -5, y: WATER_Y - 2.7, z: -8, rotY: Math.PI / 2, s: 1.9 },
+    // (Light haze, round 19: under the full haze the rock read pale and washed out.)
+    { piece: 'cliff_wall_2', x: -5, y: WATER_Y - 2.7, z: -8, rotY: Math.PI / 2, s: 1.9, haze: 'light' },
     { piece: 'cliff_wall_2_veg', x: -5, y: WATER_Y - 2.7, z: -8, rotY: Math.PI / 2, s: 1.9 },
     { piece: 'cliff_wall_2_trees', x: -5, y: WATER_Y - 2.7, z: -8, rotY: Math.PI / 2, s: 1.9 },
     // A big tree on a boulder and roots in the water beside the approach.
@@ -136,7 +137,11 @@ export class Landmarks {
    */
   private material(key: string, near: boolean, haze: 'light' | 'face' | 'full'): THREE.Material | undefined {
     const base = this.kit.mat.get(key) as THREE.MeshStandardMaterial | undefined;
-    if (!base || near) return base;
+    // (World round 19: only stone is hazed. A clone of the leaf, jungle or bark material lost its
+    // patched shader (clone() does not carry onBeforeCompile: no leaf shading, translucency or the far
+    // alpha mip clamp), and the emissive haze lifted the cards to flat, pale cut-outs. The fog gives
+    // the foliage its distance.)
+    if (!base || near || !STONE.has(key)) return base;
     const id = `${key}|${haze}`;
     let m = this.hazed.get(id);
     if (!m) {
