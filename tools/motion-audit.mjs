@@ -22,7 +22,8 @@
 //       [--w 7] [--q high] [--shots 14] [--compare review/motion/old/flags.json]
 //
 // Sequences: start, log, beam (lintel slide), pillar (vault), blocks (slabs: leaps), corner,
-// cash1.5, cash5, cash20, cash60, fall_start, chasm0, chasm1, gate0, gate1, rock0, rock1.
+// cash1.5, cash5, cash20, cash60, fall_start, and each crash variant: chasm0/1, gate0/1, rock0/1/2,
+// pillar0/1, trip0, ledge0 (a kind the build does not have yet is staged as whatever the game falls back to).
 import { chromium } from 'playwright-core';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import * as THREE from 'three';
@@ -65,14 +66,14 @@ function seq(name) {
     return { name, events: [[L, 'lead'], [at, 'cashout']], from: at - 90, to: at + 240 };
   }
   if (name === 'fall_start') return { name, events: [[L, 'lead'], [L + 15, 'crash:start']], from: L - 10, to: L + 240 };
-  const m = /^(chasm|gate|rock)(\d)$/.exec(name);
+  const m = /^(chasm|gate|rock|pillar|trip|ledge)(\d)$/.exec(name);
   if (m) {
     const at = runAt + runFrames(3);
     return { name, events: [[L, 'lead'], [at, `crash:${m[1] === 'rock' ? 'rockfall' : m[1]}:${m[2]}`]], from: at - 60, to: at + 210 };
   }
   throw new Error(`unknown sequence ${name}`);
 }
-const ALL = ['start', 'log', 'beam', 'pillar', 'blocks', 'corner', 'cash1.5', 'cash5', 'cash20', 'cash60', 'fall_start', 'chasm0', 'chasm1', 'gate0', 'gate1', 'rock0', 'rock1'];
+const ALL = ['start', 'log', 'beam', 'pillar', 'blocks', 'corner', 'cash1.5', 'cash5', 'cash20', 'cash60', 'fall_start', 'chasm0', 'chasm1', 'gate0', 'gate1', 'rock0', 'rock1', 'rock2', 'pillar0', 'pillar1', 'trip0', 'ledge0'];
 const SEQS = (arg('seq', '') || ALL.join(',')).split(',').filter(Boolean);
 
 // ------------------------------------------------------------------ limits (degrees, from the bind pose)
@@ -576,8 +577,8 @@ async function filmOn(page, name, S) {
     if (want.length && shots.length < MAX_SHOTS) {
       for (const x of fl) seen.add(keyOf(x));
       await page.evaluate(() => window.__ma.draw());
-      const file = `${OUT}/frames/${name}-f${String(f).padStart(4, '0')}.png`;
-      writeFileSync(file, await page.screenshot({ timeout: 900000 }));
+      const file = `${OUT}/frames/${name}-f${String(f).padStart(4, '0')}.jpg`;
+      writeFileSync(file, await page.screenshot({ timeout: 900000, type: 'jpeg', quality: 85 }));
       const lab = want.map((x) => (gaitNoise(x) ? `gait judder: ${x.what} ${x.detail}` : `${x.type}: ${x.what} ${x.detail}`));
       shots.push({ f: f - 1, file, label: lab.slice(0, 3) });
     }
