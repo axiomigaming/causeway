@@ -160,6 +160,7 @@ class SunShaftsEffect extends Effect {
       uniform vec3 tint;
       uniform float span;
       uniform float calm;
+      uniform float clean;
       void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
         if (strength < 0.001) { outputColor = inputColor; return; }
         vec2 delta = sunPos - uv;
@@ -173,8 +174,21 @@ class SunShaftsEffect extends Effect {
           float t = (float(i) + jitter) / float(${samples});
           vec2 p = uv + delta * t * 0.96;
           if (p.x < 0.0 || p.y < 0.0 || p.x > 1.0 || p.y > 1.0) continue;
-          float sky = step(0.99995, readDepth(p));
+          if (readDepth(p) < 0.99995) continue;
+          // Round 14: the source is despeckled. A hot speck a few pixels wide (a mote: additive, not in
+          // the depth) over the sky, or a sky pixel seen through a one-pixel gap in the dithered
+          // leaves, was marched into one scaled copy per tap, away from the sun (the depth is read
+          // nearest, so with hard edges): a trail of growing pale rectangles. The tap takes the
+          // darker of itself and its two diagonal neighbours 2 px out, and counts as sky only as far
+          // as they see sky; real openings and the sun's halo are wider and pass unchanged.
+          vec2 o = texelSize * 2.0;
           vec3 c = texture2D(inputBuffer, p).rgb;
+          float sky = 1.0;
+          if (clean > 0.5) {
+            vec3 cn = 0.5 * (texture2D(inputBuffer, p + o).rgb + texture2D(inputBuffer, p - o).rgb);
+            c = min(c, cn);
+            sky = 0.5 * (step(0.99995, readDepth(p + o)) + step(0.99995, readDepth(p - o)));
+          }
           float l = max(max(c.r, c.g), c.b);
           acc += sky * min(c, vec3(8.0)) * smoothstep(0.35, 1.6, l) * (0.35 + 0.65 * t);
           open += sky;
@@ -203,6 +217,8 @@ class SunShaftsEffect extends Effect {
           ['tint', new THREE.Uniform(new THREE.Vector3(1.0, 0.8, 0.55))],
           ['span', new THREE.Uniform(1)],
           ['calm', new THREE.Uniform(0)],
+          // QA: 0 restores the raw source (no despeckle) for an A/B of the same frame.
+          ['clean', new THREE.Uniform(1)],
         ]),
       },
     );
