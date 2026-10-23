@@ -11,7 +11,7 @@ import { Track } from '../src/world/track';
  * The check samples every 4 m of several long runs, at full and at phone density, and fails if more
  * than EMPTY_MAX of the side views are empty.
  */
-const EMPTY_MAX = 0.08;
+const EMPTY_MAX = 0.05;
 /** The lower side thirds of the chase frame: the near water and banks either side of the way. */
 const NEAR_AHEAD = 28;
 const NEAR_LAT = 22;
