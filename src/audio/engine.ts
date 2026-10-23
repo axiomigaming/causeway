@@ -903,8 +903,8 @@ export class AudioEngine implements WorldSounds {
         return true;
       case 'pillar_hit':
         // A pier or column lands: stone on stone, the slam's weight, rubble thrown, then it settles.
-        if (!this.rec('stone_crash', { strength: 0.7 + 0.3 * k, pan: p, priority: 3 })) this.sample('slam', { strength: 0.6 + 0.4 * k, pan: p });
-        this.sample('slam', { strength: 0.35 + 0.45 * k, rate: 0.9, pan: p, when: t + 0.005 });
+        this.sample('slam', { strength: 0.6 + 0.4 * k, rate: 0.92, pan: p });
+        this.rec('stone_crash', { strength: 0.45 + 0.35 * k, rate: 0.9, pan: p, when: t + 0.005 });
         if (k > 0.6) this.sample('m_boom', { strength: 0.3 + 0.3 * k, rate: 0.8, dest: this.sfxBus, when: t + 0.01 });
         this.sample('rockfall', { strength: 0.35 + 0.3 * k, when: t + 0.05, pan: p });
         this.sample('dust', { strength: 0.4 + 0.3 * k, when: t + 0.1, pan: p });
@@ -920,6 +920,7 @@ export class AudioEngine implements WorldSounds {
       case 'trip_fall':
         // He goes down over the column: the body hits the stone, then rolls and scrapes; grit after.
         if (!this.rec('body_hit', { strength: 0.65 + 0.3 * k, pan: p, priority: 3 })) this.rec('land_body', { strength: 0.9, pan: p });
+        this.sample('impact', { strength: 0.4 + 0.3 * k, rate: 0.75, pan: p, when: t + 0.004 });
         this.rec('skid', { strength: 0.45 + 0.35 * k, rate: 0.85, maxDur: 0.7, when: t + 0.12, pan: -p });
         this.sample('dust', { strength: 0.35, when: t + 0.15, pan: p });
         this.settleTail(0.4 * k, t + 0.6, p);
@@ -945,8 +946,10 @@ export class AudioEngine implements WorldSounds {
         if (this.recentDebris.length >= 4) return true;
         this.recentDebris.push(t);
         const crowd = 1 / Math.sqrt(this.recentDebris.length);
-        this.sample('rock_bounce', { strength: (0.25 + 0.65 * k) * crowd, pan: this.rnd() * 0.8 - 0.4 });
-        if (k > 0.75) this.sample('impact', { strength: 0.4 + 0.4 * k, rate: 0.8 + this.rnd() * 0.2, pan: p });
+        const pan = this.rnd() * 0.8 - 0.4;
+        // A real chunk is a stone knock (the bigger, the lower); small ones are the patter of loose stones.
+        if (k >= 0.4) this.sample('impact', { strength: (0.3 + 0.6 * k) * crowd, rate: 0.95 - 0.25 * k + this.rnd() * 0.1, pan });
+        this.sample('rock_bounce', { strength: (0.2 + 0.5 * k) * crowd, rate: 0.8 + 0.2 * this.rnd(), pan, when: t + (k >= 0.4 ? 0.03 : 0) });
         return true;
       }
       case 'debris_splash':
