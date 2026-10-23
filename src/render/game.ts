@@ -1567,10 +1567,11 @@ export class Game {
       const girth = trip ? Math.min(1, 0.42 / Math.max(0.1, across * sc)) : 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
-      const tFall = trip ? 0.78 : 0.95;
+      const tFall = trip ? 0.9 : 0.84;
       // He keeps his speed until the clip starts, then the root halts there (the clip carries the
       // body on). The clip starts so its contact comes just after the column is down.
-      const tPlay = Math.max(0.05, tFall + 0.06 - contactT);
+      // (Down and settling about 0.12 s before the contact; measured on the step.)
+      const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
       const sPlay = this.s + v * tPlay;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
