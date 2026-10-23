@@ -199,55 +199,60 @@ export class Water {
             float ca = pow(abs(sin(q.x * 2.2) * sin(q.y * 2.0)), 3.0);
             body += vec3(0.55, 0.85, 0.7) * ca * 0.22 * depthLook * smoothstep(45.0, 6.0, dist);
           }
-          // The causeway's submerged footings: within ~3 m of its edge the water is shallow over
-          // stone — warmer, lighter, the courses of the blocks and the caustics showing through, and
-          // less of the sky's mirror (looking down into it).
+          // Round 18-19: the water is seen through, not painted. A bed lies under every pixel near
+          // the lens, at a depth set by the distance to the causeway's centre line:
+          //   - under a fallen causeway (a chasm) ~7 m mid-gorge, ~0.5 m at the wall footings;
+          //   - the footings themselves, a band of big submerged blocks ~0.6 m down;
+          //   - beyond, a sand and weed bed shelving away to ~5.5 m, with a little relief.
+          // Light crossing the water loses red first (Beer-Lambert along the eye's path): the bed
+          // shows warm and clear in the shallows, turquoise over sand, blue-green to black where
+          // it drops away. Caustics play on it, sharper the shallower it lies. No depth pass.
           float shelf = 0.0;
           if (uShelf > 0.0) {
             float pd = pathDist(vWorld.xz);
-            // Under the causeway itself (seen only where it has fallen away: a chasm) the water is
-            // deep: dark green-blue, darkest mid-gorge, clearer toward the walls' footings.
-            // Round 18: seen through, not painted. The bed falls from ~0.5 m at the wall footings to
-            // ~7 m mid-gorge; light crossing that water loses red first (Beer-Lambert), so the stone
-            // of the footings shows warm and clear near the walls, going green then blue-black as
-            // the bed drops away. The path the eye takes through the water lengthens at a slant.
-            float gorge = (1.0 - smoothstep(1.6, 2.9, pd)) * uShelf;
-            if (gorge > 0.0) {
-              float bedD = mix(0.45, 7.0, smoothstep(2.5, 0.7, pd));
-              float run = bedD / max(dot(V, vec3(0.0, 1.0, 0.0)), 0.25);
-              vec3 T = exp(-run * vec3(0.6, 0.34, 0.4));
-              // The bed: the footing's courses near the walls, rubble further in; caustics on it,
-              // sharper the shallower it lies, drifting with the surface.
-              vec2 bp = vWorld.xz * vec2(1.1, 0.55) + g * 1.6;
-              vec2 cell = floor(bp);
-              float course = smoothstep(0.0, 0.07, fract(bp.x)) * smoothstep(0.0, 0.07, fract(bp.y));
-              // The joints blur out as the bed drops away (the surface warps them, the water softens).
-              vec3 bed = vec3(0.4, 0.38, 0.27) * (0.75 + 0.25 * wh(cell)) * mix(1.0 - 0.5 * exp(-bedD * 0.6), 1.0, course);
-              vec2 cq = vWorld.xz * 0.95 + g * 3.0;
+            float gorge = 1.0 - smoothstep(1.6, 2.9, pd);
+            shelf = smoothstep(2.0, 2.9, pd) * smoothstep(4.9, 3.9, pd);
+            float relief = wnoise(vWorld.xz * 0.21 + 3.7).x;
+            float openD = mix(1.0, 5.5, smoothstep(3.6, 13.0, pd)) + (relief - 0.5) * 1.2 * smoothstep(5.0, 9.0, pd);
+            float bedD = mix(mix(0.45, 7.0, smoothstep(2.5, 0.7, pd)), openD, smoothstep(1.6, 2.9, pd));
+            float vy = max(dot(V, vec3(0.0, 1.0, 0.0)), 0.2);
+            float run = bedD / vy;
+            // Refraction: the bed is seen displaced by the surface's slope, more the deeper it is.
+            vec2 bw = vWorld.xz + g * (0.6 + bedD * 0.5);
+            // Sand with soft mottling, and dark weed beds in patches.
+            float m1 = wnoise(bw * 0.7).x, m2 = wnoise(bw * 2.3 + 11.0).x;
+            vec3 bed = vec3(0.5, 0.45, 0.33) * (0.72 + 0.34 * m1 + 0.12 * m2);
+            float weed = smoothstep(0.6, 0.78, wnoise(bw * 0.33 + 7.0).x + 0.15 * m2) * smoothstep(3.5, 6.0, pd);
+            bed = mix(bed, vec3(0.16, 0.2, 0.1) * (0.8 + 0.4 * m2), weed * 0.85);
+            // Stone: the footing's big blocks (soft joints, softer the deeper), rubble in the gorge.
+            float stoneW = max(shelf, gorge);
+            if (stoneW > 0.0) {
+              // Courses laid in running bond, each course its own block length (no tile grid).
+              vec2 sp = bw * vec2(0.8, 1.35);
+              float row = floor(sp.y);
+              sp.x = sp.x * (0.75 + 0.5 * wh(vec2(row, 3.1))) + 0.5 * mod(row, 2.0) + wh(vec2(row, 9.7));
+              vec2 cell = floor(sp);
+              vec2 f = fract(sp);
+              float jw = 0.06 + 0.1 * (1.0 - exp(-bedD * 0.5));
+              float joint = smoothstep(0.0, jw, f.x) * smoothstep(1.0, 1.0 - jw, f.x) * smoothstep(0.0, jw, f.y) * smoothstep(1.0, 1.0 - jw, f.y);
+              vec3 stone = vec3(0.36, 0.33, 0.25) * (0.75 + 0.3 * wh(cell) + 0.1 * m2) * mix(0.6, 1.0, joint);
+              // Algae on the drowned stone, in patches.
+              stone = mix(stone, vec3(0.17, 0.22, 0.1), smoothstep(0.45, 0.8, m1) * 0.7);
+              bed = mix(bed, stone, stoneW);
+            }
+            if (uDetail > 0) {
+              vec2 cq = bw * 0.95;
               for (int k = 0; k < 2; k++) cq += vec2(sin(cq.y * 1.3 + uTime * 0.9), cos(cq.x * 1.1 - uTime * 0.8)) * 0.45;
               float caus = pow(abs(sin(cq.x * 2.2) * sin(cq.y * 2.0)), 3.0);
-              bed += vec3(1.0, 0.95, 0.75) * caus * 0.55 * exp(-bedD * 0.35);
-              // In-scatter: the colour the water itself glows where the bed is lost.
-              vec3 deepGlow = uDeep * 0.55 + uShallow * 0.03;
-              vec3 seen = bed * T + deepGlow * (1.0 - T);
-              // The surface still shapes the light: ripple slopes brighten and shade it a little.
-              seen *= clamp(1.0 + (g.x * 1.7 - g.y * 1.3) * 2.0, 0.8, 1.2);
-              body = mix(body, seen, gorge * (0.6 + 0.4 * depthLook));
+              bed += vec3(1.0, 0.95, 0.75) * caus * 0.6 * exp(-bedD * 0.35);
             }
-            // The footings: a band just outside the edge.
-            shelf = smoothstep(1.9, 2.9, pd) * smoothstep(5.6, 3.4, pd) * uShelf * smoothstep(60.0, 8.0, dist);
-            if (shelf > 0.0) {
-              vec2 bp = vWorld.xz * vec2(0.55, 1.1) + g * 6.0;
-              vec2 cell = floor(bp);
-              float course = smoothstep(0.0, 0.08, fract(bp.x)) * smoothstep(0.0, 0.08, fract(bp.y));
-              float tone = 0.8 + 0.2 * wh(cell);
-              vec3 stone = vec3(0.42, 0.42, 0.3) * tone * mix(0.55, 1.0, course);
-              vec3 seen = mix(uShallow, stone, 0.62) * 0.9;
-              vec2 q2 = vWorld.xz * 0.9;
-              for (int k = 0; k < 2; k++) q2 += vec2(sin(q2.y * 1.3 + uTime * 0.9), cos(q2.x * 1.1 - uTime * 0.8)) * 0.45;
-              seen += vec3(0.6, 0.8, 0.55) * pow(abs(sin(q2.x * 2.2) * sin(q2.y * 2.0)), 3.0) * 0.28;
-              body = mix(body, seen, shelf * (0.35 + 0.55 * depthLook));
-            }
+            // Clear lagoon water (red goes first); the shaded gorge is murkier.
+            vec3 kAbs = mix(vec3(0.42, 0.075, 0.11), vec3(0.6, 0.34, 0.4), gorge);
+            vec3 T = exp(-run * kAbs);
+            vec3 glow = mix(uDeep * 0.9 + uShallow * 0.08, uDeep * 0.55 + uShallow * 0.03, gorge);
+            vec3 seen = bed * 0.6 * T + glow * (1.0 - T);
+            seen *= clamp(1.0 + (g.x * 1.7 - g.y * 1.3) * 1.2, 0.9, 1.1);
+            body = mix(body, seen, uShelf * smoothstep(90.0, 20.0, dist) * (0.55 + 0.45 * depthLook));
           }
           // Glossy: the sky and the far world mirror strongly toward grazing angles.
           // The panorama near the sun is several times brighter than paper white: mirrored at a
@@ -346,7 +351,8 @@ export function makeFoamRing(): THREE.BufferGeometry {
   const uv = g.getAttribute('uv') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
     const r = Math.hypot(pos.getX(i), pos.getZ(i));
-    uv.setXY(i, (r - 0.5) / 0.5, Math.atan2(pos.getZ(i), pos.getX(i)) / (Math.PI * 2) + 0.5);
+    // (v = 0.5 all round: the shader fades a strip's two ends by v, and a ring has none.)
+    uv.setXY(i, (r - 0.5) / 0.5, 0.5);
   }
   return g;
 }
@@ -394,7 +400,10 @@ export function makeFoamMaterial(): THREE.ShaderMaterial {
         float line = smoothstep(0.16, 0.0, abs(e - lap - nz * 0.2)) * smoothstep(0.35, 0.7, nz);
         float hug = exp(-e * 5.0);
         float lace = smoothstep(0.5, 0.8, nz) * exp(-e * 2.5);
-        float a = clamp(hug * (0.3 + 0.7 * nz) + line * 0.4 + lace * 0.4, 0.0, 1.0) * smoothstep(1.0, 0.7, e) * smoothstep(0.0, 0.08, e + 0.02);
+        // Round 19: broken up, and faded at a strip's two ends and soft against the stone: a strip
+        // left beside open water (its stone gone, or a short course) read as a hard pale slab.
+        float ends = smoothstep(0.0, 0.2, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+        float a = clamp(hug * smoothstep(0.25, 0.75, nz) * 0.8 + line * 0.4 + lace * 0.35, 0.0, 1.0) * smoothstep(1.0, 0.7, e) * smoothstep(0.0, 0.2, e + 0.04) * ends;
         gl_FragColor = vec4(vec3(0.9, 0.95, 0.92), a * 0.85);
         #include <fog_fragment>
       }`,

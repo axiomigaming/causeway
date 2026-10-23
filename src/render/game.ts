@@ -988,7 +988,7 @@ export class Game {
   }
 
   /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
-  debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number } | null = null;
+  debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
   private corridor(p: THREE.Vector3): void {
     if (!this.track || !this.runner) return;
@@ -2185,7 +2185,10 @@ export class Game {
       const fx = -Math.sin(ry);
       const fz = -Math.cos(ry);
       cam.position.set(rp.x + fx * d.along + Math.cos(ry) * d.lat, rp.y + d.up, rp.z + fz * d.along - Math.sin(ry) * d.lat);
-      cam.lookAt(rp.x, rp.y + d.lookUp, rp.z);
+      // (QA: lookAlong/lookLat aim the pinned lens away from him, e.g. over the water.)
+      const la = d.lookAlong ?? 0;
+      const ll = d.lookLat ?? 0;
+      cam.lookAt(rp.x + fx * la + Math.cos(ry) * ll, rp.y + d.lookUp, rp.z + fz * la - Math.sin(ry) * ll);
       cam.fov = d.fov;
       cam.updateProjectionMatrix();
     }
