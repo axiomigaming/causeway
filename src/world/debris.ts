@@ -511,6 +511,15 @@ export class Debris {
   }
   private inv = new THREE.Matrix4();
 
+  /** Set a body's velocity (and optionally spin) now: a stone glancing off the runner. */
+  kick(mesh: THREE.Mesh, vel: THREE.Vector3, spin?: THREE.Vector3): void {
+    const b = this.bodies.find((x) => x.mesh === mesh);
+    if (!b) return;
+    b.vel.copy(vel);
+    if (spin) b.spin.copy(spin);
+    b.rest = false;
+  }
+
   /** Bodies near `p` (within `r` m), for staging (e.g. where a toppled pier came to rest). */
   restingNear(p: THREE.Vector3, r: number): THREE.Mesh[] {
     return this.bodies.filter((b) => b.x.distanceTo(p) < r).map((b) => b.mesh);
