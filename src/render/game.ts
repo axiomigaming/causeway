@@ -666,10 +666,22 @@ export class Game {
     // Round 20 (crash director): the section's own hazards, widened by what any floor can stage:
     // where the floor can cave in, it may drop him onto the stone course below instead of into
     // the water; a pier or a column can come down across any straight run of floor.
+    // The world tags what a section can stage (layout.features, world 4df9560): a tall pillar at
+    // the edge (topple), a fallen log or column beside the way (trip), rock faces close by
+    // (rockfall), a lower terrace (lower). Untagged sections: a cave-in can drop him onto the
+    // course below the floor instead of into the water, and any straight run can lose a pier.
     const base = sec?.layout.hazards ?? ['rockfall'];
+    const feat = sec?.layout.features;
     const hazards: CrashKind[] = [...base];
-    if (base.includes('chasm')) hazards.push('ledge');
-    if (sec && sec.type !== 'turnL' && sec.type !== 'turnR' && sec.type !== 'stairsDown' && sec.type !== 'stairsUp') hazards.push('pillar', 'trip');
+    if (feat) {
+      if (feat.topple) hazards.push('pillar');
+      if (feat.trip) hazards.push('trip');
+      if (feat.rockfall && !hazards.includes('rockfall')) hazards.push('rockfall');
+      if (feat.lower || base.includes('chasm')) hazards.push('ledge');
+    } else {
+      if (base.includes('chasm')) hazards.push('ledge');
+      if (sec && sec.type !== 'turnL' && sec.type !== 'turnR' && sec.type !== 'stairsDown' && sec.type !== 'stairsUp') hazards.push('pillar', 'trip');
+    }
     const standing = this.stage === 'lead' || this.speed < 2;
     const st = crashStaging(roundId, mult / 100, hazards, standing, this.lastCrash);
     if (!standing) this.lastCrash = st.kind;
@@ -1216,7 +1228,12 @@ export class Game {
         tiles.forEach((t, i) => {
           const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
           const out = Math.sign(tp.dot(h.right) || (r.chance(0.5) ? 1 : -1));
-          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.3, 0.3), -r.range(0, 0.6), r.range(-0.3, 0.3)).addScaledVector(h.right, out * r.range(0.2, 0.8)), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)), bed, { breakInto: i % 3 === 0 ? 2 : 0, walls: pit, restitution: 0.18 });
+          // (His landing and roll, about 2-3 m on and within 0.8 m of the centre line, and the line
+          // from the lens behind him, stay clear: the slabs tip out to the trough's sides, and
+          // the ones over his track break up as they go.)
+          const along = tp.dot(h.fwd);
+          const onTrack = Math.abs(tp.dot(h.right)) < 1.1 && along > -1.5 && along < 4;
+          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : Infinity, walls: pit, restitution: 0.18 });
           if (i % 2 === 0) {
             const p = new THREE.Vector3().setFromMatrixPosition(t.world);
             B.puff(p, { count: 1, spread: 1.2, jitter: 0.8, vel: new THREE.Vector3(0, 1.2, 0), size: [0.8, 2.4], life: 1.4, alpha: 0.22, tint: DUST_T, rise: 0.3 });
