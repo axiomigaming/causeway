@@ -438,12 +438,13 @@ function ranges(flags) {
 }
 
 // ------------------------------------------------------------------ filming
-const browser = REANALYSE
-  ? null
-  : await chromium.launch({
-      executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-      args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-    });
+const launch = () =>
+  chromium.launch({
+    executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  });
+// (A browser killed under memory pressure is relaunched for the next attempt.)
+let browser = REANALYSE ? null : await launch();
 const allFlags = [];
 const allRanges = [];
 const summary = [];
@@ -484,6 +485,10 @@ for (const name of SEQS) {
 }
 
 async function film(name, S) {
+  if (!browser.isConnected()) {
+    await browser.close().catch(() => {});
+    browser = await launch();
+  }
   const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   try {
     await filmOn(page, name, S);
