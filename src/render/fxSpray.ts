@@ -76,7 +76,8 @@ export class Spray {
   private geo: THREE.InstancedBufferGeometry;
   private uniforms = { uAspect: { value: 16 / 9 }, uShutter: { value: 0.055 }, uColor: { value: new THREE.Color('#eef6f2') } };
 
-  constructor(private cap = 320) {
+  constructor(private cap = 320, color = '#eef6f2') {
+    this.uniforms.uColor.value.set(color);
     const quad = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
     const g = new THREE.InstancedBufferGeometry();
     g.index = quad.index;

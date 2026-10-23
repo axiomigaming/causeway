@@ -28,6 +28,12 @@ export type RunnerAnim =
   /** Payoffs for the biggest settled rounds (50x+), picked by the FX director. */
   | 'win_slide'
   | 'fall_ledge'
+  /** Round 20 crash variants (FX): slammed into a toppled pier; tripped over a fallen column. */
+  | 'fall_pillar'
+  | 'fall_pillar_b'
+  | 'fall_trip'
+  | 'fall_side_hit'
+  | 'fall_drop'
   /** Escapes by multiplier (play() picks from win_cheer / win_leap): low, and the big one at 10×+. */
   | 'win_pump'
   | 'win_cheer_big'
@@ -127,7 +133,7 @@ export function gaitCadence(speed: number, drive: number): number {
   return Math.min(Math.max(speed / stride, 1.1), cadenceCap(drive));
 }
 const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
-const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
+const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'fall_pillar', 'fall_pillar_b', 'fall_trip', 'fall_side_hit', 'fall_drop', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
   start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.83, 'R', 0.65], [0.95, 'L', 0.6]],
@@ -452,7 +458,8 @@ export class Runner {
       else if (name === 'win_cheer' && lv >= 2.98 && this.actions.has('win_cheer_big')) name = 'win_cheer_big';
     }
     if (name !== 'run' && !this.actions.has(name)) {
-      const fallback = name.startsWith('win') ? 'win' : name.startsWith('fall_') ? name.replace(/_b$/, '').replace('fall_start', 'fall_gate') : null;
+      // (Round 20, FX: the new crash clips stand in with their nearest kin until the GLB has them.)
+      const fallback = name.startsWith('win') ? 'win' : name === 'fall_pillar' || name === 'fall_pillar_b' ? 'fall_gate_b' : name === 'fall_trip' ? 'fall_rock' : name === 'fall_side_hit' ? 'fall_rock_b' : name === 'fall_drop' ? 'fall_ledge' : name.startsWith('fall_') ? name.replace(/_b$/, '').replace('fall_start', 'fall_gate') : null;
       if (!fallback || !this.actions.has(fallback)) return;
       name = fallback as RunnerAnim;
     }
@@ -573,7 +580,8 @@ export class Runner {
   }
 
   /** `speed` in m/s drives the gait; emits footsteps; runs the procedural layer. */
-  update(dt: number, speed: number): void {
+  // (rawDt: real time, for the airborne secondary motion the character agent is adding; round 20.)
+  update(dt: number, speed: number, _rawDt: number = dt): void {
     this.t += dt;
     this.speed = speed;
     if (this.pending && (this.t >= this.pending.until || this.current !== 'run')) {

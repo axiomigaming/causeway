@@ -11,7 +11,16 @@ import { Rng } from '../engine/rng';
  * and nothing after a cash-out can encode how close the fall was.
  */
 
-export type CrashKind = 'chasm' | 'gate' | 'rockfall';
+/**
+ * How the way falls (presentation only; the outcome is the server's). Round 20 (FX director):
+ * - chasm: the floor gives way, into the water;
+ * - ledge: the top course caves in, he drops onto the stone below (no water);
+ * - gate: a door slams down ahead;
+ * - rockfall: blocks come down from the walls and knock him down;
+ * - pillar: a pier topples across the way, he slams into it and goes down;
+ * - trip: a column comes down at his feet, he catches it, pitches forward and rolls.
+ */
+export type CrashKind = 'chasm' | 'gate' | 'rockfall' | 'pillar' | 'trip' | 'ledge';
 
 /** Run tiers by current multiplier: composed, driven, sprint, all-out, desperate. */
 export const TIER_AT = [2, 5, 10, 25] as const;
@@ -93,8 +102,15 @@ export function epicOf(mult: number): number {
 export const CRASH_CLIPS: Record<CrashKind, readonly string[]> = {
   chasm: ['fall_chasm', 'fall_chasm_b'],
   gate: ['fall_gate', 'fall_gate_b'],
-  rockfall: ['fall_rock', 'fall_rock_b'],
+  rockfall: ['fall_rock', 'fall_rock_b', 'fall_side_hit'],
+  // (Until the runner GLB carries these, Runner.play falls back to fall_gate_b / fall_rock.)
+  pillar: ['fall_pillar', 'fall_pillar_b'],
+  trip: ['fall_trip'],
+  ledge: ['fall_drop'],
 };
+
+/** Relative weights of the crash kinds a section can stage: a mix, the new ones a touch favoured. */
+const CRASH_WEIGHT: Record<CrashKind, number> = { chasm: 1, ledge: 1, gate: 1, rockfall: 1, pillar: 1.2, trip: 1.1 };
 
 export interface CrashStaging {
   kind: CrashKind;
@@ -111,11 +127,13 @@ export interface CrashStaging {
  * multiplier. `hazards` are the kinds the current section can stage; `standing`
  * means the runner has not got going yet (instant falls at 1.00×).
  */
-export function crashStaging(roundId: string, crashMult: number, hazards: readonly CrashKind[], standing: boolean): CrashStaging {
+export function crashStaging(roundId: string, crashMult: number, hazards: readonly CrashKind[], standing: boolean, last: CrashKind | null = null): CrashStaging {
   const epic = epicOf(crashMult);
   if (standing) return { kind: 'gate', variant: 0, clip: 'fall_start', epic: 0, atStart: true };
   const r = new Rng(`${roundId}/staging`);
-  const kind = hazards.length ? r.pick(hazards) : 'rockfall';
+  // Never the same kind twice running when the section offers another.
+  const pool = hazards.length > 1 && last ? hazards.filter((k) => k !== last) : hazards;
+  const kind = pool.length ? r.weighted(pool.map((k) => [k, CRASH_WEIGHT[k]] as const)) : 'rockfall';
   const variant = new Rng(`${roundId}/variant/${kind}`).int(0, CRASH_CLIPS[kind].length - 1);
   return { kind, variant, clip: CRASH_CLIPS[kind][variant]!, epic, atStart: false };
 }
