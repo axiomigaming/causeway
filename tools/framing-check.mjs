@@ -156,7 +156,7 @@ for (const v of VIEWS) {
     if (pts.some((p) => p[2] !== undefined && p[2] > 1)) problems.push('behind the lens');
     const ok = problems.length === 0;
     if (!ok) failed++;
-    console.log(`${ok ? 'ok  ' : 'FAIL'} ${v.name} ${stage.padEnd(22)} head ${(f.body[0] ?? []).slice(0, 2).join(',')} hips ${(f.body[1] ?? []).slice(0, 2).join(',')} band ${lo}..${hi}${ok ? '' : '  ← ' + problems.join('; ')}`);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${v.name} ${stage.padEnd(22)} head ${(f.body[0] ?? []).slice(0, 2).join(',')} hips ${(f.body[1] ?? []).slice(0, 2).join(',')} feet ${(f.body[2] ?? []).slice(0, 2).join(',')} ${(f.body[3] ?? []).slice(0, 2).join(',')} band ${lo}..${hi}${ok ? '' : '  ← ' + problems.join('; ')}`);
   }
   await page.close();
 }

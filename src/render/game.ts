@@ -2151,7 +2151,8 @@ export class Game {
     if (this.stage === 'cashout' && !this.runOn) {
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips) {
-        hips.updateWorldMatrix(true, false);
+        // This frame's pose (the bones' world matrices otherwise update only at render).
+        this.runner.body.updateWorldMatrix(true, true);
         this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).sub(rp).setY(0);
         if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
         // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
