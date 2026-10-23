@@ -441,8 +441,11 @@ export class Debris {
       }
       // Rolling resistance and sleep: a piece lying still on the floor goes to rest.
       if (touching) {
-        // Rolling resistance; a piece barely moving loses its spin fast (no shimmer at rest).
-        b.spin.multiplyScalar(Math.exp(-(b.vel.lengthSq() < 0.05 ? 6 : 1.2) * dt));
+        // Rolling resistance on small pieces; anything barely moving and barely turning loses the
+        // rest of its spin fast (no shimmer at rest). A pier pivoting on its foot keeps its swing.
+        const w2 = b.spin.lengthSq();
+        if (b.vel.lengthSq() < 0.05 && w2 < 0.4) b.spin.multiplyScalar(Math.exp(-6 * dt));
+        else if (b.shard) b.spin.multiplyScalar(Math.exp(-1.2 * dt));
         if (b.vel.lengthSq() < 0.03 && b.spin.lengthSq() < 0.12) {
           b.sleepT += dt;
           if (b.sleepT > 0.35) {
