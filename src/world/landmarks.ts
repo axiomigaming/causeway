@@ -4,6 +4,7 @@ import { forward, left } from './path';
 import type { LandmarkKind } from './style';
 import { patchWetStone } from './caustics';
 import { WATER_Y } from './water';
+import { qaHas, qaParam } from './qa';
 
 /**
  * World rounds 12–14: hero landmarks that only some worlds show (style.ts picks them), staged where the
@@ -38,7 +39,7 @@ interface Part {
 }
 
 // QA (dev builds only): ?headyaw= overrides the fallen head's yaw.
-const QA_HEAD_YAW = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('headyaw') ? Number(new URLSearchParams(location.search).get('headyaw')) : 0.3;
+const QA_HEAD_YAW = qaHas('headyaw') ? Number(qaParam('headyaw')) : 0.3;
 
 const KINDS: Record<LandmarkKind, Part[]> = {
   // A drowned colossus: its fallen head (≈45 m) lying on its cheek in the river, face turned to the

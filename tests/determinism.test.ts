@@ -82,6 +82,19 @@ describe('world generation', () => {
     }
   }, 300000);
 
+  it('lays the same world for a seed whatever world was built before it (title, other rounds)', async () => {
+    const t = new Track(kit());
+    await t.prepare({ foliage: 1, scenery: 1 });
+    const fresh = lay(t, '7-0.5', () => 25, () => 0);
+    const plan = { theme: t.theme, look: t.look.name, style: t.style.name };
+    for (const before of ['title-1', 'other-2', '7-0.5~']) {
+      lay(t, before, () => 25, () => 0, 600);
+      const again = lay(t, '7-0.5', () => 25, () => 0);
+      expect({ theme: t.theme, look: t.look.name, style: t.style.name }).toEqual(plan);
+      expect(again).toEqual(fresh);
+    }
+  }, 300000);
+
   it("keeps the nominal run's speed the game's speedOf", async () => {
     const { speedOf } = await import('../src/render/game');
     for (let i = 0; i <= 1; i += 0.05) expect(GEN_SPEED(i)).toBeCloseTo(speedOf(i), 9);

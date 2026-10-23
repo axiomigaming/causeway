@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { qaWorldSeed } from '../world/qa';
 import { QUALITY, type QualityLevel } from '../config/quality';
 import { multiplierAtSmooth } from '../engine/curve';
 import { Rng, hashString } from '../engine/rng';
@@ -519,7 +520,8 @@ export class Game {
   /** A fresh stretch of causeway with the runner at its start. */
   private newWorld(stage: 'title' | 'setup'): void {
     // (World round 17: a world is a function of its seed; vary() picks one unlike the last world.)
-    const seed = this.track.vary(`${Date.now()}-${Math.random()}`);
+    // (World round 19: `?qa&w=<n>` names the seed outright, in any build; see world/qa.)
+    const seed = qaWorldSeed() ?? this.track.vary(`${Date.now()}-${Math.random()}`);
     this.worldSeed = seed;
     this.cosmetic = new Rng(seed);
     this.track.reset(seed);

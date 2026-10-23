@@ -1,3 +1,4 @@
+import { qaParam } from './qa';
 /**
  * Round 11 crescendo: the world's mood builds with the run. One number, `drive` (0 calm .. 1 the top of
  * the climb), moves the light, sky, haze, wind, rain, leaves and dust from a calm, sunny day toward a
@@ -28,7 +29,7 @@ export function worldTierUp(k = 1): void {
 
 /** Called once per frame by the game: smooths the drive (eases, never jumps) and decays the gust. */
 // QA (dev builds only): ?drive=0.9 pins the drive, to look at the top of the crescendo in a still.
-const QA_DRIVE = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('drive') ?? NaN) : NaN;
+const QA_DRIVE = Number(qaParam('drive') ?? NaN);
 
 export function stepMood(dt: number, fallback: number): typeof worldMood {
   if (Number.isFinite(QA_DRIVE)) {

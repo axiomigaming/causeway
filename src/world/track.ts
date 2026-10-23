@@ -15,18 +15,19 @@ import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from 
 import { upgradeLeafMaterial } from './foliage';
 import { makeMossMaterial } from './moss';
 import { atmosphereUniforms } from './atmosphere';
+import { qaParam, qaWorldSeed } from './qa';
 import { intensityOf } from './choreo';
 import { GROWTH_PER_MS } from '../engine/config';
 
 // QA (dev builds only): ?ruin=1 spawns the most ruined variants regardless of the multiplier.
 // QA (?w=<seed>): the same world every time, whatever world came before it.
-const QA_SEEDED = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('w');
-const QA_RUIN = import.meta.env.DEV && typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('ruin') ?? NaN) : NaN;
+const QA_SEEDED = qaWorldSeed() !== null;
+const QA_RUIN = Number(qaParam('ruin') ?? NaN);
 // QA (dev builds only): ?style=<name> pins the world style.
-const QA_STYLE = import.meta.env.DEV && typeof location !== 'undefined' ? STYLES.findIndex((st) => st.name === new URLSearchParams(location.search).get('style')) : -1;
+const QA_STYLE = STYLES.findIndex((st) => st.name === qaParam('style'));
 /** World round 13: sections that make an open approach to a landmark (water in view, low or no walls). */
 const OPEN_APPROACH: SectionType[] = ['bridge', 'stepping', 'boardwalk', 'plaza', 'corridor', 'ruins', 'sunken'];
-const QA_OBS = import.meta.env.DEV && typeof location !== 'undefined' ? (new URLSearchParams(location.search).get('obs') ?? '').split(',').filter(Boolean) : [];
+const QA_OBS = (qaParam('obs') ?? '').split(',').filter(Boolean);
 
 /**
  * World round 17: world generation is a pure function of the seed. Nothing the route builder reads may
