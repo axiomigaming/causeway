@@ -223,7 +223,8 @@ export class Glory {
   update(dt: number, time: number): void {
     this.age += dt;
     // Snap up in a quarter second, hold, then settle to a third (the light stays on the way ahead).
-    const target = this.age < 0.25 ? this.peak * (this.age / 0.25) : this.age < this.hold ? this.peak : this.peak * (0.35 + 0.65 * Math.exp(-(this.age - this.hold) * 0.8));
+    // (Round 20: settles to an eighth, quickly: a warm glow left on the way ahead, not a sunburst.)
+    const target = this.age < 0.25 ? this.peak * (this.age / 0.25) : this.age < this.hold ? this.peak : this.peak * (0.12 + 0.88 * Math.exp(-(this.age - this.hold) * 1.6));
     this.level += (target - this.level) * (1 - Math.exp(-dt * 10));
     this.uniforms.uLevel.value = this.level;
     this.uniforms.uTime.value = time;

@@ -536,9 +536,10 @@ export class CameraRig {
         lUp = lerp(1.2, 1.15, low);
         fov = lerp(52, 48, low);
     }
-    // Grand escapes: a wider orbit that cranes up as it settles.
+    // Grand escapes: a wider orbit that cranes up as it settles. (Round 20: closer all round: he
+    // was a fifth of the frame in the turn.)
     const crane = e * ease((T - 1.2) / 2.5);
-    r *= 1 + 0.35 * e;
+    r *= 0.8 * (1 + 0.2 * e);
     up += 1.1 * crane;
     fov += 3 * e;
     lUp += 0.2 * crane;
@@ -549,7 +550,7 @@ export class CameraRig {
     if (v > 0) {
       const push = ease((T - 2.6) / 4);
       a = lerp(a, 0.32, v);
-      r = lerp(r, 5.0 + 0.6 * e - 1.3 * push, v);
+      r = lerp(r, 4.0 + 0.4 * e - 1.0 * push, v);
       up = lerp(up, 1.9 + 0.5 * e, v);
       lAlong = lerp(lAlong, this.gateAhead, v);
       lUp = lerp(lUp, 2.4, v);

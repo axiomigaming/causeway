@@ -921,7 +921,8 @@ export class Game {
       const g = f.pos.clone().addScaledVector(rv, c.range(-2.4, 2.4));
       this.cine.beams.add(g, this.sunDir, c.range(1.0, 2.4), c.range(0.55, 1));
     }
-    this.cine.beams.level = E.shafts;
+    // (Subtle god rays, not a curtain of light.)
+    this.cine.beams.level = E.shafts * 0.5;
     this.cine.rimLevelTarget = E.rim;
     // The burst into light: a glory of sun on the way ahead, behind the runner's silhouette, at every
     // multiplier (bigger and longer for a big one).
@@ -936,7 +937,9 @@ export class Game {
     this.rig.gateAhead = gateAt - s0;
     const glory = fg.pos.clone().addScaledVector(forward(fg.yaw), 0.9).setY(fg.pos.y + 3.0);
     // Capped so the scene keeps its contrast (no bloom whiteout), a touch more for a big escape.
-    this.cine.glory.flare(glory, 7 + 3 * g, 0.5 + 0.2 * g, 1.0 + 1.2 * g);
+    // Round 20: a brief bloom at the gate that settles to a faint warm glow (it held a huge
+    // sunburst behind him for the whole celebration).
+    this.cine.glory.flare(glory, 4 + 1.5 * g, 0.32 + 0.12 * g, 0.3 + 0.25 * g);
     // Gold and jade glints burst up from the runner's feet, then keep rising around them.
     const feet = () => this.runner.root.position;
     this.later(0.1, () => this.cine.sparkles.burst(feet(), Math.round(36 + 110 * g), 4 + 2.5 * g, 0.5));
@@ -1563,7 +1566,8 @@ export class Game {
       const contactT = trip ? 0.2 : palms ? 0.33 : 0.27;
       const contactY = trip ? 0.9 : palms ? 1.77 : 1.85;
       const side = r.chance(0.5) ? 1 : -1;
-      const piece = 'pillar_0';
+      // (The trip: the toppling pier piece at its own girth, about 0.9 m: heavy, not a pole.)
+      const piece = trip ? 'pillar_topple_0' : 'pillar_0';
       const geo = this.kit.geo.get(piece);
       if (geo && !geo.boundingBox) geo.computeBoundingBox();
       const bb = geo?.boundingBox;
@@ -1571,9 +1575,9 @@ export class Game {
       const across = bb ? Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) : 0.95;
       // Long enough to span the way and rest on the far side.
       const reach = 2 * PATH_HALF + 1.4;
-      const sc = Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
+      const sc = trip ? 0.7 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
       // The trip's column is slim (about 0.4 m across lying down: a toe catches its top).
-      const girth = trip ? Math.min(1, 0.42 / Math.max(0.1, across * sc)) : 1;
+      const girth = 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
       const tFall = trip ? 0.9 : 0.84;
@@ -2448,7 +2452,7 @@ export class Game {
     this.fx.gold += (goldTarget - this.fx.gold) * (1 - Math.exp(-rawDt * 3));
     this.fx.flash *= Math.exp(-rawDt * 6);
     // Cash-out: a sun-flare bloom, bigger and longer for a big escape.
-    this.fx.bloom = this.stage === 'cashout' ? (0.3 + 0.5 * this.epic) * Math.exp(-this.stageT * (1.2 - 0.6 * this.epic)) + (this.escape?.bloom ?? 0) * 0.25 * Math.min(1, this.stageT / 0.8) : this.fx.danger * 0.25;
+    this.fx.bloom = this.stage === 'cashout' ? (0.2 + 0.3 * this.epic) * Math.exp(-this.stageT * (1.2 - 0.6 * this.epic)) + (this.escape?.bloom ?? 0) * 0.25 * Math.min(1, this.stageT / 0.8) : this.fx.danger * 0.25;
 
     if (this.gateLand && !this.gateLand.done && this.stageT > 0.9) this.gateLand.done = true;
 
