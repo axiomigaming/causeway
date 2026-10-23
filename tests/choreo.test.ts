@@ -67,6 +67,30 @@ describe('crash staging', () => {
   it('falls back when the section offers no hazard list', () => {
     expect(crashStaging('r', 2, [], false).kind).toBe('rockfall');
   });
+
+  // Round 20 (crash director).
+  const wide: CrashKind[] = ['chasm', 'ledge', 'gate', 'rockfall', 'pillar', 'trip'];
+  it('never stages the same kind twice running when the section offers another', () => {
+    let last: CrashKind | null = null;
+    for (let i = 0; i < 300; i++) {
+      const s = crashStaging(`seq-${i}`, 2.5, wide, false, last);
+      if (last) expect(s.kind).not.toBe(last);
+      last = s.kind;
+    }
+    // (With only one kind on offer it may repeat.)
+    expect(crashStaging('one', 2, ['gate'], false, 'gate').kind).toBe('gate');
+  });
+
+  it('spreads its picks over every kind the section offers', () => {
+    const n = new Map<string, number>();
+    let last: CrashKind | null = null;
+    for (let i = 0; i < 600; i++) {
+      const s = crashStaging(`mix-${i}`, 3, wide, false, last);
+      n.set(s.kind, (n.get(s.kind) ?? 0) + 1);
+      last = s.kind;
+    }
+    for (const k of wide) expect(n.get(k) ?? 0).toBeGreaterThan(600 / wide.length / 2.5);
+  });
 });
 
 describe('escape staging', () => {

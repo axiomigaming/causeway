@@ -62,6 +62,17 @@ export const SOUNDS: Record<string, SoundSpec> = {
   sink: { bus: 'sfx', db: -6, cents: 110, vary: 1.5, priority: 2, max: 3, pan: 0.25, floor: -10, dull: true },
   // The storm (beds group, lazy): real thunder.
   thunder: { bus: 'sfx', db: -6, cents: 150, vary: 2, priority: 1, max: 2, pan: 0.4, floor: -12, dull: true },
+  // Crash variants (round 16): the body meeting stone, stone meeting stone, what bounces and what settles.
+  body_hit: { bus: 'sfx', db: -4, cents: 70, vary: 1, priority: 3, max: 2, pan: 0.08, floor: -10, dull: true },
+  stone_crash: { bus: 'sfx', db: -1, cents: 80, vary: 1, priority: 3, max: 2, pan: 0.12, floor: -10 },
+  stone_scrape: { bus: 'sfx', db: -7, cents: 90, vary: 1.5, priority: 2, max: 2, pan: 0.15 },
+  rock_bounce: { bus: 'sfx', db: -7, cents: 160, vary: 2, priority: 1, max: 4, pan: 0.45, floor: -14, dull: true },
+  settle: { bus: 'sfx', db: -13, cents: 120, vary: 2, priority: 0, max: 2, pan: 0.4, floor: -10, scatter: 0.6 },
+  plop: { bus: 'sfx', db: -16, cents: 250, vary: 3, priority: 0, max: 4, pan: 0.4, floor: -10, dull: true },
+  // Land sections (round 16): earth underfoot, leaf litter and roots.
+  step_dirt: { bus: 'foley', db: -11, cents: 70, vary: 2, priority: 1, max: 3, pan: 0.12, floor: -9, dull: true },
+  litter: { bus: 'foley', db: -20, cents: 150, vary: 3, priority: 0, max: 2, pan: 0.15, floor: -8 },
+  twig: { bus: 'foley', db: -17, cents: 120, vary: 2, priority: 0, max: 1, pan: 0.2 },
   // Escape and cash-out.
   coins: { bus: 'ui', db: 0, cents: 60, vary: 1, priority: 3, max: 2, pan: 0.1 },
   sparkle: { bus: 'ui', db: -7, cents: 50, vary: 1, priority: 2, max: 2, pan: 0.25 },
@@ -77,6 +88,8 @@ export const SOUNDS: Record<string, SoundSpec> = {
   bed_river: { bus: 'amb', db: -24, cents: 0, vary: 0, priority: 0, max: 1 },
   bed_waterfall: { bus: 'amb', db: -22, cents: 0, vary: 0, priority: 0, max: 1 },
   bed_wind: { bus: 'amb', db: -24, cents: 0, vary: 0, priority: 0, max: 1 },
+  bed_forest: { bus: 'amb', db: -22, cents: 0, vary: 0, priority: 0, max: 1 },
+  bed_ravine: { bus: 'amb', db: -23, cents: 0, vary: 0, priority: 0, max: 1 },
   // Score: recorded percussion played by the sequencer (score.ts), a drone, strings, stingers.
   m_taiko: { bus: 'music', db: 1, cents: 25, vary: 1.5, priority: 1, max: 4 },
   m_taiko_hi: { bus: 'music', db: -3, cents: 30, vary: 1.5, priority: 1, max: 4 },
