@@ -13,7 +13,7 @@ import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
 import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
-import { makeMossMaterial } from './moss';
+import { makeLilyMaterial, makeMossMaterial } from './moss';
 import { atmosphereUniforms } from './atmosphere';
 import { qaParam, qaWorldSeed } from './qa';
 import { intensityOf } from './choreo';
@@ -803,6 +803,11 @@ function stageKit(kit: Kit): void {
   if (flora && !kit.mat.has('moss')) {
     kit.mat.set('moss', makeMossMaterial(flora));
     for (const n of ['moss_0', 'moss_1', 'moss_2']) if (kit.matOf.has(n)) kit.matOf.set(n, 'moss');
+  }
+  // World round 20: lily pads get their own material (deep waxy green, sheen, bob).
+  if (flora && !kit.mat.has('lily')) {
+    kit.mat.set('lily', makeLilyMaterial(flora, foamTime));
+    for (const n of ['lily_0', 'lily_1', 'lily_2']) if (kit.matOf.has(n)) kit.matOf.set(n, 'lily');
   }
   for (const key of ['stoneA', 'stoneB', 'floor', 'rock', 'cliff', 'statue', 'glyph', 'wood', 'temple']) {
     const m = kit.mat.get(key);

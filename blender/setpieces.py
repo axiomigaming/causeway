@@ -311,12 +311,19 @@ def stepping_stones(name, seed, n=6, spread=3.0):
 
 
 # ------------------------------------------------------------------ flora (vertex-coloured, baked)
-PAD = [hexcol(h) for h in ("#3f6424", "#4d7229", "#5a7d2e", "#36561f", "#6b7f33")]
+# Round 20: deeper, saturated greens (they read as yellow paper under the low sun), a bronze young pad.
+PAD = [hexcol(h) for h in ("#2c561a", "#36631f", "#24481a", "#41702a", "#2f5a24")]
 LOTUS = [hexcol(h) for h in ("#f2b8c6", "#f7d0da", "#e994ad", "#fbe6ea")]
+BROWN = hexcol("#6e4f22")
 
 
 def lily_pads(name, seed, n=12, spread=1.6, flowers=2):
-    """A raft of lily pads (z=0 is the water line) with a lotus or two."""
+    """A raft of lily pads (z=0 is the water line) with a lotus or two.
+
+    Round 20: each pad is cupped (the rim lifts), creased along radial veins (alternating ridge and
+    furrow spokes over two rings), some with bites torn out of the rim and a browned, dying edge; a
+    dark disc under each pad darkens the water at its edge (contact shadow). Lotus petals are pointed
+    and folded along their midrib, in three whorls, pink at the tips and pale at the heart."""
     rng = random.Random(seed)
     bm = bmesh.new()
     for i in range(n):
@@ -324,38 +331,77 @@ def lily_pads(name, seed, n=12, spread=1.6, flowers=2):
         a = rng.uniform(0, 6.28)
         d = spread * math.sqrt(rng.random())
         cx, cy = math.cos(a) * d, math.sin(a) * d
-        t = bmesh.new()
-        segs = 14
+        segs = 22
         notch = rng.uniform(0, 6.28)
-        c = t.verts.new((cx, cy, 0.02))
-        ring = []
+        cup = rng.uniform(0.02, 0.06)
+        brown = rng.random() < 0.22
+        bites = [rng.randint(1, segs - 2) for _ in range(rng.choice((0, 0, 1, 2)))]
+        col = jitter_color(rng.choice(PAD), rng, 0.08, 0.04)
+        # Contact shadow: a dark rim a hair above the water, the pad's own outline (notch and bites
+        # included) a little larger: a thin wet, dark edge where the leaf meets the water.
+        def outline(j, segs=segs, notch=notch, r=r, bites=bites):
+            aa = notch + 0.3 + (2 * math.pi - 0.6) * j / segs
+            rr = r * (1 + 0.035 * math.sin(j * 3.1))
+            if any(abs(j - b_) <= 1 for b_ in bites):
+                rr *= 0.72 if j in bites else 0.86
+            return aa, rr
+
+        t = bmesh.new()
+        c0 = t.verts.new((cx, cy, 0.004))
+        sr = []
         for j in range(segs + 1):
-            aa = notch + 0.35 + (2 * math.pi - 0.7) * j / segs
-            rr = r * (1 + 0.04 * math.sin(j * 3.1))
-            ring.append(t.verts.new((cx + math.cos(aa) * rr, cy + math.sin(aa) * rr, 0.012 + 0.02 * (j % 2 == 0) * rng.random())))
+            aa, rr = outline(j)
+            sr.append(t.verts.new((cx + math.cos(aa) * (rr * 1.06 + 0.012), cy + math.sin(aa) * (rr * 1.06 + 0.012), 0.004)))
         for j in range(segs):
-            t.faces.new((c, ring[j], ring[j + 1]))
-        col = jitter_color(rng.choice(PAD), rng, 0.1, 0.05)
-        _merge(bm, t, color_fn=lambda co, col=col, cx=cx, cy=cy, r=r: tuple(
-            ch * (0.8 + 0.4 * min(1, Vector((co.x - cx, co.y - cy)).length / r)) for ch in col[:3]) + (1,))
+            t.faces.new((c0, sr[j], sr[j + 1]))
+        _merge(bm, t, color=(0.03, 0.06, 0.04, 1.0))
+        t = bmesh.new()
+        c = t.verts.new((cx, cy, 0.024))
+        mid, ring = [], []
+        for j in range(segs + 1):
+            aa = notch + 0.3 + (2 * math.pi - 0.6) * j / segs
+            vein = 0.006 if j % 2 == 0 else -0.004  # ridge / furrow spokes
+            rr = r * (1 + 0.035 * math.sin(j * 3.1))
+            if any(abs(j - b_) <= 1 for b_ in bites):
+                rr *= 0.72 if j in bites else 0.86
+            mid.append(t.verts.new((cx + math.cos(aa) * rr * 0.55, cy + math.sin(aa) * rr * 0.55, 0.022 + cup * 0.25 + vein)))
+            ring.append(t.verts.new((cx + math.cos(aa) * rr, cy + math.sin(aa) * rr, 0.02 + cup + vein * 0.6 + 0.008 * rng.random())))
+        for j in range(segs):
+            t.faces.new((c, mid[j], mid[j + 1]))
+            t.faces.new((mid[j], ring[j], ring[j + 1], mid[j + 1]))
+
+        def pad_col(co, col=col, cx=cx, cy=cy, r=r, brown=brown):
+            rad = min(1.0, Vector((co.x - cx, co.y - cy)).length / r)
+            c3 = [ch * (0.85 + 0.3 * rad) for ch in col[:3]]
+            if brown and rad > 0.8:
+                k = (rad - 0.8) / 0.2
+                c3 = [a_ * (1 - k) + b_ * k for a_, b_ in zip(c3, BROWN[:3])]
+            return tuple(c3) + (1,)
+
+        _merge(bm, t, color_fn=pad_col)
     for k in range(flowers):
         a = rng.uniform(0, 6.28)
         d = spread * 0.6 * math.sqrt(rng.random())
         cx, cy = math.cos(a) * d, math.sin(a) * d
         pc = rng.choice(LOTUS)
-        for layer, (npet, ln, el) in enumerate(((8, 0.2, 0.55), (6, 0.16, 0.95))):
+        for layer, (npet, ln, el, w) in enumerate(((10, 0.21, 0.45, 0.07), (8, 0.17, 0.85, 0.06), (5, 0.11, 1.2, 0.045))):
             for j in range(npet):
-                aa = 2 * math.pi * j / npet + layer * 0.4
+                aa = 2 * math.pi * j / npet + layer * 0.37 + rng.uniform(-0.08, 0.08)
                 t = bmesh.new()
                 base = Vector((cx, cy, 0.05))
                 dirv = Vector((math.cos(aa) * math.cos(el), math.sin(aa) * math.cos(el), math.sin(el)))
-                side = Vector((-math.sin(aa), math.cos(aa), 0)) * 0.06
+                side = Vector((-math.sin(aa), math.cos(aa), 0)) * w
                 tip = base + dirv * ln
-                mid = base + dirv * ln * 0.5
-                vs = [t.verts.new(base), t.verts.new(mid - side), t.verts.new(tip), t.verts.new(mid + side)]
-                t.faces.new(vs)
-                _merge(bm, t, color_fn=lambda co, base=base, pc=pc: tuple(
-                    ch * (0.75 + 0.35 * min(1, (co - base).length / 0.2)) for ch in pc[:3]) + (1,))
+                # Folded along the midrib (the midrib sits low, the edges lift: a boat-shaped petal).
+                fold = Vector((0, 0, 1)) * w * 0.35
+                m1 = base + dirv * ln * 0.45
+                vs = [t.verts.new(base), t.verts.new(m1 - side + fold), t.verts.new(m1), t.verts.new(tip), t.verts.new(m1 + side + fold)]
+                t.faces.new((vs[0], vs[1], vs[2]))
+                t.faces.new((vs[1], vs[3], vs[2]))
+                t.faces.new((vs[0], vs[2], vs[4]))
+                t.faces.new((vs[2], vs[3], vs[4]))
+                _merge(bm, t, color_fn=lambda co, base=base, pc=pc, ln=ln: tuple(
+                    ch * (0.62 + 0.5 * min(1, (co - base).length / ln)) for ch in pc[:3]) + (1,))
         _merge(bm, _cyl(0.04, 0.05, 0.06, 8, Matrix.Translation((cx, cy, 0.05))), hexcol("#e6c040"))
     return finish_obj(name, bm, 80)
 

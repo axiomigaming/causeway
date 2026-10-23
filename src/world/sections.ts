@@ -264,7 +264,23 @@ function spill(b: Builder, side: number, z0: number, y: number, x = PATH_HALF + 
   else b.place(`spill_${i}`, -x, y, z0 - TILE + b.rng.range(0, 0.6), Math.PI + b.rng.range(-0.05, 0.05));
 }
 
+/**
+ * World round 20: a wet boulder breaking the surface out in the water (the water is opaque: anything
+ * set on it reads as floating, anything under it is gone). Returns the height of its top, for what
+ * stands on it (rubble, a drum, moss, a shrub, a banana).
+ */
+function islet(b: Builder, x: number, z: number, s = 0.45): number {
+  b.place(`rock_mid_${b.rng.int(0, 2)}`, x, WL - 0.5, z, b.rng.range(0, 6.28), [s, s * 1.1, s]);
+  b.foamRing(x, z, 2.2 * s + 0.4);
+  return WL - 0.5 + 1.4 * s * 1.1 - 0.12;
+}
+
 function bananas(b: Builder, x: number, y: number, z: number, p = 1) {
+  // (Round 20: out over the water, on an islet of its own, never with its foot in the air.)
+  if (Math.abs(x) > PATH_HALF + 0.95 && y > WL - 0.2 && y < -0.2) {
+    if (!b.foliage(p)) return;
+    y = islet(b, x, z, 0.6) - 0.3;
+  }
   if (b.foliage(p)) b.place(`banana_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.15));
 }
 
@@ -608,7 +624,12 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
           if (i < n) b.foam(side, PATH_HALF + 0.3, z, TILE);
           // A broken pier stump under each joint, a block or two tumbled into the water.
           if (i < n) b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
-          if (b.rng.chance(0.35)) b.place(`rubble_${b.rng.int(0, 3)}`, side * b.rng.range(2.8, 4.2), WL + 0.1, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28));
+          // (Round 20: a block tumbled onto a boulder breaking the surface; set on the water it floated.)
+          if (b.rng.chance(0.35)) {
+            const rx = side * b.rng.range(3.2, 4.4);
+            const rz = z - b.rng.range(0.5, 3.5);
+            b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.55), rz, b.rng.range(0, 6.28), 0.5);
+          }
           if (b.rich && b.foliage(0.3)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 7), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
         }
         b.foamRing(0, z, 2.6);
@@ -637,7 +658,11 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
         for (const side of [-1, 1]) {
           b.foam(side, PATH_HALF + 0.3, z, TILE);
           b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
-          if (b.rng.chance(0.3)) b.place(`rubble_${b.rng.int(0, 3)}`, side * b.rng.range(2.8, 4.2), WL + 0.1, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28));
+          if (b.rng.chance(0.3)) {
+            const rx = side * b.rng.range(3.2, 4.4);
+            const rz = z - b.rng.range(0.5, 3.5);
+            b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.55), rz, b.rng.range(0, 6.28), 0.5);
+          }
           if (b.rich && b.foliage(0.35)) b.place(`lily_${b.rng.int(0, 2)}`, side * b.rng.range(4, 8), WL + 0.02, z - b.rng.range(0, 4), b.rng.range(0, 6.28));
         }
         b.foamRing(0, z, 2.6);
@@ -913,7 +938,12 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       b.lilies(side * 6.5, -len * 0.3, 1.3);
       b.lilies(side * 7, -len * 0.8, 1.1);
       for (let k = 0; k < 2; k++) if (b.foliage(0.8)) b.place(`roots_${b.rng.int(0, 1)}`, side * 7.6, b.rng.range(5, 9), -len * b.rng.range(0.2, 0.9), -side * Math.PI / 2, [1.4, 1.6, 1]);
-      for (let z = -2; z > -len; z -= 5) if (b.foliage(0.7)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * b.rng.range(5.5, 7), -2.1, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+      // (Round 20: each on a boulder at the cliff's foot; at -2.1 they sat on the water's surface.)
+      for (let z = -2; z > -len; z -= 5) {
+        if (!b.foliage(0.7)) continue;
+        const sx = side * b.rng.range(5.5, 7);
+        b.place(`shrub_mass_${b.rng.int(0, 1)}`, sx, islet(b, sx, z, 0.7) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+      }
       canopy(b, side, -len * b.rng.range(0.15, 0.4), 0, 0.6);
       jungleBank(b, -side, b.rng.range(7.5, 9), -len / 2, 0, 0.5);
       scenery(b, len, { sides: [-side] });
@@ -928,15 +958,26 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
       lowWalls(b, 0, n, [-1, 1], { gaps: 0.35 });
       for (const side of [-1, 1]) {
         b.place(b.rng.pick(['tower_0', 'tower_1']), side * b.rng.range(11, 16), -2.4, -b.rng.range(2, len - 2), b.rng.range(0, 6));
-        for (let k = 0; k < 3; k++) b.place(`rubble_${b.rng.int(0, 3)}`, side * b.rng.range(3, 6), -0.6, -b.rng.range(0, len), b.rng.range(0, 6));
-        b.place('drum_0', side * b.rng.range(3.2, 5), -0.3, -b.rng.range(2, len - 2), b.rng.range(0, 6));
+        // (Round 20: on boulders breaking the surface, a drum fallen on its side in the shallows; at
+        // -0.6 and -0.3 they hung 1.6–1.9 m in the air over the water.)
+        for (let k = 0; k < 2; k++) {
+          const rx = side * b.rng.range(3.4, 6);
+          const rz = -b.rng.range(0, len);
+          b.place(`rubble_${b.rng.int(0, 1)}`, rx, islet(b, rx, rz, 0.6), rz, b.rng.range(0, 6), 0.55);
+        }
+        {
+          const dx = side * b.rng.range(3.4, 5);
+          const dz = -b.rng.range(2, len - 2);
+          b.place('drum_0', dx, WL - 0.22, dz, b.rng.range(0, 6), 1, [Math.PI / 2, 0]);
+          b.foamRing(dx, dz, 1.0);
+        }
         const cz = -b.rng.range(3, len - 3);
         if (b.rng.chance(0.6)) {
           const cx = side * b.rng.range(5.5, 7.5);
           b.place(`column_fallen_${b.rng.int(0, 1)}`, cx, WL + 0.2, cz, b.rng.range(0, 6.28));
           b.foamRing(cx, cz, 2.4);
         } else b.place('guardian_1', side * 5.6, WL + 0.3, cz, faceIn(side, 0.9), 0.9);
-        for (let k = 0; k < 2; k++) if (b.rich && b.foliage(0.6)) b.place(`moss_${b.rng.int(0, 2)}`, side * b.rng.range(3, 5.5), -0.4, -b.rng.range(0, len), 0, b.rng.range(0.8, 1.3));
+        for (let k = 0; k < 2; k++) if (b.rich && b.foliage(0.6)) b.place(`moss_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.05), 0, -b.rng.range(0, len), 0, b.rng.range(0.8, 1.3)); // (round 20: on the footing, not in the air)
       }
       jungleBank(b, b.rng.pick([-1, 1]), b.rng.range(7, 9), -len / 2, 0, 0.6);
       canopy(b, b.rng.pick([-1, 1]), -b.rng.range(4, len - 4), 0, 0.35);
@@ -1009,7 +1050,10 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
           k++;
         }
         for (let zz = -2; zz > -len; zz -= b.rng.range(4, 7)) {
-          if (b.foliage(0.7)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * b.rng.range(5, 7), -2.1, zz, b.rng.range(0, 6.28), b.rng.range(0.8, 1.3));
+          if (b.foliage(0.7)) {
+            const sx = side * b.rng.range(5, 7);
+            b.place(`shrub_mass_${b.rng.int(0, 1)}`, sx, islet(b, sx, zz, 0.7) - 0.3, zz, b.rng.range(0, 6.28), b.rng.range(0.8, 1.3));
+          }
           b.lilies(side * b.rng.range(4.5, 6.5), zz - 2, b.rng.range(0.8, 1.2));
         }
         if (b.foliage(0.8)) {
@@ -1206,7 +1250,7 @@ const BUILDERS: Record<SectionType, { lengths: number[]; build: Build }> = {
           b.place(`tree_big_${t}_trunk`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
           b.place(`tree_big_${t}_crown`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
         }
-        if (b.foliage(0.8)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * 8.5, WL + 0.4, -len + 1, b.rng.range(0, 6.28), 1.2);
+        if (b.foliage(0.8)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * 8.5, islet(b, side * 8.5, -len + 1, 0.8) - 0.3, -len + 1, b.rng.range(0, 6.28), 1.2); // (round 20: on a boulder, not the water)
       }
       jungleBank(b, -fs, 5.4, -len / 2 + 2, 0, 0.5);
       canopy(b, -fs, -len * b.rng.range(0.25, 0.5), 0, 0.4);

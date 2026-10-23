@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WATER_Y } from './water';
 
 /**
  * World round 17: moss that reads as moss, not smooth green plastic. The cushions keep their geometry
@@ -78,5 +79,72 @@ float mN(vec3 p) {
       );
   };
   m.customProgramCacheKey = () => 'moss17';
+  return m;
+}
+
+/**
+ * World round 20: lily pads that read as leaves on water, not yellow paper. Their own material:
+ * - the greens deepened and saturated (the low sun and the atlas's sunny mottle washed them yellow),
+ *   lotus petals and the brown, dying rims left as baked;
+ * - waxy: a smoother lobe and a cool fresnel sheen toward grazing angles;
+ * - a gentle bob on the ripples (vertex, world-space phase, so neighbouring pads move apart).
+ * `time` is the water's shared clock uniform.
+ */
+export function makeLilyMaterial(flora: THREE.Material, time: { value: number }): THREE.Material {
+  const m = (flora as THREE.MeshStandardMaterial).clone();
+  m.name = 'lily';
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uLilyTime = time;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uLilyTime;\nvarying float vLilyDisc;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+  {
+    vec4 lw = modelMatrix * vec4(transformed, 1.0);
+    // The contact disc under each pad lies at the water line (the pads >= 1.6 cm above it).
+    vLilyDisc = 1.0 - step(${WATER_Y.toFixed(3)} + 0.031, lw.y); // (rafts are set 2 cm up)
+    float ph = lw.x * 0.9 + lw.z * 0.7;
+    transformed.y += 0.018 * sin(uLilyTime * 1.3 + ph) + 0.008 * sin(uLilyTime * 2.1 - ph * 1.7);
+  }`,
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying float vLilyDisc;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+  float lilyGreen = smoothstep(0.0, 0.06, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
+  {
+    float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    vec3 sat = mix(vec3(l), diffuseColor.rgb, 1.2) * vec3(0.62, 0.74, 0.6);
+    diffuseColor.rgb = mix(diffuseColor.rgb, max(sat, vec3(0.0)), lilyGreen);
+  }`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+  roughnessFactor = mix(mix(roughnessFactor, 0.34, lilyGreen), 1.0, vLilyDisc);`,
+      )
+      .replace(
+        '#include <fog_fragment>',
+        `// Contact shadow: the rim under each pad is the water darkened round the leaf's edge, not a
+  // plate: its lit colour is replaced by a deep shadowed lagoon teal (the fog then hazes it with
+  // the water around it).
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.02, 0.11, 0.095), vLilyDisc * 0.85);
+  #include <fog_fragment>`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+  {
+    float fr = pow(1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0), 4.0);
+    totalEmissiveRadiance += vec3(0.5, 0.62, 0.58) * fr * 0.09 * lilyGreen * (1.0 - vLilyDisc);
+  }`,
+      );
+  };
+  m.customProgramCacheKey = () => 'lily20';
   return m;
 }
