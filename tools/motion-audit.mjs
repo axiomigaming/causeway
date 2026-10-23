@@ -36,7 +36,7 @@ const URL = process.env.URL ?? 'http://localhost:5180';
 const OUT = arg('out', 'review/motion/base');
 const WORLD = arg('w', '7');
 const Q = arg('q', 'high');
-const MAX_SHOTS = +arg('shots', 14);
+const MAX_SHOTS = +arg('shots', 18);
 const COMPARE = arg('compare', '');
 // --reanalyse: no filming; recompute the flags from the raw samples a previous run saved in --out.
 const REANALYSE = process.argv.includes('--reanalyse');
@@ -253,7 +253,7 @@ const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const len = (v) => Math.hypot(v[0], v[1], v[2]);
 const acc = (a, b, c) => len([a[0] - 2 * b[0] + c[0], a[1] - 2 * b[1] + c[1], a[2] - 2 * b[2] + c[2]]);
 
-function analyse(name, frames, meta, signs) {
+function analyse(name, frames, meta, signs, opts = {}) {
   const idx = Object.fromEntries(meta.names.map((n, i) => [n, i]));
   const bind = meta.bindLocal.map(quat);
   const flags = [];
@@ -261,7 +261,7 @@ function analyse(name, frames, meta, signs) {
   // Planted height per foot: the lowest height above the ground seen (relative to the runner's ground).
   const footH = (f, n) => (f.wp[n] ? f.wp[n][1] - f.grp[1] : null);
   const low = {};
-  for (const n of ['footL', 'footR']) low[n] = Math.min(...frames.map((f) => footH(f, n) ?? 9).filter((x) => x > -0.5));
+  for (const n of ['footL', 'footR']) low[n] = opts.low?.[n] ?? Math.min(...frames.map((f) => footH(f, n) ?? 9).filter((x) => x > -0.5));
   const rel = (f, n) => (f.wp[n] ? sub(f.wp[n], f.grp) : null);
   let frozenRun = 0, statueRun = 0;
   let camOmegaPrev = null;
@@ -450,6 +450,12 @@ const timeline = {};
 for (const name of SEQS) {
   const S = seq(name);
   if (REANALYSE) {
+    if (!existsSync(`${OUT}/raw-${name}.json`)) {
+      console.log(`${name.padEnd(10)} no raw samples (not filmed)`);
+      summary.push({ name, frames: 0, window: [S.from, S.to], actual: {}, counts: {}, shots: 0, errors: ['not filmed'] });
+      timeline[name] = [];
+      continue;
+    }
     const raw = JSON.parse(readFileSync(`${OUT}/raw-${name}.json`, 'utf8'));
     const flags = analyse(name, raw.frames, raw.meta, raw.signs);
     const rg = ranges(flags);
@@ -462,7 +468,30 @@ for (const name of SEQS) {
     console.log(`${name.padEnd(10)} ${raw.frames.length} frames  ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ') || 'clean'}`);
     continue;
   }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await film(name, S);
+      break;
+    } catch (e) {
+      console.log(`${name.padEnd(10)} attempt ${attempt} failed: ${String(e.message).split('\n')[0]}`);
+      if (attempt === 2) {
+        summary.push({ name, frames: 0, window: [S.from, S.to], actual: {}, counts: {}, shots: 0, errors: [String(e.message).split('\n')[0]] });
+        timeline[name] = [];
+      }
+    }
+  }
+}
+
+async function film(name, S) {
   const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+  try {
+    await filmOn(page, name, S);
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function filmOn(page, name, S) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${URL}/?qa&q=${Q}&w=${WORLD}`, { waitUntil: 'load' });
@@ -495,6 +524,7 @@ for (const name of SEQS) {
   const shots = [];
   const events = new Map(S.events.map(([f, e]) => [f, e]));
   const seen = new Set();
+  const low = { footL: 9, footR: 9 };
   let lastCount = 0;
   const actual = {};
   for (let f = 0; f <= S.to; f++) {
@@ -533,20 +563,23 @@ for (const name of SEQS) {
     if (f < S.from) continue;
     const smp = await page.evaluate((f) => window.__ma.sample(f), f);
     frames.push(smp);
-    // Flags so far (the analysis is cheap; recomputed on the tail).
+    // Flags so far (the analysis is cheap; recomputed on the tail, with the planted height seen so far).
+    for (const n of ['footL', 'footR']) if (smp.wp[n]) low[n] = Math.min(low[n], smp.wp[n][1] - smp.grp[1]);
     const tail = frames.slice(-12);
     // (A pop needs the next frame: the flags of the previous frame are final now; this frame is drawn.)
-    const fl = analyse(name, tail, meta, signs).filter((x) => x.f === f - 1);
-    if (fl.length) {
-      // Draw this frame once per new kind of flag (and the worst of each run later in the report).
-      const k = fl.map((x) => `${x.type}|${x.what}`).find((k) => !seen.has(`${k}|${Math.floor(f / 15)}`));
-      if (k && shots.length < MAX_SHOTS) {
-        fl.forEach((x) => seen.add(`${x.type}|${x.what}|${Math.floor(f / 15)}`));
-        await page.evaluate(() => window.__ma.draw());
-        const file = `${OUT}/frames/${name}-f${String(f).padStart(4, '0')}.png`;
-        writeFileSync(file, await page.screenshot({ timeout: 900000 }));
-        shots.push({ f, file, label: fl.map((x) => `${x.type}: ${x.what} ${x.detail}`).slice(0, 3) });
-      }
+    const fl = analyse(name, tail, meta, signs, { low }).filter((x) => x.f === f - 1);
+    // What to draw: a gait snap of a leg joint (or the head's bob) in the plain run is the judder,
+    // drawn once per sequence; anything else once per kind per 2 s.
+    const gaitNoise = (x) => x.clip === 'run' && x.type === 'pop' && (/^(thigh|shin|foot|toe)/.test(x.what) || x.what.startsWith('head jumps'));
+    const keyOf = (x) => (gaitNoise(x) ? 'gait' : `${x.type}|${x.what}|${Math.floor(f / 60)}`);
+    const want = fl.filter((x) => !seen.has(keyOf(x)));
+    if (want.length && shots.length < MAX_SHOTS) {
+      for (const x of fl) seen.add(keyOf(x));
+      await page.evaluate(() => window.__ma.draw());
+      const file = `${OUT}/frames/${name}-f${String(f).padStart(4, '0')}.png`;
+      writeFileSync(file, await page.screenshot({ timeout: 900000 }));
+      const lab = want.map((x) => (gaitNoise(x) ? `gait judder: ${x.what} ${x.detail}` : `${x.type}: ${x.what} ${x.detail}`));
+      shots.push({ f: f - 1, file, label: lab.slice(0, 3) });
     }
     if (f % 60 === 0 && frames.length !== lastCount) {
       lastCount = frames.length;
@@ -576,7 +609,7 @@ for (const name of SEQS) {
       const s = shots[i];
       const img = await sharp(s.file).resize(tw, th).toBuffer();
       const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-      const txt = [`${name} f${s.f}`, ...s.label].map((t, j) => `<text x="6" y="${16 + j * 14}" font-family="monospace" font-size="${j ? 11 : 13}" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">${esc(t.slice(0, 64))}</text>`).join('');
+      const txt = [`${name} f${s.f} (drawn f${s.f + 1})`, ...s.label].map((t, j) => `<text x="6" y="${16 + j * 14}" font-family="monospace" font-size="${j ? 11 : 13}" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">${esc(t.slice(0, 64))}</text>`).join('');
       const svg = Buffer.from(`<svg width="${tw}" height="${th}" xmlns="http://www.w3.org/2000/svg">${txt}</svg>`);
       tiles.push({ input: await sharp(img).composite([{ input: svg }]).png().toBuffer(), left: (i % cols) * tw, top: Math.floor(i / cols) * th });
     }
@@ -587,7 +620,6 @@ for (const name of SEQS) {
   summary.push({ name, frames: frames.length, window: [S.from, S.to], actual, counts, shots: shots.length, errors });
   writeFileSync(`${OUT}/raw-${name}.json`, JSON.stringify({ frames, meta, signs, timeline: tl, summary: summary[summary.length - 1] }));
   console.log(`${name.padEnd(10)} ${frames.length} frames  ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ') || 'clean'}${errors.length ? `  page errors: ${errors.length}` : ''}`);
-  await page.close();
 }
 await browser?.close();
 
