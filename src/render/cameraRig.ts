@@ -160,11 +160,114 @@ export class CameraRig {
     this.pullTarget = 1;
   }
 
+  // ------------------------------------------------------------------ output smoothing
+  /**
+   * Round 20: every move the lens makes is jerk-limited. Whatever the shot logic asks for (a mode
+   * change, a new target, a correction), the camera follows it through a critically damped
+   * second-order spring on position and on orientation, with its acceleration capped and the change
+   * of acceleration per step capped: velocity and acceleration stay continuous, so no target swap
+   * reads as a whip, a snap or a hard stop. The target's own smooth motion is fed forward (a steady
+   * chase or pan has no lag); a jump in it (a swap) is not, so only the spring carries the lens
+   * across. Hard cuts (snap, the safe shot) reset it. Shake and footfall bob go on after it.
+   */
+  private sm = {
+    on: false,
+    p: new THREE.Vector3(),
+    v: new THREE.Vector3(),
+    a: new THREE.Vector3(),
+    q: new THREE.Quaternion(),
+    w: new THREE.Vector3(),
+    aw: new THREE.Vector3(),
+    tp: new THREE.Vector3(),
+    tv: new THREE.Vector3(),
+    tq: new THREE.Quaternion(),
+    tw: new THREE.Vector3(),
+  };
+  private smT = new THREE.Vector3();
+  private smT2 = new THREE.Vector3();
+  private smW = new THREE.Vector3();
+  private smQ = new THREE.Quaternion();
+  private tmpQi = new THREE.Quaternion();
+  /** Rotation vector (axis × angle, shortest way) taking `from` to `to`, written into `out`. */
+  private rotVec(to: THREE.Quaternion, from: THREE.Quaternion, out: THREE.Vector3): THREE.Vector3 {
+    const qe = this.smQ.copy(to).multiply(this.tmpQi.copy(from).invert());
+    if (qe.w < 0) qe.set(-qe.x, -qe.y, -qe.z, -qe.w);
+    const sn = Math.sqrt(qe.x * qe.x + qe.y * qe.y + qe.z * qe.z);
+    out.set(qe.x, qe.y, qe.z);
+    return sn > 1e-8 ? out.multiplyScalar((2 * Math.atan2(sn, qe.w)) / sn) : out.set(0, 0, 0);
+  }
+  private smoothOut(dt: number): void {
+    const c = this.camera;
+    const S = this.sm;
+    if (!S.on || dt <= 0 || dt > 0.3) {
+      S.on = true;
+      S.p.copy(c.position);
+      S.q.copy(c.quaternion);
+      S.tp.copy(c.position);
+      S.tq.copy(c.quaternion);
+      S.v.set(0, 0, 0);
+      S.a.set(0, 0, 0);
+      S.w.set(0, 0, 0);
+      S.aw.set(0, 0, 0);
+      S.tv.set(0, 0, 0);
+      S.tw.set(0, 0, 0);
+      return;
+    }
+    const W = 14;
+    const WR = 16;
+    const A_MAX = 90; // m/s²
+    const J_MAX = 2400; // m/s³
+    const AW_MAX = 35; // rad/s²
+    const W_MAX = 3.5; // rad/s: a swap of aim pans, never whips
+    const JW_MAX = 1600; // rad/s³
+    // The target's velocity, fed forward unless it jumped (a swap: more than ~3 g of change).
+    const tv = this.smT2.copy(c.position).sub(S.tp).divideScalar(dt);
+    if (tv.distanceTo(S.tv) > 30 * dt + 0.5 || tv.length() > 40) tv.copy(S.tv).multiplyScalar(Math.exp(-dt * 6));
+    S.tv.copy(tv);
+    S.tp.copy(c.position);
+    const tw = this.rotVec(c.quaternion, S.tq, this.smT).divideScalar(dt);
+    if (tw.distanceTo(S.tw) > 20 * dt + 0.15 || tw.length() > 5) tw.copy(S.tw).multiplyScalar(Math.exp(-dt * 6));
+    S.tw.copy(tw);
+    S.tq.copy(c.quaternion);
+    const n = Math.max(1, Math.ceil(dt / (1 / 240)));
+    const h = dt / n;
+    const want = this.smW;
+    for (let i = 0; i < n; i++) {
+      // Position: toward the target where it will be at the end of this frame.
+      want.copy(c.position).addScaledVector(S.tv, -(dt - (i + 1) * h)).sub(S.p).multiplyScalar(W * W);
+      want.addScaledVector(this.smT2.copy(S.tv).sub(S.v), 2 * W);
+      if (want.length() > A_MAX) want.setLength(A_MAX);
+      const da = want.sub(S.a);
+      if (da.length() > J_MAX * h) da.setLength(J_MAX * h);
+      S.a.add(da);
+      S.v.addScaledVector(S.a, h);
+      S.p.addScaledVector(S.v, h);
+      // Orientation: the error as a rotation vector (target · current⁻¹).
+      const e = this.rotVec(c.quaternion, S.q, want);
+      e.addScaledVector(S.tw, -(dt - (i + 1) * h)).multiplyScalar(WR * WR);
+      e.addScaledVector(this.smT2.copy(S.tw).sub(S.w), 2 * WR);
+      if (e.length() > AW_MAX) e.setLength(AW_MAX);
+      const daw = e.sub(S.aw);
+      if (daw.length() > JW_MAX * h) daw.setLength(JW_MAX * h);
+      S.aw.add(daw);
+      S.w.addScaledVector(S.aw, h);
+      if (S.w.length() > W_MAX) S.w.setLength(W_MAX);
+      const wl = S.w.length();
+      if (wl > 1e-8) {
+        this.smQ.setFromAxisAngle(this.smT2.copy(S.w).divideScalar(wl), wl * h);
+        S.q.premultiply(this.smQ).normalize();
+      }
+    }
+    c.position.copy(S.p);
+    c.quaternion.copy(S.q);
+  }
+
   /**
    * A safe shot (the lens went non-finite or into solid geometry): behind and above the runner,
    * looking at the chest, with every spring, kick and offset reset.
    */
   safeShot(runnerPos: THREE.Vector3, runnerYaw: number): void {
+    this.sm.on = false;
     if (![runnerPos.x, runnerPos.y, runnerPos.z, runnerYaw].every(Number.isFinite)) return;
     this.yaw = this.lastYaw = runnerYaw;
     this.fwd.set(-Math.sin(runnerYaw), 0, -Math.cos(runnerYaw));
@@ -190,6 +293,7 @@ export class CameraRig {
 
   /** Snap to the current target (after a teleport such as a new round). */
   snap(runnerPos: THREE.Vector3, runnerYaw: number): void {
+    this.sm.on = false;
     this.yaw = runnerYaw;
     this.lastYaw = runnerYaw;
     this.swing = this.swingTarget = 0;
@@ -706,15 +810,17 @@ export class CameraRig {
     const hr = (Math.sin(t * 0.83 + 0.9) * 0.7 + Math.sin(t * 1.9) * 0.3) * 0.009 * hand;
 
     this.camera.position.copy(this.pos);
-    this.camera.position.addScaledVector(this.right, sx + this.sway + hx);
-    this.camera.position.y += sy + this.bob + breathe + hy;
+    // (Round 20: the shake and the footfall bob go on after the output spring below, which would
+    // otherwise swallow them; the spring smooths the shot, not the deliberate tremor.)
+    this.camera.position.addScaledVector(this.right, this.sway + hx);
+    this.camera.position.y += breathe + hy;
     this.camera.lookAt(this.look);
     this.camera.fov = this.fov;
     // Round 18: the title too (its high pass looked down the way ahead with him just under the
     // bottom edge): the boots tilt up into the band, never a stand-back (settled shots only).
     this.keepInFrame(this.bodyAt ?? runnerPos, dt);
     this.rollKick *= Math.exp(-dt * 2.6);
-    this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.25 + this.dutch + hr + this.rollKick);
+    this.camera.rotateZ(this.dutch + hr + this.rollKick);
     this.camera.fov = this.fov;
     this.revealK += ((this.revealed && (this.mode === 'crash' || this.mode === 'cashout') ? 1 : 0) - this.revealK) * (1 - Math.exp(-dt * 2.5));
     // The title fly-over rides high over the causeway, level with the arch crowns: their stones
@@ -727,6 +833,10 @@ export class CameraRig {
       const d = this.camera.position.distanceTo(this.tmp.copy(runnerPos).setY(runnerPos.y + 1));
       this.camera.near = this.mode === 'title' ? Math.min(6.5, Math.max(0.1, 0.55 * d)) : Math.min(3.5, Math.max(0.1, 0.4 * d));
     } else this.camera.near = 0.1;
+    this.smoothOut(dt);
+    this.camera.position.addScaledVector(this.right, sx);
+    this.camera.position.y += sy + this.bob;
+    this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.25);
     this.applyShift(dt);
     this.camera.updateProjectionMatrix();
   }

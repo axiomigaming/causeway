@@ -1577,15 +1577,16 @@ export class Game {
       // settles. He keeps running while it comes down, and the clip starts so its contact lands on
       // the column where it lies (character agent's contact geometry, measured from the root as
       // the clip starts: the slam's near face at +1.85 m, impact 0.27 s; the palms' face +1.77 m,
-      // 0.33 s; the trip's column centre +0.9 m, hooked at 0.2 s).
+      // 0.33 s; the trip's column, re-keyed: Ø 0.42 m, centre +1.3 m, R toe hooks the near face at 0.17 s,
+      // the L foot crosses its top ~5 cm clear).
       const trip = kind === 'trip';
       const clip = st.clip as RunnerAnim;
       const palms = clip === 'fall_pillar_b';
-      const contactT = trip ? 0.2 : palms ? 0.33 : 0.27;
-      const contactY = trip ? 0.9 : palms ? 1.77 : 1.85;
+      const contactT = trip ? 0.17 : palms ? 0.33 : 0.27;
+      const contactY = trip ? 1.3 : palms ? 1.77 : 1.85;
       const side = r.chance(0.5) ? 1 : -1;
-      // (The trip: the toppling pier piece, uniformly scaled to about 0.5 m across: a stout carved
-      // drum, not a pole, and low enough for fall_trip's hooked toe and swinging leg.)
+      // (The trip: the toppling pier piece, uniformly scaled to about 0.42 m across: a stout carved
+      // drum, not a pole, and low enough for fall_trip's hooked toe and the leg that steps over.)
       const piece = trip ? 'pillar_topple_0' : 'pillar_0';
       const geo = this.kit.geo.get(piece);
       if (geo && !geo.boundingBox) geo.computeBoundingBox();
@@ -1594,8 +1595,7 @@ export class Game {
       const across = bb ? Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) : 0.95;
       // Long enough to span the way and rest on the far side.
       const reach = 2 * PATH_HALF + 1.4;
-      const sc = trip ? 0.385 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
-      // The trip's column is slim (about 0.4 m across lying down: a toe catches its top).
+      const sc = trip ? 0.3234 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
       const girth = 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
