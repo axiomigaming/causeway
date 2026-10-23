@@ -29,7 +29,8 @@ await page.waitForFunction(() => document.body.dataset.ready === '1', null, { ti
 await page.addStyleTag({ content: '#app{visibility:hidden !important} #world{transition:none !important;opacity:1 !important}' });
 
 const lum = async (buf) => {
-  const { data, info } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  // Blurred: a ghost is a patch, re-render noise is single pixels (motes, sparkle).
+  const { data, info } = await sharp(buf).removeAlpha().blur(2.5).raw().toBuffer({ resolveWithObject: true });
   return { data, n: info.width * info.height };
 };
 let failed = 0;
@@ -87,8 +88,9 @@ for (let w = 1; w <= n; w++) {
     }
     const mean = sum / a.data.length;
     tested++;
-    // A ghost over him shows as a patch of several levels; noise from re-rendering stays ~0.
-    const ok = mean < 0.6 && max < 24;
+    // A ghost over him shows as a patch several levels bright even after the blur; single-pixel
+    // noise from re-rendering does not survive it.
+    const ok = mean < 0.6 && max < 8;
     if (!ok) failed++;
     console.log(`${ok ? 'ok  ' : 'FAIL'} world ${w} t${k} sun ${s.on.toFixed(2)} rect ${clip.width}x${clip.height} mean ${mean.toFixed(2)} max ${max}`);
   }

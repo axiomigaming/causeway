@@ -104,9 +104,11 @@ export class Water {
         }
         // Splashes: a ring of waves running out from the impact (gradient of a damped radial wave)
         // and the foam it throws, both fading as it spreads.
-        vec2 splashGrad(vec2 p, float t, out float foam) {
+        vec2 splashGrad(vec2 p, float t, out float foam, out float rim, out float gap) {
           vec2 g = vec2(0.0);
           foam = 0.0;
+          rim = 0.0;
+          gap = 0.0;
           for (int i = 0; i < 4; i++) {
             vec4 s = uSplash[i];
             float age = t - s.z;
@@ -125,10 +127,22 @@ export class Water {
             // over 2–3 s.
             vec2 adv = p - d / r * min(age, 2.0) * 0.5;
             float churn = wnoise(adv * 2.6 + vec2(age * 0.5, -age * 0.35)).x * 0.6 + wnoise(adv * 6.5 - age * 0.8).x * 0.4;
-            float core = smoothstep(0.45 + age * 0.45, 0.0, r) * exp(-age * 2.2) * (0.75 + 0.25 * churn);
-            float band = smoothstep(front * 0.9 + 0.3, front * 0.55, r) * exp(-age * 0.75);
-            float marble = smoothstep(0.46 + age * 0.05, 0.68 + age * 0.05, churn) * (0.7 + 0.3 * wnoise(adv * 13.0 + age).x);
-            foam += s.w * (core * 0.9 + band * marble * 0.55);
+            // Round 19: crisp. Patches are cut from the churn with a narrow edge, holed by a finer
+            // lace, carry a bright rim where the foam piles up at their edge, and the water between
+            // them is darker (churned, aerated, shaded by the foam): white water, not a soft blob.
+            float lace = wnoise(adv * 11.0 + age * 0.9).x;
+            float th = 0.5 + age * 0.06;
+            float cell = smoothstep(th, th + 0.035, churn) * smoothstep(0.28, 0.36, lace);
+            float edge = smoothstep(th, th + 0.02, churn) * (1.0 - smoothstep(th + 0.04, th + 0.1, churn));
+            float coreR = 0.5 + age * 0.5;
+            float core = smoothstep(coreR, coreR * 0.6, r) * exp(-age * 1.8);
+            float band = smoothstep(front * 0.92 + 0.3, front * 0.6, r) * exp(-age * 0.7);
+            float w = s.w * max(core, band);
+            // (Inside a patch: fine bubbly texture, not a flat white fill.)
+            float fizz = 0.72 + 0.28 * wnoise(adv * 26.0 - age * 1.3).x;
+            foam += w * cell * mix(0.62, 0.95, core) * fizz;
+            rim += w * edge;
+            gap += w * (1.0 - cell) * 0.6;
           }
           return g;
         }
@@ -165,8 +179,8 @@ export class Water {
           g *= 1.0 / (1.0 + dist * 0.02);
           // Round 17: multi-scale ripples on every tier (the close water read as a flat sheet).
           g += ripples(vWorld.xz, uTime, dist) * uRipple;
-          float splashFoam;
-          g += splashGrad(vWorld.xz, uTime, splashFoam);
+          float splashFoam, splashRim, splashGap;
+          g += splashGrad(vWorld.xz, uTime, splashFoam, splashRim, splashGap);
           // Round 11: fine ripples close to the eye break the mirror into glitter (ref17).
           if (uDetail > 1) {
             vec2 rp = vWorld.xz * 3.1;
@@ -269,7 +283,10 @@ export class Water {
           // The glint itself stays hot (it blooms), but only the narrow core: the broad lobe is capped.
           col += uSunColor * min(spec, 6.0);
           // Splash foam: churned white water fading as the rings spread.
-          col = mix(col, vec3(0.86, 0.93, 0.9) * (0.75 + 0.25 * depthLook), clamp(splashFoam, 0.0, 0.8));
+          // Splash: darker churned water between the patches, then the foam, with a bright rim.
+          col *= 1.0 - 0.35 * clamp(splashGap, 0.0, 1.0);
+          col = mix(col, vec3(0.86, 0.93, 0.9) * (0.75 + 0.25 * depthLook), clamp(splashFoam, 0.0, 0.92));
+          col += vec3(0.32, 0.36, 0.34) * clamp(splashRim, 0.0, 1.0);
           // Alpha marks water for the screen-space reflections (the canvas itself is opaque).
           gl_FragColor = vec4(col, uMark);
           if (uDbg > 0.5) gl_FragColor = vec4(fract(pathDist(vWorld.xz)), step(2.2, pathDist(vWorld.xz)), 0.0, uMark);
