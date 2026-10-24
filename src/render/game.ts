@@ -714,7 +714,13 @@ export class Game {
     if (st.kind === 'ledge' && !(this.runner as unknown as { actions: Map<string, unknown> }).actions.has('fall_drop')) st.kind = 'chasm';
     if ((st.kind === 'chasm' || st.kind === 'ledge') && this.tileEdge(this.s + 1.4, this.s + (this.speed * 0.45) / 2 + 5) === null) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
-    this.setStage('crash');
+    // A pier or a column coming down: he runs on toward it for most of a second, and the chase lens
+    // stays with him (stageCrash switches to the crash shot as the clip starts). The settled crash
+    // spring let him run 6 m out ahead of the lens before the trip.
+    if ((st.kind === 'pillar' || st.kind === 'trip') && !standing) {
+      this.stage = 'crash';
+      this.stageT = 0;
+    } else this.setStage('crash');
     this.slowFloor = this.slowFloorTarget = 0;
     this.obstacles.settle();
     this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
