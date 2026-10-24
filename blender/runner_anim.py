@@ -459,6 +459,9 @@ def _stance_leg(s, ph, t, G):
     return at, knee, ankle, toe
 
 
+STRIKE_M = 1.0
+
+
 def _leg_state(s, ph, G):
     off = 0.0 if s == "L" else 0.5
     t = (ph + off) % 1.0
@@ -475,7 +478,9 @@ def _leg_state(s, ph, G):
     a1p = _stance_leg(s, (ph_td + e) % 1.0, e, G)[:3]
     sw = 1.0 - ts
     m0 = [(x - y) / (e / sw) * 0.6 for x, y in zip(a0, a0m)]   # the push-off's momentum carries into swing (C1: no corner)
-    m1 = [(y - x) / (e / sw) * 0.6 for x, y in zip(a1, a1p)]
+    # ... and the paw-back meets the stance at its own speed (C1 into the strike: at 0.6 of it the foot
+    # still drifted forward over the floor at ~40% of the run's pace through the strike frame).
+    m1 = [(y - x) / (e / sw) * STRIKE_M for x, y in zip(a1, a1p)]
     m0[1] = max(0.0, m0[1])  # the knee folds straight after toe-off, never locks back
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
     at, knee, ankle = _hermite(pts, (t - ts) / sw)
@@ -770,14 +775,24 @@ def build(rig):
     arm(P, "R", fwd=1.05, elbow=1.5, out=0.1, curl=1.0, prot=0.1)
     arm(P, "L", fwd=-0.85, elbow=1.05, out=0.22, curl=1.0)
     key(19, P)
-    P, x = loco(0.25, SPRINT, 0.85)
-    key(22, P, z=gait_root(0.25, SPRINT, 0.85), x=x)
-    P, x = loco(0.5, RUN, 0.95)
-    key(26, P, z=gait_root(0.5, RUN, 0.95), x=x)
-    P, x = loco(0.75, RUN)
-    key(29, P, z=gait_root(0.75, RUN), x=x)
-    P0, x0 = loco(0.0, RUN)
-    key(32, P0, z=gait_root(0.0, RUN), x=x0)
+    P19, z19 = P, solve_root(P)
+    # Into the run: keyed every frame on the gait itself (phase 0 = this left strike at frame 19, the next at
+    # 32), the stride lengthening. Keyed every 3-4 frames, the in-betweens dropped the swinging foot to the
+    # floor early and it touched down still travelling (the "planted" foot slid ~9 cm/frame in game). The
+    # legs take the gait over 2 frames, the trunk and arms over 6 (cut in at once, the arms swung 70°+ in
+    # a frame).
+    for fr in range(20, 33):
+        ph = (fr - 19) / 13
+        k = 0.85 + 0.15 * min(1.0, (fr - 19) / 10)
+        G, x = loco(ph % 1.0, RUN, k)
+        z = gait_root(ph % 1.0, RUN, k)
+        wl = ease((fr - 19) / 2.0)
+        wb = ease((fr - 19) / 6.0)
+        P = {}
+        for nm in set(G) | set(P19):
+            w = wl if nm.split(".")[0] in ("thigh", "shin", "foot", "toe") else wb
+            P[nm] = lerp_pose({nm: P19.get(nm, (0.0, 0.0, 0.0))}, {nm: G.get(nm, (0.0, 0.0, 0.0))}, w)[nm]
+        key(fr, P, z=z19 + (z - z19) * wl, x=x * wl)
 
     # ---------------------------------------------------------- chasm: skid, teeter and windmill at the edge, sit back hard
     new_action("fall_chasm")
@@ -1043,6 +1058,11 @@ def build(rig):
             for kp in fc.keyframe_points:
                 kp.interpolation = "LINEAR" if gait else "BEZIER"
     for act in bpy.data.actions:
+        if act.name in ("jump_log", "leap_gap", "vault"):
+            ease_hips(act)
+        elif act.name == "slide":
+            ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
+    for act in bpy.data.actions:
         # (Not the vault: its support arm is baked to the stone.)
         if act.name == "start" or act.name.startswith(("fall_", "win", "jump_", "leap_", "slide", "turn_cut", "stumble_")):
             follow_through(act)
@@ -1056,6 +1076,34 @@ FOLLOW = [("neck", 0, ("hips", "spine", "chest"), 0.22), ("head", 0, ("hips", "s
           ("head", 2, ("spine", "chest"), 0.25),
           ("forearm.L", 0, ("upper_arm.L",), 0.3), ("forearm.R", 0, ("upper_arm.R",), 0.3),
           ("hand.L", 0, ("upper_arm.L", "forearm.L"), 0.25), ("hand.R", 0, ("upper_arm.R", "forearm.R"), 0.25)]
+
+
+def ease_hips(act, sigma=1.25, upto=None):
+    """Take-offs and landings with a body behind them: the hips' path is smoothed (Gaussian, σ in frames),
+    so the change from the stride's rise and fall into the flight arc, and out of it onto the landing leg,
+    builds over 2–3 frames instead of in one (a one-frame kink is a 11–16 cm/frame² jolt). The arc itself
+    barely changes (a parabola sinks by its curvature × σ²/2: under a centimetre). The ends are padded by
+    odd reflection, so the clip still starts and ends on the gait it joins."""
+    f0, f1 = (int(x) for x in act.frame_range)
+    frames = list(range(f0, f1 + 1))
+    r = int(math.ceil(3 * sigma))
+    wts = [math.exp(-0.5 * (d / sigma) ** 2) for d in range(-r, r + 1)]
+    sw = sum(wts)
+    for fc in act.fcurves:
+        if fc.data_path != 'pose.bones["hips"].location':
+            continue
+        v = [fc.evaluate(t) for t in frames]
+        n = len(v)
+        pad = [2 * v[0] - v[min(n - 1, r - i)] for i in range(r)] + v + [2 * v[-1] - v[max(0, n - 2 - i)] for i in range(r)]
+        out = [sum(w * pad[i + j] for j, w in enumerate(wts)) / sw for i in range(n)]
+        if upto is not None:
+            # Smoothed up to frame `upto`, blended back to the keyed curve over the next 3 frames.
+            out = [o + (x - o) * ease((t - upto) / 3.0) for t, o, x in zip(frames, out, v)]
+        fc.keyframe_points.clear()
+        for t, x in zip(frames, out):
+            kp = fc.keyframe_points.insert(t, x, options={"FAST"})
+            kp.interpolation = "LINEAR"
+        fc.update()
 
 
 def follow_through(act, hz=2.4, zeta=0.42, lim=0.3):
@@ -1129,21 +1177,57 @@ def decel(f0=1):
     """Run → stop over ~1 s: four slowing steps, each a little longer, the stride shortening, the arm
     swing dying away and the trunk coming up and back to brake; a last braking plant, a glance back over
     the shoulder at what he got away from, and the arms swinging on through it."""
-    run_in(f0)
-    for d, ph, k, back in ((5, 0.5, 0.8, 0.0), (11, 0.0, 0.6, 0.04), (18, 0.5, 0.42, 0.07), (26, 0.0, 0.26, 0.08)):
-        P, x = loco(ph, RUN, k)
+    # Keyed every frame on the ground-speed curve the game brakes the root on (game.ts BRAKE_KEYS:
+    # 5.6 m/s × brake(t), t in s): the stride shortens (amplitude k = brake^1.5) and the turnover is set
+    # so the stance foot slides back at exactly that speed (cadence × contact length / stance share), so
+    # a planted foot stays planted under the braking root frame by frame. The last strike (the right
+    # foot, ~frame 26) is the braking plant; the pose eases onto it as the body stops over it.
+    P_end = {}
+    torso(P_end, lean=0.12, look=0.12, hp=0.04, head_yaw=0.55, yaw=0.12)
+    leg(P_end, "R", hip=0.4, knee=0.3, ankle=-0.18)
+    leg(P_end, "L", hip=0.0, knee=0.4, ankle=0.18, toe=0.2)
+    arm(P_end, "R", fwd=0.55, elbow=0.8, out=0.3, curl=0.4)
+    arm(P_end, "L", fwd=0.4, elbow=0.9, out=0.3, curl=0.4)
+    z_end = solve_root(P_end)
+    S = RUN["D"] / RUN["ts"]
+    ph = 0.0
+    f_plant = None
+    for i in range(DECEL):
+        t = i / FPS
+        b = brake(t)
+        k = max(0.05, b ** 1.5)
+        back = 0.08 * min(1.0, max(0.0, (t - 0.17) / 0.5)) ** 0.8
+        P, x = loco(ph % 1.0, RUN, k)
+        z = gait_root(ph % 1.0, RUN, k)
         nudge(P, "spine", dx=0.55 * back)
         nudge(P, "chest", dx=0.45 * back)
         nudge(P, "neck", dx=-0.3 * back)
-        key(f0 + d - 1, P, z=gait_root(ph, RUN, k), x=x)
-    P = {}
-    torso(P, lean=0.12, look=0.12, hp=0.04, head_yaw=0.55, yaw=0.12)
-    leg(P, "L", hip=0.4, knee=0.3, ankle=-0.18)
-    leg(P, "R", hip=0.0, knee=0.4, ankle=0.18, toe=0.2)
-    arm(P, "L", fwd=0.55, elbow=0.8, out=0.3, curl=0.4)
-    arm(P, "R", fwd=0.4, elbow=0.9, out=0.3, curl=0.4)
-    key(f0 + DECEL, P)
+        if f_plant is not None:
+            w = ease((i - f_plant) / (DECEL - f_plant))
+            P = lerp_pose(P, P_end, w)
+            z = z + (z_end - z) * w
+            x = x * (1 - w)
+        key(f0 + i, P, z=z, x=x)
+        bm = brake((i + 0.5) / FPS)
+        ph += CLIP_PACE * bm / (S * (0.35 + 0.65 * max(0.05, bm ** 1.5))) / FPS
+        if f_plant is None and ph >= 1.5:
+            f_plant = i + 1
+    key(f0 + DECEL, P_end)
     return f0 + DECEL
+
+
+CLIP_PACE = 5.6  # m/s: the run pace the escapes' slowing steps start from (game.ts CLIP_PACE)
+BRAKE_KEYS = ((0.0, 1.0), (0.17, 4.5 / 5.6), (0.37, 3.4 / 5.6), (0.6, 2.3 / 5.6), (0.87, 1.5 / 5.6), (1.0, 0.0))
+
+
+def brake(t):
+    """The braking speed curve (share of CLIP_PACE) at t s into the slowing steps: game.ts brakeCurve."""
+    if t <= 0:
+        return 1.0
+    for (u0, v0), (u1, v1) in zip(BRAKE_KEYS, BRAKE_KEYS[1:]):
+        if t <= u1:
+            return v0 + (v1 - v0) * (t - u0) / (u1 - u0)
+    return 0.0
 
 
 def balls(P, x=0.0, y=0.0):
@@ -1803,6 +1887,47 @@ def nudge(P, bone, dx=0.0, dy=0.0, dz=0.0):
     P[bone] = (a[0] + dx, a[1] + dy, a[2] + dz)
 
 
+OBST_CADENCE = 1.945  # stride cycles per clip second through the moves (runner.ts OBST_CADENCE)
+
+
+def hand_back(f_land, Q, ph_end, f_end, f_pose=None, k0=1.0, absorb=None, sink=0.0, zq=None):
+    """Landing → run, keyed every frame. The run's phase counts back from ph_end on f_end at the moves'
+    cadence; the landing pose Q (on f_pose, default the landing frame) eases into it over 3 frames; an
+    absorb (a callback nudging the pose by a weight, and a sink of the hips) peaks 2 frames after the
+    landing and is gone by f_end."""
+    f_pose = f_land if f_pose is None else f_pose
+    zq = solve_root(Q) if zq is None else zq
+    if f_pose > f_land:
+        key(f_pose, Q, z=zq)
+    for fr in range(f_pose + 1, f_end + 1):
+        ph = (ph_end - (f_end - fr) * OBST_CADENCE / FPS) % 1.0
+        k = k0 + (1.0 - k0) * (fr - f_pose) / (f_end - f_pose)
+        P, x = loco(ph, RUN, k)
+        z = gait_root(ph, RUN, k)
+        a = max(0.0, 1.0 - abs(fr - (f_land + 2)) / 2.0) if absorb else 0.0
+        if a > 0:
+            absorb(P, a)
+            z -= sink * a
+        # The legs take the gait over 3 frames; the trunk and arms over the rest of the clip (cut in with
+        # the legs, the arms swung ~40° in a frame into the gait's pump).
+        w = ease((fr - f_pose) / 3.0)
+        wb = ease((fr - f_pose) / float(f_end - f_pose))
+        if wb < 1.0:
+            P = {nm: lerp_pose({nm: Q.get(nm, (0.0, 0.0, 0.0))}, {nm: P.get(nm, (0.0, 0.0, 0.0))},
+                               w if nm.split(".")[0] in ("thigh", "shin", "foot", "toe") else wb)[nm]
+                 for nm in set(Q) | set(P)}
+            z = zq + (z - zq) * w
+            x *= w
+        key(fr, P, z=z, x=x)
+
+
+def run_up(f_end):
+    """The moves' run-in keyed every frame on the gait at the moves' cadence (frame 1 = the left strike):
+    two gait keys three frames apart, Bezier-joined, bent the shins off the gait's own path."""
+    for fr in range(1, f_end + 1):
+        gkey(fr, (fr - 1) * OBST_CADENCE / FPS)
+
+
 def gkey(fr, ph, G=None, k=1.0, **mods):
     G = G or RUN
     P, x = loco(ph, G, k)
@@ -1862,8 +1987,7 @@ def obstacle_clips():
     # back; the left (trail) leg folds and comes over high and out to the side, then pulls through to
     # become the next stride. The right foot takes the landing and he is straight back into the run.
     new_action("jump_log")
-    run_in()
-    gkey(4, 0.2)
+    run_up(4)
     T = {}
     torso(T, lean=0.38, look=0.4, hp=0.18, yaw=0.08, hyaw=-0.06)
     leg(T, "L", hip=-0.42, knee=0.25, ankle=0.8, toe=0.75)
@@ -1902,18 +2026,15 @@ def obstacle_clips():
     arm(D, "L", fwd=-0.55, elbow=1.15, out=0.25, curl=0.45)
     zl = gait_root(0.5, RUN)
     air(6, JL_LAND, [(0.0, T), (0.17, U1), (0.5, U2), (0.78, U3), (1.0, D)], zt, zl, JL_H)
-    # No pause: a slightly deeper first stance (soaking the drop), then the stride rolls on.
-    P, x = loco(0.6, RUN)
-    nudge(P, "shin.R", dx=0.12)
-    nudge(P, "thigh.R", dx=-0.06)
-    key(JL_LAND + 2, P, z=gait_root(0.6, RUN) - 0.025, x=x)
-    gkey(JL_LAND + 4, 0.7)
+    # No pause: a slightly deeper first stance (soaking the drop), then the stride rolls on. Keyed every
+    # frame on the run's own phase, advancing at the moves' cadence to the hand-back phase on the last
+    # frame, so the run takes over a leg already where it puts it (no shin snapping across).
+    hand_back(JL_LAND, D, 0.7, JL_LAND + 4, absorb=lambda P, w: (nudge(P, "shin.R", dx=0.12 * w), nudge(P, "thigh.R", dx=-0.06 * w)), sink=0.025, zq=zl)
 
     # ---------------------------------------------------------- leap_gap: bound across a 1.5–3 m gap
     # (nominal 0.5 s flight; the runtime stretches the flight and its arc to the actual gap)
     new_action("leap_gap")
-    run_in()
-    gkey(4, 0.2)
+    run_up(4)
     T = {}
     torso(T, lean=0.45, look=0.5, hp=0.2)
     leg(T, "L", hip=-0.45, knee=0.2, ankle=0.8, toe=0.75)
@@ -1956,8 +2077,7 @@ def obstacle_clips():
 
     # ---------------------------------------------------------- slide: under a low beam (head ≤ ~1.0 m), up running
     new_action("slide")
-    run_in()
-    gkey(4, 0.2)
+    run_up(4)
     P = {}
     torso(P, lean=-0.2, look=0.4, hp=-0.08)
     leg(P, "L", hip=1.05, knee=0.35, ankle=-0.15)
@@ -1998,14 +2118,17 @@ def obstacle_clips():
     # leans out over it while both legs swing round to the left, near level, knees soft; the hand stays
     # put as he passes over it (it slides back with the floor), then shoves off; the left foot lands.
     new_action("vault")
-    run_in()
-    gkey(4, 0.2)
+    run_up(4)
     T = {}
     torso(T, lean=0.55, look=0.45, hp=0.2, yaw=-0.1)
     leg(T, "L", hip=-0.35, knee=0.3, ankle=0.75, toe=0.65)
     leg(T, "R", hip=1.75, knee=2.15, ankle=-0.1)
     arm(T, "R", fwd=VA[0], elbow=0.25, out=0.12, wrist=-0.9, curl=0.25)
     arm(T, "L", fwd=0.5, elbow=1.0, out=0.45, curl=0.4)
+    # ... half-way there at the take-off from where the stride had it (all of it in 2 frames was a snap).
+    G6, _ = loco(5 * OBST_CADENCE / FPS, RUN)
+    for b in ("shoulder.L", "upper_arm.L", "forearm.L", "hand.L"):
+        T[b] = lerp_pose({b: G6.get(b, (0.0, 0.0, 0.0))}, {b: T.get(b, (0.0, 0.0, 0.0))}, 0.5)[b]
     zt = solve_root(T)
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
@@ -2014,6 +2137,9 @@ def obstacle_clips():
     leg(T2, "R", hip=2.05, knee=2.45, ankle=-0.45, yaw=VY * 0.7 * VT)
     standing_turned(T2, -VY * 0.6 * (1 - VT))
     arm(T2, "R", fwd=0.95, elbow=0.1, out=0.1, wrist=-1.1, curl=0.2)
+    # (The free arm keeps travelling out toward its balance pose: held at the take-off pose, it swung in
+    # ~26°/frame and stopped dead.)
+    arm(T2, "L", fwd=0.6, elbow=0.85, out=0.65, curl=0.38)
     # Plant (u 0.2 → 0.72): the arm sweeps from ahead of the shoulder to behind it as he passes over the
     # hand (world angle ≈ fwd − trunk pitch), so the palm keeps its place on the stone.
     P1 = {}
@@ -2058,9 +2184,7 @@ def obstacle_clips():
     leg(A, "R", hip=0.75, knee=1.6, ankle=0.15)
     arm(A, "R", fwd=0.7, elbow=1.3, out=0.25, curl=0.45)
     arm(A, "L", fwd=-0.4, elbow=1.2, out=0.3, curl=0.45)
-    key(V_LAND + 2, A)
-    gkey(V_LAND + 5, 0.3, k=0.9)
-    gkey(V_LAND + 8, 0.5)
+    hand_back(V_LAND, A, 0.5, V_LAND + 8, f_pose=V_LAND + 2, k0=0.9)
     # The palm on the stone: through the plant the right wrist is held (IK, baked) on the pillar's top,
     # which slides back past him with the floor at run pace (5 m/s in clip time).
     apex = 0.5 * (5 / 30 + (V_LAND - 1) / 30)
