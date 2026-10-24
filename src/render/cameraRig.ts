@@ -976,11 +976,14 @@ export class CameraRig {
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
     const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side);
-    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side);
+    // (Round 20: the celebration's leaps and raised arms move faster than the jerk-limited lens
+    // turns: the cash-out keeps more headroom so the lag never takes his head or hands off the frame.)
+    const head = this.mode === 'cashout' ? 0.14 : 0;
+    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head;
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
-    const mx = 1 - 0.09; // side margin in NDC (16 pt of a 390 pt phone)
+    const mx = 1 - 0.09 - (this.mode === 'cashout' ? (this.camera.aspect < 1 ? 0.1 : 0.06) : 0); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
     const measure = () => {

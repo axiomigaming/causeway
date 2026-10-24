@@ -1167,9 +1167,11 @@ export class Game {
     // lying on the stone below), keeping clear of its floor and walls.
     let floor = f.pos.y + 0.45;
     const L = this.ledgeBed;
-    if (L && this.stage === 'crash' && this.crashKind === 'ledge') {
+    if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
+      // (The open part only: the trough runs 1.6 m further back under floor that still stands.
+      // Local z runs back along the way: +len/2 is its near end.)
       const lp = L.worldToLocal(this.tmpLedge.copy(p));
-      if (Math.abs(lp.x) < this.ledgeDims[0] / 2 - 0.35 && Math.abs(lp.z) < this.ledgeDims[1] / 2 - 0.35) floor = L.position.y + 0.8;
+      if (Math.abs(lp.x) < this.ledgeDims[0] / 2 - 0.35 && lp.z > -this.ledgeDims[1] / 2 + 0.35 && lp.z < this.ledgeDims[1] / 2 - 2.0) floor = L.position.y + 0.8;
     }
     p.y = Math.max(p.y, floor);
   }
@@ -2644,7 +2646,8 @@ export class Game {
         this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).sub(rp).setY(0);
         // (Round 20: the fall onto the stone takes him 2.75 m below his root: the shot's ground is
         // the trough's floor, or the close-in hung 4 m over him.)
-        if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed) this.tmpSubj.y = this.ledgeBed.position.y - rp.y;
+        // (Only once he is down: earlier, the lens sank through the floor still standing behind him.)
+        if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed && this.rig.closeIn > 0) this.tmpSubj.y = this.ledgeBed.position.y - rp.y;
         if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
         // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
         // second: chasing that flew the lens metres); keepInFrame measures the body at once.

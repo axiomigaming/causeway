@@ -217,6 +217,7 @@ async function cameraMotion(page, view) {
         const P = [];
         const Q = [];
         const L = [];
+        const O = [];
         // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
         const B = [];
         const bones = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'].map((n) => g.runner.body.getObjectByName(n)).filter(Boolean);
@@ -231,6 +232,9 @@ async function cameraMotion(page, view) {
           P.push([p.x, p.y, p.z]);
           Q.push([q.x, q.y, q.z, q.w]);
           L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
+          // Every 3rd frame: how many of the sight lines from the lens to him are blocked (a lens
+          // inside a slab or behind a wall).
+          if (f % 3 === 0) O.push([f, g.debugFraming().solid]);
           B.push(
             bones.map((b) => {
               const v = b.getWorldPosition(cam.position.clone()).project(cam);
@@ -241,7 +245,7 @@ async function cameraMotion(page, view) {
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
-        return { P, Q, L, B, dbg, kind: g.debugState?.crashKind ?? null };
+        return { P, Q, L, B, O, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -279,6 +283,9 @@ async function cameraMotion(page, view) {
       const at0 = p0.map((p, i) => (p[2] < 1 && (Math.abs(p[0]) > 0.98 || Math.abs(p[1]) > 0.98) ? `${names[i]} ${p[0].toFixed(2)},${p[1].toFixed(2)}` : null)).filter(Boolean);
       problems.push(`figure clipped in ${clipped.length} frames (f${clipped[0]}..f${clipped[clipped.length - 1]}: ${at0.join(' ')})`);
     }
+    // Blocked: three or more of the five sight lines, on two samples running.
+    const blocked = r.O.filter(([, n], i) => n >= 3 && r.O[i - 1]?.[1] >= 3).map(([f]) => f);
+    if (!under && blocked.length) problems.push(`lens blocked (f${blocked[0]}..f${blocked[blocked.length - 1]}, ${blocked.length} samples)`);
     if (!under && ext < 0.2) problems.push(`figure ${(ext * 100).toFixed(0)} % of the frame at the end`);
     if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
