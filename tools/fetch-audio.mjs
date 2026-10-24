@@ -90,6 +90,14 @@ export const QUERIES = [
   // Round 15: world styles get their own beds (the rainforest's rain, a second bird chorus)
   { key: 'rain', q: 'rain on leaves', dur: [15, 600] },
   { key: 'birds', q: 'tropical birds', dur: [15, 600] },
+  // Round 16: crash tails and the land sections (jungle floor, forest, dry ravine)
+  { key: 'pebbles', q: 'pebbles falling', dur: [0.5, 30] },
+  { key: 'bubbles', q: 'underwater bubbles', dur: [1, 60] },
+  { key: 'step_dirt', q: 'footsteps dirt', dur: [0.5, 60] },
+  { key: 'step_leaves', q: 'footsteps leaves', dur: [0.5, 60] },
+  { key: 'twig', q: 'twig snap', dur: [0.1, 15] },
+  { key: 'forest', q: 'forest ambience', dur: [20, 900] },
+  { key: 'ravine_wind', q: 'canyon wind', dur: [10, 600] },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -116,7 +124,12 @@ async function search() {
     if (cached(q.key)) continue;
     const u = `${API}?q=${encodeURIComponent(q.q)}&license=cc0,by,pdm&source=freesound,jamendo&page_size=20`;
     const r = await fetch(u, { headers: { 'User-Agent': 'causeway-audio-pipeline/1.0' } });
-    if (!r.ok) throw new Error(`${q.key}: HTTP ${r.status}`);
+    if (!r.ok) {
+      // Nothing is cached for a failed search, so it does not count as this kind's one search; go on.
+      console.warn(`${q.key}: HTTP ${r.status} (not cached; retry later)`);
+      await sleep(1500);
+      continue;
+    }
     const j = await r.json();
     writeFileSync(join(SEARCH, `${q.key}.json`), JSON.stringify({ query: q.q, at: new Date().toISOString(), ...j }, null, 1));
     console.log(`${q.key.padEnd(12)} "${q.q}": ${j.result_count} results, ${usable(q, j).length} usable on page 1`);

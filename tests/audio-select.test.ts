@@ -117,6 +117,14 @@ describe('slices, formats, world mapping', () => {
     expect(surfaceFor('gorge', 'wood', rnd)).toBe('wood');
     expect(bedMix('gorge').waterfall).toBe(1);
     expect(bedMix(null).waterfall).toBe(0);
+    // Round 16 land sections: earth underfoot in the forest, the ravine's wind and no river there.
+    const dirt = Array.from({ length: 200 }, () => surfaceFor('forest', 'stone', rnd)).filter((x) => x === 'dirt').length;
+    expect(dirt).toBeGreaterThan(120);
+    expect(surfaceFor('forest', 'wood', rnd)).toBe('wood');
+    expect(bedMix('ravine').ravine).toBe(1);
+    expect(bedMix('ravine').river).toBe(0);
+    expect(bedMix('forestWall').forest).toBeGreaterThan(bedMix('forest').forest);
+    expect(bedMix(null).forest).toBe(0);
   });
 
   it('generic sfx names resolve; unknown names are a no-op', () => {
