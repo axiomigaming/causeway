@@ -1371,7 +1371,7 @@ export class Game {
         kick(1);
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
         this.slowFloorTarget = 0;
-        this.rig.closeIn = 1;
+        this.rig.closeIn = 1.3;
       });
       this.holdReveal(LEDGE_LAND + 0.25);
       slow(LEDGE_LAND + 0.05, 0.6, 0.2);
@@ -2642,6 +2642,9 @@ export class Game {
         // This frame's pose (the bones' world matrices otherwise update only at render).
         this.runner.body.updateWorldMatrix(true, true);
         this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).sub(rp).setY(0);
+        // (Round 20: the fall onto the stone takes him 2.75 m below his root: the shot's ground is
+        // the trough's floor, or the close-in hung 4 m over him.)
+        if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed) this.tmpSubj.y = this.ledgeBed.position.y - rp.y;
         if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
         // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
         // second: chasing that flew the lens metres); keepInFrame measures the body at once.

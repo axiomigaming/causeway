@@ -525,7 +525,9 @@ export class CameraRig {
         this.closeK += ((this.closeIn > 0 ? 1 : 0) - this.closeK) * (1 - Math.exp(-dt * 1.6));
         this.wideK += ((this.wide > 0 && this.closeIn <= 0 ? 1 : 0) - this.wideK) * (1 - Math.exp(-dt * 6));
         let cf = this.crashFrame(T / (1 + 0.5 * this.epic), s);
-        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2, lat: 1.35 * (s || 1), up: 1.75, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
+        // (closeIn > 1 comes closer still; a portrait screen opens its lens, so it comes closer too.)
+        const ck = (this.camera.aspect < 1 ? 0.72 : 1) / Math.max(1, this.closeIn);
+        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * (s || 1), up: 0.35 + 1.4 * ck, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         break;
       }

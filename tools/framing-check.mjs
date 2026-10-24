@@ -238,7 +238,10 @@ async function cameraMotion(page, view) {
             }),
           );
         }
-        return { P, Q, L, B, kind: g.debugState?.crashKind ?? null };
+        const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
+        const cp = cam.getWorldPosition(cam.position.clone());
+        const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
+        return { P, Q, L, B, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -285,7 +288,7 @@ async function cameraMotion(page, view) {
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}%${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}%${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;
