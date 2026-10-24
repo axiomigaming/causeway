@@ -114,5 +114,16 @@ runner_anim.build(rig)
 if PREVIEW:
     runner_anim.previews(rig, PREVIEW)
     sys.exit(0)
+# The clips are authored from frame 1 and the runtime reads clip seconds as (frame − 1) / 30, but the
+# exporter writes a key's time as frame / 30: every clip started with a one-frame hold (three.js holds the
+# first key before it), and a gait cycle froze a frame at each wrap (the left strike: the planted foot
+# rode the floor ~9 cm). Shift every action to start on frame 0.
+for act in bpy.data.actions:
+    for fc in act.fcurves:
+        for kp in fc.keyframe_points:
+            kp.co.x -= 1
+            kp.handle_left.x -= 1
+            kp.handle_right.x -= 1
+        fc.update()
 export_glb(os.path.join(OUT, "runner.glb"), [rig, mesh], anim=True, webp=False)
 os._exit(0)  # bpy can crash on interpreter teardown after an export

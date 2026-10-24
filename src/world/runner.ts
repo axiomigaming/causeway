@@ -662,7 +662,9 @@ export class Runner {
       if (a.time >= O.duration - 0.04) {
         this.obst = null;
         this.start('run', 0.1, 0);
-        this.phase = O.to;
+        // The run joins at the phase the clip has reached (its last frames step on at OBST_CADENCE to
+        // O.to on the final frame), not at O.to a frame or so early: that jump snapped the shins.
+        this.phase = (((O.to + (a.time - O.duration) * OBST_CADENCE) % 1) + 1) % 1;
       }
     }
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
@@ -1272,7 +1274,15 @@ export class Runner {
       // (The escapes' slowing steps while the game still carries him on: a pin there held a foot behind
       // the moving body until the leg ran out of reach, then let go: the foot jumped 40-50 cm.)
       const carried = this.speed > 1.2 && this.current.startsWith('win');
-      const free = !active || sliding || turning || kneeling || carried || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      // An obstacle move's flight (take-off to landing): the push-off foot goes with the clip from its
+      // toe-off (held to the floor while the leg folds away, it ran out of reach and let go with a snap).
+      // The log jump and the vault land straight onto the gait, keyed frame by frame on the floor's pace: no
+      // pin after their landing either (one catching the foot mid-touchdown jolted the shin ~20°, and its
+      // fade-out at the hand-back dragged the leg into the swing).
+      const O = this.obst && this.current === this.obst.name ? OBSTACLES[this.obst.name] : null;
+      const keyedOn = this.current === 'jump_log' || this.current === 'vault';
+      const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || t < O.land - 0.02);
+      const free = !active || sliding || turning || kneeling || carried || flying || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
@@ -1280,7 +1290,7 @@ export class Runner {
       } else if (f.locked && h > 0.16) f.locked = false;
       // Gone below the floor (the drop), or sliding along it: let go at once.
       if (h < -0.05 || sliding || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : 10)));
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : 10)));
       if (f.w < 0.01) continue;
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);
       const target = this.v2.copy(ankle).lerp(f.pos, f.w);
