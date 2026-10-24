@@ -812,11 +812,11 @@ export class CameraRig {
     const t = this.t;
     // Round 20 (motion critic): the impact part of the shake heaves at 1.5-2.5 Hz (a heavy knock,
     // ≤ 5 cm/frame² at 30 fps), not the tremor's 3-7 Hz buzz, which at impact amplitude jerked the
-    // lens ~40 cm/frame².
+    // lens ~40 cm/frame². Its heave is also 30 % smaller.
     const tA = base * m;
-    const kA = this.trauma * this.trauma * 0.35 * m;
-    const sx = (Math.sin(t * 17.3) * 0.6 + Math.sin(t * 31.1 + 1.3) * 0.4) * tA + (Math.sin(t * 9.7) * 0.6 + Math.sin(t * 14.3 + 1.3) * 0.4) * kA;
-    const sy = (Math.sin(t * 21.7 + 0.7) * 0.6 + Math.sin(t * 43.3 + 2.1) * 0.4) * tA + (Math.sin(t * 11.9 + 0.7) * 0.6 + Math.sin(t * 15.7 + 2.1) * 0.4) * kA;
+    const kA = this.trauma * this.trauma * 0.24 * m;
+    const sx = (Math.sin(t * 17.3) * 0.6 + Math.sin(t * 31.1 + 1.3) * 0.4) * tA + (Math.sin(t * 8.3) * 0.6 + Math.sin(t * 12.1 + 1.3) * 0.4) * kA;
+    const sy = (Math.sin(t * 21.7 + 0.7) * 0.6 + Math.sin(t * 43.3 + 2.1) * 0.4) * tA + (Math.sin(t * 10.1 + 0.7) * 0.6 + Math.sin(t * 13.3 + 2.1) * 0.4) * kA;
     // A slow handheld breath outside the run; in the run, an operator's sway (low, uneven).
     const breathe = running ? 0 : Math.sin(t * 0.7) * 0.012 * this.motionScale;
     const hand = running ? this.motionScale * (0.6 + 0.4 * intensity) : 0;

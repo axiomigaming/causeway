@@ -89,6 +89,27 @@ const SPRAY = new THREE.Color('#e9f2ee');
 /** Round 20: the ledge crash's drop onto the lower course (fall_drop's root drop) and its landing time. */
 const LEDGE_DROP = 2.75;
 const LEDGE_LAND = 0.93;
+/**
+ * Round 20 (character agent): the celebration clips' slowing steps (win_cheer, win_pump,
+ * win_cheer_big, win_leap, win_salute) are keyed for the ground speed falling from run pace
+ * (5.6 m/s) to a stand over the clip's first T s: 4.5 m/s at 0.17 s, 3.4 at 0.37, 2.3 at 0.6, 1.5
+ * at 0.87, 0 at 1.0 (T = 1). The root follows that curve so the planted feet plant.
+ */
+const CLIP_PACE = 5.6;
+const RUNON_EASE = 2.5;
+const BRAKE_KEYS: [number, number][] = [[0, 1], [0.17, 4.5 / 5.6], [0.37, 3.4 / 5.6], [0.6, 2.3 / 5.6], [0.87, 1.5 / 5.6], [1, 0]];
+function brakeCurve(u: number): number {
+  if (u <= 0) return 1;
+  if (u >= 1) return 0;
+  for (let i = 1; i < BRAKE_KEYS.length; i++) {
+    const [u1, v1] = BRAKE_KEYS[i]!;
+    const [u0, v0] = BRAKE_KEYS[i - 1]!;
+    if (u <= u1) return v0 + ((v1 - v0) * (u - u0)) / (u1 - u0);
+  }
+  return 0;
+}
+/** ∫₀¹ brakeCurve: the braking distance is v0 · T · BRAKE_AREA. */
+const BRAKE_AREA = BRAKE_KEYS.slice(1).reduce((a, [u1, v1], i) => a + ((u1 - BRAKE_KEYS[i]![0]) * (v1 + BRAKE_KEYS[i]![1])) / 2, 0);
 /** Tints for the lit dust clouds (multiplied by their sun and shade colours). */
 const DUST_T = new THREE.Color(0.92, 0.76, 0.6);
 const MIST_T = new THREE.Color(1.05, 1.08, 1.08);
@@ -868,6 +889,14 @@ export class Game {
     // Stop distance v·T/2 matches each clip's braking: cheer/lookback decelerate over four steps
     // (~1 s, runner round 16), so the root stops with the feet and they never slide.
     const T = { lookback: 1.0, cheer: 1.0, salute: 1.0, leap: 1.15 }[st.variant];
+    // Round 20 (character agent): the celebration clips' slowing steps are keyed from run pace
+    // (5.6 m/s) down to a stand over T on BRAKE_CURVE; faster, the root glided under planted feet.
+    // So the run-on eases him to that pace first, and the clip's braking follows the curve.
+    const curved = clip !== 'win_slide';
+    const vLand = curved && this.motion === 'full' ? Math.min(v, CLIP_PACE) : v;
+    const brakeD = curved ? vLand * T * BRAKE_AREA : (vLand * T) / 2;
+    this.runOnPace = curved && this.motion === 'full' ? CLIP_PACE : Infinity;
+    this.brake = null;
     // He is still running: he carries on through the last strides to safe ground before the gate of
     // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
     // money is settled already; only the picture runs on.
@@ -875,12 +904,22 @@ export class Game {
     // Safe ground is on the straight: with a corner coming up, he pulls up (and the gate stands)
     // before it — the celebration orbit inside a corner plaza ran the lens into its walls.
     const gateGap = 3.4 + 1.6 * E.g;
-    const corner = this.track.sections.find((sec) => (sec.type === 'turnL' || sec.type === 'turnR') && sec.s0 + sec.len > this.s - 2 && sec.s0 < this.s + v * runOn + (v * T) / 2 + gateGap + 4);
+    const corner = this.track.sections.find((sec) => (sec.type === 'turnL' || sec.type === 'turnR') && sec.s0 + sec.len > this.s - 2 && sec.s0 < this.s + v * runOn + brakeD + gateGap + 4);
     if (corner) {
-      const room = corner.s0 - 3 - gateGap - (v * T) / 2 - this.s;
+      const room = corner.s0 - 3 - gateGap - brakeD - this.s;
       runOn = room > v * 0.3 ? Math.min(runOn, room / v) : 0;
     }
-    const stop = this.s + v * runOn + (v * T) / 2;
+    // The run-on's distance as the kinematics below will run it (easing toward the clip's pace).
+    let runD = 0;
+    {
+      let sp = v;
+      const h = 1 / 120;
+      for (let t = 0; t < runOn - 1e-6; t += h) {
+        if (curved && sp > CLIP_PACE) sp += (CLIP_PACE - sp) * (1 - Math.exp(-h * RUNON_EASE));
+        runD += sp * h;
+      }
+    }
+    const stop = this.s + runD + brakeD;
     const gateAt = stop + gateGap;
     const fg = this.track.path.sample(gateAt);
     this.placeEscapeGate(fg.pos, fg.yaw);
@@ -892,6 +931,7 @@ export class Game {
       this.runOn = false;
       this.runner.play(clip as RunnerAnim, 0.2, st.offset);
       this.setStop(stop);
+      this.brake = curved ? { t: 0, v0: this.speed, T, s0: this.s } : null;
       this.fx.flash = 0.16 + 0.12 * E.g;
       this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
       // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
@@ -913,6 +953,9 @@ export class Game {
 
   /** The cash-out run-on is in progress (he keeps his speed to the gate). */
   private runOn = false;
+  /** The celebration's braking on the clip's own speed curve (see BRAKE_CURVE), from land(). */
+  private brake: { t: number; v0: number; T: number; s0: number } | null = null;
+  private runOnPace = Infinity;
   private escapeGateAt = 0;
 
   private escape: EscapeScale | null = null;
@@ -1209,7 +1252,9 @@ export class Game {
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
       const span = 4 + 2 * e;
-      this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 3.2);
+      // (Round 20: 2 m longer at the far end: the cave-in takes whole tiles, and past a short
+      // trough's end wall the lagoon showed in the hole.)
+      this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 5.2);
       B.settleBelow = bedY + 0.3;
       const pit = { origin: h.pos.clone(), right: h.right.clone(), half: PATH_HALF + 0.15, top: h.pos.y - 0.05 };
       const bed = (x: number, z: number) => {
@@ -1234,7 +1279,19 @@ export class Game {
           // the ones over his track break up as they go.)
           const along = tp.dot(h.fwd);
           const onTrack = Math.abs(tp.dot(h.right)) < 1.1 && along > -1.5 && along < 4;
-          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : Infinity, walls: pit, restitution: 0.18 });
+          // A slab as wide as the way (some sections' floors) tipping out to one side swung over
+          // him like a trapdoor and hid the landing: those drop near flat, pitch a little, and
+          // break up at once.
+          const tg = this.kit.geo.get(t.piece);
+          if (tg && !tg.boundingBox) tg.computeBoundingBox();
+          const ts = new THREE.Vector3().setFromMatrixScale(t.world);
+          const tb = tg?.boundingBox;
+          const wide = !!tb && Math.max((tb.max.x - tb.min.x) * ts.x, (tb.max.z - tb.min.z) * ts.z) > 1.7;
+          if (wide && onTrack) {
+            this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0.5, 1), r.range(-0.2, 0.2)), new THREE.Vector3().addScaledVector(h.right, r.range(-0.8, 0.8)), bed, { breakInto: 3, breakAfter: r.range(0.1, 0.16), walls: pit, restitution: 0.18 });
+            return;
+          }
+          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack || wide ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : wide ? r.range(0.2, 0.3) : Infinity, walls: pit, restitution: 0.18 });
           if (i % 2 === 0) {
             const p = new THREE.Vector3().setFromMatrixPosition(t.world);
             B.puff(p, { count: 1, spread: 1.2, jitter: 0.8, vel: new THREE.Vector3(0, 1.2, 0), size: [0.8, 2.4], life: 1.4, alpha: 0.22, tint: DUST_T, rise: 0.3 });
@@ -2366,8 +2423,21 @@ export class Game {
 
     // Kinematics. Crash and cash-out brake uniformly to a staged mark.
     if (this.stage === 'cashout' && this.runOn) {
-      // The "made it" run-on: full stride to safe ground (see cashout()).
+      // The "made it" run-on: full stride to safe ground (see cashout()), easing to the pace the
+      // celebration clips' slowing steps start from.
+      if (this.speed > this.runOnPace) this.speed += (this.runOnPace - this.speed) * (1 - Math.exp(-dt * RUNON_EASE));
       this.s += this.speed * dt;
+    } else if (this.stage === 'cashout' && this.brake) {
+      // The clip's own braking: speed on its curve, so the planted feet stay planted.
+      const B = this.brake;
+      B.t += dt;
+      this.speed = B.v0 * brakeCurve(B.t / B.T);
+      this.s = Math.min(this.stopAt, this.s + this.speed * dt);
+      if (B.t >= B.T) {
+        this.s = this.stopAt;
+        this.speed = 0;
+        this.brake = null;
+      }
     } else if (this.stage === 'crash' || this.stage === 'cashout') {
       const rem = Math.max(0, this.stopAt - this.s);
       this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
