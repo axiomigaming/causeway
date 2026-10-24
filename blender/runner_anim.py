@@ -325,12 +325,30 @@ def _ik(ax, az):
 
 
 def _pw(keys, u):
-    """Piecewise smooth (eased) interpolation through (u, value) keys."""
+    """Smooth monotone (PCHIP) interpolation through (u, value) keys: no stop at each key (an eased
+    segment halts dead at every key, and the joint's speed dips and surges between them)."""
     if u <= keys[0][0]:
         return keys[0][1]
-    for (u0, a), (u1, b) in zip(keys, keys[1:]):
+    if u >= keys[-1][0]:
+        return keys[-1][1]
+    n = len(keys)
+    h = [keys[i + 1][0] - keys[i][0] for i in range(n - 1)]
+    d = [(keys[i + 1][1] - keys[i][1]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+    for i in range(n - 1):
+        u0, u1 = keys[i][0], keys[i + 1][0]
         if u <= u1:
-            return a + (b - a) * ease((u - u0) / (u1 - u0))
+            t = (u - u0) / h[i]
+            a, b = keys[i][1], keys[i + 1][1]
+            h00, h10, h01, h11 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t, -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+            return h00 * a + h10 * h[i] * m[i] + h01 * b + h11 * h[i] * m[i + 1]
     return keys[-1][1]
 
 
@@ -456,7 +474,7 @@ def _leg_state(s, ph, G):
     a1 = _stance_leg(s, ph_td, 0.0, G)[:3]
     a1p = _stance_leg(s, (ph_td + e) % 1.0, e, G)[:3]
     sw = 1.0 - ts
-    m0 = [(x - y) / (e / sw) * 0.6 for x, y in zip(a0, a0m)]   # damped: the push-off's momentum carries into swing
+    m0 = [(x - y) / (e / sw) * 0.6 for x, y in zip(a0, a0m)]   # the push-off's momentum carries into swing (C1: no corner)
     m1 = [(y - x) / (e / sw) * 0.6 for x, y in zip(a1, a1p)]
     m0[1] = max(0.0, m0[1])  # the knee folds straight after toe-off, never locks back
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
@@ -518,7 +536,7 @@ def _gait(ph, G, k=1.0):
 # cycle is sampled densely and every channel (joint angles, root) filtered with a narrow periodic Gaussian
 # (sigma ~1.6 % of a cycle): positions move by millimetres, the velocity corners round off.
 CYCLE_N = 192
-CYCLE_SIGMA = 9.0  # samples
+CYCLE_SIGMA = 6.0  # samples
 
 
 _CYC = {}
@@ -1793,10 +1811,13 @@ def gkey(fr, ph, G=None, k=1.0, **mods):
 
 
 JL_LAND, JL_H = 24, 0.52
-V_LAND, V_H = 22, 0.28
+V_LAND, V_H = 22, 0.29
 V_PLANT = (10, 16)  # frames the palm is on the stone
-VY = 1.75  # the legs swing round to his left (thigh yaw)
-VL = (2.2, 2.35, 2.1)  # and up (thigh flexion) through the plant
+VY = 1.75  # the legs swing round to his left
+# ... of which this share is the thighs turning in the hips (≤ ~50°, a natural range); the rest is the whole
+# body turning sideways over the planted hand, the pelvis leading (no femur wrung 100° in its socket).
+VT = 0.45
+VL = (2.12, 2.18, 2.02)  # and up (thigh flexion) through the plant
 VA = (1.0, 0.85, 0.1, -0.65, -1.1)  # the support arm: reach, plant start, over it, plant end, shove
 SLIDE_Z = -0.55
 
@@ -1989,27 +2010,31 @@ def obstacle_clips():
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
     torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)
-    leg(T2, "L", hip=0.9, knee=2.3, ankle=-0.2, yaw=VY * 0.55)
-    leg(T2, "R", hip=1.7, knee=2.1, ankle=-0.2, yaw=VY * 0.7)
+    leg(T2, "L", hip=0.9, knee=1.95, ankle=-0.2, yaw=VY * 0.55 * VT)
+    leg(T2, "R", hip=2.05, knee=2.45, ankle=-0.45, yaw=VY * 0.7 * VT)
+    standing_turned(T2, -VY * 0.6 * (1 - VT))
     arm(T2, "R", fwd=0.95, elbow=0.1, out=0.1, wrist=-1.1, curl=0.2)
     # Plant (u 0.2 → 0.72): the arm sweeps from ahead of the shoulder to behind it as he passes over the
     # hand (world angle ≈ fwd − trunk pitch), so the palm keeps its place on the stone.
     P1 = {}
     torso(P1, lean=1.1, look=0.75, hp=0.2, yaw=0.0, hyaw=0.3, roll=0.3, hroll=-0.2)
-    leg(P1, "L", hip=VL[0], knee=0.9, ankle=-0.25, yaw=VY * 1.05)
-    leg(P1, "R", hip=VL[0] + 0.1, knee=1.2, ankle=-0.25, yaw=VY)
+    leg(P1, "L", hip=VL[0], knee=0.9, ankle=-0.25, yaw=VY * 1.05 * VT)
+    leg(P1, "R", hip=VL[0] + 0.1, knee=1.1, ankle=-0.45, yaw=VY * VT)
+    standing_turned(P1, -VY * 1.02 * (1 - VT))
     arm(P1, "R", fwd=VA[1], elbow=0.05, out=0.08, wrist=-1.2, curl=0.15)
     arm(P1, "L", fwd=0.7, elbow=0.7, out=0.9, curl=0.35)
     P2 = {}
     torso(P2, lean=1.15, look=0.75, hp=0.2, yaw=0.0, hyaw=0.4, roll=0.4, hroll=-0.3)
-    leg(P2, "L", hip=VL[1], knee=0.2, ankle=-0.25, yaw=VY)
-    leg(P2, "R", hip=VL[1] - 0.05, knee=0.4, ankle=-0.25, yaw=VY)
+    leg(P2, "L", hip=VL[1], knee=0.2, ankle=-0.25, yaw=VY * VT)
+    leg(P2, "R", hip=VL[1] - 0.05, knee=0.2, ankle=-0.25, yaw=VY * VT)
+    standing_turned(P2, -VY * (1 - VT))
     arm(P2, "R", fwd=VA[2], elbow=0.0, out=0.1, wrist=-1.35, curl=0.15)
     arm(P2, "L", fwd=0.9, elbow=0.4, out=1.3, curl=0.35)
     P3 = {}
     torso(P3, lean=1.0, look=0.7, hp=0.2, yaw=0.0, hyaw=0.3, roll=0.3, hroll=-0.2)
-    leg(P3, "L", hip=VL[2], knee=0.3, ankle=-0.2, yaw=VY * 0.6)
-    leg(P3, "R", hip=VL[2] - 0.1, knee=0.9, ankle=-0.15, yaw=VY * 0.6)
+    leg(P3, "L", hip=VL[2], knee=0.3, ankle=-0.2, yaw=VY * 0.6 * VT)
+    leg(P3, "R", hip=VL[2] - 0.1, knee=0.9, ankle=-0.15, yaw=VY * 0.6 * VT)
+    standing_turned(P3, -VY * 0.6 * (1 - VT))
     arm(P3, "R", fwd=VA[3], elbow=0.05, out=0.15, wrist=-1.1, curl=0.2)
     arm(P3, "L", fwd=0.9, elbow=0.5, out=1.1, curl=0.35)
     # Shove off: the hand leaves the stone, the left leg reaches down for the floor.
@@ -2039,7 +2064,7 @@ def obstacle_clips():
     # The palm on the stone: through the plant the right wrist is held (IK, baked) on the pillar's top,
     # which slides back past him with the floor at run pace (5 m/s in clip time).
     apex = 0.5 * (5 / 30 + (V_LAND - 1) / 30)
-    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.99), ramp=3)
+    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.93), ramp=3)
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":
@@ -2049,34 +2074,41 @@ def obstacle_clips():
         # A left cut plants the right foot (its strike is gait phase 0.5); a right cut the left (phase 0), so
         # the right cut starts half a cycle later (on a right strike) and both plant on frame 9.
         p0 = 0.0 if side == "L" else 0.5
-        gkey(1, p0)
-        gkey(5, (p0 + 0.25) % 1.0)
-        ph = (p0 + 0.5) % 1.0
-        P, x = loco(ph, RUN)
-        nudge(P, f"thigh.{o}", dz=0.22 * sgn(o))
-        nudge(P, f"shin.{o}", dx=0.25)
-        nudge(P, "chest", dy=0.12 * sg)
-        nudge(P, "spine", dy=0.08 * sg)
-        nudge(P, "neck", dy=0.3 * sg)
-        # Arms for balance: the outside arm drives across, the inside one swings back and out.
-        arm(P, side, fwd=-0.45, elbow=1.15, out=0.45, curl=0.9)
-        arm(P, o, fwd=0.85, elbow=1.5, out=0.08, curl=0.9)
-        nudge(P, "head", dy=0.2 * sg)
-        P["root"] = (0.0, 0.12 * sg, 0.12 * sg)
-        key(9, P, z=gait_root(ph, RUN) - 0.04, x=x - 0.06 * sg)
-        ph2 = (ph + 0.25) % 1.0
-        P, x = loco(ph2, RUN)
-        nudge(P, "chest", dy=0.15 * sg)
-        nudge(P, "neck", dy=0.25 * sg)
-        nudge(P, "head", dy=0.15 * sg)
-        P["root"] = (0.0, 0.14 * sg, 0.3 * sg)
-        key(13, P, z=gait_root(ph2, RUN) - 0.02, x=x)
-        ph3 = (p0 + 0.85) % 1.0
-        P, x = loco(ph3, RUN)
-        nudge(P, "chest", dy=0.1 * sg)
-        P["root"] = (0.0, 0.08 * sg, 0.1 * sg)
-        key(16, P, z=gait_root(ph3, RUN), x=x)
-        gkey(19, p0)
+        # Keyed every frame: the stride runs on underneath (phase knots below) and the cut's accents (the
+        # plant, the lean in, the arms for balance) blend in and out over it. Keyed only every 4 frames, the
+        # in-betweens cut corners off the gait's curves and the shin snapped (~30°/frame) into the clip.
+        knots = [(1, 0.0), (9, 0.5), (13, 0.75), (16, 0.85), (19, 1.0)]
+
+        def phase_at(fr):
+            for (f0, a), (f1, b) in zip(knots, knots[1:]):
+                if fr <= f1:
+                    return p0 + a + (b - a) * (fr - f0) / (f1 - f0)
+            return p0 + 1.0
+
+        def hat(fr, a, m, b):
+            if fr <= a or fr >= b:
+                return 0.0
+            u = (fr - a) / (m - a) if fr <= m else (b - fr) / (b - m)
+            return u * u * (3 - 2 * u)
+        for fr in range(1, 20):
+            ph = phase_at(fr) % 1.0
+            P, x = loco(ph, RUN)
+            w9, w13, w16 = hat(fr, 4, 9, 13), hat(fr, 9, 13, 16), hat(fr, 13, 16, 19)
+            nudge(P, f"thigh.{o}", dz=0.22 * sgn(o) * w9)
+            nudge(P, f"shin.{o}", dx=0.25 * w9)
+            nudge(P, "chest", dy=(0.12 * w9 + 0.15 * w13 + 0.1 * w16) * sg)
+            nudge(P, "spine", dy=0.08 * sg * w9)
+            nudge(P, "neck", dy=(0.3 * w9 + 0.25 * w13) * sg)
+            nudge(P, "head", dy=(0.2 * w9 + 0.15 * w13) * sg)
+            if w9 > 0:
+                # Arms for balance: the outside arm drives across, the inside one swings back and out.
+                A = {}
+                arm(A, side, fwd=-0.45, elbow=1.15, out=0.45, curl=0.9)
+                arm(A, o, fwd=0.85, elbow=1.5, out=0.08, curl=0.9)
+                for nm, v in A.items():
+                    P[nm] = tuple(a + (b - a) * w9 for a, b in zip(P.get(nm, (0.0, 0.0, 0.0)), v))
+            P["root"] = (0.0, (0.12 * w9 + 0.14 * w13 + 0.08 * w16) * sg, (0.12 * w9 + 0.3 * w13 + 0.1 * w16) * sg)
+            key(fr, P, z=gait_root(ph, RUN) - 0.04 * w9 - 0.02 * w13, x=x - 0.06 * sg * w9)
 
     # ---------------------------------------------------------- stumble_land: a landing that goes wrong, then saved
     # (start it at a jump's or leap's landing in place of the clean one)

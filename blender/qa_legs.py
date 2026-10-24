@@ -21,6 +21,7 @@ Per clip, sampled every frame, the worst value and where:
              forward bend 75°, back arch 35°, side bend 40°
   neck       the head against the chest, % of range: turn 70°, chin down 55°, back 60°, tilt 40°
   wrist      the hand against the forearm, % of 75°
+  thightw/sw a thigh wrung about its length (% of 55°) / swung from bind (% of 135°)
   armtw      an upper arm wrung about its length (twist from bind), % of 90°
   shrug      a shoulder hiked toward the neck (the shoulder bone's rotation), % of 25°
   judder     the joints' angular speed zig-zagging frame to frame at real playback speed (the gaits at
@@ -54,7 +55,7 @@ pb = rig.pose.bones
 M = rig.matrix_world
 only = [a for a in sys.argv[1:] if not a.startswith("-")]
 LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0, pop=60.0, still=3.0,
-           spine=100.0, neck=100.0, wrist=100.0, shrug=100.0, armtw=100.0, judder=0.35, jerk=999.0)
+           spine=100.0, neck=100.0, wrist=100.0, shrug=100.0, armtw=100.0, thightw=100.0, thighsw=100.0, judder=0.35, jerk=999.0)
 # In-game playback: clip frames advanced per 30 fps game frame (the gaits at their usual cadence, cycles/s
 # x 48 keys / 30), everything else in real time.
 PLAY = {"run": 1.95 * 48 / 30, "sprint": 2.3 * 48 / 30, "dash": 2.55 * 48 / 30}
@@ -238,6 +239,16 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
             w = abs(math.degrees(tw_)) / 90 * 100
             if w > worst["armtw"][0]:
                 worst["armtw"] = (w, f)
+            # The thigh wrung about its length (% of 55°) and swung (% of 135°) from bind (the critic's limits).
+            sw_, tw_ = pb[f"thigh.{s}"].matrix_basis.to_quaternion().to_swing_twist("Y")
+            tw_ = math.atan2(math.sin(tw_), math.cos(tw_))
+            w = abs(math.degrees(tw_)) / 55 * 100
+            if w > worst["thightw"][0]:
+                worst["thightw"] = (w, f)
+            a = math.degrees(sw_.angle)
+            w = min(a, 360 - a) / 135 * 100
+            if w > worst["thighsw"][0]:
+                worst["thighsw"] = (w, f)
             if f"shoulder.{s}" in pb:
                 w = math.degrees(pb[f"shoulder.{s}"].matrix_basis.to_quaternion().angle) / 25 * 100
                 if w > worst["shrug"][0]:
