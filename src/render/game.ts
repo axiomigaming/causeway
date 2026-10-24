@@ -1209,7 +1209,9 @@ export class Game {
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
       const span = 4 + 2 * e;
-      this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 3.2);
+      // (Round 20: 2 m longer at the far end: the cave-in takes whole tiles, and past a short
+      // trough's end wall the lagoon showed in the hole.)
+      this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 5.2);
       B.settleBelow = bedY + 0.3;
       const pit = { origin: h.pos.clone(), right: h.right.clone(), half: PATH_HALF + 0.15, top: h.pos.y - 0.05 };
       const bed = (x: number, z: number) => {
@@ -1234,7 +1236,19 @@ export class Game {
           // the ones over his track break up as they go.)
           const along = tp.dot(h.fwd);
           const onTrack = Math.abs(tp.dot(h.right)) < 1.1 && along > -1.5 && along < 4;
-          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : Infinity, walls: pit, restitution: 0.18 });
+          // A slab as wide as the way (some sections' floors) tipping out to one side swung over
+          // him like a trapdoor and hid the landing: those drop near flat, pitch a little, and
+          // break up at once.
+          const tg = this.kit.geo.get(t.piece);
+          if (tg && !tg.boundingBox) tg.computeBoundingBox();
+          const ts = new THREE.Vector3().setFromMatrixScale(t.world);
+          const tb = tg?.boundingBox;
+          const wide = !!tb && Math.max((tb.max.x - tb.min.x) * ts.x, (tb.max.z - tb.min.z) * ts.z) > 1.7;
+          if (wide && onTrack) {
+            this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0.5, 1), r.range(-0.2, 0.2)), new THREE.Vector3().addScaledVector(h.right, r.range(-0.8, 0.8)), bed, { breakInto: 3, breakAfter: r.range(0.1, 0.16), walls: pit, restitution: 0.18 });
+            return;
+          }
+          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack || wide ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : wide ? r.range(0.2, 0.3) : Infinity, walls: pit, restitution: 0.18 });
           if (i % 2 === 0) {
             const p = new THREE.Vector3().setFromMatrixPosition(t.world);
             B.puff(p, { count: 1, spread: 1.2, jitter: 0.8, vel: new THREE.Vector3(0, 1.2, 0), size: [0.8, 2.4], life: 1.4, alpha: 0.22, tint: DUST_T, rise: 0.3 });
