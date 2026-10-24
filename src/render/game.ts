@@ -1361,6 +1361,7 @@ export class Game {
         kick(1);
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
         this.slowFloorTarget = 0;
+        this.rig.closeIn = 1;
       });
       this.holdReveal(LEDGE_LAND + 0.25);
       slow(LEDGE_LAND + 0.05, 0.6, 0.2);
@@ -1764,6 +1765,7 @@ export class Game {
         this.particles.burst(p, 8, { spread: 0.5, up: 1, speed: 2, size: 0.06, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
         B.puff(p, { count: 2, spread: 0.6, jitter: 0.5, size: [0.4, 1.4], life: 1.3, alpha: 0.3, tint: DUST_T, rise: 0.1 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
+        this.rig.closeIn = 1;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
       });
       if (trip) {
@@ -1807,6 +1809,7 @@ export class Game {
         });
         // Down on his left side (0.6 s).
         this.later(0.6, () => {
+          this.rig.closeIn = 1;
           const f = frameAt(this.s + 1.75);
           const p = f.pos.clone().addScaledVector(f.right, -0.9).setY(f.pos.y + 0.05);
           B.puff(p, { count: 2, spread: 0.8, jitter: 0.6, vel: new THREE.Vector3(0, 0.4, 0), size: [0.5, 1.6], life: 1.4, alpha: 0.3, tint: DUST_T, rise: 0.05, floor: f.pos.y });

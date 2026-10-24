@@ -121,6 +121,9 @@ export class CameraRig {
   private lastYaw = 0;
   shakeEnabled = true;
   motionScale = 1;
+  /** Crash: > 0 once he is down (set by the game at the impact): the lens closes in on him. */
+  closeIn = 0;
+  private closeK = 0;
   /** Extra focus point for crash framing (the hazard). */
   focus = new THREE.Vector3();
   /** Keeps a camera position inside the open corridor (walls, floor). Set by the game. */
@@ -158,6 +161,8 @@ export class CameraRig {
     this.subjectAhead = 0;
     this.mode = m;
     this.modeT = 0;
+    this.closeIn = 0;
+    this.closeK = 0;
     this.swingTarget = 0;
     this.pullTarget = 1;
   }
@@ -504,7 +509,13 @@ export class CameraRig {
         break;
       }
       case 'crash': {
-        fov = this.shot(runnerPos, this.resultFrame(this.settled(this.crashFrame(T / (1 + 0.5 * this.epic), s))));
+        // Round 20: after the impact of a slam, a trip, a fall onto the stone or a side hit, the
+        // lens closes in on him where he lies (game sets closeIn): a low three-quarter view ~3.3 m
+        // from his body, so the figure fills a third of the frame instead of a dot behind the dust.
+        this.closeK += ((this.closeIn > 0 ? 1 : 0) - this.closeK) * (1 - Math.exp(-dt * 1.6));
+        let cf = this.crashFrame(T / (1 + 0.5 * this.epic), s);
+        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.4, lat: 1.6 * (s || 1), up: 2.0, lAlong: 0.4, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
+        fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         break;
       }
       case 'cashout': {
