@@ -713,7 +713,10 @@ export class Runner {
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
     this.cadence = cadence;
     const prevPhase = this.phase;
-    if (this.current === 'run' || this.obst) this.phase = (this.phase + dt * cadence) % 1;
+    // (And while the stride is still fading out under the next clip: frozen on its phase, the arms and legs
+    // of a fast run stopped dead mid-swing at the hand-over — the hands "jumped" 13 cm at a 62× cash-out.)
+    const gaitFading = GAITS.some((g) => (this.weights.get(g) ?? 0) > 0.001);
+    if (this.current === 'run' || this.obst || gaitFading) this.phase = (this.phase + dt * cadence) % 1;
     if (dt > 0) {
       const a = (speed - this.speedPrev) / dt;
       this.accel += (THREE.MathUtils.clamp(a, -12, 12) - this.accel) * (1 - Math.exp(-dt * 4));
