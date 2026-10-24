@@ -200,6 +200,10 @@ export class Game {
     this.renderer.info.autoReset = false;
     this.rig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     this.rig.constrain = (p) => this.corridor(p);
+    this.rig.preOutput = (dt) => {
+      this.ceiling(dt);
+      this.guardCamera(dt);
+    };
     this.rig.occlude = (a, b) => this.occluder(a, b);
   }
 
@@ -1268,7 +1272,10 @@ export class Game {
     const e = F.g;
     // Small falls are quick and contained; big ones slow, wide and long. `t` is a real-time delay.
     const slow = (t: number, durK = 1, minK = 0) => {
-      this.slowmo = { t, dur: F.slowDur * durK, min: Math.min(1, F.slowMin + minK) };
+      // (Round 20: `t` is a delay either way. A positive one used to start the slow motion part-way
+      // through, so time stepped from 1 to ~0.7 in one frame: the clip's travel jumped with it, read
+      // as a hip jump at the impact.)
+      this.slowmo = { t: -Math.abs(t), dur: F.slowDur * durK, min: Math.min(1, F.slowMin + minK) };
     };
     const v = this.speed;
     const sec = this.track.sectionAt(this.s);
@@ -2457,7 +2464,9 @@ export class Game {
       this.slowmo.t += rawDt;
       const x = Math.max(0, this.slowmo.t) / this.slowmo.dur;
       // Reduced motion gets a short, shallow breath (set by fxScale), never a long hold.
-      this.timeScale = x < 0.15 ? THREE.MathUtils.lerp(1, this.slowmo.min, x / 0.15) : THREE.MathUtils.lerp(this.slowmo.min, 1, Math.min(1, (x - 0.15) / 0.85) ** 2);
+      // Eased in and out (smoothstep), so neither time nor its rate of change steps.
+      const ss = (u: number) => u * u * (3 - 2 * u);
+      this.timeScale = x < 0.15 ? THREE.MathUtils.lerp(1, this.slowmo.min, ss(x / 0.15)) : THREE.MathUtils.lerp(this.slowmo.min, 1, ss(Math.min(1, (x - 0.15) / 0.85)));
       if (x >= 1) {
         this.slowmo = null;
         this.timeScale = 1;
@@ -2713,8 +2722,7 @@ export class Game {
     }
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), subject, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
     const cam = this.rig.camera;
-    this.ceiling(rawDt);
-    this.guardCamera(rawDt);
+    // (The ceiling and the guard run inside rig.update, before its output spring: see preOutput.)
     if (this.debugPin) {
       const d = this.debugPin;
       const ry = this.runner.root.rotation.y;

@@ -123,6 +123,8 @@ export class CameraRig {
   private lastYaw = 0;
   shakeEnabled = true;
   motionScale = 1;
+  /** Called on the raw shot each frame just before the output spring (set by the game). */
+  preOutput: ((dt: number) => void) | null = null;
   /** Crash: > 0 once he is down (set by the game at the impact): the lens closes in on him. */
   closeIn = 0;
   /** Crash close-in: metres higher (the ledge: over the fragments lying round him in the trough). */
@@ -884,6 +886,9 @@ export class CameraRig {
       const d = this.camera.position.distanceTo(this.tmp.copy(runnerPos).setY(runnerPos.y + 1));
       this.camera.near = this.mode === 'title' ? Math.min(6.5, Math.max(0.1, 0.55 * d)) : Math.min(3.5, Math.max(0.1, 0.4 * d));
     } else this.camera.near = 0.1;
+    // The game's own corrections (the ceiling, the guard that draws a lens out of a wall) act on
+    // the shot before the output spring, so they too are jerk-limited.
+    this.preOutput?.(dt);
     this.smoothOut(dt);
     this.camera.position.addScaledVector(this.right, sx);
     this.camera.position.y += sy + this.bob;
