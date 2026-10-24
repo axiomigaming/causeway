@@ -186,7 +186,8 @@ await browser.close();
 async function cameraMotion(page, view) {
   const cases = [
     ...[1.5, 5, 20, 60].map((m) => ({ name: `cash ${m}x`, mult: m })),
-    ...['chasm', 'gate', 'rockfall', 'pillar', 'trip', 'ledge'].map((k) => ({ name: `crash ${k}`, mult: 2.2, kind: k })),
+    ...['chasm', 'gate', 'rockfall', 'pillar', 'trip', 'ledge'].map((k) => ({ name: `crash ${k}`, mult: 2.2, kind: k, variant: 0 })),
+    { name: 'crash rockfall2', mult: 2.2, kind: 'rockfall', variant: 2 },
   ];
   let bad = 0;
   for (const c of cases.filter((x) => !only.length || only.includes(x.name))) {
@@ -206,7 +207,7 @@ async function cameraMotion(page, view) {
         const start = g.virtualNow + 2600 - E;
         g.elapsed = () => g.virtualNow - start;
         g.debugStep(2.6);
-        if (c.kind) g.crash(Math.round(c.mult * 100), `framing-${c.kind}`, c.kind, 0);
+        if (c.kind) g.crash(Math.round(c.mult * 100), `framing-${c.kind}`, c.kind, c.variant);
         else {
           g.live.mult = Math.floor(g.live.mult * 100) / 100;
           g.cashout(`framing-cash-${c.mult}`);
@@ -216,6 +217,9 @@ async function cameraMotion(page, view) {
         const P = [];
         const Q = [];
         const L = [];
+        // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
+        const B = [];
+        const bones = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'].map((n) => g.runner.body.getObjectByName(n)).filter(Boolean);
         // From a second before the event to 7 s after it (the result card, the settle).
         for (let f = 0; f < 210; f++) {
           // (As debugStep, without drawing: the camera is all this measures.)
@@ -227,8 +231,14 @@ async function cameraMotion(page, view) {
           P.push([p.x, p.y, p.z]);
           Q.push([q.x, q.y, q.z, q.w]);
           L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
+          B.push(
+            bones.map((b) => {
+              const v = b.getWorldPosition(cam.position.clone()).project(cam);
+              return [v.x, v.y, v.z];
+            }),
+          );
         }
-        return { P, Q, L, kind: g.debugState?.crashKind ?? null };
+        return { P, Q, L, B, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -250,6 +260,23 @@ async function cameraMotion(page, view) {
       if (sn > worst.snap) [worst.snap, at.snap] = [sn, f];
     }
     const problems = [];
+    // Round 20 (motion critic): the figure stays in the frame through the fall and the aftermath
+    // (not the chasm or the gate: he goes under), and ends at least ~1/5 of the frame tall/long.
+    const clipped = [];
+    r.B.forEach((pts, f) => {
+      const vis = pts.filter((p) => p[2] < 1);
+      if (vis.some((p) => Math.abs(p[0]) > 0.98 || Math.abs(p[1]) > 0.98)) clipped.push(f);
+    });
+    const endPts = r.B[r.B.length - 1].filter((p) => p[2] < 1);
+    const ext = endPts.length ? Math.max(Math.max(...endPts.map((p) => p[0])) - Math.min(...endPts.map((p) => p[0])), Math.max(...endPts.map((p) => p[1])) - Math.min(...endPts.map((p) => p[1]))) / 2 : 0;
+    const under = c.kind === 'chasm' || c.kind === 'gate';
+    if (!under && clipped.length) {
+      const names = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'];
+      const p0 = r.B[clipped[0]];
+      const at0 = p0.map((p, i) => (p[2] < 1 && (Math.abs(p[0]) > 0.98 || Math.abs(p[1]) > 0.98) ? `${names[i]} ${p[0].toFixed(2)},${p[1].toFixed(2)}` : null)).filter(Boolean);
+      problems.push(`figure clipped in ${clipped.length} frames (f${clipped[0]}..f${clipped[clipped.length - 1]}: ${at0.join(' ')})`);
+    }
+    if (!under && ext < 0.2) problems.push(`figure ${(ext * 100).toFixed(0)} % of the frame at the end`);
     if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
@@ -258,7 +285,7 @@ async function cameraMotion(page, view) {
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(14)}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}%${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;
