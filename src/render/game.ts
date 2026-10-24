@@ -96,7 +96,10 @@ const LEDGE_LAND = 0.93;
  * at 0.87, 0 at 1.0 (T = 1). The root follows that curve so the planted feet plant.
  */
 const CLIP_PACE = 5.6;
-const RUNON_EASE = 4;
+/** The run-on's speed at fraction u of it: from v0 to the clip's pace on a smoothstep (peak 1.5·Δv/T). */
+function runOnSpeed(v0: number, u: number): number {
+  return v0 + (CLIP_PACE - v0) * u * u * (3 - 2 * u);
+}
 const BRAKE_KEYS: [number, number][] = [[0, 1], [0.17, 4.5 / 5.6], [0.37, 3.4 / 5.6], [0.6, 2.3 / 5.6], [0.87, 1.5 / 5.6], [1, 0]];
 function brakeCurve(u: number): number {
   if (u <= 0) return 1;
@@ -636,7 +639,7 @@ export class Game {
     this.runner.play('idle', 0);
     this.runner.resetSecondary();
     this.slowmo = null;
-    this.slowFloor = this.slowFloorTarget = 0;
+    this.slowFloor = this.slowFloorTarget = this.slowFloorV = 0;
     this.timeScale = 1;
     this.gateLand = null;
     this.stopAt = 0;
@@ -753,7 +756,7 @@ export class Game {
       this.stage = 'crash';
       this.stageT = 0;
     } else this.setStage('crash');
-    this.slowFloor = this.slowFloorTarget = 0;
+    this.slowFloor = this.slowFloorTarget = this.slowFloorV = 0;
     this.obstacles.settle();
     this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
     this.crashKind = st.kind;
@@ -772,6 +775,7 @@ export class Game {
 
   private crashKind = 'gate';
   private slowFloor = 0;
+  private slowFloorV = 0;
   private slowFloorTarget = 0;
   /** The last crash kind staged (the director never repeats it straight away). */
   private lastCrash: CrashKind | null = null;
@@ -938,7 +942,6 @@ export class Game {
     // (The corner test below takes the braking at his present speed; the stop mark uses the speed
     // the run-on actually lands him at.)
     let brakeD = curved ? v * T * BRAKE_AREA : (v * T) / 2;
-    this.runOnPace = curved && this.motion === 'full' ? CLIP_PACE : Infinity;
     this.brake = null;
     // He is still running: he carries on through the last strides to safe ground before the gate of
     // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
@@ -958,12 +961,13 @@ export class Game {
       let sp = v;
       const h = 1 / 120;
       for (let t = 0; t < runOn - 1e-6; t += h) {
-        if (curved && this.motion === 'full') sp += (CLIP_PACE - sp) * (1 - Math.exp(-h * RUNON_EASE));
+        if (curved && this.motion === 'full') sp = runOnSpeed(v, Math.min(1, (t + h) / runOn));
         runD += sp * h;
       }
       brakeD = curved ? sp * T * BRAKE_AREA : (sp * T) / 2;
     }
     const stop = this.s + runD + brakeD;
+    this.runOnProf = curved && this.motion === 'full' && runOn > 0 ? { t: 0, dur: runOn, v0: v } : null;
     const gateAt = stop + gateGap;
     const fg = this.track.path.sample(gateAt);
     this.placeEscapeGate(fg.pos, fg.yaw);
@@ -1002,7 +1006,7 @@ export class Game {
   private runOn = false;
   /** The celebration's braking on the clip's own speed curve (see BRAKE_CURVE), from land(). */
   private brake: { t: number; v0: number; T: number; s0: number } | null = null;
-  private runOnPace = Infinity;
+  private runOnProf: { t: number; dur: number; v0: number } | null = null;
   private escapeGateAt = 0;
 
   private escape: EscapeScale | null = null;
@@ -2462,19 +2466,26 @@ export class Game {
     // Presentation time can slow down; the round clock never does.
     if (this.slowmo) {
       this.slowmo.t += rawDt;
-      const x = Math.max(0, this.slowmo.t) / this.slowmo.dur;
+      const tt = Math.max(0, this.slowmo.t);
       // Reduced motion gets a short, shallow breath (set by fxScale), never a long hold.
-      // Eased in and out (smoothstep), so neither time nor its rate of change steps.
+      // Eased in and out (smoothstep), so neither time nor its rate of change steps; the ease-in
+      // takes at least 0.45 s (14 frames): a quicker one halved a falling body's speed in a frame or
+      // two, read as a hip jump (the time scale changes at most ~8 % a frame).
       const ss = (u: number) => u * u * (3 - 2 * u);
-      this.timeScale = x < 0.15 ? THREE.MathUtils.lerp(1, this.slowmo.min, ss(x / 0.15)) : THREE.MathUtils.lerp(this.slowmo.min, 1, ss(Math.min(1, (x - 0.15) / 0.85)));
-      if (x >= 1) {
+      const inT = Math.max(0.45, 0.15 * this.slowmo.dur);
+      const outT = Math.max(0.3, this.slowmo.dur - inT);
+      this.timeScale = tt < inT ? THREE.MathUtils.lerp(1, this.slowmo.min, ss(tt / inT)) : THREE.MathUtils.lerp(this.slowmo.min, 1, ss(Math.min(1, (tt - inT) / outT)));
+      if (tt >= inT + outT) {
         this.slowmo = null;
         this.timeScale = 1;
       }
     }
     // Round 20: once he drops, the fall plays near full speed (the crash's slow motion slowed his
     // flailing to a crawl while the lens moved on real time: he looked frozen in the air).
-    this.slowFloor += (this.slowFloorTarget - this.slowFloor) * (1 - Math.exp(-rawDt * 5));
+    // (Critically damped: it starts gently, never a step in the clip's rate.)
+    const wf = 6;
+    this.slowFloorV += (wf * wf * (this.slowFloorTarget - this.slowFloor) - 2 * wf * this.slowFloorV) * rawDt;
+    this.slowFloor += this.slowFloorV * rawDt;
     if (this.slowFloor > this.timeScale) this.timeScale = this.slowFloor;
     const dt = rawDt * this.timeScale;
     this.stageT += rawDt;
@@ -2511,7 +2522,13 @@ export class Game {
       // The "made it" run-on: full stride to safe ground (see cashout()), easing to the pace the
       // celebration clips' slowing steps start from.
       // (From either side, so he lands on the clip's pace exactly: from under it the steps slid too.)
-      if (Number.isFinite(this.runOnPace)) this.speed += (this.runOnPace - this.speed) * (1 - Math.exp(-dt * RUNON_EASE));
+      // (Round 20: over the whole run-on on a smoothstep, not an exponential: from 20x speed the
+      // exponential's first 17 m/s² of slowing inside the plain run slid the planted foot 8 cm/frame.)
+      const R = this.runOnProf;
+      if (R) {
+        R.t += dt;
+        this.speed = runOnSpeed(R.v0, Math.min(1, R.t / R.dur));
+      }
       this.s += this.speed * dt;
     } else if (this.stage === 'cashout' && this.brake) {
       // The clip's own braking: speed on its curve, so the planted feet stay planted.
