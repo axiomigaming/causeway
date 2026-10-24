@@ -244,8 +244,10 @@ export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number
 export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30, win_cheer: 4 / 30, win_cheer_big: 4 / 30, win_leap: 4 / 30, win_salute: 7 / 30, win_slide: 3 / 30 };
 
 /** Reactions the feet are never pinned in: the drop to the stone below (the feet leave the floor the root
- * stands on) and the spin of the side hit (a pinned foot fights the spin and flips the leg). */
-const UNPINNED = new Set(['fall_drop', 'fall_side_hit']);
+ * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
+ * game's launch carries the body off a pinned foot faster than the clip sweeps it back: it ran out of reach
+ * at the last push and let go with a 27° shin snap). */
+const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start']);
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -666,9 +668,14 @@ export class Runner {
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
     if (this.current === 'start') {
       const a = this.actions.get('start')!;
-      if (a.time >= a.getClip().duration - 0.06) {
-        this.start('run', 0.12, 0);
-        this.phase = 0;
+      const dur = a.getClip().duration;
+      if (a.time >= dur - 0.06) {
+        // (Its last key is the run's left strike exactly: a long cross-fade from the clip, which stops
+        // there, into the moving run dragged the planted foot along at half the floor's speed. And the
+        // run joins at the phase the clip has reached, not at 0 a couple of frames early: that jump
+        // snapped the trailing shin ~27°.)
+        this.start('run', 0.03, 0);
+        this.phase = ((a.time - dur) * this.cadence + 1) % 1;
       }
     }
     // Idle variety: the idle clips take turns (settle, look around, shake out for the run).
@@ -1089,21 +1096,27 @@ export class Runner {
     const want = this.v2.copy(L.target).sub(hp).normalize();
     const hq = head.getWorldQuaternion(this.q2);
     const fwd = this.v3.copy(this.headFwd).applyQuaternion(hq).normalize();
-    // Limit the turn relative to where the body faces, so the head never spins past the shoulder.
-    const bodyFwd = this.v4.set(0, 0, -1).applyQuaternion(this.root.getWorldQuaternion(this.q)).normalize();
-    const lim = 1.05;
-    const ang = bodyFwd.angleTo(want);
+    // Limit the turn to ~50° off where the clip has the face pointing, so the look adds to the clip's head
+    // and never wrenches the neck: the body may be pitched over, tumbling or lying (the falls), where a
+    // limit measured from the root's heading let the head swing ~100° off the chest.
+    const lim = 0.85;
+    const ang = fwd.angleTo(want);
     if (ang > lim) {
-      const axis = this.tmp.crossVectors(bodyFwd, want);
+      const axis = this.tmp.crossVectors(fwd, want);
       if (axis.lengthSq() < 1e-8) return;
       axis.normalize();
-      want.copy(bodyFwd).applyAxisAngle(axis, lim);
+      want.copy(fwd).applyAxisAngle(axis, lim);
     }
+    // And it fades while he is in the air (the struggle leads) or the trunk is far from upright.
+    const chest = this.bones.chest;
+    const upright = chest ? smoothstep(0.55, 0.85, this.v4.set(0, 1, 0).applyQuaternion(chest.getWorldQuaternion(this.q2)).y) : 1;
+    const w = L.w * upright * (1 - this.airW);
+    if (w < 0.01) return;
     const full = this.q.setFromUnitVectors(fwd, want);
     const id = new THREE.Quaternion();
     // Neck takes 40 %, the head the rest.
-    this.applyWorld(neck, id.clone().slerp(full, 0.4 * L.w));
-    this.applyWorld(head, id.slerp(full, 0.6 * L.w));
+    this.applyWorld(neck, id.clone().slerp(full, 0.4 * w));
+    this.applyWorld(head, id.slerp(full, 0.6 * w));
   }
 
   /** Premultiply a world-space rotation onto a bone. */
@@ -1256,7 +1269,10 @@ export class Runner {
       // Kneeling settled at the lip (fall_chasm_b from 1.3 s): the feet lay out flat on their tops, so a
       // sole-levelling pin would flip them over; the clip already holds them still.
       const kneeling = this.current === 'fall_chasm_b' && t > 1.3;
-      const free = !active || sliding || turning || kneeling || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      // (The escapes' slowing steps while the game still carries him on: a pin there held a foot behind
+      // the moving body until the leg ran out of reach, then let go: the foot jumped 40-50 cm.)
+      const carried = this.speed > 1.2 && this.current.startsWith('win');
+      const free = !active || sliding || turning || kneeling || carried || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;

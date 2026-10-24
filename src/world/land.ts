@@ -40,8 +40,8 @@ export function groundY(kind: GroundKind, x: number, z: number, len: number): nu
   const n = (vnoise(x * 0.18 + 3.1, z * 0.18) - 0.5) * taper;
   const n2 = (vnoise(x * 0.05 - 7.0, z * 0.05 + 1.3) - 0.5) * taper;
   if (kind === 'ravine') {
-    // A dry riverbed 2.6 m down either side of the causeway's footing, rising steeply to banks ~6 m up.
-    const bed = -2.6 + n * 0.25;
+    // A dry riverbed 1.75 m down either side of the causeway's footing, rising steeply to banks ~6 m up.
+    const bed = -1.75 + n * 0.25; // (round 22: above the water — at -2.6 the "dry" bed was flooded)
     const bank = 6.5 + n2 * 2.5;
     return bed + (bank - bed) * smooth(7.5, 13, ax);
   }
@@ -84,7 +84,7 @@ export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolea
   for (let r = 0; r < zs.length - 1; r++) {
     for (let c = 0; c < W - 1; c++) {
       const a = r * W + c, b = a + 1, d = a + W, e = d + 1;
-      idx.push(a, d, b, b, d, e);
+      idx.push(a, b, d, b, e, d); // (counter-clockwise from above: facing up)
     }
   }
   const g = new THREE.BufferGeometry();
@@ -100,7 +100,9 @@ export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolea
  * steep banks, all procedural (world-space noise; no texture, nothing to download).
  */
 export function makeGroundMaterial(): THREE.MeshStandardMaterial {
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0 });
+  // (Round 22: little sky in it — on phones, with no shadows, the grazing sky reflection washed the
+  // floor out to a pale cream.)
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.25 });
   m.name = 'ground';
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
@@ -134,6 +136,10 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     c = mix(c, vec3(0.22, 0.15, 0.1) * (0.7 + 0.5 * n2), steep * 0.85);
     // Wet and dark where it shelves into the water.
     c *= mix(1.0, 0.55, smoothstep(${(WL + 0.6).toFixed(2)}, ${(WL - 0.1).toFixed(2)}, vGW.y));
+    // Under the canopy: broad soft dapples of shade (the sun here is ~13: on phones, with no shadow
+    // maps, the open floor lit full went to pale cream), and a forest floor is dark anyway.
+    float dap = gN(p * 0.09 + 2.0) * 0.6 + gN(p * 0.31 + 5.0) * 0.4;
+    c *= 0.5 * mix(0.45, 1.0, smoothstep(0.35, 0.7, dap));
     diffuseColor.rgb = c;
   }`,
       )

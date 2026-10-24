@@ -21,8 +21,15 @@ Per clip, sampled every frame, the worst value and where:
              forward bend 75°, back arch 35°, side bend 40°
   neck       the head against the chest, % of range: turn 70°, chin down 55°, back 60°, tilt 40°
   wrist      the hand against the forearm, % of 75°
+  thightw/sw a thigh wrung about its length (% of 55°) / swung from bind (% of 135°)
+  armtw      an upper arm wrung about its length (twist from bind), % of 90°
   shrug      a shoulder hiked toward the neck (the shoulder bone's rotation), % of 25°
-Flags: hinge > 10°, foot yaw > 25°, roll > 20°, cross > 2 cm, hands > 2 cm, slide > 1 cm, still > 3 frames,
+  judder     the joints' angular speed zig-zagging frame to frame at real playback speed (the gaits at
+             their in-game cadence, ~3 clip frames per game frame; the rest at 30 fps): per joint,
+             J = mean |w_t - (w_t-1 + w_t+1)/2| / mean w (the motion critic's measure; a smooth cycle
+             reads ~0.1-0.2), the worst joint
+  jerk       the largest angular acceleration of any joint at playback speed (deg/frame^2)
+Flags: judder > 0.35 (gaits), hinge > 10°, foot yaw > 25°, roll > 20°, cross > 2 cm, hands > 2 cm, slide > 1 cm, still > 3 frames,
 spine / neck / wrist / shrug > 100 %.
 (The gaits' slip against the moving floor is qa_gait_audit.py's job; root motion is subtracted here.)
 """
@@ -48,7 +55,51 @@ pb = rig.pose.bones
 M = rig.matrix_world
 only = [a for a in sys.argv[1:] if not a.startswith("-")]
 LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0, pop=60.0, still=3.0,
-           spine=100.0, neck=100.0, wrist=100.0, shrug=100.0)
+           spine=100.0, neck=100.0, wrist=100.0, shrug=100.0, armtw=100.0, thightw=100.0, thighsw=100.0, judder=0.35, jerk=999.0)
+# In-game playback: clip frames advanced per 30 fps game frame (the gaits at their usual cadence, cycles/s
+# x 48 keys / 30), everything else in real time.
+PLAY = {"run": 1.95 * 48 / 30, "sprint": 2.3 * 48 / 30, "dash": 2.55 * 48 / 30}
+JOINTS = ["hips", "spine", "chest", "neck", "head"] + [f"{b}.{s}" for s in "LR" for b in ("thigh", "shin", "foot", "toe", "upper_arm", "forearm", "hand")]
+
+
+def judder_of(act):
+    """(worst J, joint, max jerk deg/frame^2) for an action at its playback speed."""
+    f0, f1 = act.frame_range
+    step = PLAY.get(act.name, 1.0)
+    gait = act.name in PLAY
+    span = (f1 - f0)
+    n = int((span * (4 if gait else 1)) / step)
+    seqs = []
+    for off in ((0.0, 0.37, 0.71) if gait else (0.0,)):
+        qs = []
+        for i in range(n):
+            t = f0 + ((off * step + i * step) % span if gait else min(span, i * step))
+            sc.frame_set(int(t), subframe=t - int(t))
+            qs.append({j: pb[j].matrix_basis.to_quaternion() for j in JOINTS if j in pb})
+        seqs.append(qs)
+    worst, wj, jerk = 0.0, "", 0.0
+    for j in JOINTS:
+        if j not in pb:
+            continue
+        num = den = 0.0
+        cnt = 0
+        for qs in seqs:
+            w = []
+            for a, b in zip(qs, qs[1:]):
+                d = math.degrees(b[j].rotation_difference(a[j]).angle)
+                w.append(min(d, 360 - d))
+            for i in range(1, len(w) - 1):
+                num += abs(w[i] - 0.5 * (w[i - 1] + w[i + 1]))
+                den += w[i]
+                cnt += 1
+                jerk = max(jerk, abs(w[i] - w[i - 1]))
+        if cnt and den > cnt * 0.5:  # (a joint that hardly moves cannot judder visibly)
+            J = num / max(den, cnt)
+            if os.environ.get("QA_J") and gait:
+                print(f"  J {act.name} {j} {J:.2f}", flush=True)
+            if J > worst:
+                worst, wj = J, j
+    return worst, wj, jerk
 STILL = 25.0  # deg per frame (at 30 fps), summed over MOVERS: under it, a body in the air reads as a held pose
 RAD = {"hips": 0.12, "spine": 0.11, "chest": 0.12, "neck": 0.06, "head": 0.1, "upper_arm": 0.05, "forearm": 0.04,
        "hand": 0.03, "thigh": 0.075, "shin": 0.05}
@@ -102,7 +153,7 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
     qprev = {}
     popbone = [""]
     run = 0
-    hz_prev = 0.0
+    hz_prev = hz_prev2 = 0.0
     for f in range(f0, f1 + 1):
         sc.frame_set(f)
         speed = 0.0
@@ -130,8 +181,10 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
         body = min(min((M @ b.head).z, (M @ b.tail).z) - RAD[b.name.split(".")[0]] for b in pb if b.name.split(".")[0] in RAD)
         hz = hips.z
         falling = f > f0 and (hz - hz_prev) * 30 < -1.0
+        hz_prev2 = hz_prev
         hz_prev = hz
-        airborne = (min(soles) > 0.05 and body > 0.04) or falling
+        moving = f > f0 and abs(hz - hz_prev2) * 30 > 0.4
+        airborne = (min(soles) > 0.05 and body > 0.04 and moving) or falling
         if os.environ.get("QA_SPEED") and airborne:
             print(f"  {act.name} f{f} air speed {speed:5.1f}", flush=True)
         if airborne and f > f0 and speed < STILL:
@@ -181,6 +234,21 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
             w = min(a, 360 - a) / 75 * 100
             if w > worst["wrist"][0]:
                 worst["wrist"] = (w, f)
+            # The upper arm wrung about its own length (twist from the bind pose), % of 90°.
+            sw_, tw_ = pb[f"upper_arm.{s}"].matrix_basis.to_quaternion().to_swing_twist("Y")
+            w = abs(math.degrees(tw_)) / 90 * 100
+            if w > worst["armtw"][0]:
+                worst["armtw"] = (w, f)
+            # The thigh wrung about its length (% of 55°) and swung (% of 135°) from bind (the critic's limits).
+            sw_, tw_ = pb[f"thigh.{s}"].matrix_basis.to_quaternion().to_swing_twist("Y")
+            tw_ = math.atan2(math.sin(tw_), math.cos(tw_))
+            w = abs(math.degrees(tw_)) / 55 * 100
+            if w > worst["thightw"][0]:
+                worst["thightw"] = (w, f)
+            a = math.degrees(sw_.angle)
+            w = min(a, 360 - a) / 135 * 100
+            if w > worst["thighsw"][0]:
+                worst["thighsw"] = (w, f)
             if f"shoulder.{s}" in pb:
                 w = math.degrees(pb[f"shoulder.{s}"].matrix_basis.to_quaternion().angle) / 25 * 100
                 if w > worst["shrug"][0]:
@@ -191,7 +259,13 @@ for act in sorted(bpy.data.actions, key=lambda a: a.name):
                 w = max(0.0, (0.12 - seg_dist(pt, a0, a1)) * 100)
                 if w > worst["hands"][0]:
                     worst["hands"] = (w, f)
-    flags = [k for k in LIM if worst[k][0] > LIM[k]]
+    J, jj, jerk = judder_of(act)
+    worst["judder"] = (J, 0)
+    worst["jerk"] = (jerk, 0)
+    if act.name not in PLAY:
+        J = 0.0  # one-shots: reported, flagged only in the gaits (their curves are keyed by hand)
+    flags = [k for k in LIM if (worst[k][0] > LIM[k] if k != "judder" else J > LIM[k])]
+    popbone[0] += f" J:{jj}"
     rows.append((act.name, worst, flags))
     cells = "  ".join(f"{k} {worst[k][0]:5.1f}@{worst[k][1]:<3d}" for k in LIM)
     print(f"{act.name:16s} {cells} [{popbone[0]}]  {'FLAG ' + ','.join(flags) if flags else 'ok'}", flush=True)
