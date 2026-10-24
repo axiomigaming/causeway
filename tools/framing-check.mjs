@@ -27,6 +27,13 @@ const q = arg('q', 'medium');
 const run = +arg('run', 0);
 const motion = arg('motion', '1');
 const CAM = { jerk: 0.25, omega: 12, snap: 6 };
+// --cases 'cash 60x,crash ledge' runs only those; --views desktop only that viewport; --shake 0 measures the
+// shot without the impact shake (to tell the two apart).
+const only = arg('cases', '')
+  .split(',')
+  .filter(Boolean);
+const views = arg('views', '');
+const shake = arg('shake', '1') !== '0';
 const VIEWS = [
   { name: 'phone', w: 390, h: 844, mobile: true },
   { name: 'desktop', w: 1280, h: 720, mobile: false },
@@ -37,7 +44,7 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 let failed = 0;
-for (const v of VIEWS) {
+for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))) {
   const page = await browser.newPage({ viewport: { width: v.w, height: v.h }, deviceScaleFactor: 1, isMobile: v.mobile, hasTouch: v.mobile });
   await page.goto(`${URL}/?qa&q=${q}&seed=framing`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
@@ -182,11 +189,12 @@ async function cameraMotion(page, view) {
     ...['chasm', 'gate', 'rockfall', 'pillar', 'trip', 'ledge'].map((k) => ({ name: `crash ${k}`, mult: 2.2, kind: k })),
   ];
   let bad = 0;
-  for (const c of cases) {
+  for (const c of cases.filter((x) => !only.length || only.includes(x.name))) {
     const r = await page.evaluate(
-      ({ c }) => {
+      ({ c, shake }) => {
         const g = window.__game;
         g.paused = true;
+        g.rig.shakeEnabled = shake;
         const now = Date.now;
         Date.now = () => 4242 + c.name.length * 97;
         g.newWorld('setup');
@@ -207,6 +215,7 @@ async function cameraMotion(page, view) {
         const cam = g.rig.camera;
         const P = [];
         const Q = [];
+        const L = [];
         // From a second before the event to 7 s after it (the result card, the settle).
         for (let f = 0; f < 210; f++) {
           // (As debugStep, without drawing: the camera is all this measures.)
@@ -217,10 +226,11 @@ async function cameraMotion(page, view) {
           const q = cam.getWorldQuaternion(cam.quaternion.clone());
           P.push([p.x, p.y, p.z]);
           Q.push([q.x, q.y, q.z, q.w]);
+          L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
         }
-        return { P, Q, kind: g.debugState?.crashKind ?? null };
+        return { P, Q, L, kind: g.debugState?.crashKind ?? null };
       },
-      { c },
+      { c, shake },
     );
     const ang = (a, b) => {
       const d = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
@@ -243,7 +253,10 @@ async function cameraMotion(page, view) {
     if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
-    if (problems.length) bad++;
+    if (problems.length) {
+      bad++;
+      problems.push(`(${r.L[at.jerk]})`);
+    }
     console.log(
       `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(14)}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );

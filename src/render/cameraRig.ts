@@ -112,6 +112,8 @@ export class CameraRig {
   drive = 0;
   private fovKick = 0;
   private bob = 0;
+  private joltX = 0;
+  private joltY = 0;
   private bobV = 0;
   private sway = 0;
   private swayV = 0;
@@ -300,6 +302,7 @@ export class CameraRig {
     this.pull = this.pullTarget = 1;
     // A new round starts clean: no leftover shake, lens punch or jolt from the last cinematic.
     this.trauma = 0;
+    this.joltX = this.joltY = 0;
     this.standBack = this.standBackV = 0;
     this.fovKick = 0;
     this.bob = this.bobV = this.sway = this.swayV = 0;
@@ -329,8 +332,10 @@ export class CameraRig {
    * lens punches in by `deg`. Scaled by the motion setting.
    */
   jolt(strength: number, deg: number): void {
-    this.bobV -= strength * 1.4 * this.motionScale;
-    this.swayV += (Math.random() - 0.5) * strength * 0.8 * this.motionScale;
+    // (Round 20: a shaped push over ~50 ms, not an instant change of velocity: the same knock,
+    // without a one-frame jerk.)
+    this.joltY -= strength * 1.4 * this.motionScale * 20;
+    this.joltX += (Math.random() - 0.5) * strength * 0.8 * this.motionScale * 20;
     this.fovKick -= deg * this.motionScale;
     // The frame tips on the blow, then rights itself.
     this.rollKick += (Math.random() < 0.5 ? -1 : 1) * Math.min(0.09, 0.04 * strength) * this.motionScale;
@@ -783,6 +788,11 @@ export class CameraRig {
     const n = Math.max(1, Math.ceil(dt * 120));
     const h = dt / n;
     for (let i = 0; i < n; i++) {
+      const fk = Math.exp(-h * 20);
+      this.bobV += this.joltY * (1 - fk) / 20;
+      this.swayV += this.joltX * (1 - fk) / 20;
+      this.joltY *= fk;
+      this.joltX *= fk;
       this.bobV += (-160 * this.bob - 15 * this.bobV) * h;
       this.bob += this.bobV * h;
       this.swayV += (-60 * this.sway - 9 * this.swayV) * h;
@@ -800,8 +810,13 @@ export class CameraRig {
     const base = running ? 0.008 + 0.045 * intensity * intensity : 0.003;
     const amp = (base + this.trauma * this.trauma * 0.35) * m;
     const t = this.t;
-    const sx = (Math.sin(t * 17.3) * 0.6 + Math.sin(t * 31.1 + 1.3) * 0.4) * amp;
-    const sy = (Math.sin(t * 21.7 + 0.7) * 0.6 + Math.sin(t * 43.3 + 2.1) * 0.4) * amp;
+    // Round 20 (motion critic): the impact part of the shake heaves at 1.5-2.5 Hz (a heavy knock,
+    // ≤ 5 cm/frame² at 30 fps), not the tremor's 3-7 Hz buzz, which at impact amplitude jerked the
+    // lens ~40 cm/frame².
+    const tA = base * m;
+    const kA = this.trauma * this.trauma * 0.35 * m;
+    const sx = (Math.sin(t * 17.3) * 0.6 + Math.sin(t * 31.1 + 1.3) * 0.4) * tA + (Math.sin(t * 9.7) * 0.6 + Math.sin(t * 14.3 + 1.3) * 0.4) * kA;
+    const sy = (Math.sin(t * 21.7 + 0.7) * 0.6 + Math.sin(t * 43.3 + 2.1) * 0.4) * tA + (Math.sin(t * 11.9 + 0.7) * 0.6 + Math.sin(t * 15.7 + 2.1) * 0.4) * kA;
     // A slow handheld breath outside the run; in the run, an operator's sway (low, uneven).
     const breathe = running ? 0 : Math.sin(t * 0.7) * 0.012 * this.motionScale;
     const hand = running ? this.motionScale * (0.6 + 0.4 * intensity) : 0;
