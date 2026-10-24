@@ -125,7 +125,14 @@ export class CameraRig {
   motionScale = 1;
   /** Crash: > 0 once he is down (set by the game at the impact): the lens closes in on him. */
   closeIn = 0;
+  /** Crash close-in: metres higher (the ledge: over the fragments lying round him in the trough). */
+  closeUp = 0;
   private closeK = 0;
+  /** Crash: close in from this frame on, without first easing through the crash shot's own framing. */
+  closeNow(): void {
+    this.closeIn = 1;
+    this.closeK = 1;
+  }
   /** Crash: > 0 while he is thrown across the frame (the side hit): the shot opens wider. */
   wide = 0;
   private wideK = 0;
@@ -167,6 +174,7 @@ export class CameraRig {
     this.mode = m;
     this.modeT = 0;
     this.closeIn = 0;
+    this.closeUp = 0;
     this.closeK = 0;
     this.wide = 0;
     this.wideK = 0;
@@ -527,7 +535,7 @@ export class CameraRig {
         let cf = this.crashFrame(T / (1 + 0.5 * this.epic), s);
         // (closeIn > 1 comes closer still; a portrait screen opens its lens, so it comes closer too.)
         const ck = (this.camera.aspect < 1 ? 0.72 : 1) / Math.max(1, this.closeIn);
-        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * (s || 1), up: 0.35 + 1.4 * ck, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
+        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         break;
       }
@@ -796,7 +804,9 @@ export class CameraRig {
       // route, so the figure never shrinks into the distance while the springs catch up.
       const along = this.tmp.copy(this.targetPos).sub(this.pos).dot(this.fwd);
       // An escape's run-out carries real speed for its first second: keep up harder then.
-      const k = this.mode === 'cashout' && this.modeT < 1.6 ? 10 : 6;
+      // (Round 20: and a fall's first second — the dive over the drum, the slam — carries him on at
+      // run speed: a slack follow read as the lens backing away. The output spring smooths it.)
+      const k = this.mode === 'cashout' && this.modeT < 1.6 ? 10 : this.mode === 'crash' && this.modeT < 1.4 ? 16 : 6;
       this.pos.addScaledVector(this.fwd, along * (1 - Math.exp(-dt * k)));
     }
     dampV(this.look, this.targetLook, stiff * 1.4, sdt);

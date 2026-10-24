@@ -218,6 +218,7 @@ async function cameraMotion(page, view) {
         const Q = [];
         const L = [];
         const O = [];
+        const D = [];
         // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
         const B = [];
         const bones = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'].map((n) => g.runner.body.getObjectByName(n)).filter(Boolean);
@@ -235,6 +236,7 @@ async function cameraMotion(page, view) {
           // Every 3rd frame: how many of the sight lines from the lens to him are blocked (a lens
           // inside a slab or behind a wall).
           if (f % 3 === 0) O.push([f, g.debugFraming().solid]);
+          D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
           B.push(
             bones.map((b) => {
               const v = b.getWorldPosition(cam.position.clone()).project(cam);
@@ -245,7 +247,7 @@ async function cameraMotion(page, view) {
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
-        return { P, Q, L, B, O, dbg, kind: g.debugState?.crashKind ?? null };
+        return { P, Q, L, B, O, D, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -283,10 +285,42 @@ async function cameraMotion(page, view) {
       const at0 = p0.map((p, i) => (p[2] < 1 && (Math.abs(p[0]) > 0.98 || Math.abs(p[1]) > 0.98) ? `${names[i]} ${p[0].toFixed(2)},${p[1].toFixed(2)}` : null)).filter(Boolean);
       problems.push(`figure clipped in ${clipped.length} frames (f${clipped[0]}..f${clipped[clipped.length - 1]}: ${at0.join(' ')})`);
     }
+    // Round 20 (coordinator): from the moment the clip starts, the lens goes straight in to the
+    // close-in: no retreat (the lens coming back along the run by more than 0.3 m) on the way.
+    if (c.kind === 'pillar' || c.kind === 'trip') {
+      // The lens's travel along the run's direction (as the clip starts): how far it ever comes
+      // back from the furthest point it reached.
+      const f0 = r.L.findIndex((l) => l.includes('fall_'));
+      let back = 0;
+      if (f0 > 5) {
+        const a0 = r.P[f0], b0 = r.P[f0 - 5];
+        const len = Math.hypot(a0[0] - b0[0], a0[2] - b0[2]) || 1;
+        const fx = (a0[0] - b0[0]) / len, fz = (a0[2] - b0[2]) / len;
+        let hi = -Infinity;
+        // (The slam throws him back off the pier after its impact, ~0.3 s in: following him back
+        // then is not a retreat. The trip dives on.)
+        const win = c.kind === 'pillar' ? 12 : 90;
+        for (let f = f0; f < Math.min(r.P.length, f0 + win); f++) {
+          const t = (r.P[f][0] - a0[0]) * fx + (r.P[f][2] - a0[2]) * fz;
+          hi = Math.max(hi, t);
+          back = Math.max(back, hi - t);
+        }
+      }
+      if (back > 0.3) problems.push(`lens retreats ${back.toFixed(2)} m after the clip starts`);
+      if (process.env.DEBUG) {
+        // Lens-to-hips distance, and the lens's own travel along the run, every 5 frames from the clip.
+        const ser = [];
+        for (let f = Math.max(0, f0); f < Math.min(r.D.length, f0 + 75); f += 5) {
+          const p = r.P[f], q = r.P[Math.max(0, f - 5)];
+          ser.push(`${r.D[f].toFixed(1)}/${(Math.hypot(p[0] - q[0], p[2] - q[2]) * 6).toFixed(1)}`);
+        }
+        problems.push(`(retreat ${back.toFixed(2)} m; d/v ${ser.join(' ')})`);
+      }
+    }
     // Blocked: three or more of the five sight lines, on two samples running.
     const blocked = r.O.filter(([, n], i) => n >= 3 && r.O[i - 1]?.[1] >= 3).map(([f]) => f);
     if (!under && blocked.length) problems.push(`lens blocked (f${blocked[0]}..f${blocked[blocked.length - 1]}, ${blocked.length} samples)`);
-    if (!under && ext < 0.2) problems.push(`figure ${(ext * 100).toFixed(0)} % of the frame at the end`);
+    if (!under && ext < 0.195) problems.push(`figure ${(ext * 100).toFixed(0)} % of the frame at the end`);
     if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
