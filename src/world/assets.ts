@@ -173,12 +173,16 @@ function prepareMaterial(key: string, src: THREE.MeshStandardMaterial): THREE.Ma
           vec4 wp = modelMatrix * vec4(position, 1.0);
           float h = clamp(position.y * 0.18, 0.0, 1.6);
           float ph = wp.x * 0.21 + wp.z * 0.17;
-          transformed.x += sin(uTime * 1.7 + ph) * 0.07 * h * uWind + sin(uTime * 4.3 + ph * 3.0) * 0.02 * h * uWind;
-          transformed.z += cos(uTime * 1.3 + ph * 1.3) * 0.06 * h * uWind;
-          transformed.y += sin(uTime * 2.1 + ph * 2.0) * 0.025 * h * uWind;`,
+          // World round 22: gusts — fronts rolling through the trees (world space), the leaves leaning
+          // and shivering harder as one passes, then settling.
+          float gust = 0.7 + 1.1 * smoothstep(0.55, 1.0, sin(uTime * 0.31 - (wp.x * 0.6 + wp.z * 0.8) * 0.045));
+          float wk = uWind * gust;
+          transformed.x += sin(uTime * 1.7 + ph) * 0.07 * h * wk + sin(uTime * 4.3 + ph * 3.0) * 0.02 * h * wk * gust + 0.05 * h * (gust - 0.7);
+          transformed.z += cos(uTime * 1.3 + ph * 1.3) * 0.06 * h * wk;
+          transformed.y += sin(uTime * 2.1 + ph * 2.0) * 0.025 * h * wk;`,
         );
     };
-    m.customProgramCacheKey = () => 'leaf-wind';
+    m.customProgramCacheKey = () => 'leaf-wind22';
   }
   if (key === 'rock') m.roughness = 1;
   m.needsUpdate = true;

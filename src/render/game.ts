@@ -15,7 +15,7 @@ import { Debris } from '../world/debris';
 import { forward } from '../world/path';
 import { CRASH_CLIPS, crashStaging, escapeStaging, intensityOf, nextBeat, progression, type CrashKind, type CrashStaging, type EscapeStaging, type Progression } from '../world/choreo';
 import { Runner, type RunnerAnim } from '../world/runner';
-import { PATH_HALF } from '../world/sections';
+import { isLand, PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
 import type { Look } from '../world/look';
 import { WATER_Y, Water } from '../world/water';
@@ -561,6 +561,33 @@ export class Game {
     this.rig.setAspect(w / h);
     this.particles.setViewport(h * pr, this.rig.camera.fov);
   };
+
+  // World round 22 (world hook): life in the forest. On land the air fills with falling leaves and
+  // insects, and every so often a flock bursts out of the crowns ahead and to one side as he comes up
+  // (a world-space flock in Ambient; presentation only, from the route and the clock).
+  private forestK = 0;
+  private nextFlushS = 40;
+  private flushTmp = new THREE.Vector3();
+  private flushDir = new THREE.Vector3();
+  private flushFrame = { pos: new THREE.Vector3(), yaw: 0 };
+  private forestLife(dt: number): void {
+    const land = isLand(this.track.sectionAt(this.s)?.type) || isLand(this.track.sectionAt(this.s + 25)?.type);
+    this.forestK += ((land ? 1 : 0) - this.forestK) * (1 - Math.exp(-dt * 0.8));
+    this.ambient.setForest(this.forestK);
+    if (this.s < this.nextFlushS - 400) this.nextFlushS = this.s + 40; // a new world
+    if (this.stage !== 'run' || this.s < this.nextFlushS) return;
+    const ahead = this.s + 26;
+    if (!isLand(this.track.sectionAt(ahead)?.type)) {
+      this.nextFlushS = this.s + 10;
+      return;
+    }
+    const f = this.track.path.sample(ahead, this.flushFrame);
+    const side = Math.sin(ahead * 1.7) > 0 ? 1 : -1;
+    const rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
+    this.flushTmp.set(f.pos.x + rx * side * 9, f.pos.y + 9, f.pos.z + rz * side * 9);
+    this.flushDir.set(rx * side - Math.sin(f.yaw) * 0.6, 0, rz * side - Math.cos(f.yaw) * 0.6);
+    if (this.ambient.flushBirds(this.flushTmp, this.flushDir, this.worldT)) this.nextFlushS = this.s + 70 + 50 * ((Math.sin(this.s * 0.37) + 1) / 2);
+  }
 
   // ------------------------------------------------------------------ stages
   /** A fresh stretch of causeway with the runner at its start. */
@@ -2715,6 +2742,7 @@ export class Game {
     this.tension += (tensionTarget - this.tension) * (1 - Math.exp(-rawDt * (this.stage === 'run' ? (tensionTarget > this.tension ? 8 : 1.5) : 0.8)));
     this.motes.update(this.worldT, cam, this.renderer.domElement.height / (2 * Math.tan((cam.fov * Math.PI) / 360)), (1 + 1.3 * this.tension) * (1 + 1.2 * worldMood.drive + 1.5 * worldMood.gust), this.sunDir);
     this.ambient.update(this.worldT, cam);
+    this.forestLife(rawDt);
 
     // Keep the runner sharp in the blur: the protected ellipse spans boots to crown. (It used to sit
     // on the chest, so the legs were blurred and their dark taps smeared across the bright floor

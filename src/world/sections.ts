@@ -759,10 +759,14 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       for (const side of [-1, 1]) {
         for (let i = 0; i < n; i++) b.edgeRubble(side, -TILE * i);
         cliffWall(b, side, b.rng.range(7.5, 8.2), -len / 2, b.rng.int(0, 1), b.rng.range(0.42, 0.55));
-        for (let z = -2; z > -len; z -= b.rng.range(4, 7)) {
+        // (Round 22: rock is the heaviest piece in the kit — 1.3k and 5k triangles a boulder: a few,
+        // fewer on phones, with ferns and litter between them.)
+        const lean = b.density.scenery < 0.5;
+        for (let z = -2; z > -len; z -= b.rng.range(6, 9) * (lean ? 1.6 : 1)) {
           b.place(`rock_mid_${b.rng.int(0, 2)}`, side * b.rng.range(3.6, 4.6), gy(b, side * 4, z) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.35, 0.6));
           // The cut's lower face: exposed rock stepping up to the cliff.
-          if (b.rng.chance(0.7)) b.place(`rock_big_${b.rng.int(0, 2)}`, side * b.rng.range(5.6, 6.6), gy(b, side * 6, z) - 0.8, z - 1, b.rng.range(0, 6.28), [0.32, 0.35, 0.28]);
+          if (b.rng.chance(lean ? 0.2 : 0.45)) b.place(`rock_big_${b.rng.int(0, 2)}`, side * b.rng.range(5.6, 6.6), gy(b, side * 6, z) - 0.8, z - 1, b.rng.range(0, 6.28), [0.32, 0.35, 0.28]);
+          else b.place(`scatter_edge_${b.rng.int(0, 2)}`, side * 4.8, gy(b, side * 4.8, z) + 0.05, z - 2, side > 0 ? 0 : Math.PI);
           if (b.foliage(0.7)) b.place(`fern_${b.rng.int(0, 1)}`, side * b.rng.range(3.0, 3.8), gy(b, side * 3.3, z), z - 1.5, b.rng.range(0, 6.28), 1.2);
         }
         for (let z = -4; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(14, 22), z, b.rng.range(1.0, 1.3), 'land', 0.9);
@@ -805,16 +809,19 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
     build: (b, len) => {
       const n = len / TILE;
       floorRun(b, 0, n, 0, 0.2, 0);
-      lowWalls(b, 0, n, [-1, 1], { gaps: 0.4 });
+      if (b.density.scenery >= 0.5) lowWalls(b, 0, n, [-1, 1], { gaps: 0.4, foundation: false }); // (round 22: its own footing below; this doubled it)
+      else for (const side of [-1, 1]) for (let i = 0; i < n; i++) b.edgeRubble(side, -TILE * i);
       for (const side of [-1, 1]) {
-        for (let i = 0; i < n; i++) b.wall('foundation_1', side, PATH_HALF + 0.42, 0, -TILE * i);
-        for (let z = -1; z > -len; z -= b.rng.range(2.5, 4.5)) {
+        // (Round 22: the lighter footing, and no parapet on phones: masonry was over a third of the frame.)
+        for (let i = 0; i < n; i++) b.wall('foundation_0', side, PATH_HALF + 0.42, 0, -TILE * i); // (down to -2.6: the bed)
+        // (Round 22: half the boulders, fewer still on phones: rock was a third of the frame's triangles.)
+        for (let z = -1; z > -len; z -= b.rng.range(5, 8) * (b.density.scenery < 0.5 ? 1.5 : 1)) {
           const x = side * b.rng.range(3.4, 7);
           b.place(`rock_mid_${b.rng.int(0, 2)}`, x, gy(b, x, z, 'ravine') - 0.2, z, b.rng.range(0, 6.28), b.rng.range(0.25, 0.6));
           if (b.rng.chance(0.25)) b.place('log_fallen_0', x, gy(b, x, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 0.8);
           if (b.foliage(0.4)) b.place(`grass_${b.rng.int(0, 1)}`, x + side, gy(b, x + side, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 1.2);
         }
-        cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.rng.int(0, 2), b.rng.range(0.55, 0.75));
+        cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 1), b.rng.range(0.55, 0.75));
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
       }
       return { hazards: ['chasm', 'rockfall'], walls: 'cliff', ground: 'ravine', features: { rockfall: true } };
@@ -897,6 +904,25 @@ const BUILDERS = {
             b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
           } else if (r < 0.75) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
           else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
+        }
+        // (Round 22: a near layer and a far shore — w23/31/77 still read as open water to the horizon.)
+        for (let z = -b.rng.range(0, 3); z > -len; z -= b.rng.range(5, 7)) {
+          const x = side * b.rng.range(3.6, 5.2);
+          const top = islet(b, x, z, b.rng.range(0.35, 0.5));
+          if (b.foliage(0.8)) b.place(`grass_${b.rng.int(0, 1)}`, x, top - 0.1, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.4));
+          else b.place(`moss_${b.rng.int(0, 2)}`, x, top - 0.05, z, 0, 1);
+        }
+        // (No far shore here: it stood on the exit leg of the landmark's corner and blocked it.
+        // Instead a second islet within 7 m carries a palm or a shrub mass, filling the near water.)
+        for (let z = -b.rng.range(2, 5); z > -len; z -= b.rng.range(7, 10)) {
+          const x = side * b.rng.range(5.4, 7.0);
+          const top = islet(b, x, z, b.rng.range(0.55, 0.75));
+          if (b.rng.chance(0.5) && b.foliage(0.9)) {
+            const j = b.rng.int(0, 2);
+            const ry = b.rng.range(0, 6.28);
+            b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.85, 1.1));
+            b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.85, 1.1));
+          } else b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1));
         }
         if (b.rng.chance(0.6)) {
           const cx = side * b.rng.range(13, 20);

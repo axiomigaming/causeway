@@ -244,8 +244,10 @@ export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number
 export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30, win_cheer: 4 / 30, win_cheer_big: 4 / 30, win_leap: 4 / 30, win_salute: 7 / 30, win_slide: 3 / 30 };
 
 /** Reactions the feet are never pinned in: the drop to the stone below (the feet leave the floor the root
- * stands on) and the spin of the side hit (a pinned foot fights the spin and flips the leg). */
-const UNPINNED = new Set(['fall_drop', 'fall_side_hit']);
+ * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
+ * game's launch carries the body off a pinned foot faster than the clip sweeps it back: it ran out of reach
+ * at the last push and let go with a 27° shin snap). */
+const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start']);
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -666,11 +668,14 @@ export class Runner {
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
     if (this.current === 'start') {
       const a = this.actions.get('start')!;
-      if (a.time >= a.getClip().duration - 0.06) {
+      const dur = a.getClip().duration;
+      if (a.time >= dur - 0.06) {
         // (Its last key is the run's left strike exactly: a long cross-fade from the clip, which stops
-        // there, into the moving run dragged the planted foot along at half the floor's speed.)
+        // there, into the moving run dragged the planted foot along at half the floor's speed. And the
+        // run joins at the phase the clip has reached, not at 0 a couple of frames early: that jump
+        // snapped the trailing shin ~27°.)
         this.start('run', 0.03, 0);
-        this.phase = 0;
+        this.phase = ((a.time - dur) * this.cadence + 1) % 1;
       }
     }
     // Idle variety: the idle clips take turns (settle, look around, shake out for the run).
