@@ -74,6 +74,9 @@ export class Ambient {
   private butterflies;
   private leaves;
   private flies;
+  /** World round 22: a flock flushed out of the canopy as he passes (land). */
+  private flush;
+  private flushAt = new THREE.Vector3();
 
   constructor() {
     let s = 7;
@@ -238,7 +241,46 @@ export class Ambient {
     fm.depthWrite = false;
     fm.blending = THREE.AdditiveBlending;
     fm.fog = false;
-    this.root.add(this.birds.mesh, this.butterflies.mesh, this.leaves.mesh, this.flies.mesh);
+    // World round 22: birds bursting out of the canopy beside the way and climbing off over the trees.
+    // One flock at a time, launched by flushBirds(): each bird lifts from a random point in a 6 m
+    // patch of crowns, beats hard to climb, then glides away; gone after ~6 s.
+    this.flush = makeField(
+      wingGeometry(0.42, 0.18, -0.14),
+      14,
+      /* glsl */ `
+      attribute float aWing;
+      uniform vec3 uFlushAt;
+      uniform vec3 uFlushDir;
+      uniform float uFlushT0;
+      #include <fog_pars_vertex>
+      void main() {
+        float t = uTime - uFlushT0 - aSeed.x * 0.6;
+        float live = step(0.0, t) * (1.0 - smoothstep(5.0, 6.5, t));
+        vec3 start = uFlushAt + vec3((aSeed.y - 0.5) * 6.0, aSeed.z * 2.0, (aSeed.w - 0.5) * 6.0);
+        vec3 side = normalize(vec3(uFlushDir.z, 0.0, -uFlushDir.x));
+        vec3 dir = normalize(uFlushDir * (0.6 + aSeed.z) + side * (aSeed.y - 0.5) * 1.6);
+        float tt = max(t, 0.0);
+        vec3 pos = start + dir * (tt * (4.0 + 3.0 * aSeed.w) + tt * tt * 0.6) + vec3(0.0, 1.0, 0.0) * (tt * 3.2 - tt * tt * 0.12);
+        float ph = uTime * 14.0 + aSeed.x * 40.0;
+        float flap = sin(ph) * mix(0.95, 0.4, smoothstep(1.5, 3.0, tt));
+        vec3 p = position;
+        p.y += abs(aWing) * sin(flap) * abs(p.x) * 2.0;
+        float heading = atan(dir.x, dir.z);
+        vec3 wp = pos + rotY(heading) * (p * (1.0 + aSeed.w * 0.5) * live);
+        vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+      /* glsl */ `
+      #include <fog_pars_fragment>
+      void main() {
+        gl_FragColor = vec4(0.08, 0.07, 0.06, 1.0);
+        #include <fog_fragment>
+      }`,
+      rnd,
+      { uFlushAt: { value: new THREE.Vector3(0, -1000, 0) }, uFlushDir: { value: new THREE.Vector3(1, 0, 0) }, uFlushT0: { value: -100 } },
+    );
+    this.root.add(this.birds.mesh, this.butterflies.mesh, this.leaves.mesh, this.flies.mesh, this.flush.mesh);
   }
 
   /** 0 hides ambient life, 1 is the full count. */
@@ -249,6 +291,7 @@ export class Ambient {
     set(this.birds, 8);
     set(this.butterflies, 4);
     set(this.flies, 0);
+    this.flyBudget = Math.min(1, k);
     this.leafBudget = k >= 0.5 ? Math.min(1, k) : 0;
     this.leaves.mesh.visible = k >= 0.5;
     this.setLeafDensity(this.leafDensity);
@@ -264,12 +307,36 @@ export class Ambient {
 
   setLeafDensity(d: number): void {
     this.leafDensity = d;
-    const n = Math.round(this.leaves.max * this.leafBudget * (0.33 + 0.67 * Math.min(1, Math.max(0, d))));
+    const n = Math.round(this.leaves.max * this.leafBudget * Math.min(1, 0.33 + 0.67 * Math.min(1, Math.max(0, d)) + 0.5 * this.leafBoost));
     (this.leaves.mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = n;
   }
 
+  /**
+   * World round 22: flush a flock out of the canopy at `at` (world), flying off along `dir` (horizontal),
+   * from time `t` (the same clock as update()). Ignored while the last flock is still in the air.
+   */
+  flushBirds(at: THREE.Vector3, dir: THREE.Vector3, t: number): boolean {
+    const u = this.flush.mat.uniforms;
+    if (t - (u.uFlushT0!.value as number) < 7) return false;
+    u.uFlushAt!.value.copy(at);
+    u.uFlushDir!.value.copy(dir).setY(0).normalize();
+    u.uFlushT0!.value = t;
+    return true;
+  }
+
+  /** World round 22: in the forest the air is busier: more leaves falling, more insects in the light. */
+  setForest(k: number): void {
+    const n = Math.round(this.flies.max * Math.min(1, 0.35 + 0.65 * k) * this.flyBudget);
+    (this.flies.mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = n;
+    this.leafBoost = k;
+    this.setLeafDensity(this.leafDensity);
+  }
+
+  private flyBudget = 1;
+  private leafBoost = 0;
+
   update(t: number, cam: THREE.Camera): void {
-    for (const f of [this.birds, this.butterflies, this.leaves, this.flies]) {
+    for (const f of [this.birds, this.butterflies, this.leaves, this.flies, this.flush]) {
       f.mat.uniforms.uTime!.value = t;
       f.mat.uniforms.uCenter!.value.copy(cam.position);
     }
