@@ -741,7 +741,13 @@ export class Game {
     if (st.kind === 'ledge' && !(this.runner as unknown as { actions: Map<string, unknown> }).actions.has('fall_drop')) st.kind = 'chasm';
     if ((st.kind === 'chasm' || st.kind === 'ledge') && this.tileEdge(this.s + 1.4, this.s + (this.speed * 0.45) / 2 + 5) === null) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
-    this.setStage('crash');
+    // A pier or a column coming down: he runs on toward it for most of a second, and the chase lens
+    // stays with him (stageCrash switches to the crash shot as the clip starts). The settled crash
+    // spring let him run 6 m out ahead of the lens before the trip.
+    if ((st.kind === 'pillar' || st.kind === 'trip') && !standing) {
+      this.stage = 'crash';
+      this.stageT = 0;
+    } else this.setStage('crash');
     this.slowFloor = this.slowFloorTarget = 0;
     this.obstacles.settle();
     this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
@@ -1157,8 +1163,20 @@ export class Game {
         p.z += -Math.cos(ry) * k;
       }
     }
-    p.y = Math.max(p.y, f.pos.y + 0.45);
+    // Round 20: over the ledge's open trough the lens may go down into it (the close-in on him
+    // lying on the stone below), keeping clear of its floor and walls.
+    let floor = f.pos.y + 0.45;
+    const L = this.ledgeBed;
+    if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
+      // (The open part only: the trough runs 1.6 m further back under floor that still stands.
+      // Local z runs back along the way: +len/2 is its near end.)
+      const lp = L.worldToLocal(this.tmpLedge.copy(p));
+      if (Math.abs(lp.x) < this.ledgeDims[0] / 2 - 0.35 && lp.z > -this.ledgeDims[1] / 2 + 0.35 && lp.z < this.ledgeDims[1] / 2 - 2.0) floor = L.position.y + 0.8;
+    }
+    p.y = Math.max(p.y, floor);
   }
+  private tmpLedge = new THREE.Vector3();
+  private ledgeDims: [number, number] = [0, 0];
 
   // ------------------------------------------------------------------ crash staging
   /** A tile's span along the route, measured from its world matrix (independent of Track's bookkeeping). */
@@ -1355,6 +1373,7 @@ export class Game {
         kick(1);
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
         this.slowFloorTarget = 0;
+        this.rig.closeIn = 1.3;
       });
       this.holdReveal(LEDGE_LAND + 0.25);
       slow(LEDGE_LAND + 0.05, 0.6, 0.2);
@@ -1758,6 +1777,7 @@ export class Game {
         this.particles.burst(p, 8, { spread: 0.5, up: 1, speed: 2, size: 0.06, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
         B.puff(p, { count: 2, spread: 0.6, jitter: 0.5, size: [0.4, 1.4], life: 1.3, alpha: 0.3, tint: DUST_T, rise: 0.1 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
+        this.rig.closeIn = 1;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
       });
       if (trip) {
@@ -1783,6 +1803,7 @@ export class Game {
       // where the clip starts); he spins and goes down on his left side. The root halts as the clip
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
+        this.rig.wide = 1;
         const halt = v * 0.06;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
@@ -1800,6 +1821,9 @@ export class Game {
           this.sounds.event?.('rock_knock', 0.9);
         });
         // Down on his left side (0.6 s).
+        // (The lens closes in once he has come to rest: closing in during the throw lost him off the
+        // frame's edge.)
+        this.later(1.3, () => (this.rig.closeIn = 1));
         this.later(0.6, () => {
           const f = frameAt(this.s + 1.75);
           const p = f.pos.clone().addScaledVector(f.right, -0.9).setY(f.pos.y + 0.05);
@@ -2620,6 +2644,10 @@ export class Game {
         // This frame's pose (the bones' world matrices otherwise update only at render).
         this.runner.body.updateWorldMatrix(true, true);
         this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).sub(rp).setY(0);
+        // (Round 20: the fall onto the stone takes him 2.75 m below his root: the shot's ground is
+        // the trough's floor, or the close-in hung 4 m over him.)
+        // (Only once he is down: earlier, the lens sank through the floor still standing behind him.)
+        if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed && this.rig.closeIn > 0) this.tmpSubj.y = this.ledgeBed.position.y - rp.y;
         if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
         // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
         // second: chasing that flew the lens metres); keepInFrame measures the body at once.
@@ -2628,7 +2656,7 @@ export class Game {
         // The limbs as posed, for the frame's margins (the slide's legs reach a metre out).
         if (!this.limbBones) {
           const b = this.runner.body;
-          this.limbBones = ['head', 'footL', 'footR', 'forearmL', 'forearmR'].map((n) => b.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
+          this.limbBones = ['head', 'footL', 'footR', 'forearmL', 'forearmR', 'handL', 'handR'].map((n) => b.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
           this.limbPts = this.limbBones.map(() => new THREE.Vector3());
         }
         this.limbBones.forEach((o, i) => this.limbPts[i]!.setFromMatrixPosition(o.matrixWorld));
@@ -2903,6 +2931,8 @@ export class Game {
     g.rotation.y = h.yaw;
     this.scene.add(g);
     this.ledgeBed = g;
+    this.ledgeDims = [W, len];
+    g.updateMatrixWorld(true);
     this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 0.5, halfL: len / 2 + 0.5 });
   }
 

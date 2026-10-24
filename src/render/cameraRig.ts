@@ -4,6 +4,8 @@ export type CamMode = 'title' | 'setup' | 'lead' | 'run' | 'crash' | 'cashout';
 export type CrashShot = 'chasm' | 'gate' | 'rockfall';
 export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 
+/** Round 20: an impact knock is a push over ~1/JOLT_K s (80 ms), not an instant change of velocity. */
+const JOLT_K = 12;
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
 const ease = (x: number) => {
@@ -121,6 +123,12 @@ export class CameraRig {
   private lastYaw = 0;
   shakeEnabled = true;
   motionScale = 1;
+  /** Crash: > 0 once he is down (set by the game at the impact): the lens closes in on him. */
+  closeIn = 0;
+  private closeK = 0;
+  /** Crash: > 0 while he is thrown across the frame (the side hit): the shot opens wider. */
+  wide = 0;
+  private wideK = 0;
   /** Extra focus point for crash framing (the hazard). */
   focus = new THREE.Vector3();
   /** Keeps a camera position inside the open corridor (walls, floor). Set by the game. */
@@ -158,6 +166,10 @@ export class CameraRig {
     this.subjectAhead = 0;
     this.mode = m;
     this.modeT = 0;
+    this.closeIn = 0;
+    this.closeK = 0;
+    this.wide = 0;
+    this.wideK = 0;
     this.swingTarget = 0;
     this.pullTarget = 1;
   }
@@ -334,8 +346,8 @@ export class CameraRig {
   jolt(strength: number, deg: number): void {
     // (Round 20: a shaped push over ~50 ms, not an instant change of velocity: the same knock,
     // without a one-frame jerk.)
-    this.joltY -= strength * 1.4 * this.motionScale * 20;
-    this.joltX += (Math.random() - 0.5) * strength * 0.8 * this.motionScale * 20;
+    this.joltY -= strength * 1.4 * this.motionScale * JOLT_K;
+    this.joltX += (Math.random() - 0.5) * strength * 0.8 * this.motionScale * JOLT_K;
     this.fovKick -= deg * this.motionScale;
     // The frame tips on the blow, then rights itself.
     this.rollKick += (Math.random() < 0.5 ? -1 : 1) * Math.min(0.09, 0.04 * strength) * this.motionScale;
@@ -395,7 +407,10 @@ export class CameraRig {
     const d0 = Math.max(0.3, Math.hypot(f.along, f.lat, dy));
     // Round 20: and never so far that he is a dot: pull in until he fills ~38 % of the band.
     const needFar = 1.95 / (0.38 * band * 2 * tanH);
-    const mBand = d0 < needBand ? needBand / d0 : d0 > needFar ? needFar / d0 : 1;
+    // (A man lying on the stone is not 1.95 m tall in the frame: once the crash lens has closed in
+    // on him, keepInFrame alone keeps him whole; the standing stand-back would undo the close-in.)
+    const lying = this.mode === 'crash' && this.closeK > 0.5;
+    const mBand = d0 < needBand ? (lying ? 1 : needBand / d0) : d0 > needFar ? needFar / d0 : 1;
     const m = lerp(mBand, needSide / d0, this.sideK);
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
     return mixFrame(f, out, k);
@@ -504,7 +519,16 @@ export class CameraRig {
         break;
       }
       case 'crash': {
-        fov = this.shot(runnerPos, this.resultFrame(this.settled(this.crashFrame(T / (1 + 0.5 * this.epic), s))));
+        // Round 20: after the impact of a slam, a trip, a fall onto the stone or a side hit, the
+        // lens closes in on him where he lies (game sets closeIn): a low three-quarter view ~2.8 m
+        // from his body, so the figure fills a third of the frame instead of a dot behind the dust.
+        this.closeK += ((this.closeIn > 0 ? 1 : 0) - this.closeK) * (1 - Math.exp(-dt * 1.6));
+        this.wideK += ((this.wide > 0 && this.closeIn <= 0 ? 1 : 0) - this.wideK) * (1 - Math.exp(-dt * 6));
+        let cf = this.crashFrame(T / (1 + 0.5 * this.epic), s);
+        // (closeIn > 1 comes closer still; a portrait screen opens its lens, so it comes closer too.)
+        const ck = (this.camera.aspect < 1 ? 0.72 : 1) / Math.max(1, this.closeIn);
+        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * (s || 1), up: 0.35 + 1.4 * ck, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
+        fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         break;
       }
       case 'cashout': {
@@ -681,7 +705,9 @@ export class CameraRig {
     const tall = this.camera.aspect < 1 ? 0.8 : 1;
     if (this.crashShot === 'gate') return { ...f, along: f.along * (1 + 0.18 * grow) * tall, up: f.up + 0.7 * grow, lUp: f.lUp + 0.4 * grow, fov: f.fov + 2 * grow };
     const v = this.variant ? -0.35 : 0;
-    const out = { ...f, along: f.along * (1 + 0.5 * grow), lat: f.lat * (1 + 0.25 * grow), up: f.up + 1.6 * grow + v * ease(T / 2), fov: f.fov + 4 * grow };
+    // (Round 20: a throw across the frame — the side hit — opens the shot while he flies.)
+    const w = this.wideK;
+    const out = { ...f, along: f.along * (1 + 0.5 * grow) * (1 + 0.8 * w), lat: f.lat * (1 + 0.25 * grow) * (1 + 0.5 * w), up: f.up + 1.6 * grow + v * ease(T / 2), fov: f.fov + 4 * grow + 10 * w };
     // The runner went down with the floor: lean out over the lip and tilt down into the gap.
     if (this.crashShot === 'chasm' && this.gap > 0) return mixFrame(out, F(-1.3, 1.1 * s, 3.1, 1.2, 0, -2.8, 56, 0), this.gap);
     return out;
@@ -788,9 +814,9 @@ export class CameraRig {
     const n = Math.max(1, Math.ceil(dt * 120));
     const h = dt / n;
     for (let i = 0; i < n; i++) {
-      const fk = Math.exp(-h * 20);
-      this.bobV += this.joltY * (1 - fk) / 20;
-      this.swayV += this.joltX * (1 - fk) / 20;
+      const fk = Math.exp(-h * JOLT_K);
+      this.bobV += this.joltY * (1 - fk) / JOLT_K;
+      this.swayV += this.joltX * (1 - fk) / JOLT_K;
       this.joltY *= fk;
       this.joltX *= fk;
       this.bobV += (-160 * this.bob - 15 * this.bobV) * h;
@@ -924,7 +950,9 @@ export class CameraRig {
   private tmp4 = new THREE.Vector3();
 
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
-    if (this.mode === 'crash' && this.gap > 0.3) return; // looking down into the gap after him
+    // (Looking down into the gap after him; once the lens has closed in on him lying on the ledge's
+    // stone, he is framed again.)
+    if (this.mode === 'crash' && this.gap > 0.3 && this.closeK < 0.5) return;
     const c = this.camera;
     const s = this.shift;
     const result = (this.mode === 'cashout' || this.mode === 'crash') ? this.revealK : 0;
@@ -948,11 +976,14 @@ export class CameraRig {
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
     const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side);
-    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side);
+    // (Round 20: the celebration's leaps and raised arms move faster than the jerk-limited lens
+    // turns: the cash-out keeps more headroom so the lag never takes his head or hands off the frame.)
+    const head = this.mode === 'cashout' ? 0.14 : 0;
+    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head;
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
-    const mx = 1 - 0.09; // side margin in NDC (16 pt of a 390 pt phone)
+    const mx = 1 - 0.09 - (this.mode === 'cashout' ? (this.camera.aspect < 1 ? 0.1 : 0.06) : 0); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
     const measure = () => {
