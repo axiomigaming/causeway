@@ -445,6 +445,7 @@ const launch = () =>
   });
 // (A browser killed under memory pressure is relaunched for the next attempt.)
 let browser = REANALYSE ? null : await launch();
+let lastErrors = [];
 const allFlags = [];
 const allRanges = [];
 const summary = [];
@@ -475,7 +476,7 @@ for (const name of SEQS) {
       await film(name, S);
       break;
     } catch (e) {
-      console.log(`${name.padEnd(10)} attempt ${attempt} failed: ${String(e.message).split('\n')[0]}`);
+      console.log(`${name.padEnd(10)} attempt ${attempt} failed: ${String(e.message).split('\n')[0]}${lastErrors.length ? ` | page: ${lastErrors.slice(-4).join(' ; ')}` : ''}`);
       if (attempt === 2) {
         summary.push({ name, frames: 0, window: [S.from, S.to], actual: {}, counts: {}, shots: 0, errors: [String(e.message).split('\n')[0]] });
         timeline[name] = [];
@@ -498,8 +499,16 @@ async function film(name, S) {
 }
 
 async function filmOn(page, name, S) {
-  const errors = [];
+  const errors = (lastErrors = []);
   page.on('pageerror', (e) => errors.push(e.message));
+  // A reload mid-sequence (the helper vanishes) must say why.
+  let loaded = 0;
+  page.on('framenavigated', (fr) => {
+    if (fr === page.mainFrame() && ++loaded > 1) errors.push(`page navigated/reloaded: ${fr.url()}`);
+  });
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 200)}`);
+  });
   await page.goto(`${URL}/?qa&q=${Q}&w=${WORLD}`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
   const meta = await page.evaluate(HELPER);
