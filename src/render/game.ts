@@ -786,7 +786,10 @@ export class Game {
   private holdReveal(impactIn: number, outcome: 'fall' | 'escape' = 'fall'): void {
     const H = revealHold(outcome, this.live.mult, this.motion);
     if (this.rev) clearTimeout(this.rev.timer);
-    this.rev = { impactAt: this.worldT + impactIn, after: H.after, t: 0, cap: H.cap, timer: this.revealFallback(H.cap + 0.6) };
+    // (Round 20: the cap counts from this hold, not from the stage's start: a big escape's run-on and
+    // braking took longer than the 2 s cap, and the card landed on him while he was still running.)
+    const cap = Math.max(H.cap, this.stageT + impactIn + H.after + 0.3);
+    this.rev = { impactAt: this.worldT + impactIn, after: H.after, t: 0, cap, timer: this.revealFallback(cap - this.stageT + 0.6) };
   }
 
   /**
@@ -1374,6 +1377,8 @@ export class Game {
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
         this.slowFloorTarget = 0;
         this.rig.closeIn = 1.3;
+        // (A little higher: from the trough's floor the fragments round him stood between the lens and him.)
+        this.rig.closeUp = 0.45;
       });
       this.holdReveal(LEDGE_LAND + 0.25);
       slow(LEDGE_LAND + 0.05, 0.6, 0.2);
@@ -1724,6 +1729,9 @@ export class Game {
         this.setStop(this.s + HALT);
         this.runner.play(clip, 0.06);
         crashCam();
+        // (Straight from the chase into the close-in: the crash shot's own framing first stood
+        // back for ~0.3 s, a retreat before the move in.)
+        this.rig.closeNow();
       });
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
@@ -2651,7 +2659,9 @@ export class Game {
         if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
         // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
         // second: chasing that flew the lens metres); keepInFrame measures the body at once.
-        this.subjOff.lerp(this.tmpSubj, 1 - Math.exp(-rawDt * 2.2));
+        // (Round 20: a fall carries him metres on in a second — the dive over the drum, the slam —
+        // and the slow follow read as the lens backing away from him: it follows those faster.)
+        this.subjOff.lerp(this.tmpSubj, 1 - Math.exp(-rawDt * (this.stage === 'crash' ? 14 : 2.2)));
         this.rig.bodyAt = this.bodyPos.copy(rp).add(this.tmpSubj);
         // The limbs as posed, for the frame's margins (the slide's legs reach a metre out).
         if (!this.limbBones) {
