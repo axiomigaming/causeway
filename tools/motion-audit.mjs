@@ -465,9 +465,12 @@ function analyse(name, frames, meta, signs, opts = {}) {
       }
     }
   }
-  // A joint that judders is reported once as such; its per-frame snaps in the gait are dropped.
+  // In the plain run a leg joint's per-stride spikes (foot strike, toe-off) are judged by the judder
+  // measure above, against the joint's own curve; as single-frame "snaps" they are the stride itself.
+  // Any joint that judders is reported once as such.
   const jud = new Set(flags.filter((x) => x.type === 'judder').map((x) => x.what.split(' ')[0]));
-  const kept = flags.filter((x) => !(x.type === 'pop' && x.clip === 'run' && jud.has(x.what.split(' ')[0])));
+  const leg = /^(thigh|shin|foot|toe)[LR] snaps/;
+  const kept = flags.filter((x) => !(x.type === 'pop' && x.clip === 'run' && (leg.test(x.what) || jud.has(x.what.split(' ')[0]))));
   kept.judder = judder;
   return kept;
 }
