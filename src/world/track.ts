@@ -70,6 +70,24 @@ const CLEAR_PROBE = 210;
  */
 const DESPAWN_LEAD = 200;
 
+/** The water's height in a section's own frame (sections at the water's level; see spawn's toWater). */
+const WATER_REL = -2.2;
+
+/** Remove the triangles of an indexed geometry whose three vertices all lie below `y`. */
+function stripBelow(g: THREE.BufferGeometry, y: number): void {
+  const idx = g.getIndex();
+  const pos = g.getAttribute('position');
+  if (!idx || !pos) return;
+  const a = idx.array;
+  const keep: number[] = [];
+  for (let i = 0; i < a.length; i += 3) {
+    const i0 = a[i]!, i1 = a[i + 1]!, i2 = a[i + 2]!;
+    if (pos.getY(i0) < y && pos.getY(i1) < y && pos.getY(i2) < y) continue;
+    keep.push(i0, i1, i2);
+  }
+  if (keep.length !== a.length) g.setIndex(keep);
+}
+
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
   corridor: 6,
@@ -381,6 +399,12 @@ export class Track {
               : 'near';
       const key = `${this.kit.matOf.get(pl.piece)!}|${zone}`;
       const c = g.clone().applyMatrix4(pl.m);
+      // World round 22: the water is opaque, so what lies under it is never seen: drop the triangles
+      // wholly below the surface (rocks, islands, towers and footings sunk into it — a fifth to a third
+      // of their triangles). Far scenery is placed relative to the water; near pieces relative to the
+      // path, which is at the water's level or a flight (1.6 m) below it, never above: in the section's
+      // own frame the water is never lower than WATER_REL, so 0.3 m under that is under water everywhere.
+      stripBelow(c, WATER_REL - 0.3);
       if (!byKey.has(key)) byKey.set(key, []);
       byKey.get(key)!.push(c);
     }
