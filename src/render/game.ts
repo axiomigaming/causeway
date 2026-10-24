@@ -96,7 +96,7 @@ const LEDGE_LAND = 0.93;
  * at 0.87, 0 at 1.0 (T = 1). The root follows that curve so the planted feet plant.
  */
 const CLIP_PACE = 5.6;
-const RUNON_EASE = 2.5;
+const RUNON_EASE = 4;
 const BRAKE_KEYS: [number, number][] = [[0, 1], [0.17, 4.5 / 5.6], [0.37, 3.4 / 5.6], [0.6, 2.3 / 5.6], [0.87, 1.5 / 5.6], [1, 0]];
 function brakeCurve(u: number): number {
   if (u <= 0) return 1;
@@ -710,6 +710,7 @@ export class Game {
     }
     this.frozenMult = mult;
     this.live.mult = mult / 100;
+    this.stopProf = null;
     const sec = this.track.sectionAt(this.s);
     // Round 20 (crash director): the section's own hazards, widened by what any floor can stage:
     // where the floor can cave in, it may drop him onto the stone course below instead of into
@@ -906,6 +907,7 @@ export class Game {
       queueMicrotask(() => this.onReveal());
       return;
     }
+    this.stopProf = null;
     const v = this.speed;
     const st = escapeStaging(roundId ?? this.worldSeed, this.live.mult, v < 2.5);
     const E = escapeScale(this.live.mult, this.motion);
@@ -929,8 +931,9 @@ export class Game {
     // (5.6 m/s) down to a stand over T on BRAKE_CURVE; faster, the root glided under planted feet.
     // So the run-on eases him to that pace first, and the clip's braking follows the curve.
     const curved = clip !== 'win_slide';
-    const vLand = curved && this.motion === 'full' ? Math.min(v, CLIP_PACE) : v;
-    const brakeD = curved ? vLand * T * BRAKE_AREA : (vLand * T) / 2;
+    // (The corner test below takes the braking at his present speed; the stop mark uses the speed
+    // the run-on actually lands him at.)
+    let brakeD = curved ? v * T * BRAKE_AREA : (v * T) / 2;
     this.runOnPace = curved && this.motion === 'full' ? CLIP_PACE : Infinity;
     this.brake = null;
     // He is still running: he carries on through the last strides to safe ground before the gate of
@@ -951,9 +954,10 @@ export class Game {
       let sp = v;
       const h = 1 / 120;
       for (let t = 0; t < runOn - 1e-6; t += h) {
-        if (curved && sp > CLIP_PACE) sp += (CLIP_PACE - sp) * (1 - Math.exp(-h * RUNON_EASE));
+        if (curved && this.motion === 'full') sp += (CLIP_PACE - sp) * (1 - Math.exp(-h * RUNON_EASE));
         runD += sp * h;
       }
+      brakeD = curved ? sp * T * BRAKE_AREA : (sp * T) / 2;
     }
     const stop = this.s + runD + brakeD;
     const gateAt = stop + gateGap;
@@ -966,8 +970,11 @@ export class Game {
       if (this.stage !== 'cashout' || this.escape !== E) return;
       this.runOn = false;
       this.runner.play(clip as RunnerAnim, 0.2, st.offset);
-      this.setStop(stop);
+      // (The braking from the speed he actually has now, so the curve's distance and the mark agree.)
+      this.setStop(curved ? this.s + this.speed * T * BRAKE_AREA : stop);
       this.brake = curved ? { t: 0, v0: this.speed, T, s0: this.s } : null;
+      // (The clip's curve drives the root; the eased stop profile is for the slide only.)
+      if (this.brake) this.stopProf = null;
       this.fx.flash = 0.16 + 0.12 * E.g;
       this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
       // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
@@ -1062,7 +1069,10 @@ export class Game {
     this.stopAt = Math.max(this.s, sStop);
     const d = Math.max(0.01, this.stopAt - this.s);
     this.stopDecel = (this.speed * this.speed) / (2 * d);
+    // The eased profile covers v0·T/2 in T, as the uniform stop did (same mark, same duration).
+    this.stopProf = this.speed > 0.05 ? { t: 0, T: (2 * d) / this.speed, v0: this.speed, s0: this.s } : null;
   }
+  private stopProf: { t: number; T: number; v0: number; s0: number } | null = null;
   private stopAt = 0;
   private stopDecel = 0;
 
@@ -1295,7 +1305,7 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      const halt = v * 0.06;
+      const halt = v * 0.12;
       this.setStop(this.s + halt);
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
@@ -1712,9 +1722,9 @@ export class Game {
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
       const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
-      // The root runs out over ~0.12 s as the clip starts (a dead stop in one frame read as a pop),
+      // The root runs out over ~0.24 s (eased) as the clip starts (a dead stop in one frame read as a pop),
       // HALT m further on; the contact geometry is measured from there.
-      const HALT = v * 0.06;
+      const HALT = v * 0.12;
       const sPlay = this.s + v * tPlay + HALT;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
@@ -1812,7 +1822,7 @@ export class Game {
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
         this.rig.wide = 1;
-        const halt = v * 0.06;
+        const halt = v * 0.12;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
         const tt = 0.23;
@@ -2423,6 +2433,13 @@ export class Game {
     const f = this.track.path.sample(this.s);
     this.runner.root.position.copy(f.pos);
     this.runner.root.rotation.y = f.yaw;
+    // Round 20 (character agent): a clip that carries him metres off the root (the 50x+ slide, a
+    // dive) stands him on the ground under his body, not under the root: on a grade the 1.8 m of
+    // the slide left his feet 15 cm in (or over) the floor.
+    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'ledge' && this.crashKind !== 'gate')) {
+      const carry = this.subjOff.x * -Math.sin(f.yaw) + this.subjOff.z * -Math.cos(f.yaw);
+      this.runner.root.position.y = this.track.path.sample(this.s + carry, this.cframe).pos.y;
+    }
     if (dt > 0) {
       const yawRate = (f.yaw - this.yawPrev) / dt;
       this.runner.roll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.05, -0.3, 0.3);
@@ -2484,7 +2501,8 @@ export class Game {
     if (this.stage === 'cashout' && this.runOn) {
       // The "made it" run-on: full stride to safe ground (see cashout()), easing to the pace the
       // celebration clips' slowing steps start from.
-      if (this.speed > this.runOnPace) this.speed += (this.runOnPace - this.speed) * (1 - Math.exp(-dt * RUNON_EASE));
+      // (From either side, so he lands on the clip's pace exactly: from under it the steps slid too.)
+      if (Number.isFinite(this.runOnPace)) this.speed += (this.runOnPace - this.speed) * (1 - Math.exp(-dt * RUNON_EASE));
       this.s += this.speed * dt;
     } else if (this.stage === 'cashout' && this.brake) {
       // The clip's own braking: speed on its curve, so the planted feet stay planted.
@@ -2498,9 +2516,24 @@ export class Game {
         this.brake = null;
       }
     } else if (this.stage === 'crash' || this.stage === 'cashout') {
-      const rem = Math.max(0, this.stopAt - this.s);
-      this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
-      this.s = Math.min(this.stopAt, this.s + this.speed * dt);
+      // Round 20 (character agent): an eased stop (smoothstep in time), not a uniform deceleration:
+      // the uniform stop's sudden onset and end read as ground jumps of 12-14 cm/frame² in every fall.
+      const P = this.stopProf;
+      if (P) {
+        P.t += dt;
+        const u = Math.min(1, P.t / P.T);
+        this.speed = P.v0 * (1 - u * u * (3 - 2 * u));
+        this.s = Math.min(this.stopAt, P.s0 + P.v0 * P.T * (u - u * u * u + (u * u * u * u) / 2));
+        if (u >= 1) {
+          this.s = this.stopAt;
+          this.speed = 0;
+          this.stopProf = null;
+        }
+      } else {
+        const rem = Math.max(0, this.stopAt - this.s);
+        this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
+        this.s = Math.min(this.stopAt, this.s + this.speed * dt);
+      }
     } else {
       const target = this.stage === 'run' ? speedOf(I) : 0;
       const dv = target - this.speed;

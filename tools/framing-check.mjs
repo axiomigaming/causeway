@@ -219,6 +219,7 @@ async function cameraMotion(page, view) {
         const L = [];
         const O = [];
         const D = [];
+        const G = [];
         let revealAt = -1;
         let revealSpeed = 0;
         // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
@@ -238,6 +239,7 @@ async function cameraMotion(page, view) {
           // Every 3rd frame: how many of the sight lines from the lens to him are blocked (a lens
           // inside a slab or behind a wall).
           if (f % 3 === 0) O.push([f, g.debugFraming().solid]);
+          G.push(g.runner.root.position.toArray());
           if (revealAt < 0 && g.rig.revealed) revealAt = f, revealSpeed = g.speed;
           D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
           B.push(
@@ -250,7 +252,7 @@ async function cameraMotion(page, view) {
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
-        return { P, Q, L, B, O, D, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        return { P, Q, L, B, O, D, G, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -320,6 +322,16 @@ async function cameraMotion(page, view) {
         problems.push(`(retreat ${back.toFixed(2)} m; d/v ${ser.join(' ')})`);
       }
     }
+    // Round 20 (character agent): the runner's ground (the root) never jumps: an eased stop, not a
+    // uniform one (the motion audit's limit, 12 cm/frame²; here 10).
+    let gj = 0;
+    let gjAt = 0;
+    for (let f = 2; f < r.G.length; f++) {
+      const [a, b, d] = [r.G[f], r.G[f - 1], r.G[f - 2]];
+      const j = Math.hypot(a[0] - 2 * b[0] + d[0], a[1] - 2 * b[1] + d[1], a[2] - 2 * b[2] + d[2]);
+      if (j > gj) [gj, gjAt] = [j, f];
+    }
+    if (gj > 0.1) problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]})`);
     // Round 20 (owner): the result card never lands before he has stopped.
     if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
     // Blocked: three or more of the five sight lines, on two samples running.
