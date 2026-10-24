@@ -809,9 +809,11 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
     build: (b, len) => {
       const n = len / TILE;
       floorRun(b, 0, n, 0, 0.2, 0);
-      lowWalls(b, 0, n, [-1, 1], { gaps: 0.4, foundation: false }); // (round 22: its own tall footing below; this doubled it)
+      if (b.density.scenery >= 0.5) lowWalls(b, 0, n, [-1, 1], { gaps: 0.4, foundation: false }); // (round 22: its own footing below; this doubled it)
+      else for (const side of [-1, 1]) for (let i = 0; i < n; i++) b.edgeRubble(side, -TILE * i);
       for (const side of [-1, 1]) {
-        for (let i = 0; i < n; i++) b.wall('foundation_1', side, PATH_HALF + 0.42, 0, -TILE * i);
+        // (Round 22: the lighter footing, and no parapet on phones: masonry was over a third of the frame.)
+        for (let i = 0; i < n; i++) b.wall('foundation_0', side, PATH_HALF + 0.42, 0, -TILE * i); // (down to -2.6: the bed)
         // (Round 22: half the boulders, fewer still on phones: rock was a third of the frame's triangles.)
         for (let z = -1; z > -len; z -= b.rng.range(5, 8) * (b.density.scenery < 0.5 ? 1.5 : 1)) {
           const x = side * b.rng.range(3.4, 7);
@@ -819,7 +821,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
           if (b.rng.chance(0.25)) b.place('log_fallen_0', x, gy(b, x, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 0.8);
           if (b.foliage(0.4)) b.place(`grass_${b.rng.int(0, 1)}`, x + side, gy(b, x + side, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 1.2);
         }
-        cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 2), b.rng.range(0.55, 0.75));
+        cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 1), b.rng.range(0.55, 0.75));
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
       }
       return { hazards: ['chasm', 'rockfall'], walls: 'cliff', ground: 'ravine', features: { rockfall: true } };
