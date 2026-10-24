@@ -84,7 +84,7 @@ export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolea
   for (let r = 0; r < zs.length - 1; r++) {
     for (let c = 0; c < W - 1; c++) {
       const a = r * W + c, b = a + 1, d = a + W, e = d + 1;
-      idx.push(a, d, b, b, d, e);
+      idx.push(a, b, d, b, e, d); // (counter-clockwise from above: facing up)
     }
   }
   const g = new THREE.BufferGeometry();

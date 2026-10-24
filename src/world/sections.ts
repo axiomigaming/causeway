@@ -809,7 +809,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
     build: (b, len) => {
       const n = len / TILE;
       floorRun(b, 0, n, 0, 0.2, 0);
-      lowWalls(b, 0, n, [-1, 1], { gaps: 0.4 });
+      lowWalls(b, 0, n, [-1, 1], { gaps: 0.4, foundation: false }); // (round 22: its own tall footing below; this doubled it)
       for (const side of [-1, 1]) {
         for (let i = 0; i < n; i++) b.wall('foundation_1', side, PATH_HALF + 0.42, 0, -TILE * i);
         // (Round 22: half the boulders, fewer still on phones: rock was a third of the frame's triangles.)
