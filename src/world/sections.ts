@@ -117,7 +117,8 @@ class Builder {
   /** Share of a section's parapet runs built as carved walls (glyph band, fret crest): a third of the
    * variants are carved stretches, the rest only now and then. */
   get carving(): number {
-    return this.variant % 3 === 1 ? 0.65 : 0.12;
+    // (Round 22: half as many on phones — a carved parapet is twice a plain one's triangles.)
+    return (this.variant % 3 === 1 ? 0.65 : 0.12) * (this.density.scenery < 0.5 ? 0.5 : 1);
   }
 
   /** A round pillar; the whole ones (pillar_0, 5 m) often carry a carved capital. */
@@ -426,8 +427,9 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       if (b.rich && b.foliage(0.25)) b.place(`moss_${b.rng.pick([0, 2])}`, side * (PATH_HALF + 0.05), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.7, 1.1));
       b.edgeRubble(side, z);
       if (b.rng.chance(gaps)) {
-        b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.6), 0, z - 2, b.rng.range(0, 6.28));
-        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.9), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+        // (Round 22: the two lighter heaps on phones.)
+        b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 3)}`, side * (PATH_HALF + 0.6), 0, z - 2, b.rng.range(0, 6.28));
+        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 3)}`, side * (PATH_HALF + 0.9), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
         continue;
       }
       if (b.rng.chance(b.carving)) {
@@ -466,7 +468,7 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
   for (const side of sides) {
     for (let z = -2; z > -len; z -= b.rng.range(5, 9)) {
       // (Round 21: a floor on the thinning — at phone density half the slots stood empty: bare water.)
-      if (!b.rng.chance(0.5 * d + 0.45)) continue;
+      if (!b.rng.chance(0.55 * d + 0.38)) continue;
       const x = side * b.rng.range(minX, minX + 22);
       const zz = z + b.rng.range(-2, 2);
       const kind = b.rng.weighted([

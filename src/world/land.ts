@@ -40,8 +40,8 @@ export function groundY(kind: GroundKind, x: number, z: number, len: number): nu
   const n = (vnoise(x * 0.18 + 3.1, z * 0.18) - 0.5) * taper;
   const n2 = (vnoise(x * 0.05 - 7.0, z * 0.05 + 1.3) - 0.5) * taper;
   if (kind === 'ravine') {
-    // A dry riverbed 2.6 m down either side of the causeway's footing, rising steeply to banks ~6 m up.
-    const bed = -2.6 + n * 0.25;
+    // A dry riverbed 1.75 m down either side of the causeway's footing, rising steeply to banks ~6 m up.
+    const bed = -1.75 + n * 0.25; // (round 22: above the water — at -2.6 the "dry" bed was flooded)
     const bank = 6.5 + n2 * 2.5;
     return bed + (bank - bed) * smooth(7.5, 13, ax);
   }
