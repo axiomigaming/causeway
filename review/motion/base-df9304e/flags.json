@@ -1,0 +1,5984 @@
+{
+ "world": "7",
+ "q": "high",
+ "summary": [
+  {
+   "name": "start",
+   "frames": 229,
+   "window": [
+    0,
+    228
+   ],
+   "actual": {
+    "ev": "lead"
+   },
+   "counts": {
+    "pop": 3,
+    "slide": 2,
+    "judder": 8
+   },
+   "shots": 4,
+   "errors": []
+  },
+  {
+   "name": "log",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:log",
+    "placed": true,
+    "fired": {
+     "log": 1
+    }
+   },
+   "counts": {
+    "pop": 9,
+    "judder": 8,
+    "joint": 1
+   },
+   "shots": 9,
+   "errors": []
+  },
+  {
+   "name": "beam",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:beam",
+    "placed": true,
+    "fired": {
+     "beam": 1
+    }
+   },
+   "counts": {
+    "pop": 8,
+    "judder": 8,
+    "slide": 2
+   },
+   "shots": 6,
+   "errors": []
+  },
+  {
+   "name": "pillar",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:pillar",
+    "placed": true,
+    "fired": {
+     "pillar": 1
+    }
+   },
+   "counts": {
+    "pop": 7,
+    "judder": 8,
+    "joint": 4
+   },
+   "shots": 8,
+   "errors": []
+  },
+  {
+   "name": "blocks",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:blocks",
+    "placed": true,
+    "fired": {
+     "blocks": 1
+    }
+   },
+   "counts": {
+    "pop": 6,
+    "slide": 4,
+    "judder": 8
+   },
+   "shots": 8,
+   "errors": []
+  },
+  {
+   "name": "corner",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "lead"
+   },
+   "counts": {
+    "pop": 6,
+    "slide": 2,
+    "judder": 8
+   },
+   "shots": 5,
+   "errors": []
+  },
+  {
+   "name": "cash1.5",
+   "frames": 331,
+   "window": [
+    166,
+    496
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 1.49
+   },
+   "counts": {
+    "judder": 8,
+    "pop": 15,
+    "camera": 1,
+    "slide": 1
+   },
+   "shots": 9,
+   "errors": []
+  },
+  {
+   "name": "cash5",
+   "frames": 331,
+   "window": [
+    739,
+    1069
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 4.99
+   },
+   "counts": {
+    "judder": 8,
+    "pop": 8,
+    "camera": 9,
+    "slide": 1,
+    "frozen": 1,
+    "joint": 6
+   },
+   "shots": 16,
+   "errors": []
+  },
+  {
+   "name": "cash20",
+   "frames": 331,
+   "window": [
+    1400,
+    1730
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 20.01
+   },
+   "counts": {
+    "joint": 13,
+    "judder": 8,
+    "pop": 11,
+    "camera": 1,
+    "slide": 1,
+    "frozen": 2
+   },
+   "shots": 16,
+   "errors": []
+  },
+  {
+   "name": "cash60",
+   "frames": 331,
+   "window": [
+    1938,
+    2268
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 61.96
+   },
+   "counts": {
+    "joint": 7,
+    "judder": 8,
+    "pop": 9,
+    "camera": 9,
+    "frozen": 2,
+    "slide": 2,
+    "framing": 1
+   },
+   "shots": 18,
+   "errors": []
+  },
+  {
+   "name": "fall_start",
+   "frames": 251,
+   "window": [
+    20,
+    270
+   ],
+   "actual": {
+    "ev": "crash:start",
+    "kind": "gate"
+   },
+   "counts": {
+    "camera": 1,
+    "joint": 2,
+    "pop": 1
+   },
+   "shots": 7,
+   "errors": []
+  },
+  {
+   "name": "chasm0",
+   "frames": 271,
+   "window": [
+    526,
+    796
+   ],
+   "actual": {
+    "ev": "crash:chasm:0",
+    "kind": "chasm",
+    "clip": "fall_chasm",
+    "mult": 3
+   },
+   "counts": {
+    "judder": 7,
+    "pop": 10,
+    "camera": 1,
+    "joint": 10
+   },
+   "shots": 13,
+   "errors": []
+  },
+  {
+   "name": "chasm1",
+   "frames": 271,
+   "window": [
+    526,
+    796
+   ],
+   "actual": {
+    "ev": "crash:chasm:1",
+    "kind": "chasm",
+    "clip": "fall_chasm_b",
+    "mult": 3
+   },
+   "counts": {
+    "judder": 7,
+    "pop": 5,
+    "camera": 1,
+    "joint": 8
+   },
+   "shots": 11,
+   "errors": []
+  },
+  {
+   "name": "gate0",
+   "frames": 271,
+   "window": [
+    526,
+    796
+   ],
+   "actual": {
+    "ev": "crash:gate:0",
+    "kind": "gate",
+    "clip": "fall_gate",
+    "mult": 3
+   },
+   "counts": {
+    "judder": 7,
+    "slide": 1,
+    "pop": 7,
+    "camera": 4,
+    "frozen": 1,
+    "joint": 1
+   },
+   "shots": 12,
+   "errors": []
+  },
+  {
+   "name": "gate1",
+   "frames": 271,
+   "window": [
+    526,
+    796
+   ],
+   "actual": {
+    "ev": "crash:gate:1",
+    "kind": "gate",
+    "clip": "fall_gate_b",
+    "mult": 3
+   },
+   "counts": {
+    "judder": 7,
+    "slide": 1,
+    "pop": 2,
+    "camera": 4,
+    "joint": 5
+   },
+   "shots": 11,
+   "errors": []
+  },
+  {
+   "name": "rock0",
+   "frames": 271,
+   "window": [
+    526,
+    796
+   ],
+   "actual": {
+    "ev": "crash:rockfall:0",
+    "kind": "rockfall",
+    "clip": "fall_rock",
+    "mult": 3
+   },
+   "counts": {
+    "judder": 7,
+    "slide": 1,
+    "pop": 2,
+    "camera": 6,
+    "frozen": 1
+   },
+   "shots": 7,
+   "errors": []
+  },
+  {
+   "name": "rock1",
+   "frames": 271,
+   "window": [
+    526,
+    796
+   ],
+   "actual": {
+    "ev": "crash:rockfall:1",
+    "kind": "rockfall",
+    "clip": "fall_rock_b",
+    "mult": 3
+   },
+   "counts": {
+    "judder": 7,
+    "slide": 1,
+    "pop": 3,
+    "camera": 6,
+    "joint": 5
+   },
+   "shots": 12,
+   "errors": []
+  }
+ ],
+ "ranges": [
+  {
+   "seq": "start",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 104,
+   "to": 104,
+   "peak": {
+    "f": 104,
+    "value": 26.661,
+    "detail": "27°/frame between 8° and 0°",
+    "clip": "start",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 109,
+   "to": 109,
+   "peak": {
+    "f": 109,
+    "value": 0.062,
+    "detail": "6.2 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 111,
+   "to": 111,
+   "peak": {
+    "f": 111,
+    "value": 0.509,
+    "detail": "J 0.51 (limit 0.35); worst frames f111 (22°), f124 (19°), f214 (19°), f227 (19°), f137 (19°), f150 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 121,
+   "to": 121,
+   "peak": {
+    "f": 121,
+    "value": 0.036,
+    "detail": "3.6 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 125,
+   "to": 125,
+   "peak": {
+    "f": 125,
+    "value": 0.934,
+    "detail": "J 0.93 (limit 0.35); worst frames f125 (42°), f215 (41°), f124 (40°), f214 (39°), f138 (39°), f227 (38°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 133,
+   "to": 133,
+   "peak": {
+    "f": 133,
+    "value": 0.517,
+    "detail": "J 0.52 (limit 0.35); worst frames f133 (26°), f223 (26°), f134 (25°), f224 (25°), f120 (22°), f210 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 149,
+   "to": 149,
+   "peak": {
+    "f": 149,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 149,
+   "to": 149,
+   "peak": {
+    "f": 149,
+    "value": 0.653,
+    "detail": "J 0.65 (limit 0.35); worst frames f149 (32°), f162 (32°), f148 (30°), f175 (29°), f111 (26°), f161 (25°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 156,
+   "to": 156,
+   "peak": {
+    "f": 156,
+    "value": 0.461,
+    "detail": "J 0.46 (limit 0.35); worst frames f156 (19°), f169 (19°), f182 (18°), f143 (17°), f183 (15°), f196 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 157,
+   "to": 157,
+   "peak": {
+    "f": 157,
+    "value": 0.791,
+    "detail": "J 0.79 (limit 0.35); worst frames f157 (41°), f170 (40°), f169 (39°), f156 (39°), f155 (37°), f168 (35°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 178,
+   "to": 178,
+   "peak": {
+    "f": 178,
+    "value": 0.456,
+    "detail": "J 0.46 (limit 0.35); worst frames f178 (24°), f179 (22°), f166 (22°), f165 (19°), f153 (18°), f117 (18°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 181,
+   "to": 181,
+   "peak": {
+    "f": 181,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "start",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 194,
+   "to": 194,
+   "peak": {
+    "f": 194,
+    "value": 0.653,
+    "detail": "J 0.65 (limit 0.35); worst frames f194 (32°), f117 (32°), f181 (31°), f207 (30°), f180 (29°), f193 (25°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 90,
+   "to": 90,
+   "peak": {
+    "f": 90,
+    "value": 26.658,
+    "detail": "27°/frame between 8° and 0°",
+    "clip": "start",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 97,
+   "to": 97,
+   "peak": {
+    "f": 97,
+    "value": 0.505,
+    "detail": "J 0.51 (limit 0.35); worst frames f97 (22°), f238 (19°), f110 (19°), f200 (19°), f123 (19°), f251 (19°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.624,
+    "detail": "J 0.62 (limit 0.35); worst frames f135 (32°), f276 (32°), f148 (32°), f263 (32°), f134 (30°), f262 (30°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 142,
+   "to": 142,
+   "peak": {
+    "f": 142,
+    "value": 0.464,
+    "detail": "J 0.46 (limit 0.35); worst frames f142 (19°), f155 (19°), f283 (19°), f270 (19°), f168 (18°), f129 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 164,
+   "to": 164,
+   "peak": {
+    "f": 164,
+    "value": 0.463,
+    "detail": "J 0.46 (limit 0.35); worst frames f164 (24°), f165 (22°), f152 (22°), f280 (20°), f151 (19°), f340 (19°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 167,
+   "to": 167,
+   "peak": {
+    "f": 167,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 214,
+   "to": 214,
+   "peak": {
+    "f": 214,
+    "value": 0.157,
+    "detail": "16 cm/frame² relative to the ground",
+    "clip": "jump_log",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "joint",
+   "what": "footL swing",
+   "from": 215,
+   "to": 215,
+   "peak": {
+    "f": 215,
+    "value": 60.873,
+    "detail": "61° (limit 60°)",
+    "clip": "jump_log",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 229,
+   "to": 229,
+   "peak": {
+    "f": 229,
+    "value": 27.786,
+    "detail": "28°/frame between 4° and 1°",
+    "clip": "jump_log",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 231,
+   "to": 231,
+   "peak": {
+    "f": 231,
+    "value": 0.176,
+    "detail": "18 cm in one frame between 5 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 234,
+   "to": 234,
+   "peak": {
+    "f": 234,
+    "value": 0.491,
+    "detail": "J 0.49 (limit 0.35); worst frames f234 (28°), f119 (26°), f247 (26°), f233 (25°), f120 (25°), f248 (25°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 239,
+   "to": 239,
+   "peak": {
+    "f": 239,
+    "value": 0.935,
+    "detail": "J 0.93 (limit 0.35); worst frames f239 (42°), f111 (42°), f201 (41°), f238 (40°), f110 (40°), f200 (39°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 263,
+   "to": 263,
+   "peak": {
+    "f": 263,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 283,
+   "to": 283,
+   "peak": {
+    "f": 283,
+    "value": 0.805,
+    "detail": "J 0.80 (limit 0.35); worst frames f283 (44°), f284 (43°), f143 (41°), f271 (40°), f156 (40°), f155 (39°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 290,
+   "to": 290,
+   "peak": {
+    "f": 290,
+    "value": 0.112,
+    "detail": "11 cm/frame² relative to the ground",
+    "clip": "slide",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 313,
+   "to": 313,
+   "peak": {
+    "f": 313,
+    "value": 0.062,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "log",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 326,
+   "to": 326,
+   "peak": {
+    "f": 326,
+    "value": 0.679,
+    "detail": "J 0.68 (limit 0.35); worst frames f326 (33°), f339 (33°), f352 (32°), f180 (32°), f103 (32°), f167 (31°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 90,
+   "to": 90,
+   "peak": {
+    "f": 90,
+    "value": 26.658,
+    "detail": "27°/frame between 8° and 0°",
+    "clip": "start",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 97,
+   "to": 97,
+   "peak": {
+    "f": 97,
+    "value": 0.503,
+    "detail": "J 0.50 (limit 0.35); worst frames f97 (22°), f110 (19°), f200 (19°), f213 (19°), f123 (19°), f269 (18°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 111,
+   "to": 111,
+   "peak": {
+    "f": 111,
+    "value": 0.932,
+    "detail": "J 0.93 (limit 0.35); worst frames f111 (42°), f201 (41°), f110 (40°), f214 (39°), f200 (39°), f124 (39°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 119,
+   "to": 119,
+   "peak": {
+    "f": 119,
+    "value": 0.479,
+    "detail": "J 0.48 (limit 0.35); worst frames f119 (26°), f209 (26°), f120 (25°), f210 (25°), f106 (22°), f196 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.562,
+    "detail": "J 0.56 (limit 0.35); worst frames f135 (32°), f148 (32°), f134 (30°), f161 (29°), f97 (26°), f312 (25°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 142,
+   "to": 142,
+   "peak": {
+    "f": 142,
+    "value": 0.449,
+    "detail": "J 0.45 (limit 0.35); worst frames f142 (19°), f155 (19°), f168 (18°), f129 (17°), f219 (17°), f250 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 143,
+   "to": 143,
+   "peak": {
+    "f": 143,
+    "value": 0.69,
+    "detail": "J 0.69 (limit 0.35); worst frames f143 (41°), f156 (40°), f155 (39°), f142 (39°), f141 (37°), f154 (35°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 164,
+   "to": 164,
+   "peak": {
+    "f": 164,
+    "value": 0.479,
+    "detail": "J 0.48 (limit 0.35); worst frames f164 (24°), f165 (22°), f152 (22°), f263 (20°), f345 (19°), f151 (19°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 167,
+   "to": 167,
+   "peak": {
+    "f": 167,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 226,
+   "to": 226,
+   "peak": {
+    "f": 226,
+    "value": 0.113,
+    "detail": "11 cm/frame² relative to the ground",
+    "clip": "slide",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 249,
+   "to": 249,
+   "peak": {
+    "f": 249,
+    "value": 0.065,
+    "detail": "7 cm in one frame between 2 and 1 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 260,
+   "to": 260,
+   "peak": {
+    "f": 260,
+    "value": 0.028,
+    "detail": "2.8 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 273,
+   "to": 273,
+   "peak": {
+    "f": 273,
+    "value": 0.036,
+    "detail": "3.6 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 282,
+   "to": 282,
+   "peak": {
+    "f": 282,
+    "value": 0.113,
+    "detail": "11 cm/frame² relative to the ground",
+    "clip": "slide",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 305,
+   "to": 305,
+   "peak": {
+    "f": 305,
+    "value": 0.062,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 318,
+   "to": 318,
+   "peak": {
+    "f": 318,
+    "value": 0.066,
+    "detail": "7 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 331,
+   "to": 331,
+   "peak": {
+    "f": 331,
+    "value": 0.754,
+    "detail": "J 0.75 (limit 0.35); worst frames f331 (33°), f318 (33°), f344 (33°), f357 (32°), f180 (32°), f103 (32°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 90,
+   "to": 90,
+   "peak": {
+    "f": 90,
+    "value": 26.658,
+    "detail": "27°/frame between 8° and 0°",
+    "clip": "start",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 97,
+   "to": 97,
+   "peak": {
+    "f": 97,
+    "value": 0.49,
+    "detail": "J 0.49 (limit 0.35); worst frames f97 (22°), f110 (19°), f200 (19°), f213 (19°), f123 (19°), f136 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 111,
+   "to": 111,
+   "peak": {
+    "f": 111,
+    "value": 0.858,
+    "detail": "J 0.86 (limit 0.35); worst frames f111 (42°), f201 (41°), f110 (40°), f214 (39°), f200 (39°), f124 (39°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 119,
+   "to": 119,
+   "peak": {
+    "f": 119,
+    "value": 0.486,
+    "detail": "J 0.49 (limit 0.35); worst frames f119 (26°), f209 (26°), f120 (25°), f210 (25°), f106 (22°), f196 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.608,
+    "detail": "J 0.61 (limit 0.35); worst frames f135 (32°), f148 (32°), f254 (30°), f134 (30°), f267 (30°), f161 (29°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 142,
+   "to": 142,
+   "peak": {
+    "f": 142,
+    "value": 0.47,
+    "detail": "J 0.47 (limit 0.35); worst frames f142 (19°), f155 (19°), f261 (19°), f168 (18°), f274 (18°), f248 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 167,
+   "to": 167,
+   "peak": {
+    "f": 167,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "joint",
+   "what": "thighR twist",
+   "from": 228,
+   "to": 235,
+   "peak": {
+    "f": 230,
+    "value": 98.784,
+    "detail": "99° (limit 55°)",
+    "clip": "vault",
+    "stage": "run"
+   },
+   "n": 8
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "shinL snaps",
+   "from": 228,
+   "to": 228,
+   "peak": {
+    "f": 228,
+    "value": 58.632,
+    "detail": "59°/frame between 12° and 6°",
+    "clip": "vault",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "joint",
+   "what": "thighL twist",
+   "from": 229,
+   "to": 230,
+   "peak": {
+    "f": 230,
+    "value": 82.708,
+    "detail": "83° (limit 55°)",
+    "clip": "vault",
+    "stage": "run"
+   },
+   "n": 2
+  },
+  {
+   "seq": "pillar",
+   "type": "joint",
+   "what": "thighL swing",
+   "from": 231,
+   "to": 234,
+   "peak": {
+    "f": 232,
+    "value": 148.104,
+    "detail": "148° (limit 135°)",
+    "clip": "vault",
+    "stage": "run"
+   },
+   "n": 4
+  },
+  {
+   "seq": "pillar",
+   "type": "joint",
+   "what": "footL swing",
+   "from": 231,
+   "to": 231,
+   "peak": {
+    "f": 231,
+    "value": 72.413,
+    "detail": "72° (limit 60°)",
+    "clip": "vault",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 249,
+   "to": 249,
+   "peak": {
+    "f": 249,
+    "value": 0.789,
+    "detail": "J 0.79 (limit 0.35); worst frames f249 (41°), f143 (41°), f248 (40°), f247 (40°), f156 (40°), f262 (40°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 270,
+   "to": 270,
+   "peak": {
+    "f": 270,
+    "value": 0.474,
+    "detail": "J 0.47 (limit 0.35); worst frames f270 (25°), f164 (24°), f271 (23°), f165 (22°), f258 (22°), f152 (22°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 286,
+   "to": 286,
+   "peak": {
+    "f": 286,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 294,
+   "to": 294,
+   "peak": {
+    "f": 294,
+    "value": 0.112,
+    "detail": "11 cm/frame² relative to the ground",
+    "clip": "slide",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 317,
+   "to": 317,
+   "peak": {
+    "f": 317,
+    "value": 0.062,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "pillar",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 330,
+   "to": 330,
+   "peak": {
+    "f": 330,
+    "value": 0.723,
+    "detail": "J 0.72 (limit 0.35); worst frames f330 (33°), f343 (33°), f356 (32°), f286 (32°), f180 (32°), f103 (32°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 90,
+   "to": 90,
+   "peak": {
+    "f": 90,
+    "value": 26.658,
+    "detail": "27°/frame between 8° and 0°",
+    "clip": "start",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 95,
+   "to": 95,
+   "peak": {
+    "f": 95,
+    "value": 0.062,
+    "detail": "6.2 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 97,
+   "to": 97,
+   "peak": {
+    "f": 97,
+    "value": 0.458,
+    "detail": "J 0.46 (limit 0.35); worst frames f97 (22°), f110 (19°), f200 (19°), f123 (19°), f136 (17°), f187 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 107,
+   "to": 107,
+   "peak": {
+    "f": 107,
+    "value": 0.036,
+    "detail": "3.6 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 111,
+   "to": 111,
+   "peak": {
+    "f": 111,
+    "value": 0.773,
+    "detail": "J 0.77 (limit 0.35); worst frames f111 (42°), f201 (41°), f110 (40°), f200 (39°), f124 (39°), f123 (37°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 119,
+   "to": 119,
+   "peak": {
+    "f": 119,
+    "value": 0.494,
+    "detail": "J 0.49 (limit 0.35); worst frames f119 (26°), f120 (25°), f106 (22°), f196 (21°), f107 (21°), f197 (20°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 167,
+   "to": 167,
+   "peak": {
+    "f": 167,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 180,
+   "to": 180,
+   "peak": {
+    "f": 180,
+    "value": 0.632,
+    "detail": "J 0.63 (limit 0.35); worst frames f180 (32°), f103 (32°), f167 (31°), f193 (30°), f276 (29°), f166 (29°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 215,
+   "to": 215,
+   "peak": {
+    "f": 215,
+    "value": 0.162,
+    "detail": "16 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 251,
+   "to": 251,
+   "peak": {
+    "f": 251,
+    "value": 0.513,
+    "detail": "J 0.51 (limit 0.35); worst frames f251 (23°), f322 (20°), f142 (19°), f155 (19°), f264 (19°), f168 (18°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 261,
+   "to": 261,
+   "peak": {
+    "f": 261,
+    "value": 0.038,
+    "detail": "3.8 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 273,
+   "to": 273,
+   "peak": {
+    "f": 273,
+    "value": 0.464,
+    "detail": "J 0.46 (limit 0.35); worst frames f273 (25°), f164 (24°), f274 (23°), f165 (22°), f261 (22°), f152 (22°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 281,
+   "to": 281,
+   "peak": {
+    "f": 281,
+    "value": 0.034,
+    "detail": "3.4 cm/frame while planted",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 286,
+   "to": 286,
+   "peak": {
+    "f": 286,
+    "value": 0.159,
+    "detail": "16 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 328,
+   "to": 328,
+   "peak": {
+    "f": 328,
+    "value": 0.721,
+    "detail": "J 0.72 (limit 0.35); worst frames f328 (33°), f341 (33°), f135 (32°), f148 (32°), f257 (32°), f134 (30°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 335,
+   "to": 335,
+   "peak": {
+    "f": 335,
+    "value": 0.968,
+    "detail": "J 0.97 (limit 0.35); worst frames f335 (43°), f336 (42°), f252 (41°), f143 (41°), f348 (41°), f321 (40°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 357,
+   "to": 357,
+   "peak": {
+    "f": 357,
+    "value": 0.155,
+    "detail": "15 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 90,
+   "to": 90,
+   "peak": {
+    "f": 90,
+    "value": 26.658,
+    "detail": "27°/frame between 8° and 0°",
+    "clip": "start",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 95,
+   "to": 95,
+   "peak": {
+    "f": 95,
+    "value": 0.062,
+    "detail": "6.2 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 97,
+   "to": 97,
+   "peak": {
+    "f": 97,
+    "value": 0.496,
+    "detail": "J 0.50 (limit 0.35); worst frames f97 (22°), f110 (19°), f200 (19°), f213 (19°), f123 (19°), f226 (18°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 107,
+   "to": 107,
+   "peak": {
+    "f": 107,
+    "value": 0.036,
+    "detail": "3.6 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 135,
+   "to": 135,
+   "peak": {
+    "f": 135,
+    "value": 0.64,
+    "detail": "J 0.64 (limit 0.35); worst frames f135 (32°), f238 (32°), f148 (32°), f225 (32°), f134 (30°), f251 (30°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 142,
+   "to": 142,
+   "peak": {
+    "f": 142,
+    "value": 0.461,
+    "detail": "J 0.46 (limit 0.35); worst frames f142 (19°), f245 (19°), f232 (19°), f155 (19°), f258 (18°), f168 (18°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 143,
+   "to": 143,
+   "peak": {
+    "f": 143,
+    "value": 0.803,
+    "detail": "J 0.80 (limit 0.35); worst frames f143 (41°), f246 (41°), f233 (41°), f245 (40°), f156 (40°), f155 (39°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 167,
+   "to": 167,
+   "peak": {
+    "f": 167,
+    "value": 0.063,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 225,
+   "to": 225,
+   "peak": {
+    "f": 225,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 254,
+   "to": 254,
+   "peak": {
+    "f": 254,
+    "value": 0.453,
+    "detail": "J 0.45 (limit 0.35); worst frames f254 (25°), f164 (24°), f255 (22°), f165 (22°), f152 (22°), f242 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 270,
+   "to": 270,
+   "peak": {
+    "f": 270,
+    "value": 0.658,
+    "detail": "J 0.66 (limit 0.35); worst frames f270 (32°), f180 (32°), f103 (32°), f283 (31°), f167 (31°), f257 (31°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 291,
+   "to": 291,
+   "peak": {
+    "f": 291,
+    "value": 0.154,
+    "detail": "15 cm/frame² relative to the ground",
+    "clip": "jump_log",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 306,
+   "to": 306,
+   "peak": {
+    "f": 306,
+    "value": 27.199,
+    "detail": "27°/frame between 4° and 3°",
+    "clip": "jump_log",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 311,
+   "to": 311,
+   "peak": {
+    "f": 311,
+    "value": 0.499,
+    "detail": "J 0.50 (limit 0.35); worst frames f311 (27°), f119 (26°), f209 (26°), f120 (25°), f210 (25°), f310 (25°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "corner",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 341,
+   "to": 341,
+   "peak": {
+    "f": 341,
+    "value": 0.954,
+    "detail": "J 0.95 (limit 0.35); worst frames f341 (43°), f111 (42°), f201 (41°), f342 (41°), f354 (41°), f110 (40°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 180,
+   "to": 180,
+   "peak": {
+    "f": 180,
+    "value": 0.616,
+    "detail": "J 0.62 (limit 0.35); worst frames f180 (32°), f193 (30°), f179 (25°), f206 (25°), f244 (22°), f243 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 200,
+   "to": 200,
+   "peak": {
+    "f": 200,
+    "value": 0.502,
+    "detail": "J 0.50 (limit 0.35); worst frames f200 (19°), f213 (19°), f226 (18°), f187 (17°), f227 (15°), f240 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 201,
+   "to": 201,
+   "peak": {
+    "f": 201,
+    "value": 0.872,
+    "detail": "J 0.87 (limit 0.35); worst frames f201 (41°), f214 (39°), f200 (39°), f213 (38°), f199 (37°), f188 (36°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 209,
+   "to": 209,
+   "peak": {
+    "f": 209,
+    "value": 0.494,
+    "detail": "J 0.49 (limit 0.35); worst frames f209 (26°), f210 (25°), f196 (21°), f197 (20°), f223 (18°), f239 (18°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 225,
+   "to": 225,
+   "peak": {
+    "f": 225,
+    "value": 0.064,
+    "detail": "6 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 238,
+   "to": 238,
+   "peak": {
+    "f": 238,
+    "value": 0.684,
+    "detail": "J 0.68 (limit 0.35); worst frames f238 (32°), f225 (32°), f251 (30°), f224 (30°), f237 (25°), f174 (24°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 245,
+   "to": 245,
+   "peak": {
+    "f": 245,
+    "value": 0.48,
+    "detail": "J 0.48 (limit 0.35); worst frames f245 (19°), f232 (19°), f168 (18°), f219 (17°), f169 (15°), f182 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 246,
+   "to": 246,
+   "peak": {
+    "f": 246,
+    "value": 0.878,
+    "detail": "J 0.88 (limit 0.35); worst frames f246 (41°), f233 (41°), f245 (40°), f232 (38°), f231 (36°), f244 (36°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 254,
+   "to": 254,
+   "peak": {
+    "f": 254,
+    "value": 0.445,
+    "detail": "J 0.45 (limit 0.35); worst frames f254 (25°), f242 (21°), f241 (19°), f229 (18°), f181 (17°), f206 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 270,
+   "to": 270,
+   "peak": {
+    "f": 270,
+    "value": 0.068,
+    "detail": "7 cm in one frame between 2 and 2 cm",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 279,
+   "to": 279,
+   "peak": {
+    "f": 279,
+    "value": 0.566,
+    "detail": "57 cm/frame²",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 287,
+   "to": 292,
+   "peak": {
+    "f": 290,
+    "value": 0.613,
+    "detail": "61.3 cm/frame while planted",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footR snaps",
+   "from": 290,
+   "to": 290,
+   "peak": {
+    "f": 290,
+    "value": 30.61,
+    "detail": "31°/frame between 7° and 0°",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footR jumps",
+   "from": 290,
+   "to": 290,
+   "peak": {
+    "f": 290,
+    "value": 0.499,
+    "detail": "50 cm in one frame between 12 and 3 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 298,
+   "to": 298,
+   "peak": {
+    "f": 298,
+    "value": 0.405,
+    "detail": "41 cm in one frame between 10 and 4 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 311,
+   "to": 311,
+   "peak": {
+    "f": 311,
+    "value": 0.095,
+    "detail": "10 cm in one frame between 2 and 1 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footR jumps",
+   "from": 311,
+   "to": 311,
+   "peak": {
+    "f": 311,
+    "value": 0.072,
+    "detail": "7 cm in one frame between 0 and 2 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 311,
+   "to": 311,
+   "peak": {
+    "f": 311,
+    "value": 0.085,
+    "detail": "9 cm in one frame between 1 and 2 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 332,
+   "to": 332,
+   "peak": {
+    "f": 332,
+    "value": 0.065,
+    "detail": "6 cm in one frame between 0 and 1 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 360,
+   "to": 360,
+   "peak": {
+    "f": 360,
+    "value": 0.225,
+    "detail": "22 cm in one frame between 1 and 0 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "chest snaps",
+   "from": 360,
+   "to": 360,
+   "peak": {
+    "f": 360,
+    "value": 25.929,
+    "detail": "26°/frame between 1° and 0°",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 360,
+   "to": 360,
+   "peak": {
+    "f": 360,
+    "value": 0.097,
+    "detail": "10 cm in one frame between 1 and 0 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 360,
+   "to": 360,
+   "peak": {
+    "f": 360,
+    "value": 0.198,
+    "detail": "20 cm in one frame between 3 and 3 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 371,
+   "to": 371,
+   "peak": {
+    "f": 371,
+    "value": 0.047,
+    "detail": "5 cm in one frame between 0 and 0 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 371,
+   "to": 371,
+   "peak": {
+    "f": 371,
+    "value": 27.843,
+    "detail": "28°/frame between 0° and 0°",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 749,
+   "to": 749,
+   "peak": {
+    "f": 749,
+    "value": 0.645,
+    "detail": "J 0.65 (limit 0.35); worst frames f749 (53°), f748 (47°), f789 (43°), f816 (41°), f747 (35°), f788 (29°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 762,
+   "to": 762,
+   "peak": {
+    "f": 762,
+    "value": 0.842,
+    "detail": "J 0.84 (limit 0.35); worst frames f762 (45°), f776 (41°), f775 (41°), f777 (39°), f816 (35°), f761 (31°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 764,
+   "to": 764,
+   "peak": {
+    "f": 764,
+    "value": 0.378,
+    "detail": "J 0.38 (limit 0.35); worst frames f764 (29°), f763 (25°), f818 (25°), f777 (23°), f746 (23°), f817 (22°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 769,
+   "to": 769,
+   "peak": {
+    "f": 769,
+    "value": 0.684,
+    "detail": "J 0.68 (limit 0.35); worst frames f769 (50°), f756 (48°), f768 (43°), f823 (42°), f767 (35°), f755 (34°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 784,
+   "to": 784,
+   "peak": {
+    "f": 784,
+    "value": 0.397,
+    "detail": "J 0.40 (limit 0.35); worst frames f784 (29°), f797 (27°), f783 (24°), f766 (24°), f744 (23°), f824 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 789,
+   "to": 789,
+   "peak": {
+    "f": 789,
+    "value": 0.438,
+    "detail": "J 0.44 (limit 0.35); worst frames f789 (18°), f816 (18°), f760 (18°), f776 (17°), f773 (17°), f750 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 795,
+   "to": 795,
+   "peak": {
+    "f": 795,
+    "value": 0.934,
+    "detail": "J 0.93 (limit 0.35); worst frames f795 (45°), f742 (45°), f782 (44°), f743 (44°), f796 (40°), f744 (39°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "thighR snaps",
+   "from": 801,
+   "to": 801,
+   "peak": {
+    "f": 801,
+    "value": 36.335,
+    "detail": "36°/frame between 9° and 11°",
+    "clip": "turn_cut_R",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 816,
+   "to": 816,
+   "peak": {
+    "f": 816,
+    "value": 0.433,
+    "detail": "J 0.43 (limit 0.35); worst frames f816 (21°), f817 (21°), f793 (18°), f756 (18°), f823 (18°), f743 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 829,
+   "to": 830,
+   "peak": {
+    "f": 829,
+    "value": 0.88,
+    "detail": "88 cm/frame²",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 850,
+   "to": 850,
+   "peak": {
+    "f": 850,
+    "value": 27.036,
+    "detail": "27°/frame between 6° and 4°",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 852,
+   "to": 856,
+   "peak": {
+    "f": 854,
+    "value": 0.609,
+    "detail": "60.9 cm/frame while planted",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 4
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "footL snaps",
+   "from": 854,
+   "to": 854,
+   "peak": {
+    "f": 854,
+    "value": 28.349,
+    "detail": "28°/frame between 5° and 0°",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 854,
+   "to": 854,
+   "peak": {
+    "f": 854,
+    "value": 0.514,
+    "detail": "51 cm in one frame between 10 and 3 cm",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "footR snaps",
+   "from": 864,
+   "to": 864,
+   "peak": {
+    "f": 864,
+    "value": 29.63,
+    "detail": "30°/frame between 8° and 0°",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "footR jumps",
+   "from": 864,
+   "to": 864,
+   "peak": {
+    "f": 864,
+    "value": 0.424,
+    "detail": "42 cm in one frame between 8 and 3 cm",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 886,
+   "to": 905,
+   "peak": {
+    "f": 886,
+    "value": 0.482,
+    "detail": "0.48°/frame mean limb motion, 4 frames in the air",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 20
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 899,
+   "to": 899,
+   "peak": {
+    "f": 899,
+    "value": 0.808,
+    "detail": "81 cm/frame²",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "fast turn",
+   "from": 899,
+   "to": 901,
+   "peak": {
+    "f": 900,
+    "value": 15.674,
+    "detail": "15.7°/frame",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 3
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "snap",
+   "from": 899,
+   "to": 899,
+   "peak": {
+    "f": 899,
+    "value": 13.015,
+    "detail": "angular velocity 2.3 → 15.3°/frame",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 920,
+   "to": 920,
+   "peak": {
+    "f": 920,
+    "value": 0.096,
+    "detail": "10 cm in one frame between 1 and 1 cm",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 924,
+   "to": 924,
+   "peak": {
+    "f": 924,
+    "value": 28.216,
+    "detail": "28°/frame between 1° and 4°",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 925,
+   "to": 925,
+   "peak": {
+    "f": 925,
+    "value": 0.993,
+    "detail": "99 cm/frame²",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "fast turn",
+   "from": 925,
+   "to": 927,
+   "peak": {
+    "f": 925,
+    "value": 20.545,
+    "detail": "20.5°/frame",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 3
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "snap",
+   "from": 925,
+   "to": 925,
+   "peak": {
+    "f": 925,
+    "value": 18.722,
+    "detail": "angular velocity 1.8 → 20.5°/frame",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "joint",
+   "what": "upper_armL twist",
+   "from": 926,
+   "to": 926,
+   "peak": {
+    "f": 926,
+    "value": 110.327,
+    "detail": "110° (limit 110°)",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "joint",
+   "what": "upper_armR twist",
+   "from": 926,
+   "to": 926,
+   "peak": {
+    "f": 926,
+    "value": 110.326,
+    "detail": "-110° (limit 110°)",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "joint",
+   "what": "upper_armL twist",
+   "from": 935,
+   "to": 936,
+   "peak": {
+    "f": 936,
+    "value": 112.58,
+    "detail": "113° (limit 110°)",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash5",
+   "type": "joint",
+   "what": "upper_armR twist",
+   "from": 935,
+   "to": 936,
+   "peak": {
+    "f": 936,
+    "value": 112.581,
+    "detail": "-113° (limit 110°)",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 945,
+   "to": 946,
+   "peak": {
+    "f": 946,
+    "value": 0.784,
+    "detail": "78 cm/frame²",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash5",
+   "type": "camera",
+   "what": "snap",
+   "from": 945,
+   "to": 946,
+   "peak": {
+    "f": 945,
+    "value": 7.072,
+    "detail": "angular velocity 0.1 → 7.1°/frame",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash5",
+   "type": "joint",
+   "what": "upper_armL twist",
+   "from": 948,
+   "to": 949,
+   "peak": {
+    "f": 949,
+    "value": 113.748,
+    "detail": "114° (limit 110°)",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash5",
+   "type": "joint",
+   "what": "upper_armR twist",
+   "from": 948,
+   "to": 952,
+   "peak": {
+    "f": 950,
+    "value": 114.347,
+    "detail": "-114° (limit 110°)",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "footR swing",
+   "from": 1407,
+   "to": 1407,
+   "peak": {
+    "f": 1407,
+    "value": 60.674,
+    "detail": "61° (limit 60°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 1407,
+   "to": 1407,
+   "peak": {
+    "f": 1407,
+    "value": 0.399,
+    "detail": "J 0.40 (limit 0.35); worst frames f1407 (27°), f1464 (24°), f1461 (24°), f1436 (23°), f1408 (21°), f1412 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 1407,
+   "to": 1407,
+   "peak": {
+    "f": 1407,
+    "value": 0.366,
+    "detail": "J 0.37 (limit 0.35); worst frames f1407 (23°), f1467 (21°), f1417 (21°), f1470 (19°), f1432 (18°), f1457 (17°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 1432,
+   "to": 1432,
+   "peak": {
+    "f": 1432,
+    "value": 0.64,
+    "detail": "J 0.64 (limit 0.35); worst frames f1432 (57°), f1431 (55°), f1457 (53°), f1456 (51°), f1407 (49°), f1469 (43°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1455,
+   "to": 1455,
+   "peak": {
+    "f": 1455,
+    "value": 0.05,
+    "detail": "5 cm in one frame between 1 and 1 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 1475,
+   "to": 1475,
+   "peak": {
+    "f": 1475,
+    "value": 0.901,
+    "detail": "J 0.90 (limit 0.35); worst frames f1475 (40°), f1438 (38°), f1427 (37°), f1452 (37°), f1463 (33°), f1462 (33°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 1477,
+   "to": 1477,
+   "peak": {
+    "f": 1477,
+    "value": 0.418,
+    "detail": "J 0.42 (limit 0.35); worst frames f1477 (35°), f1452 (32°), f1427 (32°), f1476 (27°), f1448 (24°), f1485 (23°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 1481,
+   "to": 1481,
+   "peak": {
+    "f": 1481,
+    "value": 0.774,
+    "detail": "J 0.77 (limit 0.35); worst frames f1481 (40°), f1444 (39°), f1419 (39°), f1469 (36°), f1468 (32°), f1458 (31°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 1483,
+   "to": 1483,
+   "peak": {
+    "f": 1483,
+    "value": 0.38,
+    "detail": "J 0.38 (limit 0.35); worst frames f1483 (35°), f1458 (30°), f1433 (28°), f1482 (25°), f1446 (25°), f1479 (24°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 1488,
+   "to": 1488,
+   "peak": {
+    "f": 1488,
+    "value": 0.759,
+    "detail": "J 0.76 (limit 0.35); worst frames f1488 (55°), f1413 (55°), f1463 (52°), f1487 (51°), f1451 (41°), f1426 (40°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1492,
+   "to": 1492,
+   "peak": {
+    "f": 1492,
+    "value": 0.046,
+    "detail": "5 cm in one frame between 1 and 0 cm",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1503,
+   "to": 1503,
+   "peak": {
+    "f": 1503,
+    "value": 0.057,
+    "detail": "6 cm in one frame between 1 and 1 cm",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 1528,
+   "to": 1530,
+   "peak": {
+    "f": 1528,
+    "value": 1.275,
+    "detail": "127 cm/frame²",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 3
+  },
+  {
+   "seq": "cash20",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 1536,
+   "to": 1536,
+   "peak": {
+    "f": 1536,
+    "value": 0.11,
+    "detail": "11.0 cm/frame while planted",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "shinR snaps",
+   "from": 1537,
+   "to": 1537,
+   "peak": {
+    "f": 1537,
+    "value": 25.45,
+    "detail": "25°/frame between 3° and 0°",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 1556,
+   "to": 1556,
+   "peak": {
+    "f": 1556,
+    "value": 0.04,
+    "detail": "4 cm in one frame between 1 and 0 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 1556,
+   "to": 1557,
+   "peak": {
+    "f": 1556,
+    "value": 0.978,
+    "detail": "0.98°/frame mean limb motion, 4 frames in the air",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "upper_armR twist",
+   "from": 1558,
+   "to": 1564,
+   "peak": {
+    "f": 1564,
+    "value": 115.591,
+    "detail": "-116° (limit 110°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 7
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1565,
+   "to": 1575,
+   "peak": {
+    "f": 1569,
+    "value": 42.158,
+    "detail": "42° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 11
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1565,
+   "to": 1575,
+   "peak": {
+    "f": 1569,
+    "value": 42.16,
+    "detail": "42° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 11
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "footL snaps",
+   "from": 1565,
+   "to": 1565,
+   "peak": {
+    "f": 1565,
+    "value": 32.82,
+    "detail": "33°/frame between 0° and 0°",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 1586,
+   "to": 1592,
+   "peak": {
+    "f": 1592,
+    "value": 0.664,
+    "detail": "0.66°/frame mean limb motion, 10 frames in the air",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 7
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1592,
+   "to": 1592,
+   "peak": {
+    "f": 1592,
+    "value": 0.129,
+    "detail": "13 cm in one frame between 1 and 3 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 1592,
+   "to": 1592,
+   "peak": {
+    "f": 1592,
+    "value": 0.148,
+    "detail": "15 cm in one frame between 1 and 2 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 1592,
+   "to": 1592,
+   "peak": {
+    "f": 1592,
+    "value": 0.134,
+    "detail": "13 cm in one frame between 1 and 3 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1609,
+   "to": 1613,
+   "peak": {
+    "f": 1611,
+    "value": 40.898,
+    "detail": "41° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1609,
+   "to": 1613,
+   "peak": {
+    "f": 1611,
+    "value": 40.9,
+    "detail": "41° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 1616,
+   "to": 1616,
+   "peak": {
+    "f": 1616,
+    "value": 25.445,
+    "detail": "25°/frame between 1° and 4°",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1636,
+   "to": 1649,
+   "peak": {
+    "f": 1641,
+    "value": 46.295,
+    "detail": "46° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 14
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1636,
+   "to": 1649,
+   "peak": {
+    "f": 1641,
+    "value": 46.298,
+    "detail": "46° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 14
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1647,
+   "to": 1647,
+   "peak": {
+    "f": 1647,
+    "value": 0.045,
+    "detail": "4 cm in one frame between 1 and 1 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "upper_armR twist",
+   "from": 1653,
+   "to": 1655,
+   "peak": {
+    "f": 1653,
+    "value": 114.396,
+    "detail": "-114° (limit 110°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 3
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1664,
+   "to": 1686,
+   "peak": {
+    "f": 1673,
+    "value": 51.702,
+    "detail": "52° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 23
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1664,
+   "to": 1686,
+   "peak": {
+    "f": 1673,
+    "value": 51.704,
+    "detail": "52° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 23
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1692,
+   "to": 1730,
+   "peak": {
+    "f": 1706,
+    "value": 57.083,
+    "detail": "57° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 39
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1692,
+   "to": 1730,
+   "peak": {
+    "f": 1706,
+    "value": 57.083,
+    "detail": "57° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 39
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "shinL reverse bend",
+   "from": 1938,
+   "to": 1939,
+   "peak": {
+    "f": 1939,
+    "value": -163.572,
+    "detail": "-164° (limit -10°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "shinL over-flexed",
+   "from": 1940,
+   "to": 1940,
+   "peak": {
+    "f": 1940,
+    "value": 177.219,
+    "detail": "177° (limit 160°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 1941,
+   "to": 1941,
+   "peak": {
+    "f": 1941,
+    "value": 0.391,
+    "detail": "J 0.39 (limit 0.35); worst frames f1941 (23°), f1988 (22°), f1962 (22°), f1985 (21°), f1987 (19°), f2021 (19°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 1945,
+   "to": 1945,
+   "peak": {
+    "f": 1945,
+    "value": 0.353,
+    "detail": "J 0.35 (limit 0.35); worst frames f1945 (27°), f1968 (25°), f2018 (22°), f2015 (21°), f2017 (19°), f2006 (16°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 1947,
+   "to": 1947,
+   "peak": {
+    "f": 1947,
+    "value": 0.631,
+    "detail": "J 0.63 (limit 0.35); worst frames f1947 (57°), f1970 (57°), f2017 (50°), f2006 (43°), f1946 (42°), f2018 (40°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1951,
+   "to": 1951,
+   "peak": {
+    "f": 1951,
+    "value": 0.05,
+    "detail": "5 cm in one frame between 1 and 1 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 1952,
+   "to": 1952,
+   "peak": {
+    "f": 1952,
+    "value": 0.883,
+    "detail": "J 0.88 (limit 0.35); worst frames f1952 (41°), f1975 (38°), f1976 (36°), f1977 (36°), f2011 (36°), f2024 (34°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "shinR judders in the gait",
+   "from": 1954,
+   "to": 1954,
+   "peak": {
+    "f": 1954,
+    "value": 0.358,
+    "detail": "J 0.36 (limit 0.35); worst frames f1954 (37°), f1977 (36°), f2024 (34°), f1953 (29°), f1976 (25°), f1965 (23°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1974,
+   "to": 1974,
+   "peak": {
+    "f": 1974,
+    "value": 0.053,
+    "detail": "5 cm in one frame between 1 and 1 cm",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 1981,
+   "to": 1981,
+   "peak": {
+    "f": 1981,
+    "value": 0.857,
+    "detail": "J 0.86 (limit 0.35); worst frames f1981 (38°), f1958 (37°), f2007 (33°), f2017 (31°), f2016 (31°), f1948 (27°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 1983,
+   "to": 1983,
+   "peak": {
+    "f": 1983,
+    "value": 0.399,
+    "detail": "J 0.40 (limit 0.35); worst frames f1983 (38°), f1982 (32°), f1948 (32°), f1960 (31°), f1971 (30°), f2006 (30°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "footL swing",
+   "from": 2006,
+   "to": 2006,
+   "peak": {
+    "f": 2006,
+    "value": 62.807,
+    "detail": "63° (limit 60°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 2023,
+   "to": 2023,
+   "peak": {
+    "f": 2023,
+    "value": 0.701,
+    "detail": "J 0.70 (limit 0.35); worst frames f2023 (56°), f1941 (55°), f2022 (55°), f1964 (52°), f1987 (50°), f1988 (40°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 2068,
+   "to": 2070,
+   "peak": {
+    "f": 2068,
+    "value": 1.289,
+    "detail": "129 cm/frame²",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 3
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 2070,
+   "to": 2070,
+   "peak": {
+    "f": 2070,
+    "value": 0.14,
+    "detail": "14 cm in one frame between 2 and 3 cm",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2083,
+   "to": 2117,
+   "peak": {
+    "f": 2117,
+    "value": 0.547,
+    "detail": "0.55°/frame mean limb motion, 38 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 35
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 2107,
+   "to": 2124,
+   "peak": {
+    "f": 2115,
+    "value": 45.9,
+    "detail": "46° (limit 40°)",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 18
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 2107,
+   "to": 2124,
+   "peak": {
+    "f": 2115,
+    "value": 45.901,
+    "detail": "46° (limit 40°)",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 18
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 2111,
+   "to": 2111,
+   "peak": {
+    "f": 2111,
+    "value": 1.024,
+    "detail": "102 cm/frame²",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "snap",
+   "from": 2111,
+   "to": 2111,
+   "peak": {
+    "f": 2111,
+    "value": 8.424,
+    "detail": "angular velocity 0.7 → 9.1°/frame",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "fast turn",
+   "from": 2112,
+   "to": 2116,
+   "peak": {
+    "f": 2115,
+    "value": 21.378,
+    "detail": "21.4°/frame",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 2117,
+   "to": 2118,
+   "peak": {
+    "f": 2117,
+    "value": 0.267,
+    "detail": "27 cm/frame²",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "snap",
+   "from": 2117,
+   "to": 2117,
+   "peak": {
+    "f": 2117,
+    "value": 8.853,
+    "detail": "angular velocity 17.2 → 8.4°/frame",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 2123,
+   "to": 2123,
+   "peak": {
+    "f": 2123,
+    "value": 0.196,
+    "detail": "19.6 cm/frame while planted",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 2123,
+   "to": 2124,
+   "peak": {
+    "f": 2124,
+    "value": 0.102,
+    "detail": "10.2 cm/frame while planted",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 2143,
+   "to": 2143,
+   "peak": {
+    "f": 2143,
+    "value": 0.178,
+    "detail": "18 cm in one frame between 3 and 0 cm",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "shoulderL snaps",
+   "from": 2143,
+   "to": 2143,
+   "peak": {
+    "f": 2143,
+    "value": 25.997,
+    "detail": "26°/frame between 0° and 0°",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "shoulderR snaps",
+   "from": 2143,
+   "to": 2143,
+   "peak": {
+    "f": 2143,
+    "value": 26.01,
+    "detail": "26°/frame between 1° and 0°",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 2143,
+   "to": 2143,
+   "peak": {
+    "f": 2143,
+    "value": 0.197,
+    "detail": "20 cm in one frame between 7 and 0 cm",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2146,
+   "to": 2155,
+   "peak": {
+    "f": 2149,
+    "value": 0.215,
+    "detail": "0.21°/frame mean limb motion, 7 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 10
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 2162,
+   "to": 2166,
+   "peak": {
+    "f": 2164,
+    "value": 0.118,
+    "detail": "12 cm/frame² relative to the ground",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 2166,
+   "to": 2167,
+   "peak": {
+    "f": 2166,
+    "value": 1.289,
+    "detail": "129 cm/frame²",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "snap",
+   "from": 2166,
+   "to": 2167,
+   "peak": {
+    "f": 2166,
+    "value": 26.436,
+    "detail": "angular velocity 2.5 → 29.0°/frame",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "camera",
+   "what": "fast turn",
+   "from": 2166,
+   "to": 2166,
+   "peak": {
+    "f": 2166,
+    "value": 28.962,
+    "detail": "29.0°/frame",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "framing",
+   "what": "runner clipped",
+   "from": 2168,
+   "to": 2169,
+   "peak": {
+    "f": 2168,
+    "value": 1,
+    "detail": "handR at the frame edge",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 2171,
+   "to": 2172,
+   "peak": {
+    "f": 2172,
+    "value": 0.136,
+    "detail": "14 cm/frame² relative to the ground",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "upper_armL twist",
+   "from": 2187,
+   "to": 2191,
+   "peak": {
+    "f": 2188,
+    "value": 114.587,
+    "detail": "115° (limit 110°)",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 5
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "upper_armR twist",
+   "from": 2187,
+   "to": 2189,
+   "peak": {
+    "f": 2188,
+    "value": 113.726,
+    "detail": "-114° (limit 110°)",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 3
+  },
+  {
+   "seq": "fall_start",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 66,
+   "to": 66,
+   "peak": {
+    "f": 66,
+    "value": 0.279,
+    "detail": "28 cm/frame²",
+    "clip": "fall_start",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "fall_start",
+   "type": "joint",
+   "what": "footL swing",
+   "from": 80,
+   "to": 270,
+   "peak": {
+    "f": 87,
+    "value": 82.062,
+    "detail": "82° (limit 60°)",
+    "clip": "fall_start",
+    "stage": "crash"
+   },
+   "n": 191
+  },
+  {
+   "seq": "fall_start",
+   "type": "joint",
+   "what": "footR swing",
+   "from": 80,
+   "to": 270,
+   "peak": {
+    "f": 94,
+    "value": 78.831,
+    "detail": "79° (limit 60°)",
+    "clip": "fall_start",
+    "stage": "crash"
+   },
+   "n": 191
+  },
+  {
+   "seq": "fall_start",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 81,
+   "to": 81,
+   "peak": {
+    "f": 81,
+    "value": 25.547,
+    "detail": "26°/frame between 4° and 3°",
+    "clip": "fall_start",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 533,
+   "to": 533,
+   "peak": {
+    "f": 533,
+    "value": 0.385,
+    "detail": "J 0.39 (limit 0.35); worst frames f533 (19°), f540 (12°), f552 (11°), f551 (11°), f535 (8°), f534 (8°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 540,
+   "to": 540,
+   "peak": {
+    "f": 540,
+    "value": 0.876,
+    "detail": "J 0.88 (limit 0.35); worst frames f540 (41°), f539 (32°), f553 (28°), f552 (25°), f538 (23°), f537 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 546,
+   "to": 546,
+   "peak": {
+    "f": 546,
+    "value": 1.003,
+    "detail": "J 1.00 (limit 0.35); worst frames f546 (44°), f533 (42°), f547 (40°), f548 (33°), f534 (31°), f535 (28°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 550,
+   "to": 550,
+   "peak": {
+    "f": 550,
+    "value": 0.532,
+    "detail": "J 0.53 (limit 0.35); worst frames f550 (25°), f551 (23°), f554 (19°), f555 (18°), f537 (16°), f558 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 553,
+   "to": 553,
+   "peak": {
+    "f": 553,
+    "value": 0.837,
+    "detail": "J 0.84 (limit 0.35); worst frames f553 (39°), f554 (29°), f555 (27°), f552 (21°), f540 (17°), f542 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.493,
+    "detail": "J 0.49 (limit 0.35); worst frames f560 (18°), f547 (17°), f544 (14°), f561 (14°), f548 (11°), f557 (11°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.524,
+    "detail": "J 0.52 (limit 0.35); worst frames f560 (36°), f561 (26°), f533 (24°), f559 (19°), f548 (16°), f547 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 570,
+   "to": 570,
+   "peak": {
+    "f": 570,
+    "value": 0.126,
+    "detail": "13 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 586,
+   "to": 587,
+   "peak": {
+    "f": 587,
+    "value": 0.104,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 2
+  },
+  {
+   "seq": "chasm0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.36,
+    "detail": "36 cm/frame²",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 641,
+   "to": 646,
+   "peak": {
+    "f": 641,
+    "value": 0.18,
+    "detail": "18 cm/frame² relative to the ground",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 4
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 649,
+   "to": 649,
+   "peak": {
+    "f": 649,
+    "value": 0.186,
+    "detail": "19 cm in one frame between 5 and 5 cm",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 651,
+   "to": 659,
+   "peak": {
+    "f": 655,
+    "value": 0.296,
+    "detail": "30 cm/frame² relative to the ground",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 5
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "neck snaps",
+   "from": 651,
+   "to": 651,
+   "peak": {
+    "f": 651,
+    "value": 26.746,
+    "detail": "27°/frame between 2° and 4°",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "head snaps",
+   "from": 651,
+   "to": 651,
+   "peak": {
+    "f": 651,
+    "value": 39.348,
+    "detail": "39°/frame between 3° and 6°",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "head swing",
+   "from": 658,
+   "to": 796,
+   "peak": {
+    "f": 705,
+    "value": 98.485,
+    "detail": "98° (limit 55°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 139
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 662,
+   "to": 662,
+   "peak": {
+    "f": 662,
+    "value": 0.107,
+    "detail": "11 cm/frame² relative to the ground",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "neck swing",
+   "from": 663,
+   "to": 668,
+   "peak": {
+    "f": 666,
+    "value": 50.367,
+    "detail": "50° (limit 50°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 6
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 665,
+   "to": 673,
+   "peak": {
+    "f": 669,
+    "value": 0.309,
+    "detail": "31 cm/frame² relative to the ground",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 5
+  },
+  {
+   "seq": "chasm0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 679,
+   "to": 685,
+   "peak": {
+    "f": 683,
+    "value": 0.324,
+    "detail": "32 cm/frame² relative to the ground",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 4
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 685,
+   "to": 694,
+   "peak": {
+    "f": 689,
+    "value": 43.354,
+    "detail": "43° (limit 40°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 10
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 685,
+   "to": 694,
+   "peak": {
+    "f": 689,
+    "value": 43.355,
+    "detail": "43° (limit 40°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 10
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "neck swing",
+   "from": 686,
+   "to": 752,
+   "peak": {
+    "f": 705,
+    "value": 88.521,
+    "detail": "89° (limit 50°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 67
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 714,
+   "to": 731,
+   "peak": {
+    "f": 721,
+    "value": 48.741,
+    "detail": "49° (limit 40°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 18
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 714,
+   "to": 731,
+   "peak": {
+    "f": 721,
+    "value": 48.743,
+    "detail": "49° (limit 40°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 18
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 744,
+   "to": 796,
+   "peak": {
+    "f": 790,
+    "value": 59.439,
+    "detail": "59° (limit 40°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 53
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 744,
+   "to": 796,
+   "peak": {
+    "f": 790,
+    "value": 59.439,
+    "detail": "59° (limit 40°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 53
+  },
+  {
+   "seq": "chasm0",
+   "type": "joint",
+   "what": "neck swing",
+   "from": 759,
+   "to": 782,
+   "peak": {
+    "f": 772,
+    "value": 69.816,
+    "detail": "70° (limit 50°)",
+    "clip": "fall_chasm",
+    "stage": "crash"
+   },
+   "n": 24
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 533,
+   "to": 533,
+   "peak": {
+    "f": 533,
+    "value": 0.385,
+    "detail": "J 0.39 (limit 0.35); worst frames f533 (19°), f540 (12°), f552 (11°), f551 (11°), f535 (8°), f534 (8°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 540,
+   "to": 540,
+   "peak": {
+    "f": 540,
+    "value": 0.876,
+    "detail": "J 0.88 (limit 0.35); worst frames f540 (41°), f539 (32°), f553 (28°), f552 (25°), f538 (23°), f537 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 546,
+   "to": 546,
+   "peak": {
+    "f": 546,
+    "value": 1.003,
+    "detail": "J 1.00 (limit 0.35); worst frames f546 (44°), f533 (42°), f547 (40°), f548 (33°), f534 (31°), f535 (28°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 550,
+   "to": 550,
+   "peak": {
+    "f": 550,
+    "value": 0.532,
+    "detail": "J 0.53 (limit 0.35); worst frames f550 (25°), f551 (23°), f554 (19°), f555 (18°), f537 (16°), f558 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 553,
+   "to": 553,
+   "peak": {
+    "f": 553,
+    "value": 0.837,
+    "detail": "J 0.84 (limit 0.35); worst frames f553 (39°), f554 (29°), f555 (27°), f552 (21°), f540 (17°), f542 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.493,
+    "detail": "J 0.49 (limit 0.35); worst frames f560 (18°), f547 (17°), f544 (14°), f561 (14°), f548 (11°), f557 (11°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.524,
+    "detail": "J 0.52 (limit 0.35); worst frames f560 (36°), f561 (26°), f533 (24°), f559 (19°), f548 (16°), f547 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 570,
+   "to": 570,
+   "peak": {
+    "f": 570,
+    "value": 0.126,
+    "detail": "13 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 586,
+   "to": 587,
+   "peak": {
+    "f": 587,
+    "value": 0.103,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 2
+  },
+  {
+   "seq": "chasm1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.36,
+    "detail": "36 cm/frame²",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 612,
+   "to": 612,
+   "peak": {
+    "f": 612,
+    "value": 0.285,
+    "detail": "29 cm in one frame between 6 and 0 cm",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 644,
+   "to": 644,
+   "peak": {
+    "f": 644,
+    "value": 0.322,
+    "detail": "32 cm in one frame between 0 and 3 cm",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "pop",
+   "what": "shinL snaps",
+   "from": 644,
+   "to": 644,
+   "peak": {
+    "f": 644,
+    "value": 47.141,
+    "detail": "47°/frame between 0° and 5°",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "footL swing",
+   "from": 655,
+   "to": 796,
+   "peak": {
+    "f": 698,
+    "value": 80.215,
+    "detail": "80° (limit 60°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 142
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "footR swing",
+   "from": 655,
+   "to": 796,
+   "peak": {
+    "f": 699,
+    "value": 80.213,
+    "detail": "80° (limit 60°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 142
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 685,
+   "to": 694,
+   "peak": {
+    "f": 689,
+    "value": 43.339,
+    "detail": "43° (limit 40°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 10
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 685,
+   "to": 694,
+   "peak": {
+    "f": 689,
+    "value": 43.34,
+    "detail": "43° (limit 40°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 10
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 714,
+   "to": 731,
+   "peak": {
+    "f": 721,
+    "value": 48.724,
+    "detail": "49° (limit 40°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 18
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 714,
+   "to": 731,
+   "peak": {
+    "f": 721,
+    "value": 48.728,
+    "detail": "49° (limit 40°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 18
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 744,
+   "to": 796,
+   "peak": {
+    "f": 790,
+    "value": 59.425,
+    "detail": "59° (limit 40°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 53
+  },
+  {
+   "seq": "chasm1",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 744,
+   "to": 796,
+   "peak": {
+    "f": 790,
+    "value": 59.426,
+    "detail": "59° (limit 40°)",
+    "clip": "fall_chasm_b",
+    "stage": "crash"
+   },
+   "n": 53
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 533,
+   "to": 533,
+   "peak": {
+    "f": 533,
+    "value": 0.385,
+    "detail": "J 0.39 (limit 0.35); worst frames f533 (19°), f540 (12°), f552 (11°), f551 (11°), f535 (8°), f534 (8°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 540,
+   "to": 540,
+   "peak": {
+    "f": 540,
+    "value": 0.876,
+    "detail": "J 0.88 (limit 0.35); worst frames f540 (41°), f539 (32°), f553 (28°), f552 (25°), f538 (23°), f537 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 546,
+   "to": 546,
+   "peak": {
+    "f": 546,
+    "value": 1.003,
+    "detail": "J 1.00 (limit 0.35); worst frames f546 (44°), f533 (42°), f547 (40°), f548 (33°), f534 (31°), f535 (28°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 550,
+   "to": 550,
+   "peak": {
+    "f": 550,
+    "value": 0.532,
+    "detail": "J 0.53 (limit 0.35); worst frames f550 (25°), f551 (23°), f554 (19°), f555 (18°), f537 (16°), f558 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 553,
+   "to": 553,
+   "peak": {
+    "f": 553,
+    "value": 0.837,
+    "detail": "J 0.84 (limit 0.35); worst frames f553 (39°), f554 (29°), f555 (27°), f552 (21°), f540 (17°), f542 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.493,
+    "detail": "J 0.49 (limit 0.35); worst frames f560 (18°), f547 (17°), f544 (14°), f561 (14°), f548 (11°), f557 (11°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.524,
+    "detail": "J 0.52 (limit 0.35); worst frames f560 (36°), f561 (26°), f533 (24°), f559 (19°), f548 (16°), f547 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 565,
+   "to": 565,
+   "peak": {
+    "f": 565,
+    "value": 0.04,
+    "detail": "4.0 cm/frame while planted",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 570,
+   "to": 570,
+   "peak": {
+    "f": 570,
+    "value": 0.126,
+    "detail": "13 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.102,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.473,
+    "detail": "47 cm/frame²",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "camera",
+   "what": "snap",
+   "from": 605,
+   "to": 605,
+   "peak": {
+    "f": 605,
+    "value": 6.219,
+    "detail": "angular velocity 0.4 → 6.6°/frame",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 618,
+   "to": 618,
+   "peak": {
+    "f": 618,
+    "value": 0.268,
+    "detail": "27 cm/frame²",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 630,
+   "to": 630,
+   "peak": {
+    "f": 630,
+    "value": 0.134,
+    "detail": "13 cm in one frame between 4 and 3 cm",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 630,
+   "to": 630,
+   "peak": {
+    "f": 630,
+    "value": 0.137,
+    "detail": "14 cm in one frame between 4 and 3 cm",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 640,
+   "to": 640,
+   "peak": {
+    "f": 640,
+    "value": 0.265,
+    "detail": "27 cm/frame²",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 660,
+   "to": 660,
+   "peak": {
+    "f": 660,
+    "value": 0.067,
+    "detail": "7 cm in one frame between 1 and 0 cm",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 660,
+   "to": 660,
+   "peak": {
+    "f": 660,
+    "value": 0.068,
+    "detail": "7 cm in one frame between 1 and 1 cm",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 660,
+   "to": 660,
+   "peak": {
+    "f": 660,
+    "value": 0.053,
+    "detail": "5 cm in one frame between 0 and 1 cm",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate0",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 673,
+   "to": 796,
+   "peak": {
+    "f": 690,
+    "value": 0.175,
+    "detail": "0.18°/frame mean limb motion, 21 frames in the air",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 124
+  },
+  {
+   "seq": "gate0",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 788,
+   "to": 792,
+   "peak": {
+    "f": 790,
+    "value": 40.76,
+    "detail": "41° (limit 40°)",
+    "clip": "fall_gate",
+    "stage": "crash"
+   },
+   "n": 5
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 533,
+   "to": 533,
+   "peak": {
+    "f": 533,
+    "value": 0.385,
+    "detail": "J 0.39 (limit 0.35); worst frames f533 (19°), f540 (12°), f552 (11°), f551 (11°), f535 (8°), f534 (8°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 540,
+   "to": 540,
+   "peak": {
+    "f": 540,
+    "value": 0.876,
+    "detail": "J 0.88 (limit 0.35); worst frames f540 (41°), f539 (32°), f553 (28°), f552 (25°), f538 (23°), f537 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 546,
+   "to": 546,
+   "peak": {
+    "f": 546,
+    "value": 1.003,
+    "detail": "J 1.00 (limit 0.35); worst frames f546 (44°), f533 (42°), f547 (40°), f548 (33°), f534 (31°), f535 (28°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 550,
+   "to": 550,
+   "peak": {
+    "f": 550,
+    "value": 0.532,
+    "detail": "J 0.53 (limit 0.35); worst frames f550 (25°), f551 (23°), f554 (19°), f555 (18°), f537 (16°), f558 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 553,
+   "to": 553,
+   "peak": {
+    "f": 553,
+    "value": 0.837,
+    "detail": "J 0.84 (limit 0.35); worst frames f553 (39°), f554 (29°), f555 (27°), f552 (21°), f540 (17°), f542 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.493,
+    "detail": "J 0.49 (limit 0.35); worst frames f560 (18°), f547 (17°), f544 (14°), f561 (14°), f548 (11°), f557 (11°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.524,
+    "detail": "J 0.52 (limit 0.35); worst frames f560 (36°), f561 (26°), f533 (24°), f559 (19°), f548 (16°), f547 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 565,
+   "to": 565,
+   "peak": {
+    "f": 565,
+    "value": 0.04,
+    "detail": "4.0 cm/frame while planted",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 570,
+   "to": 570,
+   "peak": {
+    "f": 570,
+    "value": 0.126,
+    "detail": "13 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.102,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.461,
+    "detail": "46 cm/frame²",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "camera",
+   "what": "snap",
+   "from": 605,
+   "to": 606,
+   "peak": {
+    "f": 605,
+    "value": 6.588,
+    "detail": "angular velocity 0.1 → 6.7°/frame",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 2
+  },
+  {
+   "seq": "gate1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 618,
+   "to": 618,
+   "peak": {
+    "f": 618,
+    "value": 0.265,
+    "detail": "26 cm/frame²",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "gate1",
+   "type": "joint",
+   "what": "footR swing",
+   "from": 629,
+   "to": 796,
+   "peak": {
+    "f": 794,
+    "value": 63.375,
+    "detail": "63° (limit 60°)",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 168
+  },
+  {
+   "seq": "gate1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 638,
+   "to": 640,
+   "peak": {
+    "f": 638,
+    "value": 0.36,
+    "detail": "36 cm/frame²",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 2
+  },
+  {
+   "seq": "gate1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 687,
+   "to": 691,
+   "peak": {
+    "f": 689,
+    "value": 41.031,
+    "detail": "41° (limit 40°)",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 5
+  },
+  {
+   "seq": "gate1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 715,
+   "to": 729,
+   "peak": {
+    "f": 721,
+    "value": 46.42,
+    "detail": "46° (limit 40°)",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 15
+  },
+  {
+   "seq": "gate1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 745,
+   "to": 769,
+   "peak": {
+    "f": 755,
+    "value": 51.786,
+    "detail": "52° (limit 40°)",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 25
+  },
+  {
+   "seq": "gate1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 775,
+   "to": 796,
+   "peak": {
+    "f": 790,
+    "value": 57.117,
+    "detail": "57° (limit 40°)",
+    "clip": "fall_gate_b",
+    "stage": "crash"
+   },
+   "n": 22
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 533,
+   "to": 533,
+   "peak": {
+    "f": 533,
+    "value": 0.385,
+    "detail": "J 0.39 (limit 0.35); worst frames f533 (19°), f540 (12°), f552 (11°), f551 (11°), f535 (8°), f534 (8°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 540,
+   "to": 540,
+   "peak": {
+    "f": 540,
+    "value": 0.876,
+    "detail": "J 0.88 (limit 0.35); worst frames f540 (41°), f539 (32°), f553 (28°), f552 (25°), f538 (23°), f537 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 546,
+   "to": 546,
+   "peak": {
+    "f": 546,
+    "value": 1.003,
+    "detail": "J 1.00 (limit 0.35); worst frames f546 (44°), f533 (42°), f547 (40°), f548 (33°), f534 (31°), f535 (28°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 550,
+   "to": 550,
+   "peak": {
+    "f": 550,
+    "value": 0.532,
+    "detail": "J 0.53 (limit 0.35); worst frames f550 (25°), f551 (23°), f554 (19°), f555 (18°), f537 (16°), f558 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 553,
+   "to": 553,
+   "peak": {
+    "f": 553,
+    "value": 0.837,
+    "detail": "J 0.84 (limit 0.35); worst frames f553 (39°), f554 (29°), f555 (27°), f552 (21°), f540 (17°), f542 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.493,
+    "detail": "J 0.49 (limit 0.35); worst frames f560 (18°), f547 (17°), f544 (14°), f561 (14°), f548 (11°), f557 (11°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.524,
+    "detail": "J 0.52 (limit 0.35); worst frames f560 (36°), f561 (26°), f533 (24°), f559 (19°), f548 (16°), f547 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 565,
+   "to": 565,
+   "peak": {
+    "f": 565,
+    "value": 0.04,
+    "detail": "4.0 cm/frame while planted",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 570,
+   "to": 570,
+   "peak": {
+    "f": 570,
+    "value": 0.126,
+    "detail": "13 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.102,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.397,
+    "detail": "40 cm/frame²",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 608,
+   "to": 610,
+   "peak": {
+    "f": 608,
+    "value": 0.842,
+    "detail": "0.84°/frame mean limb motion, 4 frames in the air",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 3
+  },
+  {
+   "seq": "rock0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 640,
+   "to": 641,
+   "peak": {
+    "f": 640,
+    "value": 0.328,
+    "detail": "33 cm/frame²",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 2
+  },
+  {
+   "seq": "rock0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 649,
+   "to": 649,
+   "peak": {
+    "f": 649,
+    "value": 0.34,
+    "detail": "34 cm/frame²",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 658,
+   "to": 658,
+   "peak": {
+    "f": 658,
+    "value": 0.266,
+    "detail": "27 cm/frame²",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 666,
+   "to": 666,
+   "peak": {
+    "f": 666,
+    "value": 0.315,
+    "detail": "31 cm/frame²",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock0",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 684,
+   "to": 684,
+   "peak": {
+    "f": 684,
+    "value": 0.268,
+    "detail": "27 cm/frame²",
+    "clip": "fall_rock",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "thighL judders in the gait",
+   "from": 533,
+   "to": 533,
+   "peak": {
+    "f": 533,
+    "value": 0.385,
+    "detail": "J 0.39 (limit 0.35); worst frames f533 (19°), f540 (12°), f552 (11°), f551 (11°), f535 (8°), f534 (8°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "footL judders in the gait",
+   "from": 540,
+   "to": 540,
+   "peak": {
+    "f": 540,
+    "value": 0.876,
+    "detail": "J 0.88 (limit 0.35); worst frames f540 (41°), f539 (32°), f553 (28°), f552 (25°), f538 (23°), f537 (21°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "toeR judders in the gait",
+   "from": 546,
+   "to": 546,
+   "peak": {
+    "f": 546,
+    "value": 1.003,
+    "detail": "J 1.00 (limit 0.35); worst frames f546 (44°), f533 (42°), f547 (40°), f548 (33°), f534 (31°), f535 (28°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "shinL judders in the gait",
+   "from": 550,
+   "to": 550,
+   "peak": {
+    "f": 550,
+    "value": 0.532,
+    "detail": "J 0.53 (limit 0.35); worst frames f550 (25°), f551 (23°), f554 (19°), f555 (18°), f537 (16°), f558 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "toeL judders in the gait",
+   "from": 553,
+   "to": 553,
+   "peak": {
+    "f": 553,
+    "value": 0.837,
+    "detail": "J 0.84 (limit 0.35); worst frames f553 (39°), f554 (29°), f555 (27°), f552 (21°), f540 (17°), f542 (14°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "thighR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.493,
+    "detail": "J 0.49 (limit 0.35); worst frames f560 (18°), f547 (17°), f544 (14°), f561 (14°), f548 (11°), f557 (11°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "judder",
+   "what": "footR judders in the gait",
+   "from": 560,
+   "to": 560,
+   "peak": {
+    "f": 560,
+    "value": 0.524,
+    "detail": "J 0.52 (limit 0.35); worst frames f560 (36°), f561 (26°), f533 (24°), f559 (19°), f548 (16°), f547 (15°)",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 565,
+   "to": 565,
+   "peak": {
+    "f": 565,
+    "value": 0.04,
+    "detail": "4.0 cm/frame while planted",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 570,
+   "to": 570,
+   "peak": {
+    "f": 570,
+    "value": 0.126,
+    "detail": "13 cm/frame² relative to the ground",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 586,
+   "to": 587,
+   "peak": {
+    "f": 587,
+    "value": 0.103,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 2
+  },
+  {
+   "seq": "rock1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 586,
+   "to": 586,
+   "peak": {
+    "f": 586,
+    "value": 0.397,
+    "detail": "40 cm/frame²",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 601,
+   "to": 601,
+   "peak": {
+    "f": 601,
+    "value": 0.272,
+    "detail": "27 cm/frame²",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 617,
+   "to": 617,
+   "peak": {
+    "f": 617,
+    "value": 0.212,
+    "detail": "21 cm in one frame between 4 and 6 cm",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "joint",
+   "what": "footL swing",
+   "from": 622,
+   "to": 688,
+   "peak": {
+    "f": 635,
+    "value": 81.477,
+    "detail": "81° (limit 60°)",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 67
+  },
+  {
+   "seq": "rock1",
+   "type": "joint",
+   "what": "footR swing",
+   "from": 622,
+   "to": 796,
+   "peak": {
+    "f": 624,
+    "value": 76.342,
+    "detail": "76° (limit 60°)",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 175
+  },
+  {
+   "seq": "rock1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 641,
+   "to": 641,
+   "peak": {
+    "f": 641,
+    "value": 0.469,
+    "detail": "47 cm/frame²",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 649,
+   "to": 649,
+   "peak": {
+    "f": 649,
+    "value": 0.416,
+    "detail": "42 cm/frame²",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 666,
+   "to": 666,
+   "peak": {
+    "f": 666,
+    "value": 0.359,
+    "detail": "36 cm/frame²",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "camera",
+   "what": "position jerk",
+   "from": 675,
+   "to": 675,
+   "peak": {
+    "f": 675,
+    "value": 0.345,
+    "detail": "35 cm/frame²",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 1
+  },
+  {
+   "seq": "rock1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 685,
+   "to": 693,
+   "peak": {
+    "f": 689,
+    "value": 43.004,
+    "detail": "43° (limit 40°)",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 9
+  },
+  {
+   "seq": "rock1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 714,
+   "to": 731,
+   "peak": {
+    "f": 721,
+    "value": 48.38,
+    "detail": "48° (limit 40°)",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 18
+  },
+  {
+   "seq": "rock1",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 744,
+   "to": 796,
+   "peak": {
+    "f": 790,
+    "value": 59.09,
+    "detail": "59° (limit 40°)",
+    "clip": "fall_rock_b",
+    "stage": "crash"
+   },
+   "n": 53
+  }
+ ],
+ "thresholds": {
+  "spike": 3,
+  "popOmega": 25,
+  "judder": 0.35,
+  "flip": 90,
+  "popStep": 0.04,
+  "hipsAccel": 0.1,
+  "groundAccel": 0.12,
+  "slide": 0.025,
+  "sink": 0.05,
+  "plantH": 0.02,
+  "plantVy": 0.01,
+  "airH": 0.1,
+  "frozenLimb": 1.2,
+  "frozenRun": 4,
+  "statueBody": 0.4,
+  "statueRun": 6,
+  "camOmega": 12,
+  "camSnap": 6,
+  "camJerk": 0.25
+ },
+ "limits": {
+  "spine": {
+   "swing": 45,
+   "twist": 40
+  },
+  "chest": {
+   "swing": 45,
+   "twist": 45
+  },
+  "neck": {
+   "swing": 50,
+   "twist": 60
+  },
+  "head": {
+   "swing": 55,
+   "twist": 70
+  },
+  "shoulderL": {
+   "swing": 40,
+   "twist": 45
+  },
+  "shoulderR": {
+   "swing": 40,
+   "twist": 45
+  },
+  "upper_armL": {
+   "swing": 178,
+   "twist": 110
+  },
+  "upper_armR": {
+   "swing": 178,
+   "twist": 110
+  },
+  "forearmL": {
+   "hinge": [
+    -12,
+    160
+   ],
+   "side": 30,
+   "twist": 110
+  },
+  "forearmR": {
+   "hinge": [
+    -12,
+    160
+   ],
+   "side": 30,
+   "twist": 110
+  },
+  "handL": {
+   "swing": 85,
+   "twist": 60
+  },
+  "handR": {
+   "swing": 85,
+   "twist": 60
+  },
+  "thighL": {
+   "swing": 135,
+   "twist": 55
+  },
+  "thighR": {
+   "swing": 135,
+   "twist": 55
+  },
+  "shinL": {
+   "hinge": [
+    -10,
+    160
+   ],
+   "side": 20,
+   "twist": 35
+  },
+  "shinR": {
+   "hinge": [
+    -10,
+    160
+   ],
+   "side": 20,
+   "twist": 35
+  },
+  "footL": {
+   "swing": 60,
+   "twist": 35
+  },
+  "footR": {
+   "swing": 60,
+   "twist": 35
+  },
+  "toeL": {
+   "swing": 70,
+   "twist": 30
+  },
+  "toeR": {
+   "swing": 70,
+   "twist": 30
+  }
+ }
+}
