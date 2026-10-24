@@ -219,6 +219,8 @@ async function cameraMotion(page, view) {
         const L = [];
         const O = [];
         const D = [];
+        let revealAt = -1;
+        let revealSpeed = 0;
         // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
         const B = [];
         const bones = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'].map((n) => g.runner.body.getObjectByName(n)).filter(Boolean);
@@ -236,6 +238,7 @@ async function cameraMotion(page, view) {
           // Every 3rd frame: how many of the sight lines from the lens to him are blocked (a lens
           // inside a slab or behind a wall).
           if (f % 3 === 0) O.push([f, g.debugFraming().solid]);
+          if (revealAt < 0 && g.rig.revealed) revealAt = f, revealSpeed = g.speed;
           D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
           B.push(
             bones.map((b) => {
@@ -247,7 +250,7 @@ async function cameraMotion(page, view) {
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
-        return { P, Q, L, B, O, D, dbg, kind: g.debugState?.crashKind ?? null };
+        return { P, Q, L, B, O, D, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -317,6 +320,8 @@ async function cameraMotion(page, view) {
         problems.push(`(retreat ${back.toFixed(2)} m; d/v ${ser.join(' ')})`);
       }
     }
+    // Round 20 (owner): the result card never lands before he has stopped.
+    if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
     // Blocked: three or more of the five sight lines, on two samples running.
     const blocked = r.O.filter(([, n], i) => n >= 3 && r.O[i - 1]?.[1] >= 3).map(([f]) => f);
     if (!under && blocked.length) problems.push(`lens blocked (f${blocked[0]}..f${blocked[blocked.length - 1]}, ${blocked.length} samples)`);
@@ -324,12 +329,19 @@ async function cameraMotion(page, view) {
     if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
+    if (process.env.DEBUG) {
+      const ch = [];
+      r.L.forEach((l, f) => {
+        if (f === 0 || l !== r.L[f - 1]) ch.push(`f${f} ${l}`);
+      });
+      problems.push(`(${ch.join(', ')})`);
+    }
     if (problems.length) {
       bad++;
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}%${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}% card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;

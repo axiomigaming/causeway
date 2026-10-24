@@ -786,7 +786,10 @@ export class Game {
   private holdReveal(impactIn: number, outcome: 'fall' | 'escape' = 'fall'): void {
     const H = revealHold(outcome, this.live.mult, this.motion);
     if (this.rev) clearTimeout(this.rev.timer);
-    this.rev = { impactAt: this.worldT + impactIn, after: H.after, t: 0, cap: H.cap, timer: this.revealFallback(H.cap + 0.6) };
+    // (Round 20: the cap counts from this hold, not from the stage's start: a big escape's run-on and
+    // braking took longer than the 2 s cap, and the card landed on him while he was still running.)
+    const cap = Math.max(H.cap, this.stageT + impactIn + H.after + 0.3);
+    this.rev = { impactAt: this.worldT + impactIn, after: H.after, t: 0, cap, timer: this.revealFallback(cap - this.stageT + 0.6) };
   }
 
   /**
