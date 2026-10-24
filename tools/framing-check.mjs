@@ -7,6 +7,12 @@
 // Round 18: also the title fly-over (sampled every 2.3 s) and the 50x+ escape (win_slide), whose
 // figure is measured from the skeleton (head, hips, feet), not the root.
 //
+// Round 20 (motion critic): the camera's own motion, frame by frame at 30 fps, through real cash-outs
+// (~1.5x, 5x, 20x, 60x) and crashes (each kind): no position jerk over 0.25 m/frame², no turn faster
+// than 12°/frame, no change of turn rate over 6°/frame² (the limits of tools/motion-audit.mjs). The
+// shot springs are critically damped and the output is jerk-limited (CameraRig.smoothOut), so a swap
+// of shot or subject blends. `--motion 0` skips it; `--motion only` runs only it.
+//
 // Exits 1 if any frame fails. Headless Chromium (SwiftShader); time is stepped (Game.debugStep), so the
 // result does not depend on the frame rate.
 import { chromium } from 'playwright-core';
@@ -19,6 +25,15 @@ const URL = process.env.URL ?? 'http://localhost:5180';
 const n = +arg('n', 20);
 const q = arg('q', 'medium');
 const run = +arg('run', 0);
+const motion = arg('motion', '1');
+const CAM = { jerk: 0.25, omega: 12, snap: 6 };
+// --cases 'cash 60x,crash ledge' runs only those; --views desktop only that viewport; --shake 0 measures the
+// shot without the impact shake (to tell the two apart).
+const only = arg('cases', '')
+  .split(',')
+  .filter(Boolean);
+const views = arg('views', '');
+const shake = arg('shake', '1') !== '0';
 const VIEWS = [
   { name: 'phone', w: 390, h: 844, mobile: true },
   { name: 'desktop', w: 1280, h: 720, mobile: false },
@@ -29,10 +44,15 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 let failed = 0;
-for (const v of VIEWS) {
+for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))) {
   const page = await browser.newPage({ viewport: { width: v.w, height: v.h }, deviceScaleFactor: 1, isMobile: v.mobile, hasTouch: v.mobile });
   await page.goto(`${URL}/?qa&q=${q}&seed=framing`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
+  if (motion !== '0') failed += await cameraMotion(page, v.name);
+  if (motion === 'only') {
+    await page.close();
+    continue;
+  }
   // Round 18: the title fly-over as loaded (its own interface, before Enter), every 2.3 s of its
   // 46 s period: the whole figure on screen, the boots clear of the footer.
   const title = await page.evaluate(() => {
@@ -161,5 +181,87 @@ for (const v of VIEWS) {
   await page.close();
 }
 await browser.close();
+
+/** Round 20: the per-frame camera jerk limit through cash-outs and crashes. Returns the failures. */
+async function cameraMotion(page, view) {
+  const cases = [
+    ...[1.5, 5, 20, 60].map((m) => ({ name: `cash ${m}x`, mult: m })),
+    ...['chasm', 'gate', 'rockfall', 'pillar', 'trip', 'ledge'].map((k) => ({ name: `crash ${k}`, mult: 2.2, kind: k })),
+  ];
+  let bad = 0;
+  for (const c of cases.filter((x) => !only.length || only.includes(x.name))) {
+    const r = await page.evaluate(
+      ({ c, shake }) => {
+        const g = window.__game;
+        g.paused = true;
+        g.rig.shakeEnabled = shake;
+        const now = Date.now;
+        Date.now = () => 4242 + c.name.length * 97;
+        g.newWorld('setup');
+        Date.now = now;
+        g.debugStep(1);
+        // The round clock: m = e^(0.000063 t); cash out (or crash) 2.6 s into the run at c.mult.
+        const E = Math.log(c.mult) / 0.000063;
+        g.lead();
+        const start = g.virtualNow + 2600 - E;
+        g.elapsed = () => g.virtualNow - start;
+        g.debugStep(2.6);
+        if (c.kind) g.crash(Math.round(c.mult * 100), `framing-${c.kind}`, c.kind, 0);
+        else {
+          g.live.mult = Math.floor(g.live.mult * 100) / 100;
+          g.cashout(`framing-cash-${c.mult}`);
+        }
+        g.elapsed = () => null;
+        const cam = g.rig.camera;
+        const P = [];
+        const Q = [];
+        const L = [];
+        // From a second before the event to 7 s after it (the result card, the settle).
+        for (let f = 0; f < 210; f++) {
+          // (As debugStep, without drawing: the camera is all this measures.)
+          g.virtualNow += 1000 / 30;
+          g.frame(1 / 30, false);
+          cam.updateMatrixWorld();
+          const p = cam.getWorldPosition(cam.position.clone());
+          const q = cam.getWorldQuaternion(cam.quaternion.clone());
+          P.push([p.x, p.y, p.z]);
+          Q.push([q.x, q.y, q.z, q.w]);
+          L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
+        }
+        return { P, Q, L, kind: g.debugState?.crashKind ?? null };
+      },
+      { c, shake },
+    );
+    const ang = (a, b) => {
+      const d = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
+      return (2 * Math.acos(Math.min(1, d)) * 180) / Math.PI;
+    };
+    let worst = { jerk: 0, omega: 0, snap: 0 };
+    const at = { jerk: 0, omega: 0, snap: 0 };
+    let wPrev = null;
+    for (let f = 2; f < r.P.length; f++) {
+      const [a, b, d] = [r.P[f], r.P[f - 1], r.P[f - 2]];
+      const j = Math.hypot(a[0] - 2 * b[0] + d[0], a[1] - 2 * b[1] + d[1], a[2] - 2 * b[2] + d[2]);
+      const w = ang(r.Q[f], r.Q[f - 1]);
+      const sn = wPrev === null ? 0 : Math.abs(w - wPrev);
+      wPrev = w;
+      if (j > worst.jerk) [worst.jerk, at.jerk] = [j, f];
+      if (w > worst.omega) [worst.omega, at.omega] = [w, f];
+      if (sn > worst.snap) [worst.snap, at.snap] = [sn, f];
+    }
+    const problems = [];
+    if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
+    if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
+    if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
+    if (problems.length) {
+      bad++;
+      problems.push(`(${r.L[at.jerk]})`);
+    }
+    console.log(
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(14)}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+    );
+  }
+  return bad;
+}
 console.log(failed ? `${failed} frame(s) failed` : 'all frames ok');
 process.exit(failed ? 1 : 0);

@@ -163,19 +163,48 @@ export class Debris {
   onBubbles: (p: THREE.Vector3, k: number) => void = () => {};
   private acc = 0;
 
+  /**
+   * Round 20: the world's broken masonry (kit chunk_broken_0..3: dressed faces and a raw fracture
+   * face), centred and normalised to about 1 m across like the procedural shards it replaces.
+   */
+  private chunks: { geo: THREE.BufferGeometry; mat: THREE.Material }[] = [];
+
   constructor(private kit: Kit) {
     this.root.name = 'debris';
     this.raw = rawStone(new THREE.Color(0.58, 0.5, 0.4));
+    for (let k = 0; k < 4; k++) {
+      const g0 = kit.geo.get(`chunk_broken_${k}`);
+      const mk = kit.matOf.get(`chunk_broken_${k}`);
+      const mat = mk ? kit.mat.get(mk) : undefined;
+      if (!g0 || !mat) continue;
+      const g = g0.clone();
+      g.computeBoundingBox();
+      const bb = g.boundingBox!;
+      const c = bb.getCenter(new THREE.Vector3());
+      const size = bb.getSize(new THREE.Vector3());
+      const k1 = 1 / Math.max(0.05, size.x, size.y, size.z);
+      g.translate(-c.x, -c.y, -c.z).scale(k1, k1, k1);
+      g.computeBoundingBox();
+      g.computeBoundingSphere();
+      this.chunks.push({ geo: g, mat });
+    }
   }
 
   private geoOf(piece: string): THREE.BufferGeometry | undefined {
-    if (piece.startsWith('shard_')) return this.shards[(+piece.slice(6) || 0) % SHARD_KINDS];
+    if (piece.startsWith('shard_')) {
+      const k = +piece.slice(6) || 0;
+      if (this.chunks.length) return this.chunks[k % this.chunks.length]!.geo;
+      return this.shards[k % SHARD_KINDS];
+    }
     return this.kit.geo.get(piece);
   }
 
   private matOf(piece: string, key?: string): THREE.Material | undefined {
     // Fragments are the broken inside of stone, whatever they broke from.
-    if (piece.startsWith('shard_')) return this.raw;
+    if (piece.startsWith('shard_')) {
+      const k = +piece.slice(6) || 0;
+      return this.chunks.length ? this.chunks[k % this.chunks.length]!.mat : this.raw;
+    }
     if (key) return this.kit.mat.get(key);
     return this.kit.mat.get(this.kit.matOf.get(piece)!);
   }
@@ -491,7 +520,8 @@ export class Debris {
       // Water: through the surface (a splash), then sinking.
       if (!b.splashed && b.x.y < WATER_Y) {
         const gy = b.ground(b.x.x, b.x.z);
-        if (gy === null || gy < WATER_Y) {
+        // (A floor below the waterline is a dry pit: no splash, it lands on it.)
+        if (gy === null) {
           b.splashed = true;
           this.onImpact({ pos: new THREE.Vector3(b.x.x, WATER_Y, b.x.z), speed: -b.vel.y, water: true, mass: sizeK(b) });
           // The surface takes most of the speed at once.

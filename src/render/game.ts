@@ -347,6 +347,7 @@ export class Game {
     if (this.ledgeBed) {
       this.scene.remove(this.ledgeBed);
       this.ledgeBed = null;
+      this.water.setDry(null);
     }
     void probe;
     onProgress(1, 'Ready');
@@ -559,6 +560,7 @@ export class Game {
     if (this.ledgeBed) {
       this.scene.remove(this.ledgeBed);
       this.ledgeBed = null;
+      this.water.setDry(null);
     }
     this.particles.clear();
     this.spray.clear();
@@ -664,10 +666,22 @@ export class Game {
     // Round 20 (crash director): the section's own hazards, widened by what any floor can stage:
     // where the floor can cave in, it may drop him onto the stone course below instead of into
     // the water; a pier or a column can come down across any straight run of floor.
+    // The world tags what a section can stage (layout.features, world 4df9560): a tall pillar at
+    // the edge (topple), a fallen log or column beside the way (trip), rock faces close by
+    // (rockfall), a lower terrace (lower). Untagged sections: a cave-in can drop him onto the
+    // course below the floor instead of into the water, and any straight run can lose a pier.
     const base = sec?.layout.hazards ?? ['rockfall'];
+    const feat = sec?.layout.features;
     const hazards: CrashKind[] = [...base];
-    if (base.includes('chasm')) hazards.push('ledge');
-    if (sec && sec.type !== 'turnL' && sec.type !== 'turnR' && sec.type !== 'stairsDown' && sec.type !== 'stairsUp') hazards.push('pillar', 'trip');
+    if (feat) {
+      if (feat.topple) hazards.push('pillar');
+      if (feat.trip) hazards.push('trip');
+      if (feat.rockfall && !hazards.includes('rockfall')) hazards.push('rockfall');
+      if (feat.lower || base.includes('chasm')) hazards.push('ledge');
+    } else {
+      if (base.includes('chasm')) hazards.push('ledge');
+      if (sec && sec.type !== 'turnL' && sec.type !== 'turnR' && sec.type !== 'stairsDown' && sec.type !== 'stairsUp') hazards.push('pillar', 'trip');
+    }
     const standing = this.stage === 'lead' || this.speed < 2;
     const st = crashStaging(roundId, mult / 100, hazards, standing, this.lastCrash);
     if (!standing) this.lastCrash = st.kind;
@@ -919,7 +933,8 @@ export class Game {
       const g = f.pos.clone().addScaledVector(rv, c.range(-2.4, 2.4));
       this.cine.beams.add(g, this.sunDir, c.range(1.0, 2.4), c.range(0.55, 1));
     }
-    this.cine.beams.level = E.shafts;
+    // (Subtle god rays, not a curtain of light.)
+    this.cine.beams.level = E.shafts * 0.5;
     this.cine.rimLevelTarget = E.rim;
     // The burst into light: a glory of sun on the way ahead, behind the runner's silhouette, at every
     // multiplier (bigger and longer for a big one).
@@ -934,7 +949,9 @@ export class Game {
     this.rig.gateAhead = gateAt - s0;
     const glory = fg.pos.clone().addScaledVector(forward(fg.yaw), 0.9).setY(fg.pos.y + 3.0);
     // Capped so the scene keeps its contrast (no bloom whiteout), a touch more for a big escape.
-    this.cine.glory.flare(glory, 7 + 3 * g, 0.5 + 0.2 * g, 1.0 + 1.2 * g);
+    // Round 20: a brief bloom at the gate that settles to a faint warm glow (it held a huge
+    // sunburst behind him for the whole celebration).
+    this.cine.glory.flare(glory, 4 + 1.5 * g, 0.32 + 0.12 * g, 0.3 + 0.25 * g);
     // Gold and jade glints burst up from the runner's feet, then keep rising around them.
     const feet = () => this.runner.root.position;
     this.later(0.1, () => this.cine.sparkles.burst(feet(), Math.round(36 + 110 * g), 4 + 2.5 * g, 0.5));
@@ -1156,8 +1173,13 @@ export class Game {
     const sec = this.track.sectionAt(this.s);
     const openSide = sec?.layout.walls === 'cliff' ? (sec.mirror ? 1 : -1) : r.chance(0.5) ? 1 : -1;
     this.timeScale = 1;
-    const shot = kind === 'chasm' || kind === 'ledge' ? 'chasm' : kind === 'rockfall' || kind === 'trip' ? 'rockfall' : 'gate';
-    this.rig.setMode('crash', { side: st.variant ? -openSide : openSide, shot, variant: st.variant, epic: e });
+    // (Pillar and trip take the close over-the-shoulder chasm framing: the gate's and the rockfall's
+    // pull wide and high, and he lies only a couple of metres from where the clip starts.)
+    const shot = kind === 'chasm' || kind === 'ledge' || kind === 'pillar' || kind === 'trip' ? 'chasm' : kind === 'rockfall' ? 'rockfall' : 'gate';
+    // (Pillar and trip: he runs on while the column comes down, so the chase lens stays with him
+    // until the clip starts; see there.)
+    const crashCam = () => this.rig.setMode('crash', { side: st.variant ? -openSide : openSide, shot, variant: st.variant, epic: e });
+    if (kind !== 'pillar' && kind !== 'trip') crashCam();
     const wallsOf = (s: number) => this.track.sectionAt(s)?.layout.walls ?? 'low';
     const frameAt = (s: number) => {
       const f = this.track.path.sample(s);
@@ -1182,8 +1204,9 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      this.setStop(this.s + 0.01);
-      const h = frameAt(this.s);
+      const halt = v * 0.06;
+      this.setStop(this.s + halt);
+      const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
       const span = 4 + 2 * e;
       this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 3.2);
@@ -1193,7 +1216,10 @@ export class Game {
         const lat = Math.abs((x - h.pos.x) * h.right.x + (z - h.pos.z) * h.right.z);
         return lat < PATH_HALF + 0.15 ? bedY : lat < PATH_HALF + 1.5 ? h.pos.y : null;
       };
-      this.rig.focus.copy(h.pos).setY(h.pos.y - 1);
+      // The lens cranes over the lip looking down to where he will lie (not the chasm's tilt
+      // straight down at the root: that lost him as he rolled on along the trough).
+      const lands = frameAt(this.s + 2.5);
+      this.rig.focus.copy(lands.pos).setY(bedY + 0.4);
       this.cine.cracks.spawn(h.pos.clone().setY(h.pos.y + 0.05), h.yaw, PATH_HALF * 2 + 0.2, 2 + e, 0.12, 0);
       this.sounds.tremor(0.6 + 0.4 * e);
       this.sounds.event?.('fall_drop', 1);
@@ -1203,7 +1229,12 @@ export class Game {
         tiles.forEach((t, i) => {
           const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
           const out = Math.sign(tp.dot(h.right) || (r.chance(0.5) ? 1 : -1));
-          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.3, 0.3), -r.range(0, 0.6), r.range(-0.3, 0.3)).addScaledVector(h.right, out * r.range(0.2, 0.8)), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)), bed, { breakInto: i % 3 === 0 ? 2 : 0, walls: pit, restitution: 0.18 });
+          // (His landing and roll, about 2-3 m on and within 0.8 m of the centre line, and the line
+          // from the lens behind him, stay clear: the slabs tip out to the trough's sides, and
+          // the ones over his track break up as they go.)
+          const along = tp.dot(h.fwd);
+          const onTrack = Math.abs(tp.dot(h.right)) < 1.1 && along > -1.5 && along < 4;
+          this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : Infinity, walls: pit, restitution: 0.18 });
           if (i % 2 === 0) {
             const p = new THREE.Vector3().setFromMatrixPosition(t.world);
             B.puff(p, { count: 1, spread: 1.2, jitter: 0.8, vel: new THREE.Vector3(0, 1.2, 0), size: [0.8, 2.4], life: 1.4, alpha: 0.22, tint: DUST_T, rise: 0.3 });
@@ -1212,7 +1243,6 @@ export class Game {
         kick(0.6);
         this.sounds.impact(0.6 + 0.3 * e, false);
       });
-      this.gapAt = this.worldT + 0.3;
       this.slowFloorTarget = 0.92;
       // Grit and chips fall with him, streaking past.
       const hips = this.runner.body.getObjectByName('hips');
@@ -1547,14 +1577,17 @@ export class Game {
       // settles. He keeps running while it comes down, and the clip starts so its contact lands on
       // the column where it lies (character agent's contact geometry, measured from the root as
       // the clip starts: the slam's near face at +1.85 m, impact 0.27 s; the palms' face +1.77 m,
-      // 0.33 s; the trip's column centre +0.9 m, hooked at 0.2 s).
+      // 0.33 s; the trip's column, re-keyed: Ø 0.42 m, centre +1.3 m, R toe hooks the near face at 0.17 s,
+      // the L foot crosses its top ~5 cm clear).
       const trip = kind === 'trip';
       const clip = st.clip as RunnerAnim;
       const palms = clip === 'fall_pillar_b';
-      const contactT = trip ? 0.2 : palms ? 0.33 : 0.27;
-      const contactY = trip ? 0.9 : palms ? 1.77 : 1.85;
+      const contactT = trip ? 0.17 : palms ? 0.33 : 0.27;
+      const contactY = trip ? 1.3 : palms ? 1.77 : 1.85;
       const side = r.chance(0.5) ? 1 : -1;
-      const piece = 'pillar_0';
+      // (The trip: the toppling pier piece, uniformly scaled to about 0.42 m across: a stout carved
+      // drum, not a pole, and low enough for fall_trip's hooked toe and the leg that steps over.)
+      const piece = trip ? 'pillar_topple_0' : 'pillar_0';
       const geo = this.kit.geo.get(piece);
       if (geo && !geo.boundingBox) geo.computeBoundingBox();
       const bb = geo?.boundingBox;
@@ -1562,17 +1595,19 @@ export class Game {
       const across = bb ? Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) : 0.95;
       // Long enough to span the way and rest on the far side.
       const reach = 2 * PATH_HALF + 1.4;
-      const sc = Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
-      // The trip's column is slim (about 0.4 m across lying down: a toe catches its top).
-      const girth = trip ? Math.min(1, 0.42 / Math.max(0.1, across * sc)) : 1;
+      const sc = trip ? 0.3234 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
+      const girth = 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
-      const tFall = trip ? 0.9 : 0.84;
+      const tFall = trip ? 0.62 : 0.84;
       // He keeps his speed until the clip starts, then the root halts there (the clip carries the
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
       const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
-      const sPlay = this.s + v * tPlay;
+      // The root runs out over ~0.12 s as the clip starts (a dead stop in one frame read as a pop),
+      // HALT m further on; the contact geometry is measured from there.
+      const HALT = v * 0.06;
+      const sPlay = this.s + v * tPlay + HALT;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
       const sPlayPoint = (ahead: number, up: number) => {
@@ -1583,12 +1618,14 @@ export class Game {
       this.setStop(this.s + v * tPlay + 60);
       this.runner.play('run', 0.08);
       this.later(tPlay, () => {
-        this.setStop(this.s + 0.01);
+        this.setStop(this.s + HALT);
         this.runner.play(clip, 0.06);
+        crashCam();
       });
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
-      const foot = at.pos.clone().addScaledVector(at.right, side * (PATH_HALF + 0.35));
+      // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
+      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF + 0.35));
       // Floor under it: the way and the footing at its foot; beyond the far edge, the far wall's
       // footing (raised for the pier, so it ends up leaning across the way at chest height).
       const far = trip ? 0 : 1.5;
@@ -1662,8 +1699,9 @@ export class Game {
       // where the clip starts); he spins and goes down on his left side. The root halts as the clip
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
-        this.setStop(this.s + 0.01);
-        const h0 = frameAt(this.s);
+        const halt = v * 0.06;
+        this.setStop(this.s + halt);
+        const h0 = frameAt(this.s + halt);
         const tt = 0.23;
         const target = h0.pos.clone().addScaledVector(h0.fwd, 1.38).addScaledVector(h0.right, 0.35).setY(h0.pos.y + 1.38);
         const from = target.clone().addScaledVector(h0.right, 3).addScaledVector(h0.fwd, 0.4).setY(target.y + 1.4);
@@ -2438,7 +2476,7 @@ export class Game {
     this.fx.gold += (goldTarget - this.fx.gold) * (1 - Math.exp(-rawDt * 3));
     this.fx.flash *= Math.exp(-rawDt * 6);
     // Cash-out: a sun-flare bloom, bigger and longer for a big escape.
-    this.fx.bloom = this.stage === 'cashout' ? (0.3 + 0.5 * this.epic) * Math.exp(-this.stageT * (1.2 - 0.6 * this.epic)) + (this.escape?.bloom ?? 0) * 0.25 * Math.min(1, this.stageT / 0.8) : this.fx.danger * 0.25;
+    this.fx.bloom = this.stage === 'cashout' ? (0.2 + 0.3 * this.epic) * Math.exp(-this.stageT * (1.2 - 0.6 * this.epic)) + (this.escape?.bloom ?? 0) * 0.25 * Math.min(1, this.stageT / 0.8) : this.fx.danger * 0.25;
 
     if (this.gateLand && !this.gateLand.done && this.stageT > 0.9) this.gateLand.done = true;
 
@@ -2477,7 +2515,9 @@ export class Game {
     // at the frame edge. Once he pulls up, the rig frames the hips (ground height of the root),
     // the offset eased so the sway of a stride never reaches the lens.
     let subject = rp;
-    if (this.stage === 'cashout' && !this.runOn) {
+    // (Round 20: the crash too, except the chasm, where he goes under: the clips carry him metres
+    // off the root, a slam, a trip, a fall onto the stone below.)
+    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'gate')) {
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips) {
         // This frame's pose (the bones' world matrices otherwise update only at render).
@@ -2732,17 +2772,40 @@ export class Game {
    * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
    */
   /** Round 20: the causeway's lower course, revealed under a ledge cave-in (cleared with the world). */
-  private ledgeBed: THREE.Mesh | null = null;
+  private ledgeBed: THREE.Object3D | null = null;
   private placeLedgeBed(h: { pos: THREE.Vector3; yaw: number; fwd: THREE.Vector3 }, y: number, len: number): void {
     if (this.ledgeBed) this.scene.remove(this.ledgeBed);
-    const mat = this.kit.mat.get('stoneB') ?? this.kit.mat.values().next().value;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(2 * PATH_HALF + 0.6, 0.6, len), mat as THREE.Material);
-    m.position.copy(h.pos).addScaledVector(h.fwd, len / 2 - 1.2).setY(y - 0.3);
-    m.rotation.y = h.yaw;
-    m.receiveShadow = true;
-    m.name = 'ledgeBed';
-    this.scene.add(m);
-    this.ledgeBed = m;
+    const mat = (this.kit.mat.get('stoneB') ?? this.kit.mat.values().next().value) as THREE.Material;
+    // A dry stone trough under the causeway: the course he lands on (below the waterline, so the
+    // water is kept out of its footprint) and its two side walls up to the floor.
+    const g = new THREE.Group();
+    g.name = 'ledgeBed';
+    const W = 2 * PATH_HALF + 0.6;
+    const depth = h.pos.y - y;
+    const bedM = new THREE.Mesh(new THREE.BoxGeometry(W, 0.6, len), mat);
+    bedM.position.set(0, -0.3, 0);
+    bedM.receiveShadow = true;
+    g.add(bedM);
+    for (const sd of [-1, 1]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, depth + 0.6, len), mat);
+      wall.position.set(sd * (W / 2 + 0.25), (depth + 0.6) / 2 - 0.6, 0);
+      wall.receiveShadow = true;
+      wall.castShadow = true;
+      g.add(wall);
+    }
+    // And its two ends.
+    for (const sd of [-1, 1]) {
+      const end = new THREE.Mesh(new THREE.BoxGeometry(W + 1, depth + 0.6, 0.5), mat);
+      end.position.set(0, (depth + 0.6) / 2 - 0.6, sd * (len / 2 + 0.25));
+      end.receiveShadow = true;
+      g.add(end);
+    }
+    const c = h.pos.clone().addScaledVector(h.fwd, len / 2 - 1.2);
+    g.position.copy(c).setY(y);
+    g.rotation.y = h.yaw;
+    this.scene.add(g);
+    this.ledgeBed = g;
+    this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 0.5, halfL: len / 2 + 0.5 });
   }
 
   private splashCrown(p: THREE.Vector3, k: number): void {

@@ -33,6 +33,9 @@ export class Water {
         uPath: { value: Array.from({ length: 16 }, () => new THREE.Vector2(1e5, 1e5)) },
         uShelf: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
         // QA (?qa&wdbg): the distance to the causeway's centre line (red bands a metre apart, green past its edge).
+        // Round 20: a dry pit under the causeway (the ledge crash's stone course): no water drawn there.
+        uDryA: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uDryB: { value: new THREE.Vector4(0, 0, 0, 0) },
         uDbg: { value: typeof location !== 'undefined' && /[?&]wdbg\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 1 : 0 },
         uSplash: { value: [new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0)] },
       },
@@ -68,6 +71,8 @@ export class Water {
         uniform vec2 uPath[16];
         uniform float uShelf;
         uniform float uDbg;
+        uniform vec4 uDryA;
+        uniform vec4 uDryB;
         // Distance from p to the centre-line polyline.
         float pathDist(vec2 p) {
           float d = 1e9;
@@ -178,6 +183,11 @@ export class Water {
         }
 
         void main() {
+          if (uDryB.z > 0.5) {
+            vec2 dq = vWorld.xz - uDryA.xy;
+            vec2 lq = vec2(dq.x * uDryA.z - dq.y * uDryA.w, dq.x * uDryA.w + dq.y * uDryA.z);
+            if (abs(lq.x) < uDryB.x && abs(lq.y) < uDryB.y) discard;
+          }
           vec3 V = normalize(cameraPosition - vWorld);
           float dist = length(cameraPosition - vWorld);
           vec2 g = waveGrad(vWorld.xz, uTime);
@@ -319,6 +329,22 @@ export class Water {
   }
 
   /** Round 17: the causeway's centre line around the lens (up to 16 points, nearest first or in order). */
+  /**
+   * Round 20: keep the water out of a rectangle (centre x, z; yaw; half width across, half length
+   * along), the dry stone pit of a ledge crash. Null clears it.
+   */
+  setDry(r: { x: number; z: number; yaw: number; halfW: number; halfL: number } | null): void {
+    const a = this.uniforms.uDryA!.value as THREE.Vector4;
+    const b = this.uniforms.uDryB!.value as THREE.Vector4;
+    if (!r) {
+      b.z = 0;
+      return;
+    }
+    // Local frame: x across the way, y along it (the path's right and forward).
+    a.set(r.x, r.z, Math.cos(r.yaw), Math.sin(r.yaw));
+    b.set(r.halfW, r.halfL, 1, 0);
+  }
+
   setPath(pts: { x: number; z: number }[]): void {
     const u = this.uniforms.uPath!.value as THREE.Vector2[];
     for (let i = 0; i < 16; i++) {
