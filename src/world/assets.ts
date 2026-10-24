@@ -160,7 +160,9 @@ function prepareMaterial(key: string, src: THREE.MeshStandardMaterial): THREE.Ma
     m.roughness = 0.75;
     m.envMapIntensity = 0.6;
     // Leaves glow a little when the sun is behind them, and move in the wind.
-    m.emissive = new THREE.Color(0x1e2a0a);
+    // (Round 22: a little more — crowns wholly in shade, lit by the dim sky alone, stood as flat black
+    // shapes against the sky and in the mouths of arches.)
+    m.emissive = new THREE.Color(0x28380f);
     m.emissiveMap = m.map;
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = wind.uTime;
