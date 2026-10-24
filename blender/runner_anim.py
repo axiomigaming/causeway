@@ -1936,7 +1936,7 @@ def nudge(P, bone, dx=0.0, dy=0.0, dz=0.0):
 OBST_CADENCE = 1.945  # stride cycles per clip second through the moves (runner.ts OBST_CADENCE)
 
 
-def hand_back(f_land, Q, ph_end, f_end, f_pose=None, k0=1.0, absorb=None, sink=0.0, zq=None):
+def hand_back(f_land, Q, ph_end, f_end, f_pose=None, k0=1.0, absorb=None, sink=0.0, zq=None, leg_n=3.0):
     """Landing → run, keyed every frame. The run's phase counts back from ph_end on f_end at the moves'
     cadence; the landing pose Q (on f_pose, default the landing frame) eases into it over 3 frames; an
     absorb (a callback nudging the pose by a weight, and a sink of the hips) peaks 2 frames after the
@@ -1956,7 +1956,7 @@ def hand_back(f_land, Q, ph_end, f_end, f_pose=None, k0=1.0, absorb=None, sink=0
             z -= sink * a
         # The legs take the gait over 3 frames; the trunk and arms over the rest of the clip (cut in with
         # the legs, the arms swung ~40° in a frame into the gait's pump).
-        w = ease((fr - f_pose) / 3.0)
+        w = ease((fr - f_pose) / leg_n)
         wb = ease((fr - f_pose) / float(f_end - f_pose))
         if wb < 1.0:
             P = {nm: lerp_pose({nm: Q.get(nm, (0.0, 0.0, 0.0))}, {nm: P.get(nm, (0.0, 0.0, 0.0))},
@@ -2102,7 +2102,9 @@ def obstacle_clips():
     arm(R2, "R", fwd=2.35, elbow=0.45, out=0.4, curl=0.4)
     D = {}
     torso(D, lean=0.45, look=0.4, hp=0.18)
-    leg(D, "L", hip=1.05, knee=0.35, ankle=-0.1)
+    # (The landing knee already soft: near straight, the foot lock had no knee plane to work in and the
+    # thigh flipped at the fast tiers.)
+    leg(D, "L", hip=1.05, knee=0.6, ankle=-0.2)
     leg(D, "R", hip=0.7, knee=0.8, ankle=0.1)
     arm(D, "L", fwd=1.2, elbow=0.5, out=0.35, curl=0.6)
     arm(D, "R", fwd=1.3, elbow=0.5, out=0.35, curl=0.6)
@@ -2119,7 +2121,8 @@ def obstacle_clips():
         key(fr, A)
     # Out of the absorb over a few more frames (the first step drives up out of the crouch), keyed every
     # frame on the run's phase so the run takes over a stride already in step with the floor.
-    hand_back(22, A, 0.5, 37, f_pose=27, k0=0.8)
+    # (The legs over 6 frames: out of the deep crouch in 3, the L shin swung ~30° in a frame, ~40° at speed.)
+    hand_back(22, A, 0.5, 37, f_pose=27, k0=0.8, leg_n=6.0)
 
     # ---------------------------------------------------------- slide: under a low beam (head ≤ ~1.0 m), up running
     new_action("slide")
@@ -2352,7 +2355,7 @@ def fkey(fr, P, y=0.0, x=0.0, lift=0.0, base=0.0):
     key(fr, P, z=floor_z(P, x, y) + base + lift, y=y, x=x)
 
 
-def spin_keys(specs):
+def spin_keys(specs, flail_amp=0.0):
     """Key a turn through the air every frame, the body travelling (x, y) in the world. key() takes the
     offset in the root bone's frame, which the turn (standing_turned) rotates: given world offsets as
     such, the side hit swung him round on an arc ~1.6 m out and ~1.9 m back behind where he was hit (a
@@ -2367,6 +2370,15 @@ def spin_keys(specs):
         for fr in range(fa, fb + (1 if i == n - 2 else 0)):
             u = (fr - fa) / (fb - fa)
             P = lerp_pose(Pa, Pb, ease(u))
+            if flail_amp:
+                # (the arms and legs keep fighting the spin: it plays in the crash's slow motion, and held
+                # poses between the keys read as a frozen body in the air)
+                k = flail_amp * math.sin(math.pi * min(1.0, (fr - specs[0][0]) / 4.0)) if fr - specs[0][0] < 4 else flail_amp
+                for b, ax, f, ph in (("upper_arm.L", 0, 1.3, 0.0), ("upper_arm.R", 0, 1.1, 1.7), ("forearm.L", 0, 1.7, 0.5),
+                                     ("forearm.R", 0, 1.5, 2.2), ("thigh.L", 0, 1.2, 1.0), ("thigh.R", 0, 1.4, 2.6), ("shin.L", 0, 1.6, 0.3)):
+                    r = list(P.get(b, (0.0, 0.0, 0.0)))
+                    r[ax] += k * math.sin(fr * f + ph)
+                    P[b] = tuple(r)
             wx, wy = (0.5 * ((2 * b) + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u * u + (-a + 3 * b - 3 * c + d) * u ** 3)
                       for a, b, c, d in zip(p0, p1, p2, p3))
             x, y = rot(-P.get("root", (0, 0, 0))[2], wx, wy)
@@ -2586,28 +2598,42 @@ def crash_clips():
     arm(P, "R", fwd=-0.4, elbow=0.3, out=0.5, curl=0.3)
     fkey(25, P, y=0.64)
 
-    def pillar_sit(lean, look, hp, br=0.0, la=(0.6, 0.6, 0.5), hy=0.0, ra=None):
+    def pillar_sit(lean, look, hp, br=0.0, la=None, ra=None, hy=0.0, kr=1.6, kl=1.4):
+        """Sat on the stone; la/ra: (fwd, elbow, out) for an arm, None = propped back on that hand."""
         P = {}
-        torso(P, lean=lean, look=look, hp=hp, breath=0.03 * br, head_yaw=hy)
-        leg(P, "L", hip=1.4, out=0.1)
-        leg(P, "R", hip=1.6, out=0.12)
-        arm(P, "L", fwd=la[0], elbow=la[1], out=la[2], curl=0.5)
-        if ra:
-            arm(P, "R", fwd=ra[0], elbow=ra[1], out=ra[2], curl=0.5)  # off the stone, the forearm over the knee
-        else:
-            arm(P, "R", fwd=-0.75, elbow=0.2, out=0.4, wrist=-0.8, curl=0.1, shrug=-0.12)
+        torso(P, lean=lean, look=look, hp=hp, breath=0.08 * br, head_yaw=hy)
+        leg(P, "L", hip=kl, out=0.1)
+        leg(P, "R", hip=kr, out=0.12)
+        for sd, a in (("L", la), ("R", ra)):
+            if a:
+                arm(P, sd, fwd=a[0], elbow=a[1], out=a[2], curl=0.8)
+            else:
+                arm(P, sd, fwd=-0.75, elbow=0.2, out=0.4, wrist=-0.8, curl=0.1, shrug=-0.12)  # propped behind him
         return P
-    # … and he sits down hard (0.87 s), rocks back on the propping hand, then slumps forward over his knees.
-    P = pillar_sit(-0.15, 0.2, -0.3)
-    key(28, P, z=sit_ground(P), y=0.6)
-    P = pillar_sit(-0.35, 0.35, -0.35)
-    key(31, P, z=sit_ground(P), y=0.6)
-    # Slumped over his knees, breathing, the head turning (living to the end of the shot).
-    beats = ((34, 0.35, -0.4, 0.0, 0.0), (46, 0.4, -0.5, 1.0, 0.25), (60, 0.3, -0.3, 0.0, -0.2), (78, 0.4, -0.5, 1.0, 0.1), (96, 0.35, -0.4, 0.0, 0.0))
-    beats += tuple((fr, 0.35 + 0.05 * (i % 2), -0.4 - 0.1 * (i % 2) + 0.15 * (i % 3 == 2), float(i % 2), 0.2 * math.sin(i * 1.7))
-                   for i, fr in enumerate(range(110, LIVE_END + 1, 14)))
-    for fr, lean, look, br, hy in beats:
-        P = pillar_sit(lean, look, -0.25, br, la=(0.9, 1.2, 0.25), hy=hy, ra=(0.95, 1.1, 0.3))
+    CHEST = (0.5, 1.95, -0.05)  # the R hand clutched to the chest where the stone hit
+    # He sits down hard (0.87 s) and is thrown on back onto both hands, the head snapping forward then back …
+    for fr, lean, look, hp in ((28, -0.15, 0.3, -0.3), (31, -0.5, 0.5, -0.45)):
+        P = pillar_sit(lean, look, hp)
+        key(fr, P, z=sit_ground(P), y=0.6)
+    # … then curls in over it: the R hand to his chest, the L still propping, breathing hard and ragged; he
+    # keeps shifting (a knee drawn up, rocking, the head down and up); at ~3.5 s a dazed try at getting up
+    # (forward onto the L hand, the seat lifting off the stone) that fails, and he sinks back, the hand
+    # still on his chest, to the end of the shot.
+    def bump(t, a, b, r):
+        return ease((t - a) / r) * (1 - ease((t - b) / r))
+    for fr in range(35, LIVE_END + 1, 4):
+        t = (fr - 35) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.7 + 0.3 * min(1.0, t / 5)))
+        up = bump(t, 2.6, 3.9, 0.6)
+        rock = math.sin(t * 1.3) + 0.4 * math.sin(t * 2.9 + 1)
+        lean = 0.3 + 0.16 * rock - 0.1 * br + 0.75 * up
+        P = pillar_sit(lean, -0.25 + 0.2 * br + 0.15 * math.sin(t * 0.9) + 0.3 * up, -0.25 + 0.25 * up, br,
+                       la=(0.4 + 0.9 * up, 0.2, 0.3) if up > 0.05 else None,
+                       ra=CHEST, hy=0.35 * math.sin(t * 0.7), kr=1.6 + 0.4 * max(0.0, math.sin(t * 0.8)) + 0.3 * up,
+                       kl=1.4 + 0.25 * up + 0.2 * max(0.0, math.sin(t * 0.6 + 2)))
+        # (the clutching arm heaves with each breath and presses in)
+        P["upper_arm.R"] = (P["upper_arm.R"][0] + 0.12 * br, P["upper_arm.R"][1], P["upper_arm.R"][2])
+        P["forearm.R"] = (P["forearm.R"][0] + 0.15 * br * math.sin(t * 3.1), P["forearm.R"][1], P["forearm.R"][2])
         key(fr, P, z=sit_ground(P), y=0.6)
 
     # ---------------------------------------------------------- fall_pillar_b: skids to a stop with both hands
@@ -2710,7 +2736,7 @@ def crash_clips():
     P = {}
     side_lie(P, -1.45, 1.0)
     spin.append((19, P, 0.85, 1.72, 0.0))
-    spin_keys(spin)
+    spin_keys(spin, flail_amp=0.22)
     for fr, roll, kn, y, x in ((22, -1.62, 0.8, 1.74, 0.88), (26, -1.55, 1.1, 1.75, 0.9), (31, -1.6, 1.35, 1.75, 0.9), (33, -1.52, 0.95, 1.75, 0.9)):
         P = {}
         side_lie(P, roll, kn, ra={31: (0.9, 1.4, 0.1), 33: (1.3, 2.0, -0.05)}.get(fr, (0.6, 0.8, 0.3)))
