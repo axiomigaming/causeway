@@ -441,8 +441,9 @@ async function cameraMotion(page, view) {
     // Round 20 (owner): the result card never lands before he has stopped.
     if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
     // Blocked: three or more of the five sight lines, on two samples running.
-    // (Not by the falling stone itself: rocks crossing the view are the rockfall's staging.)
-    const solidBy = (i) => r.O[i] && r.O[i][1] >= 3 && !/^debris/.test(r.O[i][2]);
+    // (Not by the rockfall's own falling stone: rocks crossing the view are its staging. A slab in
+    // the lens anywhere else is a fault.)
+    const solidBy = (i) => r.O[i] && r.O[i][1] >= 3 && !(c.kind === 'rockfall' && /^debris/.test(r.O[i][2]));
     const blocked = r.O.filter((_, i) => solidBy(i) && solidBy(i - 1)).map(([f]) => f);
     const what = r.O.find(([f]) => f === blocked[0])?.[2] ?? '';
     if (!under && blocked.length) problems.push(`lens blocked (f${blocked[0]}..f${blocked[blocked.length - 1]}, ${blocked.length} samples: ${what})`);

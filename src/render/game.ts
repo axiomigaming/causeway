@@ -111,6 +111,20 @@ function brakeCurve(u: number): number {
   }
   return 0;
 }
+/** A box whose faces carry one texture repeat per `tile` metres (BoxGeometry maps 0..1 per face). */
+function boxAtDensity(w: number, h: number, d: number, tile: number): THREE.BoxGeometry {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const uv = g.attributes.uv as THREE.BufferAttribute;
+  // Faces in order +x, -x, +y, -y, +z, -z; four vertices each (one segment).
+  const dims: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) {
+    const [a, b] = dims[f]!;
+    for (let i = f * 4; i < f * 4 + 4; i++) uv.setXY(i, (uv.getX(i) * a) / tile, (uv.getY(i) * b) / tile);
+  }
+  uv.needsUpdate = true;
+  return g;
+}
+
 /** ∫₀¹ brakeCurve: the braking distance is v0 · T · BRAKE_AREA. */
 const BRAKE_AREA = BRAKE_KEYS.slice(1).reduce((a, [u1, v1], i) => a + ((u1 - BRAKE_KEYS[i]![0]) * (v1 + BRAKE_KEYS[i]![1])) / 2, 0);
 /** Tints for the lit dust clouds (multiplied by their sun and shade colours). */
@@ -762,7 +776,8 @@ export class Game {
     // (The pier and the trip start their clip later, on its contact: he runs on until then. Playing
     // it now and switching back to the run restarted the stride: a hip jump.)
     const deferred = (st.kind === 'pillar' || st.kind === 'trip') && !standing;
-    if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
+    // (A 0.2 s blend: the runner eases cross-fades of 0.2 s or more, and the root's run-out matches.)
+    if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.2);
     this.crashKind = st.kind;
     this.staging = st;
     this.epic = st.epic;
@@ -859,6 +874,10 @@ export class Game {
           // 0.4 of it in linear light.)
           float moss = smoothstep(0.52, 0.7, diffuseColor.g / max(diffuseColor.r, 1e-3));
           diffuseColor.rgb = mix(diffuseColor.rgb, lum * vec3(1.45, 0.92, 0.62), moss * 0.9);
+          // And the atlas's low-frequency mottling at half its contrast (grey blotches at 2-3 m):
+          // brightness drawn halfway toward the stone's mean; the carving stays in the normals.
+          float l2 = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          diffuseColor.rgb *= mix(1.0, 0.2 / max(l2, 0.02), 0.5);
         }
         #include <roughnessmap_fragment>`,
       );
@@ -1355,9 +1374,9 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+      // (The root runs out over the clip's 0.2 s cross-fade while the clip's own travel, carried
       // by the root, fades in: their sum keeps his speed.)
-      const halt = v * 0.06;
+      const halt = v * 0.1;
       this.setStop(this.s + halt);
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
@@ -1801,7 +1820,11 @@ export class Game {
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
       // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
-      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF - 0.3));
+      // Round 20 (coordinator): the pier falls at a slant across the way (10-25° off square), not as
+      // a neat low wall: its line through the way's centre still crosses where he meets it.
+      const slant = trip ? 0 : r.range(0.18, 0.42) * (r.chance(0.5) ? 1 : -1);
+      const acrossDir = at.right.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), slant);
+      const foot = at.pos.clone().addScaledVector(acrossDir, side * (trip ? 1.4 : PATH_HALF - 0.3) / Math.cos(slant) * (trip ? 1 : 0.92));
       // Floor under it: the way (the trip's drum also has the footing at its foot).
       const ground = (x: number, z: number) => {
         const lat = ((x - at.pos.x) * at.right.x + (z - at.pos.z) * at.right.z) * side;
@@ -1809,9 +1832,9 @@ export class Game {
         return Math.abs(lat) > PATH_HALF + 0.15 ? null : at.pos.y;
       };
       // Standing, leaning a few degrees in, already turning about the line along the way.
-      const axis = at.fwd.clone().multiplyScalar(-side);
+      const axis = new THREE.Vector3(0, 1, 0).cross(acrossDir).multiplyScalar(-side);
       const lean = new THREE.Quaternion().setFromAxisAngle(axis, 0.12);
-      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), at.yaw + r.range(-0.04, 0.04)).premultiply(lean);
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), at.yaw + slant + r.range(-0.04, 0.04)).premultiply(lean);
       const m = new THREE.Matrix4().compose(foot.clone().setY(at.pos.y + 0.02), q, new THREE.Vector3(sc * girth, sc, sc * girth));
       this.sounds.event?.('pillar_crack', trip ? 0.6 : 1);
       this.cine.cracks.spawn(foot.clone().setY(at.pos.y + 0.05), at.yaw + Math.PI / 2, 1.2, 1.2, 0.25, 0.05);
@@ -1836,6 +1859,18 @@ export class Game {
         });
       }
       this.later(tFall, () => {
+        // A drum cracks off its head as it lands, and grit and chips scatter round it.
+        if (!trip && col) {
+          col.updateMatrixWorld();
+          const head = new THREE.Vector3(0, (bb?.max.y ?? 3) * 0.9, 0).applyMatrix4(col.matrixWorld).setY(at.pos.y + 0.4);
+          for (let k = 0; k < 2; k++)
+            this.debris.spawn(`shard_${k}`, new THREE.Matrix4().compose(head.clone().add(new THREE.Vector3(r.range(-0.3, 0.3), 0.1 * k, r.range(-0.3, 0.3))), new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.55, 0.55, 0.55)), acrossDir.clone().multiplyScalar(-side * r.range(0.8, 1.6)).add(at.fwd.clone().multiplyScalar(r.range(-0.6, 0.6))).setY(r.range(0.6, 1.4)), new THREE.Vector3(r.range(-4, 4), r.range(-2, 2), r.range(-4, 4)), ground, { walls: edges });
+          for (let k = 0; k < 5; k++) {
+            const t = r.range(0.15, 0.95);
+            const p = foot.clone().lerp(head, t).addScaledVector(at.fwd, r.range(-0.7, 0.7)).setY(at.pos.y + 0.3);
+            this.debris.spawn(`shard_${2 + (k % 4)}`, new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.18, 0.18, 0.18).multiplyScalar(r.range(0.7, 1.3))), at.fwd.clone().multiplyScalar(r.range(-1.5, 1.5)).setY(r.range(1, 2.2)), new THREE.Vector3(r.range(-6, 6), r.range(-3, 3), r.range(-6, 6)), ground, { walls: edges });
+          }
+        }
         kick(trip ? 0.6 : 0.9);
         this.sounds.event?.('pillar_hit', trip ? 0.7 : 1);
         for (let k = -2; k <= 2; k++) {
@@ -1878,9 +1913,9 @@ export class Game {
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
         this.rig.wide = 1;
-        // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+        // (The root runs out over the clip's 0.2 s cross-fade while the clip's own travel, carried
       // by the root, fades in: their sum keeps his speed.)
-      const halt = v * 0.06;
+      const halt = v * 0.1;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
         const tt = 0.23;
@@ -3033,12 +3068,16 @@ export class Game {
     g.name = 'ledgeBed';
     const W = 2 * PATH_HALF + 0.6;
     const depth = h.pos.y - y;
-    const bedM = new THREE.Mesh(new THREE.BoxGeometry(W, 0.6, len), mat);
+    // (Round 20: the kit's atlases at the world's own texel density — one atlas per ~4 m, as a floor
+    // tile carries it — not squeezed whole onto each 5-10 m face, which read as a dark mosaic. The
+    // course he lands on is the causeway's floor stone.)
+    const floorMat = (this.kit.mat.get('floor') ?? mat) as THREE.Material;
+    const bedM = new THREE.Mesh(boxAtDensity(W, 0.6, len, 4.2), floorMat);
     bedM.position.set(0, -0.3, 0);
     bedM.receiveShadow = true;
     g.add(bedM);
     for (const sd of [-1, 1]) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, depth + 0.6, len), mat);
+      const wall = new THREE.Mesh(boxAtDensity(0.5, depth + 0.6, len, 3.2), mat);
       wall.position.set(sd * (W / 2 + 0.25), (depth + 0.6) / 2 - 0.6, 0);
       wall.receiveShadow = true;
       wall.castShadow = true;
@@ -3046,7 +3085,7 @@ export class Game {
     }
     // And its two ends.
     for (const sd of [-1, 1]) {
-      const end = new THREE.Mesh(new THREE.BoxGeometry(W + 1, depth + 0.6, 0.5), mat);
+      const end = new THREE.Mesh(boxAtDensity(W + 1, depth + 0.6, 0.5, 3.2), mat);
       end.position.set(0, (depth + 0.6) / 2 - 0.6, sd * (len / 2 + 0.25));
       end.receiveShadow = true;
       g.add(end);
