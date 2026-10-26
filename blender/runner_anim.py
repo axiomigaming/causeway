@@ -1072,7 +1072,9 @@ def build(rig):
         if act.name in ("jump_log", "leap_gap", "vault"):
             ease_hips(act)
         elif act.name.startswith("fall_"):
-            ease_hips(act, sigma=3.0)  # the crash keys' jolts (the falls key the body's path every 2-4 frames)
+            # the crash keys' jolts (the falls key the body's path every 2-4 frames); the impacts that stop his
+            # travel against something (under root motion the root carries it) a little wider still
+            ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit", "fall_drop") else 3.0)
         elif act.name == "slide":
             ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
     for act in bpy.data.actions:
@@ -1686,9 +1688,16 @@ def extra_clips():
 
     # ---------------------------------------------------------- win_leap: a bound and a leap, fist punched at the sky
     new_action("win_leap")
-    run_in()
-    P, x = loco(0.5, RUN, 0.9)
-    key(5, P, z=gait_root(0.5, RUN, 0.9), x=x)
+    # The run into the bound keyed every frame at the game's braking pace (two sparse gait keys a half
+    # stride apart in 4 frames: the planted foot skated ~3 cm/frame), the L foot reaching for the plant.
+    S = RUN["D"] / RUN["ts"]
+    ph = 0.0
+    for i in range(6):
+        b = brake(i / FPS)
+        k = 1.0 - 0.1 * i / 5
+        P, x = loco(ph % 1.0, RUN, k)
+        key(1 + i, P, z=gait_root(ph % 1.0, RUN, k), x=x)
+        ph += CLIP_PACE * b / (S * (0.35 + 0.65 * k)) / FPS
     P = {}
     torso(P, lean=0.5, look=0.45, hp=0.2)
     leg(P, "L", hip=0.7, knee=1.2, ankle=-0.1)
@@ -2144,23 +2153,26 @@ def obstacle_clips():
         arm(P, "R", fwd=-0.5, elbow=0.2, out=0.5, wrist=-0.6, curl=0.3)
         arm(P, "L", fwd=0.3 + 0.06 * wob, elbow=0.45, out=0.45, curl=1.0)
         key(fr, P, z=SLIDE_Z)
-    # Up: the folded right knee and the planted left heel lever him back over his feet.
+    P_lie = P
+    # Up: the folded right knee and the planted left heel lever him back over his feet. (Over 4 frames
+    # with a key on the way, not 3: lifted off the stone at once, the hips jolted at the critic's limit.)
     P = {}
     torso(P, lean=0.55, look=0.45, hp=0.2)
     leg(P, "L", hip=1.4, knee=1.75, ankle=-0.2)
     leg(P, "R", hip=0.15, knee=1.9, ankle=0.3, toe=0.6)
     arm(P, "R", fwd=0.9, elbow=1.2, out=0.25, curl=1.0)
     arm(P, "L", fwd=-0.4, elbow=1.1, out=0.3, curl=1.0)
-    key(21, P)
+    z_up = solve_root(P)
+    key(20, lerp_pose(P_lie, P, 0.45), z=SLIDE_Z + (z_up - SLIDE_Z) * 0.35)
+    key(22, P, z=z_up)
     P = {}
     torso(P, lean=0.45, look=0.45, hp=0.18)
     leg(P, "L", hip=0.7, knee=0.8, ankle=-0.05)
     leg(P, "R", hip=-0.3, knee=1.0, ankle=0.6, toe=0.6)
     arm(P, "R", fwd=1.0, elbow=1.4, curl=1.0)
     arm(P, "L", fwd=-0.6, elbow=1.1, out=0.25, curl=1.0)
-    key(24, P)
-    gkey(27, 0.25, k=0.9)
-    gkey(30, 0.45)
+    key(25, P)
+    hand_back(22, P, 0.45, 30, f_pose=25, k0=0.9, leg_n=4.0)
 
     # ---------------------------------------------------------- vault: a one-hand speed vault over the toppled pillar
     # (pillar_topple_0: Ø 0.95 m, top ~0.93 m). Off the left foot, the right hand plants on top; the body
@@ -2495,20 +2507,26 @@ def crash_clips():
         arm(P, "R", fwd=ra[0], elbow=ra[1], out=ra[2], curl=0.4)
         fkey(fr, P, y=y)
     # The momentum rolls him over once along the stone, arms in, legs together, slowing.
-    # (The legs and arms keep working through it: held still, he read as a mannequin tumbling.)
-    for fr, u, y in ((26, 0.2, 3.05), (29, 0.45, 3.15), (32, 0.68, 3.22), (35, 0.86, 3.27), (39, 1.0, 3.3)):
+    # He skids on along the stone on his chest, keyed every frame, losing speed against it: the hips and
+    # legs come down with a thud and bounce once, the arms splay to stop him, the head turned off the stone.
+    # (A roll over along it, keyed with the legs folded, floated round on the head with the body in the air.)
+    P23 = P
+    for fr in range(24, 46):
+        s_ = (fr - 24) / 21.0
+        u = 1 - (1 - s_) ** 2.5  # fast off the dive, dragged to a stop
+        thud = 0.05 * max(0.0, math.sin(math.pi * min(1.0, s_ / 0.35))) * (1 - s_)  # the legs bounce once
         P = {}
-        w = 1.0 - u
-        torso(P, lean=0.0, look=0.6, hp=1.5 + 0.05 * u, hroll=0.5 + (2 * math.pi - 0.4) * u)
-        leg(P, "L", hip=0.0 + 0.2 * u + 0.15 * w * math.sin(fr), knee=0.45 + 0.25 * w * math.sin(fr * 0.9), ankle=0.3 + 0.7 * u, out=0.05)
-        leg(P, "R", hip=0.05 + 0.15 * u - 0.15 * w * math.sin(fr), knee=0.35 - 0.2 * w * math.sin(fr * 0.9 + 1), ankle=0.3 + 0.7 * u, out=0.05)
-        arm(P, "L", fwd=0.6 - 0.3 * u, elbow=2.0 - 1.7 * u + 0.2 * w * math.sin(fr * 1.1), out=0.15 + 0.2 * u, curl=0.8 - 0.3 * u)
-        arm(P, "R", fwd=0.6 - 0.4 * u, elbow=2.0 - 1.8 * u - 0.2 * w * math.sin(fr * 1.1), out=0.15 + 0.15 * u, curl=0.8 - 0.3 * u)
-        fkey(fr, P, y=y)
+        torso(P, lean=0.15, look=0.45 - 0.15 * s_, hp=1.55 - 0.1 * thud / 0.05, hroll=0.3 - 0.2 * s_, head_yaw=0.6 + 0.3 * s_)
+        leg(P, "L", hip=0.2 + 0.25 * thud / 0.05, knee=0.25 + 0.5 * thud / 0.05, ankle=0.6 + 0.4 * s_, out=0.1, yaw=-0.6 * s_)
+        leg(P, "R", hip=0.15 + 0.2 * thud / 0.05, knee=0.15 + 0.4 * thud / 0.05, ankle=0.6 + 0.37 * s_, out=0.1, yaw=0.6 * s_)
+        arm(P, "L", fwd=0.3 - 0.3 * s_, elbow=0.6 - 0.3 * s_, out=0.35 + 0.25 * s_, curl=0.5)
+        arm(P, "R", fwd=0.0 - 0.2 * s_, elbow=0.4 - 0.1 * s_, out=0.3 + 0.2 * s_, curl=0.5)
+        P = lerp_pose(P23, P, ease((fr - 23) / 5.0))  # out of the chest-first impact over 5 frames
+        fkey(fr, P, y=2.95 + 0.37 * u)
     # Down, prone: the cheek turned to the stone, a hand by the head, breathing hard, then the head lifts;
     # legs out long on the stone (feet on their tops), and he never goes still: the breath, the hands
     # shifting, a foot dragging, the head turning (to the end of the shot).
-    ROLLED = 0.1 + 2 * math.pi
+    ROLLED = 0.1
     # Lying on the stone (arms out to the sides, the legs and the toes down, the cheek turned), heaving for
     # breath; at ~2.5 s he tries to rise (the head comes up, a knee draws up, a hand slides in under the
     # shoulder) and sinks back; then the head rolls to the other cheek, and the breath slows.
