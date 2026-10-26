@@ -118,7 +118,8 @@ class Builder {
    * variants are carved stretches, the rest only now and then. */
   get carving(): number {
     // (Round 22: half as many on phones — a carved parapet is twice a plain one's triangles.)
-    return (this.variant % 3 === 1 ? 0.65 : 0.12) * (this.density.scenery < 0.5 ? 0.5 : 1);
+    // (Round 23: 0.65 -> 0.5 in the carved variants — a carved run is 3.5k triangles a tile against 2.3k.)
+    return (this.variant % 3 === 1 ? 0.5 : 0.12) * (this.density.scenery < 0.5 ? 0.5 : 1);
   }
 
   /** A round pillar; the whole ones (pillar_0, 5 m) often carry a carved capital. */

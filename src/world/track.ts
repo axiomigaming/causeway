@@ -71,6 +71,8 @@ export const WALLED: SectionType[] = ['gorge', 'tunnel', 'tall', 'cliff', 'ledge
 const LAND_FIRST = 3;
 /** How far ahead of the runner a section's pebble scatter is drawn (m; presentation only). */
 const GRIT_AHEAD = 45;
+/** The same for lily pads (flat on the water: past ~70 m a pad is a pixel or two). */
+const LILY_AHEAD = 70;
 /** Corner clearance probe after the bend (m): fixed, whatever the tier's view distance. */
 const CLEAR_PROBE = 210;
 /**
@@ -168,7 +170,7 @@ export interface SectionInstance {
   solid: [number, number, number][];
   /** World round 21: its ground (land sections). */
   ground?: THREE.Mesh;
-  /** World round 23: its pebble scatter (drawn only near the runner: see GRIT_AHEAD). */
+  /** World round 23: its pebble scatter and lily pads (drawn only near the runner: see GRIT_AHEAD). */
   grit?: THREE.Mesh[];
 }
 
@@ -405,7 +407,10 @@ export class Track {
       // Jungle banks, shrub masses and banana clumps stand by the path but throw no shadow (in a low sun
       // ahead their masses would blanket the causeway in sky-lit grey): they join the far scenery's
       // draw call. Like it they follow the water when stairs lower a section, which they rise out of. The limbs over the way do cast, through holes (see leafDepth).
-      const zone = isWaterPiece(pl.piece)
+      // (Round 23: lily pads a zone of their own, drawn only near the runner like the pebbles.)
+      const zone = pl.piece.startsWith('lily_')
+        ? 'lily'
+        : isWaterPiece(pl.piece)
         ? 'water'
         : pl.piece.startsWith('scatter_')
           ? 'grit'
@@ -436,7 +441,7 @@ export class Track {
       mesh.name = key;
       mesh.castShadow = zone === 'near' && mat !== 'flora';
       if (mesh.castShadow && mat === 'leaf') mesh.customDepthMaterial = leafDepth(this.kit);
-      if (zone === 'water') mesh.renderOrder = 1;
+      if (zone === 'water' || zone === 'lily') mesh.renderOrder = 1;
       mesh.receiveShadow = true;
       group.add(mesh);
     }
@@ -654,8 +659,9 @@ export class Track {
     // triangles (130k on a corridor): each section's scatter is drawn only while it is near the runner.
     for (const sec of this.sections) {
       if (!sec.grit) continue;
-      const near = sec.s0 < s + GRIT_AHEAD && sec.s0 + sec.len > s - 15;
-      for (const g of sec.grit) g.visible = near;
+      const near = sec.s0 < s + Math.min(GRIT_AHEAD, this.viewDistance * 0.3) && sec.s0 + sec.len > s - 15;
+      const lily = sec.s0 < s + LILY_AHEAD && sec.s0 + sec.len > s - 25;
+      for (const g of sec.grit) g.visible = g.name.endsWith('|lily') ? lily : near;
     }
   }
 
@@ -738,7 +744,7 @@ export class Track {
       inst.customDepthMaterial = m.customDepthMaterial;
       inst.name = m.name;
       if (!m.name.endsWith('|near') && !m.name.endsWith('|grit')) inst.position.y = toWater;
-      if (m.name.endsWith('|grit')) (grit ??= []).push(inst);
+      if (m.name.endsWith('|grit') || m.name.endsWith('|lily')) (grit ??= []).push(inst);
       root.add(inst);
     }
     // Every fall in the section is one mesh: sheets and spray in a single draw call.
