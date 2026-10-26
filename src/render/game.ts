@@ -759,7 +759,10 @@ export class Game {
     } else this.setStage('crash');
     this.slowFloor = this.slowFloorTarget = this.slowFloorV = 0;
     this.obstacles.settle();
-    this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
+    // (The pier and the trip start their clip later, on its contact: he runs on until then. Playing
+    // it now and switching back to the run restarted the stride: a hip jump.)
+    const deferred = (st.kind === 'pillar' || st.kind === 'trip') && !standing;
+    if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
     this.crashKind = st.kind;
     this.staging = st;
     this.epic = st.epic;
@@ -828,6 +831,41 @@ export class Game {
   /** Release a pending reveal now (or tell the interface there is nothing to wait for). */
   private releaseReveal(): void {
     if (this.rev) this.reveal();
+  }
+
+  /**
+   * Round 20 (coordinator): the falling pier fills the frame at 2-3 m, where the stone atlas's moss
+   * patches (a soft, low-frequency green) read as blurry camouflage. Its own copy of the material
+   * turns those texels to weathered stone (olive colour drawn toward its own luminance in the
+   * stone's warm tint) and keeps the atlas's carved detail. Made once per piece.
+   */
+  private pierMats = new Map<string, THREE.Material>();
+  private pierMaterial(piece: string): THREE.Material | undefined {
+    const have = this.pierMats.get(piece);
+    if (have) return have;
+    const base = this.kit.mat.get(this.kit.matOf.get(piece) ?? '');
+    if (!base) return undefined;
+    const m = base.clone();
+    const prev = base.onBeforeCompile;
+    m.onBeforeCompile = (shader, renderer) => {
+      prev?.call(base, shader, renderer);
+      // (Before the roughness chunk: the wet-stone patch has already rewritten the map chunk.)
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <roughnessmap_fragment>',
+        `
+        {
+          float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          // (The atlas's moss is olive: green nearly level with red, where the stone's runs at about
+          // 0.4 of it in linear light.)
+          float moss = smoothstep(0.52, 0.7, diffuseColor.g / max(diffuseColor.r, 1e-3));
+          diffuseColor.rgb = mix(diffuseColor.rgb, lum * vec3(1.45, 0.92, 0.62), moss * 0.9);
+        }
+        #include <roughnessmap_fragment>`,
+      );
+    };
+    m.customProgramCacheKey = () => `${base.customProgramCacheKey?.() ?? ''}|pier`;
+    this.pierMats.set(piece, m);
+    return m;
   }
 
   /** The carved gate an escape runs toward (presentation only; removed with the round). */
@@ -1752,7 +1790,6 @@ export class Game {
       };
       const at = frameAt(colS);
       this.setStop(this.s + v * tPlay + 60);
-      this.runner.play('run', 0.08);
       this.later(tPlay, () => {
         this.setStop(this.s + HALT);
         this.runner.play(clip, 0.25);
@@ -1787,7 +1824,7 @@ export class Game {
       // (The pier is held between the way's edges, as by its parapets: it bounced off the far edge
       // into the water.)
       const edges = trip ? undefined : { origin: at.pos.clone(), right: at.right.clone(), half: PATH_HALF + 0.1, top: at.pos.y + 4 };
-      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2, walls: edges });
+      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2, walls: edges, material: this.pierMaterial(piece) });
       this.later(0.05, () => this.sounds.event?.('pillar_topple', trip ? 0.6 : 1));
       // Grit streams off its head as it comes over.
       for (let k = 1; k <= 3; k++) {
