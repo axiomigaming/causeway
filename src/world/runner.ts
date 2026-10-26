@@ -247,7 +247,8 @@ export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30,
  * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
  * game's launch carries the body off a pinned foot faster than the clip sweeps it back: it ran out of reach
  * at the last push and let go with a 27° shin snap). */
-const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start']);
+// (And the chasm skid to its knees: a pin caught a foot as the skid slowed under 4.5 m/s and snapped the shin 26°.)
+const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start', 'fall_chasm_b']);
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -785,7 +786,12 @@ export class Runner {
     const gaitW = Math.max(...GAITS.map((g) => this.weights.get(g) ?? 0));
     const split = new Map<string, number>();
     for (const [k, w] of this.weights) {
-      const x = w * (mix[k] ?? 1);
+      // Cross-fades of 0.2 s and more are eased (smoothstep: the two sides still sum to 1): linear, the blended pose and the
+      // clips' root travel changed rate at a fade's start and end (a hip jump where the run hands over
+      // to a fall under root motion).
+      // (Only into the falls, which hand the run's travel to the root; short fades stay linear: eased, their
+      // middle runs 1.5x faster and a pose snaps, as the hands did into the 62x slide.)
+      const x = (this.fade >= 0.2 && this.current.startsWith('fall_') ? smoothstep(0, 1, w) : w) * (mix[k] ?? 1);
       split.set(k, x);
       sum += x;
     }
