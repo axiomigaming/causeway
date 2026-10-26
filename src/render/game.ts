@@ -1730,7 +1730,7 @@ export class Game {
       const girth = 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
-      const tFall = trip ? 0.62 : 0.84;
+      const tFall = trip ? 0.62 : 1.0; // (the pier now lies flat between the edges: down at ~0.97 s, measured by framing-check)
       // He keeps his speed until the clip starts, then the root halts there (the clip carries the
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
@@ -1779,7 +1779,10 @@ export class Game {
       const w0 = axis.clone().multiplyScalar(trip ? 2.3 : 1.9);
       const comOff = new THREE.Vector3(0, ((bb ? bb.max.y + bb.min.y : tall) / 2) * sc, 0).applyQuaternion(q);
       // (A little bounce as it lands, then it settles.)
-      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2 });
+      // (The pier is held between the way's edges, as by its parapets: it bounced off the far edge
+      // into the water.)
+      const edges = trip ? undefined : { origin: at.pos.clone(), right: at.right.clone(), half: PATH_HALF + 0.1, top: at.pos.y + 4 };
+      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2, walls: edges });
       this.later(0.05, () => this.sounds.event?.('pillar_topple', trip ? 0.6 : 1));
       // Grit streams off its head as it comes over.
       for (let k = 1; k <= 3; k++) {

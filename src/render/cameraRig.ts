@@ -213,6 +213,14 @@ export class CameraRig {
   private smW = new THREE.Vector3();
   private smQ = new THREE.Quaternion();
   private tmpQi = new THREE.Quaternion();
+  /** The roll of an orientation about its own view axis (radians; 0 = horizon level). */
+  private rollOf(q: THREE.Quaternion): number {
+    const r = this.smR.set(1, 0, 0).applyQuaternion(q);
+    const u = this.smU.set(0, 1, 0).applyQuaternion(q);
+    return Math.atan2(r.y, u.y);
+  }
+  private smR = new THREE.Vector3();
+  private smU = new THREE.Vector3();
   /** Rotation vector (axis × angle, shortest way) taking `from` to `to`, written into `out`. */
   private rotVec(to: THREE.Quaternion, from: THREE.Quaternion, out: THREE.Vector3): THREE.Vector3 {
     const qe = this.smQ.copy(to).multiply(this.tmpQi.copy(from).invert());
@@ -284,7 +292,13 @@ export class CameraRig {
       }
     }
     c.position.copy(S.p);
+    // The spring turns the shortest way between two aims, and between two aims that differ in
+    // yaw and pitch that way passes through roll (5-6° in a fast move). The output is levelled
+    // and keeps only the shot's own roll (the bank into a bend, an impact's kick).
+    const rollWant = this.rollOf(c.quaternion);
     c.quaternion.copy(S.q);
+    const have = this.rollOf(c.quaternion);
+    c.rotateZ(rollWant - have);
   }
 
   /**
@@ -361,7 +375,7 @@ export class CameraRig {
     this.joltX += (Math.random() - 0.5) * strength * 0.8 * this.motionScale * JOLT_K;
     this.fovKick -= deg * this.motionScale;
     // The frame tips on the blow, then rights itself.
-    this.rollKick += (Math.random() < 0.5 ? -1 : 1) * Math.min(0.045, 0.02 * strength) * this.motionScale;
+    this.rollKick += (Math.random() < 0.5 ? -1 : 1) * Math.min(0.025, 0.012 * strength) * this.motionScale;
   }
 
   /** A lens punch (the start burst). */
