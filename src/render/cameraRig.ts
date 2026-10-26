@@ -6,6 +6,7 @@ export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 
 /** Round 20: an impact knock is a push over ~1/JOLT_K s (80 ms), not an instant change of velocity. */
 const JOLT_K = 12;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
 const ease = (x: number) => {
@@ -360,7 +361,7 @@ export class CameraRig {
     this.joltX += (Math.random() - 0.5) * strength * 0.8 * this.motionScale * JOLT_K;
     this.fovKick -= deg * this.motionScale;
     // The frame tips on the blow, then rights itself.
-    this.rollKick += (Math.random() < 0.5 ? -1 : 1) * Math.min(0.09, 0.04 * strength) * this.motionScale;
+    this.rollKick += (Math.random() < 0.5 ? -1 : 1) * Math.min(0.045, 0.02 * strength) * this.motionScale;
   }
 
   /** A lens punch (the start burst). */
@@ -990,7 +991,7 @@ export class CameraRig {
     const side = this.sideK;
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
-    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side);
+    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side) + (this.mode === 'cashout' ? 0.08 : 0); // (the slide's legs swing out: footroom too)
     // (Round 20: the celebration's leaps and raised arms move faster than the jerk-limited lens
     // turns: the cash-out keeps more headroom so the lag never takes his head or hands off the frame.)
     const head = this.mode === 'cashout' ? 0.14 : 0;
@@ -1100,7 +1101,9 @@ export class CameraRig {
       const pMax = Math.atan(mT) - Math.atan(m.right);
       if (pMin <= pMax) pan = THREE.MathUtils.clamp(pan, pMin, pMax);
     }
-    if (Math.abs(pan) > 1e-4) c.rotateY(pan);
+    // (Round 20: about the world's vertical. About the lens's own Y, a pan on a shot looking down
+    // (the crash close-in) rolled the horizon by up to ~25°.)
+    if (Math.abs(pan) > 1e-4) c.rotateOnWorldAxis(WORLD_UP, pan);
   }
   private framePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   private frameM = { feet: 0, head: 0, left: 0, right: 0, depth: 0 };

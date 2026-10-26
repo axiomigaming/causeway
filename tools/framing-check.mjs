@@ -220,6 +220,14 @@ async function cameraMotion(page, view) {
         const O = [];
         const D = [];
         const G = [];
+        // When the falling pier or drum first strikes the floor (frames from the crash call), and
+        // how its long axis lies at the end (degrees off level).
+        const colHits = [];
+        const onImp = g.debris.onImpact;
+        g.debris.onImpact = (e) => {
+          if (e.tag === 'column') colHits.push(`f${fNow}@${e.speed.toFixed(1)}`);
+          return onImp(e);
+        };
         // Hard cuts the rig takes (the safe shot, a snap): logged by frame.
         const cuts = [];
         let fNow = -1;
@@ -267,7 +275,8 @@ async function cameraMotion(page, view) {
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
-        return { P, Q, L, B, O, D, G, cuts, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        g.debris.onImpact = onImp;
+        return { P, Q, L, B, O, D, G, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -289,6 +298,16 @@ async function cameraMotion(page, view) {
       if (sn > worst.snap) [worst.snap, at.snap] = [sn, f];
     }
     const problems = [];
+    // Round 20 (coordinator): no Dutch angle: the horizon's roll stays within 4° (shake included).
+    let roll = 0;
+    let rollAt = 0;
+    r.Q.forEach(([x, y, z, w], f) => {
+      // The lens's right vector (1,0,0) rotated by q: its height is sin(roll).
+      const ry = 2 * (x * y + w * z);
+      const d = (Math.asin(Math.max(-1, Math.min(1, ry))) * 180) / Math.PI;
+      if (Math.abs(d) > Math.abs(roll)) [roll, rollAt] = [d, f];
+    });
+    if (Math.abs(roll) > 4) problems.push(`horizon rolled ${roll.toFixed(1)}° at f${rollAt}`);
     // Round 20 (motion critic): the figure stays in the frame through the fall and the aftermath
     // (not the chasm or the gate: he goes under), and ends at least ~1/5 of the frame tall/long.
     const clipped = [];
@@ -360,6 +379,7 @@ async function cameraMotion(page, view) {
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
     if (r.cuts.length) problems.push(`hard cut ${r.cuts.join(' ')}`);
+    if (process.env.DEBUG && r.colHits?.length) problems.push(`(column hits ${r.colHits.slice(0, 4).join(' ')}; clip at f${r.L.findIndex((l) => l.includes('fall_'))})`);
     if (process.env.DEBUG) {
       const ch = [];
       r.L.forEach((l, f) => {
@@ -372,7 +392,7 @@ async function cameraMotion(page, view) {
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}% card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}% roll ${roll.toFixed(1)}° card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;

@@ -1723,7 +1723,9 @@ export class Game {
       const tall = bb ? bb.max.y - bb.min.y : 3.5;
       const across = bb ? Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) : 0.95;
       // Long enough to span the way and rest on the far side.
-      const reach = 2 * PATH_HALF + 1.4;
+      // Round 20 (coordinator): the pier lies flat on the floor across the way, both ends down where
+      // they can be seen (it rested on an invisible far footing at chest height: a floating beam).
+      const reach = trip ? 2 * PATH_HALF + 1.4 : 2 * PATH_HALF - 0.5;
       const sc = trip ? 0.3234 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
       const girth = 1;
       const thick = (across * sc * girth) / 2;
@@ -1757,15 +1759,12 @@ export class Game {
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
       // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
-      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF + 0.35));
-      // Floor under it: the way and the footing at its foot; beyond the far edge, the far wall's
-      // footing (raised for the pier, so it ends up leaning across the way at chest height).
-      const far = trip ? 0 : 1.5;
+      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF - 0.3));
+      // Floor under it: the way (the trip's drum also has the footing at its foot).
       const ground = (x: number, z: number) => {
         const lat = ((x - at.pos.x) * at.right.x + (z - at.pos.z) * at.right.z) * side;
-        if (lat > PATH_HALF + 1.4) return null;
-        if (lat < -(PATH_HALF + 0.1)) return lat < -(PATH_HALF + 3.5) ? null : at.pos.y + far;
-        return at.pos.y;
+        if (trip) return lat > PATH_HALF + 1.4 || lat < -(PATH_HALF + 0.1) ? null : at.pos.y;
+        return Math.abs(lat) > PATH_HALF + 0.15 ? null : at.pos.y;
       };
       // Standing, leaning a few degrees in, already turning about the line along the way.
       const axis = at.fwd.clone().multiplyScalar(-side);
@@ -1779,7 +1778,8 @@ export class Game {
       // and the contact ate the swing): the centre moves as ω × (centre − foot).
       const w0 = axis.clone().multiplyScalar(trip ? 2.3 : 1.9);
       const comOff = new THREE.Vector3(0, ((bb ? bb.max.y + bb.min.y : tall) / 2) * sc, 0).applyQuaternion(q);
-      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: 0.12 });
+      // (A little bounce as it lands, then it settles.)
+      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2 });
       this.later(0.05, () => this.sounds.event?.('pillar_topple', trip ? 0.6 : 1));
       // Grit streams off its head as it comes over.
       for (let k = 1; k <= 3; k++) {
