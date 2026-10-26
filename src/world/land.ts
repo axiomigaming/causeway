@@ -99,10 +99,10 @@ export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolea
  * The forest floor: dark soil under leaf litter, moss in patches and on the flats, bare rock on the
  * steep banks, all procedural (world-space noise; no texture, nothing to download).
  */
-export function makeGroundMaterial(): THREE.MeshStandardMaterial {
-  // (Round 22: little sky in it — on phones, with no shadows, the grazing sky reflection washed the
-  // floor out to a pale cream.)
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.25 });
+export function makeGroundMaterial(): THREE.MeshLambertMaterial {
+  // (Round 22: no specular at all — looking toward the low sun the rough floor caught a grazing
+  // sheen and went pale grey-cream across the whole frame; leaf litter and soil are matte.)
+  const m = new THREE.MeshLambertMaterial({ color: 0xffffff });
   m.name = 'ground';
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader

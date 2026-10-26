@@ -186,7 +186,8 @@ await browser.close();
 async function cameraMotion(page, view) {
   const cases = [
     ...[1.5, 5, 20, 60].map((m) => ({ name: `cash ${m}x`, mult: m })),
-    ...['chasm', 'gate', 'rockfall', 'pillar', 'trip', 'ledge'].map((k) => ({ name: `crash ${k}`, mult: 2.2, kind: k })),
+    ...['chasm', 'gate', 'rockfall', 'pillar', 'trip', 'ledge'].map((k) => ({ name: `crash ${k}`, mult: 2.2, kind: k, variant: 0 })),
+    { name: 'crash rockfall2', mult: 2.2, kind: 'rockfall', variant: 2 },
   ];
   let bad = 0;
   for (const c of cases.filter((x) => !only.length || only.includes(x.name))) {
@@ -206,7 +207,7 @@ async function cameraMotion(page, view) {
         const start = g.virtualNow + 2600 - E;
         g.elapsed = () => g.virtualNow - start;
         g.debugStep(2.6);
-        if (c.kind) g.crash(Math.round(c.mult * 100), `framing-${c.kind}`, c.kind, 0);
+        if (c.kind) g.crash(Math.round(c.mult * 100), `framing-${c.kind}`, c.kind, c.variant);
         else {
           g.live.mult = Math.floor(g.live.mult * 100) / 100;
           g.cashout(`framing-cash-${c.mult}`);
@@ -216,6 +217,24 @@ async function cameraMotion(page, view) {
         const P = [];
         const Q = [];
         const L = [];
+        const O = [];
+        const D = [];
+        const G = [];
+        // Hard cuts the rig takes (the safe shot, a snap): logged by frame.
+        const cuts = [];
+        let fNow = -1;
+        for (const k of ['safeShot', 'snap']) {
+          const orig = g.rig[k].bind(g.rig);
+          g.rig[k] = (...a) => {
+            cuts.push(`${k}@f${fNow}`);
+            return orig(...a);
+          };
+        }
+        let revealAt = -1;
+        let revealSpeed = 0;
+        // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
+        const B = [];
+        const bones = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'].map((n) => g.runner.body.getObjectByName(n)).filter(Boolean);
         // From a second before the event to 7 s after it (the result card, the settle).
         for (let f = 0; f < 210; f++) {
           // (As debugStep, without drawing: the camera is all this measures.)
@@ -227,8 +246,28 @@ async function cameraMotion(page, view) {
           P.push([p.x, p.y, p.z]);
           Q.push([q.x, q.y, q.z, q.w]);
           L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
+          // Every 3rd frame: how many of the sight lines from the lens to him are blocked (a lens
+          // inside a slab or behind a wall).
+          if (f % 3 === 0) {
+            const fr = g.debugFraming();
+            O.push([f, fr.solid, (fr.hits ?? []).slice(0, 2).join('|')]);
+          }
+          G.push(g.runner.root.position.toArray());
+          fNow = f + 1;
+          if (revealAt < 0 && g.rig.revealed) revealAt = f, revealSpeed = g.speed;
+          D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
+          B.push(
+            bones.map((b) => {
+              const v = b.getWorldPosition(cam.position.clone()).project(cam);
+              return [v.x, v.y, v.z];
+            }),
+          );
         }
-        return { P, Q, L, kind: g.debugState?.crashKind ?? null };
+        const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
+        const cp = cam.getWorldPosition(cam.position.clone());
+        const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
+        for (const k of ['safeShot', 'snap']) delete g.rig[k];
+        return { P, Q, L, B, O, D, G, cuts, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
       { c, shake },
     );
@@ -250,15 +289,90 @@ async function cameraMotion(page, view) {
       if (sn > worst.snap) [worst.snap, at.snap] = [sn, f];
     }
     const problems = [];
+    // Round 20 (motion critic): the figure stays in the frame through the fall and the aftermath
+    // (not the chasm or the gate: he goes under), and ends at least ~1/5 of the frame tall/long.
+    const clipped = [];
+    r.B.forEach((pts, f) => {
+      const vis = pts.filter((p) => p[2] < 1);
+      if (vis.some((p) => Math.abs(p[0]) > 0.98 || Math.abs(p[1]) > 0.98)) clipped.push(f);
+    });
+    const endPts = r.B[r.B.length - 1].filter((p) => p[2] < 1);
+    const ext = endPts.length ? Math.max(Math.max(...endPts.map((p) => p[0])) - Math.min(...endPts.map((p) => p[0])), Math.max(...endPts.map((p) => p[1])) - Math.min(...endPts.map((p) => p[1]))) / 2 : 0;
+    const under = c.kind === 'chasm' || c.kind === 'gate';
+    if (!under && clipped.length) {
+      const names = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'];
+      const p0 = r.B[clipped[0]];
+      const at0 = p0.map((p, i) => (p[2] < 1 && (Math.abs(p[0]) > 0.98 || Math.abs(p[1]) > 0.98) ? `${names[i]} ${p[0].toFixed(2)},${p[1].toFixed(2)}` : null)).filter(Boolean);
+      problems.push(`figure clipped in ${clipped.length} frames (f${clipped[0]}..f${clipped[clipped.length - 1]}: ${at0.join(' ')})`);
+    }
+    // Round 20 (coordinator): from the moment the clip starts, the lens goes straight in to the
+    // close-in: no retreat (the lens coming back along the run by more than 0.3 m) on the way.
+    if (c.kind === 'pillar' || c.kind === 'trip') {
+      // The lens's travel along the run's direction (as the clip starts): how far it ever comes
+      // back from the furthest point it reached.
+      const f0 = r.L.findIndex((l) => l.includes('fall_'));
+      let back = 0;
+      if (f0 > 5) {
+        const a0 = r.P[f0], b0 = r.P[f0 - 5];
+        const len = Math.hypot(a0[0] - b0[0], a0[2] - b0[2]) || 1;
+        const fx = (a0[0] - b0[0]) / len, fz = (a0[2] - b0[2]) / len;
+        let hi = -Infinity;
+        // (The slam throws him back off the pier after its impact, ~0.3 s in: following him back
+        // then is not a retreat. The trip dives on.)
+        const win = c.kind === 'pillar' ? 12 : 90;
+        for (let f = f0; f < Math.min(r.P.length, f0 + win); f++) {
+          const t = (r.P[f][0] - a0[0]) * fx + (r.P[f][2] - a0[2]) * fz;
+          hi = Math.max(hi, t);
+          back = Math.max(back, hi - t);
+        }
+      }
+      if (back > 0.3) problems.push(`lens retreats ${back.toFixed(2)} m after the clip starts`);
+      if (process.env.DEBUG) {
+        // Lens-to-hips distance, and the lens's own travel along the run, every 5 frames from the clip.
+        const ser = [];
+        for (let f = Math.max(0, f0); f < Math.min(r.D.length, f0 + 75); f += 5) {
+          const p = r.P[f], q = r.P[Math.max(0, f - 5)];
+          ser.push(`${r.D[f].toFixed(1)}/${(Math.hypot(p[0] - q[0], p[2] - q[2]) * 6).toFixed(1)}`);
+        }
+        problems.push(`(retreat ${back.toFixed(2)} m; d/v ${ser.join(' ')})`);
+      }
+    }
+    // Round 20 (character agent): the runner's ground (the root) never jumps: an eased stop, not a
+    // uniform one (the motion audit's limit, 12 cm/frame²; here 10).
+    let gj = 0;
+    let gjAt = 0;
+    for (let f = 2; f < r.G.length; f++) {
+      const [a, b, d] = [r.G[f], r.G[f - 1], r.G[f - 2]];
+      const j = Math.hypot(a[0] - 2 * b[0] + d[0], a[1] - 2 * b[1] + d[1], a[2] - 2 * b[2] + d[2]);
+      if (j > gj) [gj, gjAt] = [j, f];
+    }
+    if (gj > 0.1) problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]})`);
+    // Round 20 (owner): the result card never lands before he has stopped.
+    if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
+    // Blocked: three or more of the five sight lines, on two samples running.
+    // (Not by the falling stone itself: rocks crossing the view are the rockfall's staging.)
+    const solidBy = (i) => r.O[i] && r.O[i][1] >= 3 && !/^debris/.test(r.O[i][2]);
+    const blocked = r.O.filter((_, i) => solidBy(i) && solidBy(i - 1)).map(([f]) => f);
+    const what = r.O.find(([f]) => f === blocked[0])?.[2] ?? '';
+    if (!under && blocked.length) problems.push(`lens blocked (f${blocked[0]}..f${blocked[blocked.length - 1]}, ${blocked.length} samples: ${what})`);
+    if (!under && ext < 0.195) problems.push(`figure ${(ext * 100).toFixed(0)} % of the frame at the end`);
     if (worst.jerk > CAM.jerk) problems.push(`position jerk ${(worst.jerk * 100).toFixed(0)} cm/frame² at f${at.jerk}`);
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
+    if (r.cuts.length) problems.push(`hard cut ${r.cuts.join(' ')}`);
+    if (process.env.DEBUG) {
+      const ch = [];
+      r.L.forEach((l, f) => {
+        if (f === 0 || l !== r.L[f - 1]) ch.push(`f${f} ${l}`);
+      });
+      problems.push(`(${ch.join(', ')})`);
+    }
     if (problems.length) {
       bad++;
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(14)}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}% card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;

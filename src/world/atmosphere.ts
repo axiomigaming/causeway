@@ -202,7 +202,15 @@ function installSkyGrade(): void {
         {
           float band = smoothstep(0.06, 0.0, skyD.y) * smoothstep(-0.3, -0.04, skyD.y);
           float hz = clamp(1.0 - exp(-skyHaze.w * 160.0), 0.0, 0.4) * band;
-          texColor.rgb = mix(texColor.rgb, skyHaze.rgb, hz);
+          // World round 22: the land in the panorama (its giant trees and karst stand up to ~20° above
+          // the horizon) is 250–1500 m out, yet its darkest crowns were rendered with almost no haze:
+          // they stood against the sky as flat black cut-outs beside the fogged 3D trees, which then read
+          // as pale ghosts. Every dark panorama texel (land, not sky) takes the haze the scene's own fog
+          // gives at ~300 m, more the darker it is (sky texels, already near the haze, barely change).
+          float hzL = dot(skyHaze.rgb, vec3(0.2126, 0.7152, 0.0722));
+          float land = smoothstep(0.75, 0.2, skyL / max(hzL, 1e-3)) * smoothstep(0.42, 0.18, skyD.y) * smoothstep(-0.35, -0.05, skyD.y);
+          float hzLand = clamp(1.0 - exp(-skyHaze.w * 300.0), 0.0, 0.5) * land;
+          texColor.rgb = mix(texColor.rgb, skyHaze.rgb, max(hz, hzLand));
         }
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
         float skyL2 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));

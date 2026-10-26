@@ -96,7 +96,10 @@ const LEDGE_LAND = 0.93;
  * at 0.87, 0 at 1.0 (T = 1). The root follows that curve so the planted feet plant.
  */
 const CLIP_PACE = 5.6;
-const RUNON_EASE = 2.5;
+/** The run-on's speed at fraction u of it: from v0 to the clip's pace on a smoothstep (peak 1.5·Δv/T). */
+function runOnSpeed(v0: number, u: number): number {
+  return v0 + (CLIP_PACE - v0) * u * u * (3 - 2 * u);
+}
 const BRAKE_KEYS: [number, number][] = [[0, 1], [0.17, 4.5 / 5.6], [0.37, 3.4 / 5.6], [0.6, 2.3 / 5.6], [0.87, 1.5 / 5.6], [1, 0]];
 function brakeCurve(u: number): number {
   if (u <= 0) return 1;
@@ -200,6 +203,10 @@ export class Game {
     this.renderer.info.autoReset = false;
     this.rig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     this.rig.constrain = (p) => this.corridor(p);
+    this.rig.preOutput = (dt) => {
+      this.ceiling(dt);
+      this.guardCamera(dt);
+    };
     this.rig.occlude = (a, b) => this.occluder(a, b);
   }
 
@@ -632,7 +639,7 @@ export class Game {
     this.runner.play('idle', 0);
     this.runner.resetSecondary();
     this.slowmo = null;
-    this.slowFloor = this.slowFloorTarget = 0;
+    this.slowFloor = this.slowFloorTarget = this.slowFloorV = 0;
     this.timeScale = 1;
     this.gateLand = null;
     this.stopAt = 0;
@@ -710,6 +717,7 @@ export class Game {
     }
     this.frozenMult = mult;
     this.live.mult = mult / 100;
+    this.stopProf = null;
     const sec = this.track.sectionAt(this.s);
     // Round 20 (crash director): the section's own hazards, widened by what any floor can stage:
     // where the floor can cave in, it may drop him onto the stone course below instead of into
@@ -741,8 +749,14 @@ export class Game {
     if (st.kind === 'ledge' && !(this.runner as unknown as { actions: Map<string, unknown> }).actions.has('fall_drop')) st.kind = 'chasm';
     if ((st.kind === 'chasm' || st.kind === 'ledge') && this.tileEdge(this.s + 1.4, this.s + (this.speed * 0.45) / 2 + 5) === null) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
-    this.setStage('crash');
-    this.slowFloor = this.slowFloorTarget = 0;
+    // A pier or a column coming down: he runs on toward it for most of a second, and the chase lens
+    // stays with him (stageCrash switches to the crash shot as the clip starts). The settled crash
+    // spring let him run 6 m out ahead of the lens before the trip.
+    if ((st.kind === 'pillar' || st.kind === 'trip') && !standing) {
+      this.stage = 'crash';
+      this.stageT = 0;
+    } else this.setStage('crash');
+    this.slowFloor = this.slowFloorTarget = this.slowFloorV = 0;
     this.obstacles.settle();
     this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
     this.crashKind = st.kind;
@@ -761,6 +775,7 @@ export class Game {
 
   private crashKind = 'gate';
   private slowFloor = 0;
+  private slowFloorV = 0;
   private slowFloorTarget = 0;
   /** The last crash kind staged (the director never repeats it straight away). */
   private lastCrash: CrashKind | null = null;
@@ -780,7 +795,10 @@ export class Game {
   private holdReveal(impactIn: number, outcome: 'fall' | 'escape' = 'fall'): void {
     const H = revealHold(outcome, this.live.mult, this.motion);
     if (this.rev) clearTimeout(this.rev.timer);
-    this.rev = { impactAt: this.worldT + impactIn, after: H.after, t: 0, cap: H.cap, timer: this.revealFallback(H.cap + 0.6) };
+    // (Round 20: the cap counts from this hold, not from the stage's start: a big escape's run-on and
+    // braking took longer than the 2 s cap, and the card landed on him while he was still running.)
+    const cap = Math.max(H.cap, this.stageT + impactIn + H.after + 0.3);
+    this.rev = { impactAt: this.worldT + impactIn, after: H.after, t: 0, cap, timer: this.revealFallback(cap - this.stageT + 0.6) };
   }
 
   /**
@@ -897,6 +915,7 @@ export class Game {
       queueMicrotask(() => this.onReveal());
       return;
     }
+    this.stopProf = null;
     const v = this.speed;
     const st = escapeStaging(roundId ?? this.worldSeed, this.live.mult, v < 2.5);
     const E = escapeScale(this.live.mult, this.motion);
@@ -920,9 +939,9 @@ export class Game {
     // (5.6 m/s) down to a stand over T on BRAKE_CURVE; faster, the root glided under planted feet.
     // So the run-on eases him to that pace first, and the clip's braking follows the curve.
     const curved = clip !== 'win_slide';
-    const vLand = curved && this.motion === 'full' ? Math.min(v, CLIP_PACE) : v;
-    const brakeD = curved ? vLand * T * BRAKE_AREA : (vLand * T) / 2;
-    this.runOnPace = curved && this.motion === 'full' ? CLIP_PACE : Infinity;
+    // (The corner test below takes the braking at his present speed; the stop mark uses the speed
+    // the run-on actually lands him at.)
+    let brakeD = curved ? v * T * BRAKE_AREA : (v * T) / 2;
     this.brake = null;
     // He is still running: he carries on through the last strides to safe ground before the gate of
     // light (longer, more triumphant, for a bigger multiplier), then pulls up and celebrates. The
@@ -942,11 +961,13 @@ export class Game {
       let sp = v;
       const h = 1 / 120;
       for (let t = 0; t < runOn - 1e-6; t += h) {
-        if (curved && sp > CLIP_PACE) sp += (CLIP_PACE - sp) * (1 - Math.exp(-h * RUNON_EASE));
+        if (curved && this.motion === 'full') sp = runOnSpeed(v, Math.min(1, (t + h) / runOn));
         runD += sp * h;
       }
+      brakeD = curved ? sp * T * BRAKE_AREA : (sp * T) / 2;
     }
     const stop = this.s + runD + brakeD;
+    this.runOnProf = curved && this.motion === 'full' && runOn > 0 ? { t: 0, dur: runOn, v0: v } : null;
     const gateAt = stop + gateGap;
     const fg = this.track.path.sample(gateAt);
     this.placeEscapeGate(fg.pos, fg.yaw);
@@ -957,8 +978,11 @@ export class Game {
       if (this.stage !== 'cashout' || this.escape !== E) return;
       this.runOn = false;
       this.runner.play(clip as RunnerAnim, 0.2, st.offset);
-      this.setStop(stop);
+      // (The braking from the speed he actually has now, so the curve's distance and the mark agree.)
+      this.setStop(curved ? this.s + this.speed * T * BRAKE_AREA : stop);
       this.brake = curved ? { t: 0, v0: this.speed, T, s0: this.s } : null;
+      // (The clip's curve drives the root; the eased stop profile is for the slide only.)
+      if (this.brake) this.stopProf = null;
       this.fx.flash = 0.16 + 0.12 * E.g;
       this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
       // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
@@ -982,7 +1006,7 @@ export class Game {
   private runOn = false;
   /** The celebration's braking on the clip's own speed curve (see BRAKE_CURVE), from land(). */
   private brake: { t: number; v0: number; T: number; s0: number } | null = null;
-  private runOnPace = Infinity;
+  private runOnProf: { t: number; dur: number; v0: number } | null = null;
   private escapeGateAt = 0;
 
   private escape: EscapeScale | null = null;
@@ -1053,7 +1077,10 @@ export class Game {
     this.stopAt = Math.max(this.s, sStop);
     const d = Math.max(0.01, this.stopAt - this.s);
     this.stopDecel = (this.speed * this.speed) / (2 * d);
+    // The eased profile covers v0·T/2 in T, as the uniform stop did (same mark, same duration).
+    this.stopProf = this.speed > 0.05 ? { t: 0, T: (2 * d) / this.speed, v0: this.speed, s0: this.s } : null;
   }
+  private stopProf: { t: number; T: number; v0: number; s0: number } | null = null;
   private stopAt = 0;
   private stopDecel = 0;
 
@@ -1157,8 +1184,20 @@ export class Game {
         p.z += -Math.cos(ry) * k;
       }
     }
-    p.y = Math.max(p.y, f.pos.y + 0.45);
+    // Round 20: over the ledge's open trough the lens may go down into it (the close-in on him
+    // lying on the stone below), keeping clear of its floor and walls.
+    let floor = f.pos.y + 0.45;
+    const L = this.ledgeBed;
+    if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
+      // (The open part only: the trough runs 1.6 m further back under floor that still stands.
+      // Local z runs back along the way: +len/2 is its near end.)
+      const lp = L.worldToLocal(this.tmpLedge.copy(p));
+      if (Math.abs(lp.x) < this.ledgeDims[0] / 2 - 0.35 && lp.z > -this.ledgeDims[1] / 2 + 0.35 && lp.z < this.ledgeDims[1] / 2 - 2.0) floor = L.position.y + 0.8;
+    }
+    p.y = Math.max(p.y, floor);
   }
+  private tmpLedge = new THREE.Vector3();
+  private ledgeDims: [number, number] = [0, 0];
 
   // ------------------------------------------------------------------ crash staging
   /** A tile's span along the route, measured from its world matrix (independent of Track's bookkeeping). */
@@ -1237,7 +1276,10 @@ export class Game {
     const e = F.g;
     // Small falls are quick and contained; big ones slow, wide and long. `t` is a real-time delay.
     const slow = (t: number, durK = 1, minK = 0) => {
-      this.slowmo = { t, dur: F.slowDur * durK, min: Math.min(1, F.slowMin + minK) };
+      // (Round 20: `t` is a delay either way. A positive one used to start the slow motion part-way
+      // through, so time stepped from 1 to ~0.7 in one frame: the clip's travel jumped with it, read
+      // as a hip jump at the impact.)
+      this.slowmo = { t: -Math.abs(t), dur: F.slowDur * durK, min: Math.min(1, F.slowMin + minK) };
     };
     const v = this.speed;
     const sec = this.track.sectionAt(this.s);
@@ -1274,7 +1316,7 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      const halt = v * 0.06;
+      const halt = v * 0.12;
       this.setStop(this.s + halt);
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
@@ -1355,6 +1397,9 @@ export class Game {
         kick(1);
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
         this.slowFloorTarget = 0;
+        this.rig.closeIn = 1.3;
+        // (A little higher: from the trough's floor the fragments round him stood between the lens and him.)
+        this.rig.closeUp = 0.45;
       });
       this.holdReveal(LEDGE_LAND + 0.25);
       slow(LEDGE_LAND + 0.05, 0.6, 0.2);
@@ -1688,9 +1733,9 @@ export class Game {
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
       const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
-      // The root runs out over ~0.12 s as the clip starts (a dead stop in one frame read as a pop),
+      // The root runs out over ~0.24 s (eased) as the clip starts (a dead stop in one frame read as a pop),
       // HALT m further on; the contact geometry is measured from there.
-      const HALT = v * 0.06;
+      const HALT = v * 0.12;
       const sPlay = this.s + v * tPlay + HALT;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
@@ -1705,6 +1750,9 @@ export class Game {
         this.setStop(this.s + HALT);
         this.runner.play(clip, 0.06);
         crashCam();
+        // (Straight from the chase into the close-in: the crash shot's own framing first stood
+        // back for ~0.3 s, a retreat before the move in.)
+        this.rig.closeNow();
       });
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
@@ -1758,6 +1806,7 @@ export class Game {
         this.particles.burst(p, 8, { spread: 0.5, up: 1, speed: 2, size: 0.06, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
         B.puff(p, { count: 2, spread: 0.6, jitter: 0.5, size: [0.4, 1.4], life: 1.3, alpha: 0.3, tint: DUST_T, rise: 0.1 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
+        this.rig.closeIn = 1;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
       });
       if (trip) {
@@ -1783,7 +1832,8 @@ export class Game {
       // where the clip starts); he spins and goes down on his left side. The root halts as the clip
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
-        const halt = v * 0.06;
+        this.rig.wide = 1;
+        const halt = v * 0.12;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
         const tt = 0.23;
@@ -1800,6 +1850,9 @@ export class Game {
           this.sounds.event?.('rock_knock', 0.9);
         });
         // Down on his left side (0.6 s).
+        // (The lens closes in once he has come to rest: closing in during the throw lost him off the
+        // frame's edge.)
+        this.later(1.3, () => (this.rig.closeIn = 1));
         this.later(0.6, () => {
           const f = frameAt(this.s + 1.75);
           const p = f.pos.clone().addScaledVector(f.right, -0.9).setY(f.pos.y + 0.05);
@@ -2391,6 +2444,13 @@ export class Game {
     const f = this.track.path.sample(this.s);
     this.runner.root.position.copy(f.pos);
     this.runner.root.rotation.y = f.yaw;
+    // Round 20 (character agent): a clip that carries him metres off the root (the 50x+ slide, a
+    // dive) stands him on the ground under his body, not under the root: on a grade the 1.8 m of
+    // the slide left his feet 15 cm in (or over) the floor.
+    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'ledge' && this.crashKind !== 'gate')) {
+      const carry = this.subjOff.x * -Math.sin(f.yaw) + this.subjOff.z * -Math.cos(f.yaw);
+      this.runner.root.position.y = this.track.path.sample(this.s + carry, this.cframe).pos.y;
+    }
     if (dt > 0) {
       const yawRate = (f.yaw - this.yawPrev) / dt;
       this.runner.roll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.05, -0.3, 0.3);
@@ -2406,17 +2466,26 @@ export class Game {
     // Presentation time can slow down; the round clock never does.
     if (this.slowmo) {
       this.slowmo.t += rawDt;
-      const x = Math.max(0, this.slowmo.t) / this.slowmo.dur;
+      const tt = Math.max(0, this.slowmo.t);
       // Reduced motion gets a short, shallow breath (set by fxScale), never a long hold.
-      this.timeScale = x < 0.15 ? THREE.MathUtils.lerp(1, this.slowmo.min, x / 0.15) : THREE.MathUtils.lerp(this.slowmo.min, 1, Math.min(1, (x - 0.15) / 0.85) ** 2);
-      if (x >= 1) {
+      // Eased in and out (smoothstep), so neither time nor its rate of change steps; the ease-in
+      // takes at least 0.45 s (14 frames): a quicker one halved a falling body's speed in a frame or
+      // two, read as a hip jump (the time scale changes at most ~8 % a frame).
+      const ss = (u: number) => u * u * (3 - 2 * u);
+      const inT = Math.max(0.45, 0.15 * this.slowmo.dur);
+      const outT = Math.max(0.3, this.slowmo.dur - inT);
+      this.timeScale = tt < inT ? THREE.MathUtils.lerp(1, this.slowmo.min, ss(tt / inT)) : THREE.MathUtils.lerp(this.slowmo.min, 1, ss(Math.min(1, (tt - inT) / outT)));
+      if (tt >= inT + outT) {
         this.slowmo = null;
         this.timeScale = 1;
       }
     }
     // Round 20: once he drops, the fall plays near full speed (the crash's slow motion slowed his
     // flailing to a crawl while the lens moved on real time: he looked frozen in the air).
-    this.slowFloor += (this.slowFloorTarget - this.slowFloor) * (1 - Math.exp(-rawDt * 5));
+    // (Critically damped: it starts gently, never a step in the clip's rate.)
+    const wf = 6;
+    this.slowFloorV += (wf * wf * (this.slowFloorTarget - this.slowFloor) - 2 * wf * this.slowFloorV) * rawDt;
+    this.slowFloor += this.slowFloorV * rawDt;
     if (this.slowFloor > this.timeScale) this.timeScale = this.slowFloor;
     const dt = rawDt * this.timeScale;
     this.stageT += rawDt;
@@ -2452,7 +2521,14 @@ export class Game {
     if (this.stage === 'cashout' && this.runOn) {
       // The "made it" run-on: full stride to safe ground (see cashout()), easing to the pace the
       // celebration clips' slowing steps start from.
-      if (this.speed > this.runOnPace) this.speed += (this.runOnPace - this.speed) * (1 - Math.exp(-dt * RUNON_EASE));
+      // (From either side, so he lands on the clip's pace exactly: from under it the steps slid too.)
+      // (Round 20: over the whole run-on on a smoothstep, not an exponential: from 20x speed the
+      // exponential's first 17 m/s² of slowing inside the plain run slid the planted foot 8 cm/frame.)
+      const R = this.runOnProf;
+      if (R) {
+        R.t += dt;
+        this.speed = runOnSpeed(R.v0, Math.min(1, R.t / R.dur));
+      }
       this.s += this.speed * dt;
     } else if (this.stage === 'cashout' && this.brake) {
       // The clip's own braking: speed on its curve, so the planted feet stay planted.
@@ -2466,9 +2542,24 @@ export class Game {
         this.brake = null;
       }
     } else if (this.stage === 'crash' || this.stage === 'cashout') {
-      const rem = Math.max(0, this.stopAt - this.s);
-      this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
-      this.s = Math.min(this.stopAt, this.s + this.speed * dt);
+      // Round 20 (character agent): an eased stop (smoothstep in time), not a uniform deceleration:
+      // the uniform stop's sudden onset and end read as ground jumps of 12-14 cm/frame² in every fall.
+      const P = this.stopProf;
+      if (P) {
+        P.t += dt;
+        const u = Math.min(1, P.t / P.T);
+        this.speed = P.v0 * (1 - u * u * (3 - 2 * u));
+        this.s = Math.min(this.stopAt, P.s0 + P.v0 * P.T * (u - u * u * u + (u * u * u * u) / 2));
+        if (u >= 1) {
+          this.s = this.stopAt;
+          this.speed = 0;
+          this.stopProf = null;
+        }
+      } else {
+        const rem = Math.max(0, this.stopAt - this.s);
+        this.speed = Math.min(this.speed, Math.sqrt(2 * this.stopDecel * rem));
+        this.s = Math.min(this.stopAt, this.s + this.speed * dt);
+      }
     } else {
       const target = this.stage === 'run' ? speedOf(I) : 0;
       const dv = target - this.speed;
@@ -2620,15 +2711,21 @@ export class Game {
         // This frame's pose (the bones' world matrices otherwise update only at render).
         this.runner.body.updateWorldMatrix(true, true);
         this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).sub(rp).setY(0);
+        // (Round 20: the fall onto the stone takes him 2.75 m below his root: the shot's ground is
+        // the trough's floor, or the close-in hung 4 m over him.)
+        // (Only once he is down: earlier, the lens sank through the floor still standing behind him.)
+        if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed && this.rig.closeIn > 0) this.tmpSubj.y = this.ledgeBed.position.y - rp.y;
         if (this.tmpSubj.lengthSq() > 36) this.tmpSubj.setLength(6);
         // The composition follows slowly (the slide's turn swings the hips ~3.5 m in half a
         // second: chasing that flew the lens metres); keepInFrame measures the body at once.
-        this.subjOff.lerp(this.tmpSubj, 1 - Math.exp(-rawDt * 2.2));
+        // (Round 20: a fall carries him metres on in a second — the dive over the drum, the slam —
+        // and the slow follow read as the lens backing away from him: it follows those faster.)
+        this.subjOff.lerp(this.tmpSubj, 1 - Math.exp(-rawDt * (this.stage === 'crash' ? 14 : 2.2)));
         this.rig.bodyAt = this.bodyPos.copy(rp).add(this.tmpSubj);
         // The limbs as posed, for the frame's margins (the slide's legs reach a metre out).
         if (!this.limbBones) {
           const b = this.runner.body;
-          this.limbBones = ['head', 'footL', 'footR', 'forearmL', 'forearmR'].map((n) => b.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
+          this.limbBones = ['head', 'footL', 'footR', 'forearmL', 'forearmR', 'handL', 'handR'].map((n) => b.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
           this.limbPts = this.limbBones.map(() => new THREE.Vector3());
         }
         this.limbBones.forEach((o, i) => this.limbPts[i]!.setFromMatrixPosition(o.matrixWorld));
@@ -2642,8 +2739,7 @@ export class Game {
     }
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), subject, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
     const cam = this.rig.camera;
-    this.ceiling(rawDt);
-    this.guardCamera(rawDt);
+    // (The ceiling and the guard run inside rig.update, before its output spring: see preOutput.)
     if (this.debugPin) {
       const d = this.debugPin;
       const ry = this.runner.root.rotation.y;
@@ -2903,6 +2999,8 @@ export class Game {
     g.rotation.y = h.yaw;
     this.scene.add(g);
     this.ledgeBed = g;
+    this.ledgeDims = [W, len];
+    g.updateMatrixWorld(true);
     this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 0.5, halfL: len / 2 + 0.5 });
   }
 

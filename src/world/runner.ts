@@ -154,7 +154,7 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   turn_cut_L: [[0.267, 'R', 0.85]],
   turn_cut_R: [[0.267, 'L', 0.85]],
   stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
-  win_salute: [[0.27, 'R', 0.4], [0.5, 'L', 0.25], [1.1, 'R', 0.2], [1.27, 'L', 0.2], [1.43, 'R', 0.2]],
+  win_salute: [[0.23, 'R', 0.45], [0.5, 'L', 0.35], [0.83, 'R', 0.3], [1.63, 'R', 0.2], [1.8, 'L', 0.2], [1.97, 'R', 0.2]],
   win_leap: [[0.17, 'R', 0.6], [0.3, 'L', 0.8], [0.9, 'L', 1], [0.93, 'R', 0.8], [2.667, 'R', 0.2], [2.867, 'L', 0.2], [3.067, 'R', 0.2], [3.267, 'L', 0.2]],
   win_slide: [[0.13, 'R', 0.6], [0.27, 'L', 1], [1.03, 'R', 0.5], [1.23, 'L', 0.5], [2.067, 'R', 0.2], [2.267, 'L', 0.2], [2.467, 'R', 0.2], [2.667, 'L', 0.2]],
   fall_ledge: [[0.17, 'L', 0.9]],
@@ -374,6 +374,8 @@ export class Runner {
   /** Bind rotations of the spring-driven bones: the clips carry no tracks for them (the exporter drops constant
    * channels), so each frame starts from rest instead of accumulating. */
   private rest = new Map<THREE.Bone, THREE.Quaternion>();
+  /** Every bone's rotation as the clips alone left it last frame (see update()). */
+  private clipPose = new Map<THREE.Bone, THREE.Quaternion>();
   private chestPrev = new THREE.Vector3();
   private chestVel = new THREE.Vector3();
   private hipPrev = new THREE.Vector3();
@@ -472,6 +474,9 @@ export class Runner {
       f.shin = this.body.getObjectByName(`shin${s}`) as THREE.Bone | undefined;
       f.foot = this.body.getObjectByName(`foot${s}`) as THREE.Bone | undefined;
     }
+    this.body.traverse((o) => {
+      if ((o as THREE.Bone).isBone) this.clipPose.set(o as THREE.Bone, o.quaternion.clone());
+    });
     for (const n of ['pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH]) {
       const b = this.bones[n];
       if (b) this.rest.set(b, b.quaternion.clone());
@@ -659,7 +664,10 @@ export class Runner {
         // The clip carries a 0.5 s arc; add the rest of a ballistic one for the actual flight.
         this.obstLift = 4 * u * (1 - u) * (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
       }
-      if (a.time >= O.duration - 0.04) {
+      // Hand back a fade's length before the end, so the move is still playing (in step with the floor)
+      // through the cross-fade, not held on its last frame while the floor runs on (at speed, the feet
+      // skated 14-21 cm/frame out of a leap).
+      if (a.time >= O.duration - 0.1 * a.timeScale - 0.005) {
         this.obst = null;
         this.start('run', 0.1, 0);
         // The run joins at the phase the clip has reached (its last frames step on at OBST_CADENCE to
@@ -705,7 +713,10 @@ export class Runner {
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
     this.cadence = cadence;
     const prevPhase = this.phase;
-    if (this.current === 'run' || this.obst) this.phase = (this.phase + dt * cadence) % 1;
+    // (And while the stride is still fading out under the next clip: frozen on its phase, the arms and legs
+    // of a fast run stopped dead mid-swing at the hand-over — the hands "jumped" 13 cm at a 62× cash-out.)
+    const gaitFading = GAITS.some((g) => (this.weights.get(g) ?? 0) > 0.001);
+    if (this.current === 'run' || this.obst || gaitFading) this.phase = (this.phase + dt * cadence) % 1;
     if (dt > 0) {
       const a = (speed - this.speedPrev) / dt;
       this.accel += (THREE.MathUtils.clamp(a, -12, 12) - this.accel) * (1 - Math.exp(-dt * 4));
@@ -748,7 +759,14 @@ export class Runner {
         }
       }
     }
+    // The layers below (breath, look, air, secondary, foot IK) rotate bones on top of the clip. three's
+    // mixer only writes a bone whose clip value changed since its last write, so on a clip holding still
+    // (a fall's lying tail, a standing hold) those rotations piled up frame on frame: the breath wound the
+    // shoulders to 60° and the air layer folded knees and elbows past their stops. So every frame starts
+    // from the clips' own pose of the last frame, and the pose the mixer leaves is kept for the next.
+    for (const [b, q] of this.clipPose) b.quaternion.copy(q);
     this.mixer.update(dt);
+    for (const [b, q] of this.clipPose) q.copy(b.quaternion);
     this.overlays(dt);
     this.airLayer(dt, rawDt);
 
@@ -1257,6 +1275,14 @@ export class Runner {
       turning = Math.abs(dy) / dt > 1.2 && this.speed < 2;
       this.hipsYaw = yaw;
     }
+    // Down on the ground (sat, kneeling back, lying): the legs lie where the clip lays them. A pin on a leg
+    // lying out straight has no knee plane to bend in: it wrapped the thigh round (fall_pillar: 152° swing,
+    // 62° twist, held to the end of the shot).
+    let down = false;
+    if (hips) {
+      hips.updateWorldMatrix(true, false);
+      down = this.v2.setFromMatrixPosition(hips.matrixWorld).y - ground < 0.6;
+    }
     for (const s of ['L', 'R'] as const) {
       const f = this.feet[s];
       if (!f.thigh || !f.shin || !f.foot) continue;
@@ -1273,7 +1299,10 @@ export class Runner {
       const kneeling = this.current === 'fall_chasm_b' && t > 1.3;
       // (The escapes' slowing steps while the game still carries him on: a pin there held a foot behind
       // the moving body until the leg ran out of reach, then let go: the foot jumped 40-50 cm.)
-      const carried = this.speed > 1.2 && this.current.startsWith('win');
+      // Stopped, the escapes' feet are keyed where they stand (the slowing steps on the root's braking
+      // curve, the turn steps pivoting on the ball): a pin only lagged them and let go with a snap (a
+      // thighL snap of ~30° in every escape, a 4 cm foot jump in win_cheer).
+      const carried = this.current.startsWith('win');
       // An obstacle move's flight (take-off to landing): the push-off foot goes with the clip from its
       // toe-off (held to the floor while the leg folds away, it ran out of reach and let go with a snap).
       // The log jump and the vault land straight onto the gait, keyed frame by frame on the floor's pace: no
@@ -1281,8 +1310,11 @@ export class Runner {
       // fade-out at the hand-back dragged the leg into the swing).
       const O = this.obst && this.current === this.obst.name ? OBSTACLES[this.obst.name] : null;
       const keyedOn = this.current === 'jump_log' || this.current === 'vault';
-      const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || t < O.land - 0.02);
-      const free = !active || sliding || turning || kneeling || carried || flying || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      // (leap_gap holds its landing crouch on the pins, then runs out keyed on the gait from 26/30: near the
+      // clip's own pace only; much faster, the clip's feet cannot keep up with the floor and the pin holds.)
+      const runningOut = this.current === 'leap_gap' && t >= 26 / 30 && this.speed < 7.5;
+      const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
+      const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
       else if (!f.locked && h < 0.125) {
         f.locked = true;
