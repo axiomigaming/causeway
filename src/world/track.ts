@@ -60,6 +60,15 @@ export const genIntensity = (() => {
   }
   return (d: number) => table[Math.max(0, Math.min(table.length - 1, Math.floor(d / 5)))]!;
 })();
+/**
+ * World round 23: land cadence, in nominal run seconds. Land is due LAND_DUE s after the last land
+ * section; the first comes LAND_FIRST s into the run. (A landmark's open run-up is staged only straight
+ * after land: see maybeLandmark.)
+ */
+const LAND_DUE = 7.5;
+/** Sections whose sides are closed by rock or walls (they neither count toward LAND_DUE nor reset it). */
+export const WALLED: SectionType[] = ['gorge', 'tunnel', 'tall', 'cliff', 'ledge'];
+const LAND_FIRST = 3;
 /** Corner clearance probe after the bend (m): fixed, whatever the tier's view distance. */
 const CLEAR_PROBE = 210;
 /**
@@ -274,6 +283,10 @@ export class Track {
   /** Quarter turns from the start heading (−1, 0, +1) and sections since the last corner. */
   private heading = 0;
   private sinceTurn = 0;
+  /** World round 23: nominal run seconds since the last land section ended (see LAND_DUE). */
+  private sinceLand = 0;
+  /** Whether this world has turned a corner yet (land keeps its distance from a bend, not from the start). */
+  private cornered = false;
   /** World round 12: a corner toward `side` is held back for `n` more sections (a landmark stands there). */
   private turnBlock = { side: 0, n: 0 };
   private styleIndex = -1;
@@ -475,6 +488,9 @@ export class Track {
     this.lastType = 'start';
     this.heading = 0;
     this.sinceTurn = 0;
+    this.cornered = false;
+    // The start line stands on water; the first land comes within a few seconds of it.
+    this.sinceLand = LAND_DUE - LAND_FIRST;
     this.update(0, 0);
     // QA (dev builds only): ?obs=log@24,beam@34 lays obstacles to look at.
     for (const spec of QA_OBS) {
@@ -550,7 +566,8 @@ export class Track {
       // A landmark just set out on one side also holds back a corner toward it for a few sections.
       // Sections with cliffs or tall walls along their sides reach past their ends: a corner never
       // follows one (the exit leg ran through the gorge's cliff), and none follows a corner.
-      // (World round 21: land too: its forest runs far out to the sides, into the legs either side of a bend.)
+      // (World round 21: land too: its forest runs far out to the sides, into the legs either side of a bend.
+      // Round 23: a corner may follow land when the clearance probe finds the bend's leg clear of it.)
       const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate', ...LAND_TYPES];
       const afterCorner = this.lastType === 'turnL' || this.lastType === 'turnR';
       const blocked = new Map<SectionType, boolean>();
@@ -559,13 +576,13 @@ export class Track {
         return !blocked.get(t);
       };
       const allow = (t: SectionType) =>
-        isLand(t) && (Math.abs(this.elevation) > 0.01 || this.sinceTurn < 2)
+        isLand(t) && (Math.abs(this.elevation) > 0.01 || (this.cornered && this.sinceTurn < 2))
           ? false
           : (t === 'turnL' || t === 'turnR') && !clear(t)
           ? false
           : afterCorner && BIG.includes(t)
           ? false
-          : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType)
+          : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType) && !isLand(this.lastType)
             ? false
             : t === 'turnL'
           ? this.heading < 1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side < 0)
@@ -590,11 +607,19 @@ export class Track {
       }
       this.clearBehind(this.path.length);
       const intensity = genIntensity(this.path.length);
-      const t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
-      // World round 21: land comes in runs (two to four sections of forest, cutting, plaza or ravine,
+      let t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
+      // World round 23: the sides must not stay open water for long. Once LAND_DUE seconds of run have
+      // passed since the last land, the next section that may be land is (corners keep their place; back up the stairs first if
+      // the way has stepped down), unless a landmark's staging or QA holds the route.
+      if (!forced && !isLand(t) && t !== 'turnL' && t !== 'turnR' && this.sinceLand >= LAND_DUE) {
+        const land = LAND_TYPES.filter((x) => x !== this.lastType && allow(x));
+        if (land.length) t = this.rng.pick(land);
+        else if (this.elevation < -0.01 && allow('stairsUp') && this.lastType !== 'stairsUp') t = 'stairsUp';
+      }
+      // World round 21: land comes in runs (two or three sections of forest, cutting, plaza or ravine,
       // no corner among them), so the causeway leaves the water, crosses a stretch of jungle and returns.
       if (!forced && isLand(t) && !isLand(this.lastType)) {
-        const more = this.rng.int(1, 3);
+        const more = this.rng.int(1, 2);
         let prev: SectionType = t;
         const run: SectionType[] = [];
         for (let k = 0; k < more; k++) {
@@ -604,14 +629,20 @@ export class Track {
         }
         this.landRun.push(...run);
       }
+      const afterLand = isLand(this.lastType);
       this.spawn(t, intensity);
+      const built = this.sections[this.sections.length - 1];
+      // (Walled sections, a gorge or a cliff face along the way, close the sides too: they pause the count.)
+      if (isLand(t)) this.sinceLand = 0;
+      else if (!WALLED.includes(t)) this.sinceLand += (built ? built.len : 0) / GEN_SPEED(intensity);
       this.lastType = t;
       if (t === 'turnL' || t === 'turnR') {
         this.heading += t === 'turnL' ? 1 : -1;
         this.sinceTurn = 0;
+        this.cornered = true;
       } else this.sinceTurn++;
       if (this.turnBlock.n > 0) this.turnBlock.n--;
-      this.maybeLandmark(t);
+      this.maybeLandmark(t, afterLand);
     }
     this.clearBehind(this.path.length);
     this.obstacles.trim(s);
@@ -634,7 +665,7 @@ export class Track {
    * past the corner's start and 10 m to the outside of the bend: it fills the end of the view for the
    * run-up, then the route turns away from it and it slides past on the outside.
    */
-  private maybeLandmark(t: SectionType): void {
+  private maybeLandmark(t: SectionType, afterLand = false): void {
     const sec = this.sections[this.sections.length - 1];
     if (!sec) return;
     if (this.pendingLandmark && (t === 'turnL' || t === 'turnR')) {
@@ -646,6 +677,9 @@ export class Track {
     }
     if (this.pendingLandmark || !this.landmarkQueue.length || sec.s0 + sec.len < this.nextLandmarkS) return;
     if (!OPEN_APPROACH.includes(t) || this.turnBlock.n > 0) return;
+    // World round 23: its open run-up (water and sky, about ten seconds) starts as a land run ends, so the
+    // open stretch around it stays short.
+    if (!afterLand) return;
     const turn: SectionType = this.heading > 0 ? 'turnR' : this.heading < 0 ? 'turnL' : this.lmRng.chance(0.5) ? 'turnL' : 'turnR';
     // Four open sections of run-up (bridge or stepping slabs: water and sky in view), the corner, an open exit.
     const open = (): SectionType => 'approach';
