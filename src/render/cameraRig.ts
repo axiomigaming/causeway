@@ -907,7 +907,7 @@ export class CameraRig {
     this.smoothOut(dt);
     this.camera.position.addScaledVector(this.right, sx);
     this.camera.position.y += sy + this.bob;
-    this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.25);
+    this.camera.rotateZ((Math.sin(t * 13.1) * 0.5 + Math.sin(t * 7.7)) * amp * 0.06); // (≤ ~2° of roll at full trauma: no Dutch angle)
     this.applyShift(dt);
     this.camera.updateProjectionMatrix();
   }
