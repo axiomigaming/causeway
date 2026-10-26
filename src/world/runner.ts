@@ -247,7 +247,8 @@ export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30,
  * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
  * game's launch carries the body off a pinned foot faster than the clip sweeps it back: it ran out of reach
  * at the last push and let go with a 27° shin snap). */
-const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start']);
+// (And the chasm skid to its knees: a pin caught a foot as the skid slowed under 4.5 m/s and snapped the shin 26°.)
+const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start', 'fall_chasm_b']);
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
