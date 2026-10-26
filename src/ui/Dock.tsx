@@ -278,6 +278,16 @@ function Setup() {
             )}
           </div>
         </div>
+        {/* After a loss the stake can sit above the balance (it clamps only when edited): say why RUN is
+            off and offer the largest stake the balance covers, instead of a silent disabled button. */}
+        {!broke && s.stake > s.balance && (
+          <div className="field-note over-note" role="status">
+            Your balance is below this stake.{' '}
+            <button className="link" disabled={busy} onClick={() => setStake(max)}>
+              Use {formatCredits(max)}
+            </button>
+          </div>
+        )}
         {target !== null && (
           <div className="field-note auto-note">
             Auto cash-out pays <b>{formatCredits(payout(s.stake, target))}</b> at {formatMult(target)}× if the way holds
