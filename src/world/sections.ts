@@ -420,7 +420,8 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
     for (let i = 0; i < n; i++) {
       const z = z0 - TILE * i;
       if (opts.foundation !== false) {
-        b.wall(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side, PATH_HALF + 0.42, 0, z);
+        // (Round 23: phones take the lighter footing only — a corridor of them stood at 318k triangles.)
+        b.wall(b.rng.chance(0.5) || b.density.scenery < 0.5 ? 'foundation_0' : 'foundation_1', side, PATH_HALF + 0.42, 0, z);
         b.foam(side, PATH_HALF + 0.84, z);
       }
       if (b.foliage(0.3)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.05), -0.05, z - b.rng.range(0.4, 3.6), b.rng.range(0, 6.28), b.rng.range(0.6, 0.95));
@@ -441,7 +442,8 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
         continue;
       }
       carvedRun = false;
-      const lw = b.rng.pick(LOW_WALLS);
+      // (Round 23: on phones mostly the two lighter parapets, 560-760 triangles against 790-860.)
+      const lw = b.density.scenery < 0.5 && b.rng.chance(0.7) ? b.rng.pick(['wall_low_1', 'wall_low_2']) : b.rng.pick(LOW_WALLS);
       b.wall(lw, side, PATH_HALF + 0.36, 0, z);
       // Round 11 detail: now and then roots creeping over the parapet and down its sides.
       if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.5, z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
@@ -995,7 +997,8 @@ const BUILDERS = {
       vista(b, len, ['arch', 'guardians', 'temple', 'towers', 'falls'], 0.65);
       {
         const side = b.rng.pick([-1, 1]);
-        colossus(b, side, -len * b.rng.range(0.3, 0.6), 0.4);
+        // (Round 23: a guardian in every other corridor on phones — 1.1k triangles each, on the near side.)
+        colossus(b, side, -len * b.rng.range(0.3, 0.6), b.density.scenery < 0.5 ? 0.2 : 0.4);
         ruinFront(b, -side, -len * b.rng.range(0.3, 0.7), 0.3);
       }
       return { hazards: ['chasm', 'rockfall'], walls: 'low' };

@@ -69,6 +69,8 @@ const LAND_DUE = 7.5;
 /** Sections whose sides are closed by rock or walls (they neither count toward LAND_DUE nor reset it). */
 export const WALLED: SectionType[] = ['gorge', 'tunnel', 'tall', 'cliff', 'ledge'];
 const LAND_FIRST = 3;
+/** How far ahead of the runner a section's pebble scatter is drawn (m; presentation only). */
+const GRIT_AHEAD = 45;
 /** Corner clearance probe after the bend (m): fixed, whatever the tier's view distance. */
 const CLEAR_PROBE = 210;
 /**
@@ -166,6 +168,8 @@ export interface SectionInstance {
   solid: [number, number, number][];
   /** World round 21: its ground (land sections). */
   ground?: THREE.Mesh;
+  /** World round 23: its pebble scatter (drawn only near the runner: see GRIT_AHEAD). */
+  grit?: THREE.Mesh[];
 }
 
 /** How close a later stretch of route may come to a piece of earlier scenery (m, edge to centreline). */
@@ -646,6 +650,13 @@ export class Track {
     }
     this.clearBehind(this.path.length);
     this.obstacles.trim(s);
+    // World round 23: pebbles 50 m out are under a pixel each, yet were a tenth of a desktop frame's
+    // triangles (130k on a corridor): each section's scatter is drawn only while it is near the runner.
+    for (const sec of this.sections) {
+      if (!sec.grit) continue;
+      const near = sec.s0 < s + GRIT_AHEAD && sec.s0 + sec.len > s - 15;
+      for (const g of sec.grit) g.visible = near;
+    }
   }
 
   /** Despawn by the built end (see DESPAWN_LEAD): what stands at each build is a function of the route alone. */
@@ -717,6 +728,7 @@ export class Track {
     root.matrixWorldNeedsUpdate = true;
     // Scenery and floating things keep to the water, whatever the path's elevation.
     const toWater = -seg.p0.y;
+    let grit: THREE.Mesh[] | undefined;
     for (const child of variant.group.children) {
       const m = child as THREE.Mesh;
       const inst = new THREE.Mesh(m.geometry, m.material);
@@ -726,6 +738,7 @@ export class Track {
       inst.customDepthMaterial = m.customDepthMaterial;
       inst.name = m.name;
       if (!m.name.endsWith('|near') && !m.name.endsWith('|grit')) inst.position.y = toWater;
+      if (m.name.endsWith('|grit')) (grit ??= []).push(inst);
       root.add(inst);
     }
     // Every fall in the section is one mesh: sheets and spray in a single draw call.
@@ -754,7 +767,7 @@ export class Track {
     }
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground, grit };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
