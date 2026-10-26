@@ -290,6 +290,7 @@ export class Game {
     };
     scene.add(this.debris.root);
     this.runner = new Runner(kit);
+    this.runner.rootMotion = true;
     this.runner.onFootstep = (foot, k) => this.footstep(foot, k);
     this.obstacles = new ObstacleDirector({
       s: () => this.s,
@@ -1316,7 +1317,9 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      const halt = v * 0.12;
+      // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+      // by the root, fades in: their sum keeps his speed.)
+      const halt = v * 0.06;
       this.setStop(this.s + halt);
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
@@ -1723,19 +1726,23 @@ export class Game {
       const tall = bb ? bb.max.y - bb.min.y : 3.5;
       const across = bb ? Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) : 0.95;
       // Long enough to span the way and rest on the far side.
-      const reach = 2 * PATH_HALF + 1.4;
+      // Round 20 (coordinator): the pier lies flat on the floor across the way, both ends down where
+      // they can be seen (it rested on an invisible far footing at chest height: a floating beam).
+      const reach = trip ? 2 * PATH_HALF + 1.4 : 2 * PATH_HALF - 0.5;
       const sc = trip ? 0.3234 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
       const girth = 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
-      const tFall = trip ? 0.62 : 0.84;
+      const tFall = trip ? 0.62 : 1.0; // (the pier now lies flat between the edges: down at ~0.97 s, measured by framing-check)
       // He keeps his speed until the clip starts, then the root halts there (the clip carries the
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
       const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
       // The root runs out over ~0.24 s (eased) as the clip starts (a dead stop in one frame read as a pop),
       // HALT m further on; the contact geometry is measured from there.
-      const HALT = v * 0.12;
+      // (The root runs out over the clip's 0.25 s cross-fade while the clip's own travel, carried by
+      // the root, fades in: their sum keeps his speed, with no stall at the handover.)
+      const HALT = v * 0.125;
       const sPlay = this.s + v * tPlay + HALT;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
@@ -1748,7 +1755,7 @@ export class Game {
       this.runner.play('run', 0.08);
       this.later(tPlay, () => {
         this.setStop(this.s + HALT);
-        this.runner.play(clip, 0.06);
+        this.runner.play(clip, 0.25);
         crashCam();
         // (Straight from the chase into the close-in: the crash shot's own framing first stood
         // back for ~0.3 s, a retreat before the move in.)
@@ -1757,15 +1764,12 @@ export class Game {
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
       // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
-      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF + 0.35));
-      // Floor under it: the way and the footing at its foot; beyond the far edge, the far wall's
-      // footing (raised for the pier, so it ends up leaning across the way at chest height).
-      const far = trip ? 0 : 1.5;
+      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF - 0.3));
+      // Floor under it: the way (the trip's drum also has the footing at its foot).
       const ground = (x: number, z: number) => {
         const lat = ((x - at.pos.x) * at.right.x + (z - at.pos.z) * at.right.z) * side;
-        if (lat > PATH_HALF + 1.4) return null;
-        if (lat < -(PATH_HALF + 0.1)) return lat < -(PATH_HALF + 3.5) ? null : at.pos.y + far;
-        return at.pos.y;
+        if (trip) return lat > PATH_HALF + 1.4 || lat < -(PATH_HALF + 0.1) ? null : at.pos.y;
+        return Math.abs(lat) > PATH_HALF + 0.15 ? null : at.pos.y;
       };
       // Standing, leaning a few degrees in, already turning about the line along the way.
       const axis = at.fwd.clone().multiplyScalar(-side);
@@ -1779,7 +1783,11 @@ export class Game {
       // and the contact ate the swing): the centre moves as ω × (centre − foot).
       const w0 = axis.clone().multiplyScalar(trip ? 2.3 : 1.9);
       const comOff = new THREE.Vector3(0, ((bb ? bb.max.y + bb.min.y : tall) / 2) * sc, 0).applyQuaternion(q);
-      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: 0.12 });
+      // (A little bounce as it lands, then it settles.)
+      // (The pier is held between the way's edges, as by its parapets: it bounced off the far edge
+      // into the water.)
+      const edges = trip ? undefined : { origin: at.pos.clone(), right: at.right.clone(), half: PATH_HALF + 0.1, top: at.pos.y + 4 };
+      const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2, walls: edges });
       this.later(0.05, () => this.sounds.event?.('pillar_topple', trip ? 0.6 : 1));
       // Grit streams off its head as it comes over.
       for (let k = 1; k <= 3; k++) {
@@ -1833,7 +1841,9 @@ export class Game {
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
         this.rig.wide = 1;
-        const halt = v * 0.12;
+        // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+      // by the root, fades in: their sum keeps his speed.)
+      const halt = v * 0.06;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
         const tt = 0.23;
@@ -2633,6 +2643,16 @@ export class Game {
       this.runner.lookAt(k > 7 && k < 9.5 ? this.rig.camera.position : null, 0.6);
     } else this.runner.lookAt(null);
     this.runner.update(dt, this.speed, rawDt);
+    // Round 20 (character agent): the falls' and escapes' forward travel is taken out of the clip
+    // and carried by the root, so the root's speed is continuous through the handover at play() and
+    // the body never runs ahead of it. The stop mark moves with it.
+    const travel = this.runner.takeTravel();
+    if (travel !== 0) {
+      this.s += travel;
+      this.stopAt += travel;
+      if (this.stopProf) this.stopProf.s0 += travel;
+      this.placeRunner(0);
+    }
     // Contact shadow: on the floor under him (it fades by itself as a fall takes him off it).
     this.contact.update(this.runner.root);
     // Braking: the soles scour the floor.
