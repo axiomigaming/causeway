@@ -634,8 +634,8 @@ def standing(P, wide=0.06, bend=0.05):
     # (And the ankles take the shins' tilt that brings: at ankle = bend a pelvis pitched forward stood him
     # on his toes, the heels ~14 cm up in the hands-on-knees crouch.)
     hp = -P.get("hips", (0.0, 0.0, 0.0))[0]
-    leg(P, "L", hip=0.04 + bend + hp, knee=0.06 + bend * 2, ankle=bend - 2.1 * hp, out=wide)
-    leg(P, "R", hip=-0.02 + bend + hp, knee=0.03 + bend * 2, ankle=bend - 2.1 * hp, out=wide + 0.02)
+    leg(P, "L", hip=0.04 + bend + hp, knee=0.06 + bend * 2, ankle=bend - 2.1 * hp - 0.1, out=wide)
+    leg(P, "R", hip=-0.02 + bend + hp, knee=0.03 + bend * 2, ankle=bend - 2.1 * hp - 0.1, out=wide + 0.02)
 
 
 def build(rig):
@@ -2811,8 +2811,10 @@ def crash_clips():
             (fr, float(i % 2 == 0), 0.25 * math.sin(i * 1.4)) for i, fr in enumerate(range(112, LIVE_END + 1, 14))):
         P = {}
         torso(P, lean=0.0, look=0.15, hp=1.5, hroll=math.pi + 0.08, head_yaw=hy, breath=0.07 * br)
-        leg(P, "L", hip=0.7, knee=1.3, ankle=0.2, out=0.1)
-        leg(P, "R", hip=0.05, knee=0.15, ankle=0.2, out=0.12)
+        # (the legs down on the stone: the R out long, the L foot planted, knee up; at hip 0.05 / 0.7 they
+        # stuck up off the floor at ~20°)
+        leg(P, "L", hip=0.4, knee=1.3, ankle=0.2, out=0.1)
+        leg(P, "R", hip=-0.3, knee=0.15, ankle=0.2, out=0.12)
         arm(P, "L", fwd=-0.2, elbow=0.4, out=0.9, curl=0.4)
         arm(P, "R", fwd=0.1, elbow=1.2, out=0.5, curl=0.4)
         fkey(fr, P, y=2.92, base=-DROP)
