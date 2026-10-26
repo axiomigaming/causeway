@@ -290,6 +290,7 @@ export class Game {
     };
     scene.add(this.debris.root);
     this.runner = new Runner(kit);
+    this.runner.rootMotion = true;
     this.runner.onFootstep = (foot, k) => this.footstep(foot, k);
     this.obstacles = new ObstacleDirector({
       s: () => this.s,
@@ -1316,7 +1317,9 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      const halt = v * 0.12;
+      // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+      // by the root, fades in: their sum keeps his speed.)
+      const halt = v * 0.06;
       this.setStop(this.s + halt);
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
@@ -1737,7 +1740,9 @@ export class Game {
       const tPlay = Math.max(0.05, tFall + 0.12 - contactT);
       // The root runs out over ~0.24 s (eased) as the clip starts (a dead stop in one frame read as a pop),
       // HALT m further on; the contact geometry is measured from there.
-      const HALT = v * 0.12;
+      // (The root runs out over the clip's 0.25 s cross-fade while the clip's own travel, carried by
+      // the root, fades in: their sum keeps his speed, with no stall at the handover.)
+      const HALT = v * 0.125;
       const sPlay = this.s + v * tPlay + HALT;
       const colS = sPlay + contactY + (trip ? 0 : thick);
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
@@ -1750,7 +1755,7 @@ export class Game {
       this.runner.play('run', 0.08);
       this.later(tPlay, () => {
         this.setStop(this.s + HALT);
-        this.runner.play(clip, 0.06);
+        this.runner.play(clip, 0.25);
         crashCam();
         // (Straight from the chase into the close-in: the crash shot's own framing first stood
         // back for ~0.3 s, a retreat before the move in.)
@@ -1836,7 +1841,9 @@ export class Game {
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
         this.rig.wide = 1;
-        const halt = v * 0.12;
+        // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+      // by the root, fades in: their sum keeps his speed.)
+      const halt = v * 0.06;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
         const tt = 0.23;
@@ -2636,6 +2643,16 @@ export class Game {
       this.runner.lookAt(k > 7 && k < 9.5 ? this.rig.camera.position : null, 0.6);
     } else this.runner.lookAt(null);
     this.runner.update(dt, this.speed, rawDt);
+    // Round 20 (character agent): the falls' and escapes' forward travel is taken out of the clip
+    // and carried by the root, so the root's speed is continuous through the handover at play() and
+    // the body never runs ahead of it. The stop mark moves with it.
+    const travel = this.runner.takeTravel();
+    if (travel !== 0) {
+      this.s += travel;
+      this.stopAt += travel;
+      if (this.stopProf) this.stopProf.s0 += travel;
+      this.placeRunner(0);
+    }
     // Contact shadow: on the floor under him (it fades by itself as a fall takes him off it).
     this.contact.update(this.runner.root);
     // Braking: the soles scour the floor.
