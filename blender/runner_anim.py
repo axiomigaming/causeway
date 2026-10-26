@@ -1072,7 +1072,9 @@ def build(rig):
         if act.name in ("jump_log", "leap_gap", "vault"):
             ease_hips(act)
         elif act.name.startswith("fall_"):
-            ease_hips(act, sigma=3.0)  # the crash keys' jolts (the falls key the body's path every 2-4 frames)
+            # the crash keys' jolts (the falls key the body's path every 2-4 frames); the impacts that stop his
+            # travel against something (under root motion the root carries it) a little wider still
+            ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit", "fall_drop") else 3.0)
         elif act.name == "slide":
             ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
     for act in bpy.data.actions:

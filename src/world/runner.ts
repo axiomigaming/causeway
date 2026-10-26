@@ -786,7 +786,12 @@ export class Runner {
     const gaitW = Math.max(...GAITS.map((g) => this.weights.get(g) ?? 0));
     const split = new Map<string, number>();
     for (const [k, w] of this.weights) {
-      const x = w * (mix[k] ?? 1);
+      // Cross-fades of 0.2 s and more are eased (smoothstep: the two sides still sum to 1): linear, the blended pose and the
+      // clips' root travel changed rate at a fade's start and end (a hip jump where the run hands over
+      // to a fall under root motion).
+      // (Only into the falls, which hand the run's travel to the root; short fades stay linear: eased, their
+      // middle runs 1.5x faster and a pose snaps, as the hands did into the 62x slide.)
+      const x = (this.fade >= 0.2 && this.current.startsWith('fall_') ? smoothstep(0, 1, w) : w) * (mix[k] ?? 1);
       split.set(k, x);
       sum += x;
     }
