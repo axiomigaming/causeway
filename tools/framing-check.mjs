@@ -34,6 +34,10 @@ const only = arg('cases', '')
   .filter(Boolean);
 const views = arg('views', '');
 const shake = arg('shake', '1') !== '0';
+// --seeds 0,1,2: other worlds for the same case; --stills <dir> --at 40,80,200: frames drawn and saved.
+const seeds = arg('seeds', '0').split(',').map(Number);
+const stills = arg('stills', '');
+const stillAt = arg('at', '45,75,205').split(',').map(Number);
 const VIEWS = [
   { name: 'phone', w: 390, h: 844, mobile: true },
   { name: 'desktop', w: 1280, h: 720, mobile: false },
@@ -190,16 +194,20 @@ async function cameraMotion(page, view) {
     { name: 'crash rockfall2', mult: 2.2, kind: 'rockfall', variant: 2 },
   ];
   let bad = 0;
-  for (const c of cases.filter((x) => !only.length || only.includes(x.name))) {
-    const r = await page.evaluate(
-      ({ c, shake }) => {
+  for (const c0 of cases.filter((x) => !only.length || only.includes(x.name))) for (const seed of seeds) {
+    const c = { ...c0, name: c0.name };
+    await page.evaluate(
+      ({ c, shake, seed }) => {
         const g = window.__game;
         g.paused = true;
         g.rig.shakeEnabled = shake;
         const now = Date.now;
-        Date.now = () => 4242 + c.name.length * 97;
+        Date.now = () => 4242 + c.name.length * 97 + seed * 1013;
+        const rnd = Math.random;
+        if (seed) Math.random = () => ((seed * 0.618 + c.name.length * 0.1) % 1) * 0.98;
         g.newWorld('setup');
         Date.now = now;
+        Math.random = rnd;
         g.debugStep(1);
         // The round clock: m = e^(0.000063 t); cash out (or crash) 2.6 s into the run at c.mult.
         const E = Math.log(c.mult) / 0.000063;
@@ -220,6 +228,14 @@ async function cameraMotion(page, view) {
         const O = [];
         const D = [];
         const G = [];
+        // When the falling pier or drum first strikes the floor (frames from the crash call), and
+        // how its long axis lies at the end (degrees off level).
+        const colHits = [];
+        const onImp = g.debris.onImpact;
+        g.debris.onImpact = (e) => {
+          if (e.tag === 'column') colHits.push(`f${fNow}@${e.speed.toFixed(1)}`);
+          return onImp(e);
+        };
         // Hard cuts the rig takes (the safe shot, a snap): logged by frame.
         const cuts = [];
         let fNow = -1;
@@ -235,41 +251,89 @@ async function cameraMotion(page, view) {
         // The figure in the frame (head, hips, hands, feet), projected without the view offset's band.
         const B = [];
         const bones = ['head', 'hips', 'handL', 'handR', 'footL', 'footR'].map((n) => g.runner.body.getObjectByName(n)).filter(Boolean);
-        // From a second before the event to 7 s after it (the result card, the settle).
-        for (let f = 0; f < 210; f++) {
-          // (As debugStep, without drawing: the camera is all this measures.)
-          g.virtualNow += 1000 / 30;
-          g.frame(1 / 30, false);
-          cam.updateMatrixWorld();
-          const p = cam.getWorldPosition(cam.position.clone());
-          const q = cam.getWorldQuaternion(cam.quaternion.clone());
-          P.push([p.x, p.y, p.z]);
-          Q.push([q.x, q.y, q.z, q.w]);
-          L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
-          // Every 3rd frame: how many of the sight lines from the lens to him are blocked (a lens
-          // inside a slab or behind a wall).
-          if (f % 3 === 0) {
-            const fr = g.debugFraming();
-            O.push([f, fr.solid, (fr.hits ?? []).slice(0, 2).join('|')]);
+        // Kept on the page: the run is stepped in chunks so stills can be taken on the way.
+        const pier = () => (g.debris.bodies ?? []).find((b) => b.tag === 'column');
+        const C = [];
+        const H = [];
+        const T = [];
+        window.__fc = { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
+      },
+      { c, shake, seed },
+    );
+    const shotsAt = stills ? stillAt.filter((x) => x < 210) : [];
+    for (const until of [...shotsAt, 210]) {
+      await page.evaluate(
+        ({ until }) => {
+          const S = window.__fc;
+          const { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, pier } = S;
+          for (; S.f < until; S.f++) {
+            const f = S.f;
+            g.virtualNow += 1000 / 30;
+            // (Drawn only on a still's frame: the camera and the bodies are all this measures.)
+            g.frame(1 / 30, f === until - 1 && until < 210);
+            cam.updateMatrixWorld();
+            const p = cam.getWorldPosition(cam.position.clone());
+            const q = cam.getWorldQuaternion(cam.quaternion.clone());
+            P.push([p.x, p.y, p.z]);
+            Q.push([q.x, q.y, q.z, q.w]);
+            L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
+            if (f % 3 === 0) {
+              const fr = g.debugFraming();
+              O.push([f, fr.solid, (fr.hits ?? []).slice(0, 2).join('|')]);
+            }
+            G.push(g.runner.root.position.toArray());
+            H.push(bones[1].getWorldPosition(cam.position.clone()).sub(g.runner.root.position).toArray());
+            T.push(+g.timeScale.toFixed(3));
+            S.setF(f + 1);
+            if (S.revealAt < 0 && g.rig.revealed) (S.revealAt = f), (S.revealSpeed = g.speed);
+            D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
+            B.push(
+              bones.map((b) => {
+                const v = b.getWorldPosition(cam.position.clone()).project(cam);
+                return [v.x, v.y, v.z];
+              }),
+            );
+            // The pier (or drum): its long axis off level (°), and how high its two ends' axis
+            // points sit over the floor under him (m).
+            const pb = pier();
+            if (pb) {
+              const m = pb.mesh;
+              m.updateMatrixWorld();
+              const geo = m.geometry;
+              if (!geo.boundingBox) geo.computeBoundingBox();
+              const bb = geo.boundingBox;
+              const a = new cam.position.constructor(0, bb.min.y, 0).applyMatrix4(m.matrixWorld);
+              const b = new cam.position.constructor(0, bb.max.y, 0).applyMatrix4(m.matrixWorld);
+              const len = a.distanceTo(b) || 1;
+              const tilt = (Math.asin(Math.min(1, Math.abs(b.y - a.y) / len)) * 180) / Math.PI;
+              const fy = g.runner.root.position.y;
+              C.push([f, tilt, a.y - fy, b.y - fy, (Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2) * new cam.position.constructor().setFromMatrixScale(m.matrixWorld).x]);
+            }
           }
-          G.push(g.runner.root.position.toArray());
-          fNow = f + 1;
-          if (revealAt < 0 && g.rig.revealed) revealAt = f, revealSpeed = g.speed;
-          D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
-          B.push(
-            bones.map((b) => {
-              const v = b.getWorldPosition(cam.position.clone()).project(cam);
-              return [v.x, v.y, v.z];
-            }),
-          );
-        }
+        },
+        { until },
+      );
+      if (until < 210) {
+        const file = `${stills}/${view}-${c.name.replace(/\W+/g, '_')}-s${seed}-f${until - 1}.png`;
+        // (The scene only: the interface hidden, as the films' frames are judged.)
+        await page.evaluate(() => document.getElementById('app') && (document.getElementById('app').style.visibility = 'hidden'));
+        await page.screenshot({ path: file, timeout: 900000 });
+        await page.evaluate(() => document.getElementById('app') && (document.getElementById('app').style.visibility = 'visible'));
+        console.log(`still ${file}`);
+      }
+    }
+    const r = await page.evaluate(
+      () => {
+        const S = window.__fc;
+        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp } = S;
+        const { revealAt, revealSpeed } = S;
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
-        return { P, Q, L, B, O, D, G, cuts, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        g.debris.onImpact = onImp;
+        return { P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
-      { c, shake },
     );
     const ang = (a, b) => {
       const d = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
@@ -289,6 +353,16 @@ async function cameraMotion(page, view) {
       if (sn > worst.snap) [worst.snap, at.snap] = [sn, f];
     }
     const problems = [];
+    // Round 20 (coordinator): no Dutch angle: the horizon's roll stays within 4° (shake included).
+    let roll = 0;
+    let rollAt = 0;
+    r.Q.forEach(([x, y, z, w], f) => {
+      // The lens's right vector (1,0,0) rotated by q: its height is sin(roll).
+      const ry = 2 * (x * y + w * z);
+      const d = (Math.asin(Math.max(-1, Math.min(1, ry))) * 180) / Math.PI;
+      if (Math.abs(d) > Math.abs(roll)) [roll, rollAt] = [d, f];
+    });
+    if (Math.abs(roll) > 4) problems.push(`horizon rolled ${roll.toFixed(1)}° at f${rollAt}`);
     // Round 20 (motion critic): the figure stays in the frame through the fall and the aftermath
     // (not the chasm or the gate: he goes under), and ends at least ~1/5 of the frame tall/long.
     const clipped = [];
@@ -346,6 +420,23 @@ async function cameraMotion(page, view) {
       const j = Math.hypot(a[0] - 2 * b[0] + d[0], a[1] - 2 * b[1] + d[1], a[2] - 2 * b[2] + d[2]);
       if (j > gj) [gj, gjAt] = [j, f];
     }
+    // The hips relative to the root (the critic's "hips jump"): the clip plus any time-scale step.
+    let hj = 0;
+    let hjAt = 0;
+    for (let f = 2; f < r.H.length; f++) {
+      const [a, b, d] = [r.H[f], r.H[f - 1], r.H[f - 2]];
+      const j = Math.hypot(a[0] - 2 * b[0] + d[0], a[1] - 2 * b[1] + d[1], a[2] - 2 * b[2] + d[2]);
+      if (j > hj) [hj, hjAt] = [j, f];
+    }
+    if (hj > 0.1) {
+      // The hips' speed relative to the root around it (cm/frame), and the time scale.
+      const sp = [];
+      for (let f = Math.max(1, hjAt - 4); f <= Math.min(r.H.length - 1, hjAt + 3); f++) {
+        const [a, b] = [r.H[f], r.H[f - 1]];
+        sp.push(`${(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) * 100).toFixed(0)}@${r.T[f]}`);
+      }
+      problems.push(`hips jump ${(hj * 100).toFixed(0)} cm/frame² at f${hjAt} (${r.L[hjAt]}; v@ts ${sp.join(' ')})`);
+    }
     if (gj > 0.1) problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]})`);
     // Round 20 (owner): the result card never lands before he has stopped.
     if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
@@ -360,6 +451,18 @@ async function cameraMotion(page, view) {
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
     if (r.cuts.length) problems.push(`hard cut ${r.cuts.join(' ')}`);
+    // Round 20 (coordinator): the pier comes to rest on the floor, visibly: level, both ends
+    // down (axis no higher than its radius + 0.2 m over the floor), and down before he meets it.
+    if (r.C?.length && c.kind === 'pillar') {
+      const [, tilt, ya, yb, rad] = r.C[r.C.length - 1];
+      const flatAt = r.C.find(([, t]) => t < 12)?.[0] ?? -1;
+      const clipAt = r.L.findIndex((l) => l.includes('fall_'));
+      const pierMsg = `pier ${tilt.toFixed(0)}° ends ${ya.toFixed(2)}/${yb.toFixed(2)} m r ${rad.toFixed(2)}, flat f${flatAt} clip f${clipAt}`;
+      if (tilt > 10 || Math.max(ya, yb) > rad + 0.2 || Math.min(ya, yb) < rad - 0.3) problems.push(`pier not at rest on the floor (${pierMsg})`);
+      else if (flatAt < 0 || flatAt > clipAt + 8) problems.push(`pier down late (${pierMsg})`);
+      else if (process.env.DEBUG) problems.push(`(${pierMsg})`);
+    }
+    if (process.env.DEBUG && r.colHits?.length) problems.push(`(column hits ${r.colHits.slice(0, 4).join(' ')}; clip at f${r.L.findIndex((l) => l.includes('fall_'))})`);
     if (process.env.DEBUG) {
       const ch = [];
       r.L.forEach((l, f) => {
@@ -372,7 +475,7 @@ async function cameraMotion(page, view) {
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${c.name.padEnd(15)} size ${(ext * 100).toFixed(0)}% card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${(c.name + (seeds.length > 1 ? ` s${seed}` : '')).padEnd(15)} size ${(ext * 100).toFixed(0)}% roll ${roll.toFixed(1)}° card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;
