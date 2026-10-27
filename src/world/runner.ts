@@ -103,6 +103,8 @@ type Foot = 'L' | 'R';
 const GAITS = ['run', 'sprint', 'dash'] as const;
 /** How far an additive beat may fold a knee (rad, the shin's local bend). */
 const KNEE_MAX = 2.5;
+/** How fast a foot pin may straighten the leg under the running-on hips (m/s of hip-to-ankle reach, ≈ 20°/frame). */
+const KNEE_REACH_RATE = 2.6;
 /**
  * Ground covered per stride cycle (m) while a foot is planted, per gait clip. The clips are solved in
  * blender/runner_anim.py so the stance foot slides back exactly D per stance (S = D / ts); setting the
@@ -301,6 +303,8 @@ interface FootLock {
   w: number;
   /** Let go because the body ran on from it: no new pin until this foot has left the floor. */
   spent?: boolean;
+  /** Last frame's hip-to-target distance while pinned (m), for the knee's rate of straightening. */
+  reach?: number;
 }
 
 /**
@@ -1386,7 +1390,10 @@ export class Runner {
       // Gone below the floor (the drop), or sliding along it: let go at once.
       if (h < -0.05 || sliding || kneeling) f.w = 0;
       f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : 10)));
-      if (f.w < 0.01) continue;
+      if (f.w < 0.01) {
+        f.reach = undefined;
+        continue;
+      }
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);
       // A pin the body has run on from (a push-off the floor outruns, a move slowed by the brake): the
       // hold gives way to the clip by as much as keeps the knee bent, and goes on letting go over the
@@ -1404,9 +1411,28 @@ export class Runner {
         f.w = lo;
         f.locked = false;
         f.spent = true;
-        if (f.w < 0.01) continue;
+        if (f.w < 0.01) {
+          f.reach = undefined;
+          continue;
+        }
       }
-      const target = this.v2.copy(ankle).lerp(f.pos, f.w);
+      // Nor does a pin haul the knee straight faster than ~2.6 m/s of hip-to-ankle reach (≈ 20°/frame):
+      // it gives toward the clip for this frame instead. (Landing out of a leap at 12 m/s, the hips ran
+      // on from the pin and the knee went 78° to 44° in a frame, then stood at the limit.)
+      let w = f.w;
+      const dClip = H.distanceTo(ankle);
+      const cap = Math.min(reachMax, Math.max(dClip, (f.reach ?? Infinity) + KNEE_REACH_RATE * dt));
+      if (H.distanceTo(this.v2.copy(ankle).lerp(f.pos, w)) > cap) {
+        let lo = 0, hi = w;
+        for (let i = 0; i < 8; i++) {
+          const m = 0.5 * (lo + hi);
+          if (H.distanceTo(this.v2.copy(ankle).lerp(f.pos, m)) > cap) hi = m;
+          else lo = m;
+        }
+        w = lo;
+      }
+      const target = this.v2.copy(ankle).lerp(f.pos, w);
+      f.reach = H.distanceTo(target);
       if (!this.solveLeg(f, target)) f.locked = false;
     }
   }
