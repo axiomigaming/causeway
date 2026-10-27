@@ -867,7 +867,9 @@ export class Game {
       if (!this.rev) return;
       // Hidden, or no frame at all for a while: release. (Slow frames still step the beat on real
       // time, see loop(), so they never need the fallback.)
-      if (document.visibilityState !== 'visible' || performance.now() - this.lastFrameAt > 4000) this.reveal();
+      // (Not while QA steps the clock by hand — a film's frames take seconds each to render, and the
+      // card came up on wall time at 5x, as he landed.)
+      if (!this.paused && (document.visibilityState !== 'visible' || performance.now() - this.lastFrameAt > 4000)) this.reveal();
       else this.rev.timer = this.revealFallback(0.5);
     }, sec * 1000);
   }

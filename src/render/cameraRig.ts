@@ -709,7 +709,8 @@ export class CameraRig {
       // Round 20 (coordinator, cash-out review): in the settled result shot, a near solid filling
       // the foreground (a stone block beside the lens, a tree trunk) counts as blocking too, though
       // it hides none of him: more than 15 % of the frame nearer than 60 % of the way to him.
-      const fore = (p: THREE.Vector3) => (!run && this.revealK > 0.3 && this.foreCover(p) > 0.15 ? 1 : null);
+      // (The escape only: on a crash it swung the close-in back off him — a retreat.)
+      const fore = (p: THREE.Vector3) => (this.mode === 'cashout' && this.revealK > 0.3 && this.foreCover(p) > 0.15 ? 1 : null);
       const hit = this.blockedAt(cur) ?? fore(cur);
       if (hit === null) {
         this.blockedT = 0;
@@ -900,8 +901,8 @@ export class CameraRig {
           [
             [0, F(-2.35, 0.65 * s, 1.3, 2.2, 0, 0.9, 60, 0)],
             [0.3, F(-2.3, 0.75 * s, 1.35, 1.1, 0, -0.3, 58, 0)],
-            [0.75, F(-2.1, 0.9 * s, 1.3, 0.5, 0, -1.8, 56, 0)],
-            [1.2, F(-2.0, 1.0 * s, 1.25, 0.3, 0, -2.2, 55, 0)],
+            [0.75, F(-2.1, 0.9 * s, 1.3, 0.5, 0, -1.95, 56, 0)],
+            [1.2, F(-2.0, 1.0 * s, 1.25, 0.3, 0, -2.35, 55, 0)],
             [6.5, F(-1.9, 1.0 * s, 1.2, 0.3, 0, -2.2, 54, 0)],
           ],
           T,
