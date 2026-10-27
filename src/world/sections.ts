@@ -693,9 +693,13 @@ function forestSide(b: Builder, side: number, len: number, dense = 1) {
     else if (r < 0.93) b.place(`scatter_edge_${b.rng.int(0, 2)}`, side * 3.4, y + 0.08, z, side > 0 ? 0 : Math.PI);
     else if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, x, y + 0.2, z, b.rng.range(0, 6.28), [0.8, 0.25, 0.7], [Math.PI / 2, 0]);
   }
+  // (Round 23: on phones the mid-band trees are kept — at the phone's density over half went, and the
+  // portrait frame, narrow at the sides, showed a "forest" as bare ground and sky — and stand a little
+  // closer in, where the portrait frame still holds them.)
+  const phone = b.density.foliage < 0.6;
   for (let z = -b.rng.range(1, 4); z > -len - 2; z -= b.rng.range(5, 8) / dense) {
-    const x = side * b.rng.range(6.5, 12);
-    landTree(b, x, z, b.rng.range(0.9, 1.25), 'land', 0.95);
+    const x = side * (phone ? b.rng.range(5.4, 9) : b.rng.range(6.5, 12));
+    landTree(b, x, z, b.rng.range(0.9, 1.25), 'land', phone ? Math.min(1, 0.95 / b.density.foliage) : 0.95);
     if (b.foliage(0.7)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * b.rng.range(5.5, 9), gy(b, side * 7, z - 2.5) - 0.2, z - 2.5, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
   }
   for (let z = -b.rng.range(0, 6); z > -len - 4; z -= b.rng.range(7, 11) / dense) {
