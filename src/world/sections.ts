@@ -315,13 +315,34 @@ function openSide(b: Builder, side: number, len: number) {
 }
 
 /**
+ * World round 23: moss on stone edges — the parapet crests, the footings at the paving's edge. One big
+ * cushion there read as a thick, flat, uniform green slab (plastic); instead a scatter of small, low
+ * cushions of different sizes along the stone, a fern or grass tuft among them, and on a crest now and
+ * then green tumbling over the inner edge (`spill`). `y` is the stone's top, `x` its line (signed).
+ */
+function edgeMoss(b: Builder, x: number, y: number, z: number, crest = false) {
+  const n = b.rng.int(2, 4);
+  for (let k = 0; k < n; k++) {
+    const piece = b.rng.chance(0.6) ? 'moss_2' : 'moss_0';
+    const s = piece === 'moss_2' ? b.rng.range(0.55, 1.0) : b.rng.range(0.25, 0.42);
+    b.place(piece, x + b.rng.range(-0.25, 0.25), y - 0.03, z + b.rng.range(-0.9, 0.9), b.rng.range(0, 6.28), [s, s * b.rng.range(0.5, 0.8), s]);
+  }
+  if (b.foliage(0.6)) b.place(b.rng.chance(0.5) ? `fern_${b.rng.int(0, 1)}` : `grass_${b.rng.int(0, 1)}`, x, y - 0.02, z + b.rng.range(-0.6, 0.6), b.rng.range(0, 6.28), b.rng.range(0.5, 0.8));
+  if (crest && b.foliage(0.35)) {
+    const side = Math.sign(x) || 1;
+    // (spill: origin on the crest's inner edge, spanning 0..3.3 m along its local +y, draping toward local -x.)
+    b.place(`spill_${b.rng.int(0, 1)}`, x - side * 0.15, y, z + 1.6, side > 0 ? Math.PI / 2 : -Math.PI / 2, [1, 0.55, 0.8]);
+  }
+}
+
+/**
  * World round 23: green on a giant root heaved over the parapet on `side` (spanning z0 … z0 − 4):
  * cushion moss in the crook over the crest, a curtain of leafy vine hanging off it down the inner face,
  * a fern at its foot where it meets the paving. (Bare, the roots read as smooth green tubes.)
  */
 function rootDress(b: Builder, side: number, z0: number, y = 0, crest = 1.3) {
   const zc = z0 - b.rng.range(1, 3);
-  if (b.foliage(0.9)) b.place(`moss_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.5), y + crest + 0.05, zc, b.rng.range(0, 6.28), b.rng.range(0.45, 0.65));
+  if (b.foliage(0.9)) edgeMoss(b, side * (PATH_HALF + 0.5), y + crest + 0.05, zc);
   if (b.foliage(0.7)) b.place(`vines_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.1), y + crest + 0.2, zc + b.rng.range(-0.6, 0.6), side * Math.PI / 2, [0.55, b.rng.range(0.35, 0.5), 1]);
   if (b.foliage(0.6)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.25), y - 0.05, z0 - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.6, 0.85));
 }
@@ -458,7 +479,7 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
         b.foam(side, PATH_HALF + 0.84, z);
       }
       if (b.foliage(0.3)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.05), -0.05, z - b.rng.range(0.4, 3.6), b.rng.range(0, 6.28), b.rng.range(0.6, 0.95));
-      if (b.rich && b.foliage(0.25)) b.place(`moss_${b.rng.pick([0, 2])}`, side * (PATH_HALF + 0.05), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.7, 1.1));
+      if (b.rich && b.foliage(0.25)) edgeMoss(b, side * (PATH_HALF + 0.12), 0, z - b.rng.range(1, 3));
       b.edgeRubble(side, z);
       if (b.rng.chance(gaps)) {
         // (Round 22: the two lighter heaps on phones. Round 23: the biggest heap, 2 m across, sits further
@@ -1301,7 +1322,7 @@ const BUILDERS = {
           b.place(`column_fallen_${b.rng.int(0, 1)}`, cx, WL + 0.2, cz, b.rng.range(0, 6.28));
           b.foamRing(cx, cz, 2.4);
         } else b.place('guardian_1', side * 5.6, WL + 0.3, cz, faceIn(side, 0.9), 0.9);
-        for (let k = 0; k < 2; k++) if (b.rich && b.foliage(0.6)) b.place(`moss_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.05), 0, -b.rng.range(0, len), 0, b.rng.range(0.8, 1.3)); // (round 20: on the footing, not in the air)
+        for (let k = 0; k < 2; k++) if (b.rich && b.foliage(0.6)) edgeMoss(b, side * (PATH_HALF + 0.12), 0, -b.rng.range(1, len - 1)); // (round 20: on the footing, not in the air)
       }
       jungleBank(b, b.rng.pick([-1, 1]), b.rng.range(7, 9), -len / 2, 0, 0.6);
       canopy(b, b.rng.pick([-1, 1]), -b.rng.range(4, len - 4), 0, 0.35);
@@ -1552,7 +1573,7 @@ const BUILDERS = {
           const broken = b.rng.chance(0.3);
           b.place(broken ? 'guardian_1' : 'guardian_0', side * (PATH_HALF + 0.95), 0, z - 2, faceIn(side, 0.9), b.rng.range(0.62, 0.7));
           if (b.foliage(0.5)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.2), 0, z - b.rng.range(0.5, 1.2), b.rng.range(0, 6.28), 0.8);
-          if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.9), 0.95 * 0.66, z - 2, 0, 0.8);
+          if (b.rich && b.foliage(0.5)) edgeMoss(b, side * (PATH_HALF + 0.9), 0.95 * 0.66, z - 2, true);
           if (b.foliage(0.45)) b.place('vines_0', side * (PATH_HALF + 1.6), b.rng.range(3.0, 3.6), z - 2, faceIn(side, 0.4), [0.45, 0.6, 1]);
         }
       }
