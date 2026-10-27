@@ -3476,16 +3476,12 @@ export class Game {
       end.position.set(0, (depth + 0.6) / 2 - 0.6, sd * (len / 2 + 1.55));
       g.add(end);
     }
-    // Moss in the corners and along the wall feet; rubble along the walls.
-    // (Moss low and flat, in two of the corners: full-height lumps read as smooth plastic blobs.)
-    for (const [cx, cz] of [[-1, -1], [1, 1]] as const) {
-      put('moss_2', cx * (W / 2 - 0.35), -0.01, cz * (len / 2 - 0.5), rng.range(0, 6.28), 1.1, 0.35, 1.1);
-    }
+    // Rubble along the walls. (Round 20, ledge0 review: no moss — out of the sun, even flat it read
+    // as bright green puddles on the stone.)
     for (let k = 0; k < 4; k++) {
       const sd = rng.chance(0.5) ? 1 : -1;
       const z = rng.range(-len / 2 + 0.8, len / 2 - 0.8);
       // (No ferns: down here, out of the sun, their fronds rendered as black spiky clumps.)
-      put('moss_2', sd * (W / 2 - 0.35), -0.01, z, rng.range(0, 6.28), 0.8, 0.45, 0.8);
       put(rng.pick(['debris_0', 'debris_0', 'rubble_0']), sd * (W / 2 - 0.55), 0.05, z + rng.range(-1, 1), rng.range(0, 6.28), 0.5, 0.5, 0.5, 'stone');
     }
     // Roots and vines hanging in from the top edge of the side walls.
