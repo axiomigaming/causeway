@@ -1117,9 +1117,12 @@ def build(rig):
         elif act.name.startswith("fall_"):
             # the crash keys' jolts (the falls key the body's path every 2-4 frames); the impacts that stop his
             # travel against something (under root motion the root carries it) a little wider still
-            ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit", "fall_drop") else 3.0)
+            ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit") else 1.5 if act.name == "fall_drop" else 3.0)
+            # (the drop: not σ 4 through its impact, which slowed the fall before the stone into a soft landing)
         elif act.name == "slide":
             ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
+        if act.name == "fall_side_hit":
+            smooth_world_travel(act, 0, 40, sigma=3.0)
     for act in bpy.data.actions:
         # (Not the vault: its support arm is baked to the stone.)
         if act.name == "start" or act.name.startswith(("fall_", "win", "jump_", "leap_", "slide", "turn_cut", "stumble_")):
@@ -1134,6 +1137,79 @@ FOLLOW = [("neck", 0, ("hips", "spine", "chest"), 0.22), ("head", 0, ("hips", "s
           ("head", 2, ("spine", "chest"), 0.25),
           ("forearm.L", 0, ("upper_arm.L",), 0.3), ("forearm.R", 0, ("upper_arm.R",), 0.3),
           ("hand.L", 0, ("upper_arm.L", "forearm.L"), 0.25), ("hand.R", 0, ("upper_arm.R", "forearm.R"), 0.25)]
+
+
+def smooth_world_travel(act, f0, f1, sigma=3.0):
+    """The hips' path over the floor smoothed in the world (Gaussian, σ in frames) between frames f0 and f1,
+    the hips' location re-keyed to follow it. ease_hips smooths the location in the root bone's frame: under
+    a spinning root (the side hit) the world path still lurched (the hips forward 9, 9, -10, -7, +5 cm a frame
+    through the turn, a 12-19 cm/frame² jolt of the root under root motion)."""
+    rig = RIG
+    pb = rig.pose.bones["hips"]
+    prev = rig.animation_data.action
+    rig.animation_data.action = act
+    fa, fb = (int(x) for x in act.frame_range)
+    f0, f1 = max(f0, fa), min(f1, fb)
+    frames = list(range(f0, f1 + 1))
+
+    def world(t):
+        bpy.context.scene.frame_set(t)
+        w = rig.matrix_world @ pb.head
+        return w.x, w.y
+    W = [world(t) for t in frames]
+    r = int(math.ceil(3 * sigma))
+    wts = [math.exp(-0.5 * (d / sigma) ** 2) for d in range(-r, r + 1)]
+    n = len(W)
+    T = []
+    for i in range(n):
+        acc = [0.0, 0.0]
+        sw = 0.0
+        for j, w in zip(range(i - r, i + r + 1), wts):
+            # odd reflection at the ends, so they stay where they were keyed
+            if j < 0:
+                p = tuple(2 * W[0][k] - W[-j][k] for k in range(2))
+            elif j >= n:
+                p = tuple(2 * W[-1][k] - W[2 * n - 2 - j][k] for k in range(2))
+            else:
+                p = W[j]
+            acc[0] += w * p[0]
+            acc[1] += w * p[1]
+            sw += w
+        # blended back to the keyed path over the last σ frames before f1
+        b = min(1.0, max(0.0, (f1 - frames[i]) / sigma))
+        T.append((W[i][0] + (acc[0] / sw - W[i][0]) * b, W[i][1] + (acc[1] / sw - W[i][1]) * b))
+    fcs = {fc.array_index: fc for fc in act.fcurves if fc.data_path == 'pose.bones["hips"].location'}
+    for t, (tx, ty) in zip(frames, T):
+        for _ in range(2):
+            bpy.context.scene.frame_set(t)
+            base = [fcs[k].evaluate(t) for k in range(3)]
+            wx, wy = world(t)
+            # the world's response to the location's two horizontal channels (x and z), by finite difference
+            J = []
+            for k in (0, 2):
+                kp = next(p for p in fcs[k].keyframe_points if abs(p.co[0] - t) < 0.01)
+                kp.co[1] = base[k] + 0.01
+                fcs[k].update()
+                ex, ey = world(t)
+                J.append(((ex - wx) / 0.01, (ey - wy) / 0.01))
+                kp.co[1] = base[k]
+                fcs[k].update()
+            (a, c), (b_, d) = J
+            det = a * d - b_ * c
+            if abs(det) < 1e-6:
+                break
+            dx, dy = tx - wx, ty - wy
+            u = (d * dx - b_ * dy) / det
+            v = (-c * dx + a * dy) / det
+            for k, dv in ((0, u), (2, v)):
+                kp = next(p for p in fcs[k].keyframe_points if abs(p.co[0] - t) < 0.01)
+                kp.co[1] = base[k] + dv
+                fcs[k].update()
+    for fc in fcs.values():
+        for kp in fc.keyframe_points:
+            kp.handle_left_type = kp.handle_right_type = "AUTO_CLAMPED"
+        fc.update()
+    rig.animation_data.action = prev
 
 
 def ease_hips(act, sigma=1.25, upto=None):
@@ -3082,30 +3158,40 @@ def crash_clips():
     arm(P, "L", fwd=1.0, elbow=0.4, out=0.5, curl=0.3)
     arm(P, "R", fwd=0.95, elbow=0.45, out=0.55, curl=0.3)
     fkey(int(round(fr_land)) + 1, P, y=0.75 + 1.9 * land_u, base=-DROP)
-    # Crumpling: the knees right down, the hands slap the stone, he pitches over onto the R shoulder …
+    # (A 2.75 m drop does not land on its feet: he crumples on impact, the legs buckling under him and the
+    # seat hitting the stone in 2 frames, and slams over onto his back within 8. Crumpling over 20 frames on
+    # hips smoothed through the impact, he read as landing soft and standing there for a second.)
+    # The legs buckle, the hands slap the stone …
     P = {}
     torso(P, lean=0.7, look=0.4, hp=0.75)
     leg(P, "L", hip=1.6, knee=2.2, ankle=0.4, out=0.12)
     leg(P, "R", hip=1.5, knee=2.15, ankle=0.4, out=0.14)
     arm(P, "L", fwd=1.3, elbow=0.3, out=0.4, wrist=-0.8, curl=0.1)
     arm(P, "R", fwd=1.25, elbow=0.35, out=0.45, wrist=-0.8, curl=0.1)
-    fkey(32, P, y=2.35, base=-DROP)
+    fkey(int(round(fr_land)) + 3, P, y=2.3, base=-DROP)
+    f_c = int(round(fr_land)) + 3
+    # … the seat down, the trunk thrown back over it …
     P = {}
     torso(P, lean=0.2, look=0.5, hp=1.3, hroll=0.4)
     leg(P, "L", hip=0.8, knee=1.6, ankle=0.3)
     leg(P, "R", hip=0.7, knee=1.5, ankle=0.3)
     arm(P, "L", fwd=0.9, elbow=1.6, out=0.3, curl=0.6)
     arm(P, "R", fwd=0.9, elbow=1.6, out=0.3, curl=0.6)
-    fkey(35, P, y=2.55, base=-DROP)
-    # … rolls over along the stone, and onto his back.
-    for fr, roll, y, kn in ((38, 1.1, 2.7, 1.2), (41, 2.0, 2.8, 0.9), (44, 2.8, 2.86, 0.7), (48, math.pi + 0.08, 2.9, 0.6)):
+    fkey(f_c + 2, P, y=2.5, base=-DROP)
+    # … and over along the stone onto his back, a bounce, the knees dropping.
+    for d, roll, y, kn in ((4, 1.3, 2.68, 1.2), (6, 2.3, 2.8, 0.9), (8, math.pi + 0.08, 2.88, 0.7), (12, math.pi + 0.02, 2.9, 0.55)):
         P = {}
-        torso(P, lean=0.05, look=0.3, hp=1.5, hroll=roll)
+        torso(P, lean=0.05, look=0.3 if d < 12 else 0.1, hp=1.5 if d < 8 else 1.6, hroll=roll)
         leg(P, "L", hip=0.3, knee=kn, ankle=0.3, out=0.06)
         leg(P, "R", hip=0.25, knee=kn - 0.1, ankle=0.3, out=0.06)
-        arm(P, "L", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
-        arm(P, "R", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
-        fkey(fr, P, y=y, base=-DROP)
+        # (flung out along the stone as his back hits it, not held up off it)
+        if d < 8:
+            arm(P, "L", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
+            arm(P, "R", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
+        else:
+            arm(P, "L", fwd=0.25, elbow=0.4, out=0.95, curl=0.4)
+            arm(P, "R", fwd=0.15, elbow=0.45, out=0.65, curl=0.4)
+        fkey(f_c + d, P, y=y, base=-DROP)
     # Flat on his back, winded, and alive to the end of the shot (keyed every 3 frames: on sparse keys he
     # lay still for the last 2 s): the chest heaving, slowing; a hand comes up to his head, then down to
     # his ribs; the left knee draws up and lets go; the head rolls, dazed, and lifts once to look.
