@@ -1031,8 +1031,11 @@ export class CameraRig {
     const result = (this.mode === 'cashout' || this.mode === 'crash') ? Math.max(this.revealK, this.revealSoon ? 0.02 : 0) : 0;
     // Landscape with a centre interface column: compose beside it, on the wider free side.
     let sideWant = 0;
-    if (result > 0.01 && c.aspect > 1.15 && this.uiCol) {
-      const [l, r] = this.uiCol;
+    // (Ahead of the card the column reported is the dock's, the full width: the card's own, centred
+    // and about 45% wide on landscape, is taken until it is up.)
+    const col: [number, number] | null = this.revealK < 0.01 && this.revealSoon ? [0.27, 0.72] : this.uiCol;
+    if (result > 0.01 && c.aspect > 1.15 && col) {
+      const [l, r] = col;
       if (r - l < 0.62) {
         sideWant = 1;
         const leftRoom = l;
