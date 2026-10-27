@@ -3335,7 +3335,9 @@ export class Game {
       rc.set(cam.position, dir.normalize());
       rc.near = cam.near;
       rc.far = len - 0.25;
-      const hit = rc.intersectObjects(targets, false)[0];
+      // (World round 23: a waterfall sheet thins away inside 6 m of the lens, see waterfall.ts — within
+      // 4 m it is mostly gone, so it does not block the view there.)
+      const hit = rc.intersectObjects(targets, false).find((h) => !(h.object.name === 'falls' && h.distance < 4));
       if (!hit) continue;
       const m = hit.object as THREE.Mesh;
       const name = (Array.isArray(m.material) ? m.material[0]?.name : m.material?.name) ?? '';
