@@ -1924,7 +1924,9 @@ export class Game {
         this.sounds.event?.('pillar_hit', trip ? 0.7 : 1);
         for (let k = -2; k <= 2; k++) {
           const p = at.pos.clone().addScaledVector(at.right, k * 0.9).setY(at.pos.y + 0.1);
-          B.puff(p, { count: 1, spread: 0.8, jitter: 0.6, vel: at.fwd.clone().multiplyScalar(k % 2 ? 1.6 : -1.6).setY(0.6), size: [0.6, 2 + e], life: 1.8, alpha: 0.36, tint: DUST_T, rise: 0.1, floor: at.pos.y });
+          // (Low, wide and soft, in two small puffs that spread along the floor: one tall card standing
+          // by the pier's foot read as a pale ghostly figure.)
+          for (const d of [-0.4, 0.4]) B.puff(p.clone().addScaledVector(at.fwd, d), { count: 1, spread: 0.9, jitter: 0.8, vel: at.fwd.clone().multiplyScalar((k % 2 ? 1.6 : -1.6) + d * 2).setY(0.15), size: [0.4, 1.1 + 0.4 * e], life: 1.4, alpha: 0.2, tint: DUST_T, rise: 0.02, floor: at.pos.y });
         }
       });
       // The contact, on the clip's own beat; for the trip, the hands and then the chest meet the
@@ -3196,17 +3198,26 @@ export class Game {
       const b = geo.boundingBox!;
       put('wall_mid_0', 0, -0.3 - b.min.y * wy, sd * (len / 2 + (b.max.x - b.min.x) / 2), Math.PI / 2 + (sd > 0 ? Math.PI : 0), 1, wy, (W + 3) / (b.max.z - b.min.z), 'stone');
     }
-    // Moss in the corners and along the wall feet; ferns; rubble along the walls.
-    // (Moss low and flat, in two of the corners, with a fern beside it: full-height lumps read as
-    // smooth plastic blobs.)
+    // Backing behind the masonry (the pieces are ruined courses with gaps: through them the
+    // lagoon showed beyond the trough's far end).
+    for (const sd of [-1, 1]) {
+      const side = new THREE.Mesh(boxAtDensity(0.5, depth + 0.6, len + 2, 3.2), mat);
+      side.position.set(sd * (W / 2 + 1.0), (depth + 0.6) / 2 - 0.6, 0);
+      g.add(side);
+      const end = new THREE.Mesh(boxAtDensity(W + 3, depth + 0.6, 0.5, 3.2), mat);
+      end.position.set(0, (depth + 0.6) / 2 - 0.6, sd * (len / 2 + 1.0));
+      g.add(end);
+    }
+    // Moss in the corners and along the wall feet; rubble along the walls.
+    // (Moss low and flat, in two of the corners: full-height lumps read as smooth plastic blobs.)
     for (const [cx, cz] of [[-1, -1], [1, 1]] as const) {
       put('moss_2', cx * (W / 2 - 0.35), -0.01, cz * (len / 2 - 0.5), rng.range(0, 6.28), 1.1, 0.35, 1.1);
-      put(rng.pick(['fern_0', 'fern_1']), cx * (W / 2 - 0.5), 0.0, cz * (len / 2 - 1.1), rng.range(0, 6.28), 0.7, 0.8, 0.7);
     }
     for (let k = 0; k < 4; k++) {
       const sd = rng.chance(0.5) ? 1 : -1;
       const z = rng.range(-len / 2 + 0.8, len / 2 - 0.8);
-      put(rng.pick(['moss_2', 'fern_0', 'fern_1']), sd * (W / 2 - 0.35), -0.01, z, rng.range(0, 6.28), 0.8, 0.45, 0.8);
+      // (No ferns: down here, out of the sun, their fronds rendered as black spiky clumps.)
+      put('moss_2', sd * (W / 2 - 0.35), -0.01, z, rng.range(0, 6.28), 0.8, 0.45, 0.8);
       put(rng.pick(['debris_0', 'debris_0', 'rubble_0']), sd * (W / 2 - 0.55), 0.05, z + rng.range(-1, 1), rng.range(0, 6.28), 0.5, 0.5, 0.5, 'stone');
     }
     // Roots and vines hanging in from the top edge of the side walls.
