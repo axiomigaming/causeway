@@ -1,30 +1,20 @@
-import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import type { Kit } from '../src/world/assets';
 import { isLand } from '../src/world/sections';
 import { GEN_SPEED, genIntensity, Track, WALLED as WALLED_TYPES } from '../src/world/track';
+import { boundsKit } from './kitBounds';
 
 /**
  * World round 23 (owner: "non deve essere sempre acqua ai lati, ma anche tipo foresta"): over twelve
  * worlds, the route mixes land, walled and open-water sections; the first land comes within a few seconds
  * of the start, and no stretch of nominal run has open water on both sides (no land, no gorge, cliff or
  * tunnel walls) for more than OPEN_MAX seconds. MIX_OUT=<file> writes the report (MIX_SEEDS, MIX_LEN,
- * MIX_FROM/MIX_SEQ for the section list).
+ * MIX_FROM/MIX_SEQ for the section list). The pieces have their real bounds (kitBounds.ts): with empty
+ * ones every landmark corner was clear here, while in the game it never was, and its open run-up was
+ * staged again and again — 65 % of the route was "approach" over open water. Corners must come, and the
+ * run-ups stay a small share.
  */
 const OPEN_MAX = 15;
 const FIRST_LAND_MAX = 8;
-
-function kit(): Kit {
-  const geo = new Map<string, THREE.BufferGeometry>();
-  const matOf = new Map<string, string>();
-  const box = new THREE.BoxGeometry(1, 1, 1);
-  for (const n of ['floor_0', 'floor_1', 'floor_2', 'floor_wide_0', 'floor_narrow_0', 'planks_0', 'planks_1', 'stairs_0', 'floor_medallion_0']) {
-    geo.set(n, box);
-    matOf.set(n, 'stone');
-  }
-  const mat = new Map<string, THREE.Material>([['stone', new THREE.MeshBasicMaterial()]]);
-  return { geo, mat, matOf } as unknown as Kit;
-}
 
 const WALLED = new Set<string>(WALLED_TYPES);
 const timeAt = (() => {
@@ -34,7 +24,7 @@ const timeAt = (() => {
 })();
 
 it('mixes land, walls and water, with no long open-water stretch', async () => {
-  const track = new Track(kit());
+  const track = new Track(boundsKit());
   await track.prepare({ foliage: 1, scenery: 1 });
   track.viewDistance = 165;
   const LEN = Number(process.env.MIX_LEN ?? 2400);
@@ -85,4 +75,6 @@ it('mixes land, walls and water, with no long open-water stretch', async () => {
   expect(worstFirst, out).toBeLessThanOrEqual(FIRST_LAND_MAX);
   expect(landShare, out).toBeGreaterThan(0.25);
   expect(landShare + wallM / allM, out).toBeLessThan(0.75);
+  expect((count.turnL ?? 0) + (count.turnR ?? 0), out).toBeGreaterThanOrEqual(12);
+  expect((count.approach ?? 0) / Object.values(count).reduce((a, b) => a + b, 0), out).toBeLessThan(0.15);
 }, 600000);

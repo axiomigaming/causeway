@@ -611,6 +611,10 @@ export class Track {
             this.landmarkQueue.unshift(this.pendingLandmark);
             this.pendingLandmark = null;
             this.staged = this.staged.filter((x) => x !== 'approach');
+            // World round 23: and it waits a while. Re-staged at once (the next open section), a
+            // blocked landmark ran up four more open approaches, and again: with the real kit's
+            // bounds 40 % of the route was open-water run-up — the "empty sides" the owner saw.
+            this.nextLandmarkS = this.path.length + this.lmRng.range(110, 170);
           }
         }
       }

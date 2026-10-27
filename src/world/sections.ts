@@ -916,7 +916,10 @@ const BUILDERS = {
       // a broken pier, drowned columns further out.
       for (const side of [-1, 1]) {
         for (let z = -b.rng.range(2, 5); z > -len; z -= b.rng.range(6, 9)) {
-          const x = side * b.rng.range(5.5, 11);
+          // (Round 23: nothing past 7.5 m out in the last 9 m: there the landmark's corner turns, and the
+          // clearance probe found the far islets in the new leg every time — the corner never came and the
+          // run-up was staged again and again, 40 % of the route open water.)
+          const x = side * (z < -len + 9 ? b.rng.range(5.5, 7.2) : b.rng.range(5.5, 11));
           const top = islet(b, x, z, b.rng.range(0.6, 0.9));
           const r = b.rng.range(0, 1);
           if (r < 0.4) {
@@ -948,7 +951,7 @@ const BUILDERS = {
         }
         if (b.rng.chance(0.6)) {
           const cx = side * b.rng.range(13, 20);
-          const cz = -b.rng.range(2, len - 2);
+          const cz = -b.rng.range(2, len - 9);
           b.place('column_lone_0', cx, WL - 1.5, cz, b.rng.range(0, 6.28), b.rng.range(0.9, 1.1));
           b.foamRing(cx, cz, 1.6);
         }
