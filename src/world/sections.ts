@@ -843,6 +843,14 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
           if (b.rng.chance(0.25)) b.place('log_fallen_0', x, gy(b, x, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 0.8);
           if (b.foliage(0.4)) b.place(`grass_${b.rng.int(0, 1)}`, x + side, gy(b, x + side, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 1.2);
         }
+        // (Round 23: the banks between the bed and the cliffs read as bare earth slides: green caught
+        // on them — shrub masses, ferns and hanging grass — up the slope.)
+        for (let z = -b.rng.range(1, 3); z > -len; z -= b.rng.range(3.5, 5.5)) {
+          const x = side * b.rng.range(8.0, 10.0);
+          if (b.foliage(0.85)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, gy(b, x, z, 'ravine') - 0.4, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.05));
+          const x2 = side * b.rng.range(7.2, 8.6);
+          if (b.foliage(0.8)) b.place(b.rng.chance(0.6) ? `fern_${b.rng.int(0, 1)}` : `grass_${b.rng.int(0, 1)}`, x2, gy(b, x2, z - 2, 'ravine') - 0.1, z - 2, b.rng.range(0, 6.28), b.rng.range(1.0, 1.4));
+        }
         cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 1), b.rng.range(0.55, 0.75));
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
       }
