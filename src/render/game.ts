@@ -412,6 +412,7 @@ export class Game {
     // perf: upload every section variant's geometry and every kit texture now, not mid-run.
     warmUp(this.renderer, [scene, ...this.track.variantGroups()], this.kit.mat.values());
     this.debris.clear();
+    this.ledgeCracks.clear();
     if (this.ledgeBed) {
       this.scene.remove(this.ledgeBed);
       this.ledgeBed = null;
@@ -652,6 +653,7 @@ export class Game {
     this.escapeGateAt = 0;
     resetMood();
     this.debris.clear();
+    this.ledgeCracks.clear();
     if (this.ledgeBed) {
       this.scene.remove(this.ledgeBed);
       this.ledgeBed = null;
@@ -1465,11 +1467,35 @@ export class Game {
       // The warning: cracks race across the floor under him and ahead (the way's width, spreading
       // over most of the run-on), grit jumps from them, the ground groans. (They hold until the
       // slabs go and fade as they drop: a decal left in the air over the hole read as a floating line.)
-      const crackAt = (along: number, len: number, t0: number) =>
-        this.later(t0, () => {
-          const f = frameAt(sDrop + along);
-          this.cine.cracks.spawn(f.pos.clone().setY(f.pos.y + 0.05), f.yaw, PATH_HALF * 2 + 0.2, len, Math.max(0.15, LEDGE_RUN - 0.12 - t0), 0.4, 3.2);
-        });
+      // (Round 20: drawn as dark jagged strips on the slabs, segment by segment from one side to the
+      // other: the crack decal did not show in the films at all.)
+      const crackAt = (along: number, _len: number, t0: number) => {
+        const f = frameAt(sDrop + along);
+        const n = 9;
+        const w = PATH_HALF * 2 - 0.2;
+        const from = r.chance(0.5) ? -1 : 1;
+        let x = from * (w / 2);
+        let z = 0;
+        for (let k = 0; k < n; k++) {
+          const dx = (-from * w) / n;
+          const dz = r.range(-0.18, 0.18);
+          const seg = new THREE.Mesh(this.crackGeo, this.crackMat);
+          const len = Math.hypot(dx, dz);
+          const mid = f.pos.clone().addScaledVector(f.right, x + dx / 2).addScaledVector(f.fwd, z + dz / 2).setY(f.pos.y + 0.025);
+          seg.position.copy(mid);
+          seg.rotation.set(0, f.yaw + Math.atan2(dz, dx), 0);
+          seg.scale.set(len + 0.04, 1, r.range(0.05, 0.09));
+          seg.visible = false;
+          this.ledgeCracks.add(seg);
+          this.later(t0 + (k / n) * 0.3, () => (seg.visible = true));
+          x += dx;
+          z += dz;
+        }
+      };
+      this.ledgeCracks.clear();
+      if (!this.ledgeCracks.parent) this.scene.add(this.ledgeCracks);
+      // (Gone as the slabs go.)
+      this.later(LEDGE_RUN + 0.2, () => this.ledgeCracks.clear());
       crackAt(0.2, 1.6 + 0.4 * e, 0);
       crackAt(span * 0.55, 1.4 + 0.4 * e, 0.08);
       crackAt(-LEDGE_BACK * 0.6, 1.2, 0.16);
@@ -3245,6 +3271,10 @@ export class Game {
   }
   /** Round 20: the causeway's lower course, revealed under a ledge cave-in (cleared with the world). */
   private ledgeBed: THREE.Object3D | null = null;
+  /** Round 20: the ledge's warning cracks (dark strips on the slabs, cleared as they go). */
+  private ledgeCracks = new THREE.Group();
+  private crackGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  private crackMat = new THREE.MeshBasicMaterial({ color: 0x0b0806, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, fog: true });
   /** The ledge's floor has given under him (he runs on over it until then). */
   private ledgeDown = false;
   private placeLedgeBed(h: { pos: THREE.Vector3; yaw: number; fwd: THREE.Vector3 }, y: number, len: number): void {
