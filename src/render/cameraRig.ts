@@ -89,6 +89,8 @@ export class CameraRig {
   private escapeShot: EscapeShot = 'lookback';
   /** Round 20: 0 → 1 through the escape's run-on and braking (the game sets it): the chase closes in. */
   escapeIn = 0;
+  /** Round 20: 1 = the run-on's lens goes out to his right shoulder (0 for the knee slide). */
+  escapeWide = 1;
   /** Round 20: the way his chest faces (horizontal, world), set by the game in a cash-out. */
   readonly bodyFwd = new THREE.Vector3();
   bodyFwdOk = false;
@@ -484,11 +486,13 @@ export class CameraRig {
     const yaw = this.yaw;
     this.fwd.set(-Math.sin(yaw), 0, -Math.cos(yaw));
     this.right.set(Math.cos(yaw), 0, -Math.sin(yaw));
-    if (this.bodyFwdOk) {
+    // (Once the card is up the orbit holds where it is: still following his turns in the cheer
+    // while the composition panned him beside the card, the lens whipped round and lost him.)
+    if (this.bodyFwdOk && !this.revealed) {
       const d = Math.atan2(this.bodyFwd.dot(this.right), this.bodyFwd.dot(this.fwd));
       // (Eased: a spin in the clip turns the orbit, never whips it.)
       this.faceD += angleDelta(this.faceD, d) * (1 - Math.exp(-5 * dt * k));
-    } else this.faceD = 0;
+    } else if (!this.bodyFwdOk) this.faceD = 0;
     const I = intensity;
     const s = this.side;
     const T = this.modeT;
@@ -571,10 +575,15 @@ export class CameraRig {
           runnerPos,
           this.fitInBand(
             F(
-              lerp(-dist, -2.3, k),
-              lerp(lat + drift, 0.62, k),
+              // (Round 20, coordinator: out to his right shoulder, 45° off his back — the swing round
+              // to his face at the celebration then has half as far to go: a 180° orbit at 5 m in
+              // half a second whipped the frame and lost him.)
+              // (Not for the knee slide: it carries him metres across to his right, out of that frame;
+              // there the lens stays behind him, closer and lower: escapeWide = 0.)
+              lerp(-dist, lerp(-2.3, -1.6, this.escapeWide), k),
+              lerp(lat + drift, lerp(0.62, 1.6, this.escapeWide), k),
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k),
-              lerp(9, 3, k),
+              lerp(9, lerp(3, 1.4, this.escapeWide), k),
               lerp(lerp(0.6, 0.3, narrow) + drift * 0.4, 0.2, k),
               lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k),
               lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
@@ -744,11 +753,12 @@ export class CameraRig {
     // slide turns him across), and a fixed front-of-the-way angle filmed his back. The swing runs
     // from behind (0.15) to a three-quarter view 0.65 rad off his face, on the variant's own beat.
     if (this.bodyFwdOk) {
-      const aEnd = { salute: 0.6, leap: 2.2, cheer: 2.45, lookback: 2.25 }[this.escapeShot] ?? 2.25;
-      const w = THREE.MathUtils.clamp((a - 0.15) / (aEnd - 0.15), 0, 1.2);
+      // (From where the run-on left the lens, 45° off his back on his right, over 1.15 s.)
+      const a0 = lerp(0.27, 0.79, this.escapeWide);
+      const w = ease(T / 1.15);
       const aFront = Math.PI - ((s || 1) * this.faceD + 0.65);
-      const aU = 0.15 + angleDelta(0.15, aFront);
-      a = lerp(0.15, aU, w);
+      const aU = a0 + angleDelta(a0, aFront);
+      a = lerp(a0, aU, w);
     }
     // Grand escapes: a wider orbit that cranes up as it settles. (Round 20: closer all round: he
     // was a fifth of the frame in the turn.)

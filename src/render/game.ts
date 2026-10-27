@@ -1052,6 +1052,8 @@ export class Game {
     // (5.6 m/s) down to a stand over T on BRAKE_CURVE; faster, the root glided under planted feet.
     // So the run-on eases him to that pace first, and the clip's braking follows the curve.
     const curved = clip !== 'win_slide';
+    // (The knee slide carries him metres across: the run-on's lens stays behind him for it.)
+    this.rig.escapeWide = clip === 'win_slide' ? 0 : 1;
     // (The corner test below takes the braking at his present speed; the stop mark uses the speed
     // the run-on actually lands him at.)
     let brakeD = curved ? v * T * BRAKE_AREA : (v * T) / 2;
@@ -1097,7 +1099,8 @@ export class Game {
       // (The clip's curve drives the root; the eased stop profile is for the slide only.)
       if (this.brake) this.stopProf = null;
       this.fx.flash = 0.16 + 0.12 * E.g;
-      this.rig.setMode('cashout', { side: this.cosmetic.chance(0.5) ? 1 : -1, escape: st.variant, epic: st.epic, reveal: 1 });
+      // (On his right, where the run-on's close-in left the lens: see the rig's run shot.)
+      this.rig.setMode('cashout', { side: 1, escape: st.variant, epic: st.epic, reveal: 1 });
       // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
       if (this.speed > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
       this.stageEscape(E);
@@ -3085,8 +3088,9 @@ export class Game {
     }
     // Round 20 (coordinator): the chase closes in through the escape's run-on and braking.
     if (this.stage === 'cashout') {
-      const R = this.runOnProf;
-      const want = this.runOn ? (R ? Math.min(1, R.t / Math.max(0.2, R.dur)) : 1) : 1;
+      // (Round 20, coordinator: from the cash-out itself, over its first 0.6 s — over the whole run-on
+      // he stayed small and from behind for two seconds.)
+      const want = Math.min(1, this.stageT / 0.6);
       this.rig.escapeIn += (want - this.rig.escapeIn) * (1 - Math.exp(-rawDt * 4));
     } else this.rig.escapeIn = 0;
     // (Either way the hold ends: its time after the impact, or its cap.)

@@ -68,6 +68,16 @@
 .hud.held.won .mult { color: var(--amber-hi); }
 .hud.held.fell .mult { color: var(--muted); }
 .hud.held .hud-sub { opacity: 0.8; }
+/* Round 20 (FX, coordinator's cash-out review): once he has cashed out the number is settled (the
+   dock says SECURED), so it steps up into the top band at about 60 %, its stake/return line folded
+   away: the escape then has the frame to show him. Layout, not a transform — the cameras' band is
+   measured from the boxes (Dock's report()). */
+.hud.held.won { --hud-top: 0px; top: calc(var(--safe-t) + 12px); animation: hud-settle 0.35s ease-out; }
+.hud.held.won .hud-slot { display: none; }
+.hud.held.won .mult { font-size: calc(var(--t72) * 0.6); }
+.hud.held.won .hud-sub { display: none; }
+.hud.held.won::before { height: 140%; }
+@keyframes hud-settle { from { opacity: 0.4; } }
 
 /* ------------------------------------------------------------------ the result card */
 .result {
@@ -163,4 +173,8 @@
   .result .big .unit { font-size: var(--t12); }
   .result .r-label { margin-top: 8px; }
   .result .verify { margin-top: 4px; }
+}
+/* (Phones: the top bar's one line has no room in its middle; the settled number sits just under it.) */
+@media (max-width: 760px) {
+  .hud.held.won { top: calc(var(--safe-t) + 60px); }
 }

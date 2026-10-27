@@ -257,12 +257,14 @@ async function cameraMotion(page, view) {
         // Round 20 (coordinator, cash-out review): how squarely he faces the lens (the chest's forward
         // against the line to the camera, -1 his back .. 1 his face).
         const Fc = [];
+        // The result card's reach (revealK) and the interface column (fractions of the width), per frame.
+        const RK = [];
         const H = [];
         const T = [];
         // World round 23 releases a section's paving once it lies 50 m behind him: any of those
         // sections' path in the frame (occlusion ignored, so conservative) is bare ground on screen.
         const gone = [];
-        window.__fc = { Fc, gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
+        window.__fc = { RK, Fc, gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
       },
       { c, shake, seed },
     );
@@ -271,7 +273,7 @@ async function cameraMotion(page, view) {
       await page.evaluate(
         ({ until }) => {
           const S = window.__fc;
-          const { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, pier, Fc } = S;
+          const { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, pier, Fc, RK } = S;
           for (; S.f < until; S.f++) {
             const f = S.f;
             g.virtualNow += 1000 / 30;
@@ -314,6 +316,7 @@ async function cameraMotion(page, view) {
                 if (fw.lengthSq() > 1e-6 && to.lengthSq() > 1e-6) fc = +fw.normalize().dot(to.normalize()).toFixed(2);
               }
               Fc.push(fc);
+              RK.push([+g.rig.revealK.toFixed(2), g.rig.uiCol ? g.rig.uiCol.map((x) => +x.toFixed(3)) : null]);
             }
             S.setF(f + 1);
             if (S.revealAt < 0 && g.rig.revealed) (S.revealAt = f), (S.revealSpeed = g.speed);
@@ -363,14 +366,14 @@ async function cameraMotion(page, view) {
     const r = await page.evaluate(
       () => {
         const S = window.__fc;
-        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp, gone, Fc } = S;
+        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp, gone, Fc, RK } = S;
         const { revealAt, revealSpeed } = S;
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
         g.debris.onImpact = onImp;
-        return { Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        return { RK, Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
     );
     const ang = (a, b) => {
@@ -500,6 +503,31 @@ async function cameraMotion(page, view) {
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
     if (r.cuts.length) problems.push(`hard cut ${r.cuts.join(' ')}`);
     if (r.gone.length) problems.push(`released paving in frame ${r.gone.slice(0, 6).join(' ')}`);
+    // Round 20 (coordinator, cash-out review): in a settled shot (the crash from 1 s in, the escape
+    // from its celebration clip) he is never off the frame, or more than half hidden (out of frame,
+    // or behind the interface column once the card is up), for more than 2 frames running.
+    {
+      const s0 = c.kind ? 30 : r.L.findIndex((l) => /\/win/.test(l));
+      let run = 0;
+      let worst = 0;
+      let worstAt = -1;
+      if (s0 >= 0) {
+        for (let f = s0; f < r.B.length; f++) {
+          const [rk, col] = r.RK[f] ?? [0, null];
+          const hidden = r.B[f].filter(([x, y, z]) => {
+            if (!(z < 1 && Math.abs(x) < 1 && Math.abs(y) < 1)) return true;
+            if (rk > 0.5 && col) {
+              const u = (x + 1) / 2;
+              if (u > col[0] && u < col[1]) return true;
+            }
+            return false;
+          }).length;
+          run = hidden > r.B[f].length / 2 ? run + 1 : 0;
+          if (run > worst) [worst, worstAt] = [run, f];
+        }
+        if (worst > 2) problems.push(`runner hidden or off frame for ${worst} frames (to f${worstAt})`);
+      }
+    }
     // Round 20 (coordinator, cash-out review): the escape is seen. Through the braking (the half
     // second before the celebration clip) he is a fifth of the frame or more; from 0.5 s into the
     // celebration to the card he is a quarter or more, and faces the lens (front or three-quarter)
