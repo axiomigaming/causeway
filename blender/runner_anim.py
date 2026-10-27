@@ -1792,14 +1792,15 @@ def epic_clips():
     for fr in range(8, 26):
         u = (fr - 8) / 17.0
         y = 0.25 + 1.25 * (1 - (1 - u) ** 1.6)
-        wob = math.sin(fr * 0.9) + 0.5 * math.sin(fr * 2.1 + 1)
+        wob = 1.3 * (math.sin(fr * 0.9) + 0.5 * math.sin(fr * 2.1 + 1))
         P = {}
         torso(P, lean=-0.42 + 0.05 * wob, look=0.55 + 0.05 * math.sin(fr * 0.7), hp=-0.15, roll=0.06 * wob, head_yaw=0.12 * math.sin(fr * 0.5))
-        leg(P, "L", hip=1.25 + 0.08 * math.sin(fr * 1.7), knee=0.12 + 0.12 * max(0.0, math.sin(fr * 1.7)), ankle=-0.25 + 0.08 * math.sin(fr * 1.1))
+        leg(P, "L", hip=0.95 + 0.06 * math.sin(fr * 1.7), knee=0.12 + 0.12 * max(0.0, math.sin(fr * 1.7)), ankle=-0.25 + 0.08 * math.sin(fr * 1.1))
         leg(P, "R", hip=0.35 + 0.05 * math.sin(fr * 0.9), knee=2.1, ankle=0.35, out=0.15 + 0.06 * wob)
         arm(P, "R", fwd=-0.75 + 0.16 * math.sin(fr * 1.3), elbow=0.25 + 0.15 * max(0.0, math.sin(fr * 1.3)), out=0.35, wrist=-0.6, curl=0.3)
         arm(P, "L", fwd=1.3 + 0.16 * wob, elbow=0.7 + 0.15 * math.sin(fr * 0.8), out=0.35, curl=1.1)
         key(fr, P, y=y)
+    P25 = P
     # Up: the folded knee drives him onto his feet. (The lead leg comes up and folds first, the foot kept
     # off the stone: swung straight round to the kneel, it swept 15 cm down through it.)
     P = {}
@@ -1808,6 +1809,8 @@ def epic_clips():
     leg(P, "R", hip=0.6, knee=2.1, ankle=0.35, out=0.14)
     arm(P, "R", fwd=0.2, elbow=0.4, out=0.35, wrist=-0.6, curl=0.4)
     arm(P, "L", fwd=1.0, elbow=1.2, out=0.25, curl=1.1)
+    for fr, w in ((26, 0.3), (27, 0.65)):  # (keyed through: eased into and out of 28, the limbs all but stopped)
+        key(fr, lerp_pose(P25, P, w), y=1.5 + 0.12 * w)
     key(28, P, y=1.62)
     P28 = P
     P = {}

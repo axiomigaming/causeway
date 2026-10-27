@@ -562,7 +562,8 @@ export class Runner {
 
   private extractTravel(): void {
     const hips = this.bones.hips;
-    const on = this.rootMotion && hips !== undefined && (this.current.startsWith('fall_') || this.current.startsWith('win'));
+    // (Not win_slide: it turns as it travels, and its slide keeps the game's own braking with the pose's carry.)
+    const on = this.rootMotion && hips !== undefined && this.current !== 'win_slide' && (this.current.startsWith('fall_') || this.current.startsWith('win'));
     if (!on || !hips) {
       if (this.travelPrev !== null || this.travelAcc !== 0) {
         this.travelPrev = null;
