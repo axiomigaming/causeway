@@ -1604,6 +1604,12 @@ def extra_clips():
     # lens, the celebration, then a living hold (breathing, weight shifts, a nod) under the result card.
     FACE = 2.9
     PUMP_YAW = -0.45  # the first pump's turn of the chest toward the camera behind him
+    # The "yes!" fist (round 32): cocked up and out to the side, the elbow above the shoulder and bent ~75°,
+    # the fist at the top of the head and ~50 cm out from it, held two frames, so the silhouette never crosses the head (a
+    # fist cocked over and behind the head read as scratching it); then yanked down, the elbow driven
+    # into the ribs and the fist ending at the belly.
+    COCK = dict(fwd=0.1, out=1.6, elbow=1.05, twist=1.2, shrug=0.1, curl=1.35)
+    YANK = dict(fwd=-0.25, out=0.08, elbow=1.25, twist=0.1, shrug=0.08, curl=1.35)
     for name in ("win_pump", "win_cheer", "win_cheer_big"):
         lvl = ("win_pump", "win_cheer", "win_cheer_big").index(name)
         new_action(name)
@@ -1612,19 +1618,18 @@ def extra_clips():
             # "Yes!": the fist cocks as he stops, is yanked down with a dip of the knees and a hunch, rebounds;
             # then the breath out, the head dropping, the hands going to the hips. (Not a stare at the sky
             # with the arms hung: it read as a statue.)
-            for fr, ph in ((DECEL + 3, 0), (DECEL + 6, 1), (DECEL + 10, 2), (DECEL + 18, 3)):
+            for fr, ph in ((DECEL + 3, 0), (DECEL + 5, 0), (DECEL + 7, 1), (DECEL + 11, 2), (DECEL + 18, 3)):
                 P = {}
                 if ph == 0:
                     # (the chest and head come round toward the lens behind him, so the pump reads)
-                    torso(P, lean=0.02, look=0.3, hp=0.0, yaw=PUMP_YAW, hyaw=0.35 * PUMP_YAW, head_yaw=1.3 * PUMP_YAW)
+                    torso(P, lean=-0.08, look=0.38, hp=0.0, yaw=PUMP_YAW, hyaw=0.35 * PUMP_YAW, head_yaw=1.3 * PUMP_YAW, breath=-0.04)
                     standing(P, wide=0.11, bend=0.1)
-                    # (cocked high, up and out beside the head: the camera is behind him)
-                    arm(P, "R", fwd=2.6, elbow=0.7, out=-0.35, curl=1.35, twist=0.1)  # (overhead a negative out takes it wide)
+                    arm(P, "R", **COCK)
                     arm(P, "L", fwd=0.3, elbow=0.9, out=0.25, curl=0.9)
                 elif ph == 1:
                     torso(P, lean=0.38, look=0.05, hp=0.1, yaw=0.8 * PUMP_YAW, hyaw=0.3 * PUMP_YAW, head_yaw=1.1 * PUMP_YAW, breath=0.05)
                     standing(P, wide=0.12, bend=0.34)
-                    arm(P, "R", fwd=-0.3, elbow=1.75, out=0.2, curl=1.35, twist=0.1, shrug=0.1)
+                    arm(P, "R", **YANK)
                     arm(P, "L", fwd=0.15, elbow=1.1, out=0.28, curl=1.0)
                 elif ph == 2:
                     torso(P, lean=0.12, look=0.3, hp=0.03, yaw=0.6 * PUMP_YAW, hyaw=0.2 * PUMP_YAW, head_yaw=0.8 * PUMP_YAW)
@@ -1660,14 +1665,14 @@ def extra_clips():
             # A small fist pump: "yes!" — pulled down to the hip twice, a little dip into it.
             # (Big and snappy: cocked high over the head, yanked down to the hip in 3 frames with a deep dip
             # of the knees and a hunch, twice; from the camera behind a smaller one did not read.)
-            for d, ph in ((4, 0), (7, 1), (11, 0), (14, 1), (20, 2)):
+            for d, ph in ((3, 0), (5, 0), (7, 1), (10, 0), (12, 0), (14, 1), (20, 2)):
                 P = {}
-                torso(P, lean=0.35 if ph == 1 else -0.1, look=0.18 if ph == 1 else 0.48, yaw=0.25 if ph == 1 else -0.2)
+                torso(P, lean=0.35 if ph == 1 else -0.1, look=0.0 if ph == 1 else 0.48, yaw=0.25 if ph == 1 else -0.2)
                 standing(P, wide=0.12, bend=0.36 if ph == 1 else 0.05)
                 if ph == 0:
-                    arm(P, "R", fwd=2.85, elbow=0.35, out=-0.6, curl=1.35, twist=0.1)  # cocked: fist high and wide (overhead a negative out spreads it)
+                    arm(P, "R", **COCK)
                 elif ph == 1:
-                    arm(P, "R", fwd=-0.35, elbow=1.75, out=0.18, curl=1.35, twist=0.1, shrug=0.1)  # yanked down to the hip
+                    arm(P, "R", **YANK)
                 else:
                     arm(P, "R", fwd=0.15, elbow=1.8, out=0.2, curl=1.35, twist=0.1)
                 arm(P, "L", **AKIMBO)
