@@ -47,6 +47,12 @@ float mN(vec3 p) {
     float clump = mN(vMossP * 4.0 + 3.1);
     vec3 tint = mix(vec3(0.85, 0.9, 0.72), vec3(1.14, 1.1, 0.84), smoothstep(0.3, 0.75, tuft));
     diffuseColor.rgb *= tint * mix(0.86, 1.04, clump);
+    // (Round 23: the colour varies from cushion to cushion — dark wet green, fresh yellow-green, an
+    // olive going brown — not one uniform green.)
+    float hueN = mN(vMossP * 0.9 + 21.0);
+    vec3 moss3 = hueN < 0.5 ? mix(vec3(0.62, 0.78, 0.55), vec3(1.0), hueN * 2.0) : mix(vec3(1.0), vec3(1.3, 1.18, 0.62), (hueN - 0.5) * 2.0);
+    diffuseColor.rgb *= moss3;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 0.95, 0.6), smoothstep(0.66, 0.85, mN(vMossP * 1.7 + 5.0)) * 0.55);
     // Sporophytes: a rusty haze over a few patches.
     float spore = smoothstep(0.72, 0.86, mN(vMossP * 3.7 + 11.0));
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.35, 0.95, 0.55), spore * 0.5);
@@ -78,7 +84,7 @@ float mN(vec3 p) {
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'moss17';
+  m.customProgramCacheKey = () => 'moss23';
   return m;
 }
 
