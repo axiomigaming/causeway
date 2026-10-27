@@ -1012,18 +1012,25 @@ def build(rig):
     cover = dict(fwd=1.9, elbow=2.45, out=0.5, twist=-0.45, curl=0.9, shrug=0.3)
     P = {}
     torso(P, lean=0.35, look=-0.35, hp=0.05)
-    leg(P, "L", hip=0.9, knee=1.3, ankle=-0.2)
-    leg(P, "R", hip=0.3, knee=1.4, ankle=0.4)
+    # (Down into a squat on the left foot, the sole flat on the stone, keyed on the floor: tucked with the
+    # feet hanging under him he hung 20-40 cm in the air, limbs still.)
+    leg(P, "L", hip=0.9, knee=1.15, ankle=-0.65)
+    leg(P, "R", hip=0.3, knee=1.4, ankle=0.4, toe=0.4)
     arm(P, "L", **cover)
     arm(P, "R", **cover)
-    key(8, P)
+    fkey(8, P)
+    P8r = P
     P = {}
     torso(P, lean=0.6, look=-0.4, hp=0.2)
-    leg(P, "L", hip=1.3, knee=2.1, ankle=-0.3)
-    leg(P, "R", hip=0.6, knee=2.2, ankle=0.35, toe=0.5)
+    leg(P, "L", hip=1.25, knee=1.7, ankle=-0.8)
+    leg(P, "R", hip=0.9, knee=2.1, ankle=0.3, toe=0.5)
     arm(P, "L", **cover)
     arm(P, "R", **cover)
-    key(14, P)
+    fkey(14, P)
+    P14r = P
+    # (and on the floor every frame between: the joints' in-betweens lifted both feet ~10 cm)
+    for fr in range(9, 14):
+        fkey(fr, lerp_pose(P8r, P, ease((fr - 8) / 6.0)))
     for fr, lean, sh in ((22, 0.75, 0.25), (28, 0.92, 0.35), (36, 0.8, 0.25), (52, 0.78, 0.22), (72, 0.7, 0.18), (95, 0.68, 0.15)):
         P = {}
         torso(P, lean=lean * 0.75 + 0.1, look=-0.55 + 0.15 * (fr >= 72), hp=0.25, head_yaw=0.12 * (fr >= 72))
@@ -1039,7 +1046,12 @@ def build(rig):
         else:
             arm(P, "L", **c)
             arm(P, "R", **c)
-        key(fr, P)
+        key(fr, P, z=floor_z(P))  # (on the knee and the foot by forward kinematics: the sagittal solve left him ~6 cm up)
+        if fr == 22:
+            # Down onto the knee on the floor every frame (the toes dug 9 cm into the stone on the way).
+            for f_ in range(15, 22):
+                Q = lerp_pose(P14r, P, ease((f_ - 14) / 8.0))
+                key(f_, Q, z=floor_z(Q))
 
     # ---------------------------------------------------------- win: run out of it, look back, catch breath, fist raised
     new_action("win")
@@ -1343,21 +1355,71 @@ def turn_to(f0, yaw, arms, y=0.0, yaw0=0.0):
     STAGE.update(dt=saved["dt"] + 6 * n - 14, x=x_cur, y=y_cur - y)
 
 
-def hold(f0, yaw, arms, n=8, step=14, y=0.0):
-    """The held payoff: breathing, the weight rocking from foot to foot, a nod, the head never still."""
-    for i in range(n):
-        side = 1 if i % 2 else -1
-        P = {}
-        nod = -0.12 if i == 2 else (-0.06 if i == 5 else 0.0)
-        torso(P, lean=-0.05, look=0.32 + nod + 0.03 * side, breath=0.05 * (i % 2), hroll=0.035 * side,
-              roll=-0.025 * side, head_yaw=0.06 * side, head_roll=0.03 * side)
-        standing(P, wide=0.12, bend=0.04)
-        # The unweighted leg relaxes: knee forward, heel light.
-        leg(P, "R" if side > 0 else "L", hip=0.1, knee=0.24, ankle=0.12, out=0.1)
-        arms(P, i)
-        standing_turned(P, yaw)
-        key(f0 + i * step, P, x=0.025 * side, y=y)
+def hold(f0, yaw, arms, n=8, step=14, y=0.0, wipe=True):
+    """The held payoff, alive to the end (keyed every 3 frames; held on sparse alternating keys it froze
+    into a statue for 1-2 s): the chest and shoulders heaving, slowing; the weight rocking from foot to
+    foot; a second, smaller pump of the celebration; a glance back over the shoulder at the way he came;
+    then the arms come down of their own accord, a hand wipes the brow, and he settles, still breathing."""
+    span = (n - 1) * step
+    rest = {}
+    for sd in "LR":
+        arm(rest, sd, fwd=0.12, elbow=0.4, out=0.14, curl=0.45)
 
+    def arm_bones(P):
+        return {k: v for k, v in P.items() if k.split(".")[0] in ("shoulder", "upper_arm", "forearm", "hand", "fingers")}
+    for f in range(0, span + 1, 3):
+        t = f / FPS
+        i = min(n - 1, int(f / step))
+        rock = math.sin(2 * math.pi * f / (2 * step))           # the weight from foot to foot
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (1.1 + 0.5 * min(1.0, t / 3)))
+        def bump(a, b, r=0.35):
+            return ease((t - a) / r) * (1 - ease((t - b) / r))
+        pump = bump(0.45, 0.75, 0.2)                             # the second, smaller pump
+        glance = bump(1.6, 2.4, 0.35)                            # over the shoulder, at the way he came
+        down = ease((t - 1.15) / 0.7)                            # the arms come down
+        brow = bump(2.55, 3.05, 0.3) if wipe else 0.0            # the back of the wrist across the brow
+        P = {}
+        stretch = bump(0.3, 0.9, 0.3)                            # a big breath in, the chest lifting, back arching
+        torso(P, lean=-0.05 - 0.14 * stretch + 0.04 * down + 0.03 * pump, look=0.3 + 0.2 * stretch - 0.06 * down + 0.06 * glance - 0.08 * brow,
+              breath=0.06 * br + 0.06 * stretch, hroll=0.05 * rock, roll=-0.035 * rock, yaw=0.35 * glance,
+              head_yaw=0.08 * rock + 1.1 * glance, head_roll=0.04 * rock)
+        standing(P, wide=0.12, bend=0.04 + 0.04 * pump)
+        # The unweighted leg relaxes: knee forward, heel light.
+        side = "R" if rock > 0 else "L"
+        leg(P, side, hip=0.03 + 0.07 * abs(rock), knee=0.1 + 0.14 * abs(rock), ankle=0.04 + 0.08 * abs(rock), out=0.1)
+        A = {}
+        arms(A, i)
+        cel = arm_bones(A)
+        if pump > 0:
+            # the raised arms pulled down a little and thrown up again (the bent arms bend further)
+            for sd in "LR":
+                k = f"upper_arm.{sd}"
+                if k in cel and cel[k][0] < -1.2:
+                    ua, fa = cel[k], cel[f"forearm.{sd}"]
+                    cel[k] = (ua[0] + 0.45 * pump, ua[1], ua[2])
+                    cel[f"forearm.{sd}"] = (fa[0] - 0.9 * pump, fa[1], fa[2])
+        # (Down through the fists at the shoulders, elbows bent: straight from the V to the sides an arm
+        # swung through level, held out stiff for a beat.)
+        mid = {}
+        for sd in "LR":
+            arm(mid, sd, fwd=1.2, elbow=1.9, out=0.3, curl=1.2)
+        armsP = {}
+        for sd in "LR":
+            side_ = lambda D: {k: v for k, v in D.items() if k.endswith("." + sd)}
+            c_, m_, r_ = side_(cel), side_(arm_bones(mid)), side_(arm_bones(rest))
+            if c_.get(f"upper_arm.{sd}", (0.0,))[0] < -1.2:
+                armsP.update(lerp_pose(c_, m_, ease(down / 0.5)) if down < 0.5 else lerp_pose(m_, r_, ease((down - 0.5) / 0.5)))
+            else:
+                armsP.update(lerp_pose(c_, r_, down))
+        if brow > 0:
+            W = {}
+            arm(W, "R", fwd=1.95, elbow=2.2, out=0.4, wrist=-0.25, curl=0.6, twist=0.3)
+            armsP.update(lerp_pose({k: v for k, v in armsP.items() if k.endswith(".R")}, arm_bones(W), brow))
+        P.update(armsP)
+        P["shoulder.L"] = tuple(a + b for a, b in zip(P.get("shoulder.L", (0, 0, 0)), (0.04 * br, 0, 0)))
+        P["shoulder.R"] = tuple(a + b for a, b in zip(P.get("shoulder.R", (0, 0, 0)), (0.04 * br, 0, 0)))
+        standing_turned(P, yaw)
+        key(f0 + f, P, x=0.04 * rock, y=y)
 
 
 def extra_clips():
@@ -1541,6 +1603,7 @@ def extra_clips():
     # win_pump (low), win_cheer (mid), win_cheer_big (high). Each: 2–3 slowing steps, relief, a turn to the
     # lens, the celebration, then a living hold (breathing, weight shifts, a nod) under the result card.
     FACE = 2.9
+    PUMP_YAW = -0.45  # the first pump's turn of the chest toward the camera behind him
     for name in ("win_pump", "win_cheer", "win_cheer_big"):
         lvl = ("win_pump", "win_cheer", "win_cheer_big").index(name)
         new_action(name)
@@ -1549,21 +1612,22 @@ def extra_clips():
             # "Yes!": the fist cocks as he stops, is yanked down with a dip of the knees and a hunch, rebounds;
             # then the breath out, the head dropping, the hands going to the hips. (Not a stare at the sky
             # with the arms hung: it read as a statue.)
-            for fr, ph in ((DECEL + 3, 0), (DECEL + 7, 1), (DECEL + 11, 2), (DECEL + 18, 3)):
+            for fr, ph in ((DECEL + 3, 0), (DECEL + 6, 1), (DECEL + 10, 2), (DECEL + 18, 3)):
                 P = {}
                 if ph == 0:
-                    torso(P, lean=0.02, look=0.3, hp=0.0, yaw=-0.08)
+                    # (the chest and head come round toward the lens behind him, so the pump reads)
+                    torso(P, lean=0.02, look=0.3, hp=0.0, yaw=PUMP_YAW, hyaw=0.35 * PUMP_YAW, head_yaw=1.3 * PUMP_YAW)
                     standing(P, wide=0.11, bend=0.1)
-                    # (cocked up and out beside the head: the camera is behind him)
-                    arm(P, "R", fwd=1.9, elbow=1.6, out=0.55, curl=1.35, twist=0.1)
+                    # (cocked high, up and out beside the head: the camera is behind him)
+                    arm(P, "R", fwd=2.6, elbow=0.7, out=-0.35, curl=1.35, twist=0.1)  # (overhead a negative out takes it wide)
                     arm(P, "L", fwd=0.3, elbow=0.9, out=0.25, curl=0.9)
                 elif ph == 1:
-                    torso(P, lean=0.3, look=0.1, hp=0.08, yaw=0.12, breath=0.05)
-                    standing(P, wide=0.12, bend=0.26)
-                    arm(P, "R", fwd=-0.1, elbow=1.75, out=0.2, curl=1.35, twist=0.1, shrug=0.08)
+                    torso(P, lean=0.38, look=0.05, hp=0.1, yaw=0.8 * PUMP_YAW, hyaw=0.3 * PUMP_YAW, head_yaw=1.1 * PUMP_YAW, breath=0.05)
+                    standing(P, wide=0.12, bend=0.34)
+                    arm(P, "R", fwd=-0.3, elbow=1.75, out=0.2, curl=1.35, twist=0.1, shrug=0.1)
                     arm(P, "L", fwd=0.15, elbow=1.1, out=0.28, curl=1.0)
                 elif ph == 2:
-                    torso(P, lean=0.12, look=0.3, hp=0.03, yaw=0.04)
+                    torso(P, lean=0.12, look=0.3, hp=0.03, yaw=0.6 * PUMP_YAW, hyaw=0.2 * PUMP_YAW, head_yaw=0.8 * PUMP_YAW)
                     standing(P, wide=0.11, bend=0.12)
                     arm(P, "R", fwd=0.25, elbow=1.8, out=0.22, curl=1.35, twist=0.1)
                     arm(P, "L", fwd=0.1, elbow=1.0, out=0.25, curl=0.9)
@@ -1594,14 +1658,16 @@ def extra_clips():
         t += 14
         if lvl == 0:
             # A small fist pump: "yes!" — pulled down to the hip twice, a little dip into it.
-            for d, ph in ((5, 0), (9, 1), (14, 0), (18, 1), (24, 2)):
+            # (Big and snappy: cocked high over the head, yanked down to the hip in 3 frames with a deep dip
+            # of the knees and a hunch, twice; from the camera behind a smaller one did not read.)
+            for d, ph in ((4, 0), (7, 1), (11, 0), (14, 1), (20, 2)):
                 P = {}
-                torso(P, lean=0.12 if ph == 1 else -0.02, look=0.25 if ph == 1 else 0.38, yaw=0.08)
-                standing(P, wide=0.11, bend=0.16 if ph == 1 else 0.06)
+                torso(P, lean=0.35 if ph == 1 else -0.1, look=0.18 if ph == 1 else 0.48, yaw=0.25 if ph == 1 else -0.2)
+                standing(P, wide=0.12, bend=0.36 if ph == 1 else 0.05)
                 if ph == 0:
-                    arm(P, "R", fwd=1.75, elbow=1.15, out=-0.35, curl=1.35, twist=0.1)  # cocked: fist up and out, above the shoulder
+                    arm(P, "R", fwd=2.85, elbow=0.35, out=-0.6, curl=1.35, twist=0.1)  # cocked: fist high and wide (overhead a negative out spreads it)
                 elif ph == 1:
-                    arm(P, "R", fwd=-0.2, elbow=1.7, out=0.15, curl=1.35, twist=0.1)  # yanked down to the hip
+                    arm(P, "R", fwd=-0.35, elbow=1.75, out=0.18, curl=1.35, twist=0.1, shrug=0.1)  # yanked down to the hip
                 else:
                     arm(P, "R", fwd=0.15, elbow=1.8, out=0.2, curl=1.35, twist=0.1)
                 arm(P, "L", **AKIMBO)
@@ -1961,6 +2027,15 @@ def epic_clips():
     STAGE.update(x=STAGE["x"] + dx, y=STAGE["y"] + dy)  # the turn starts where he stands
     # … then round to it (and the lens), both fists punched up, and the living hold.
     turn_to(56, 2.9, arms=FISTS, y=1.8)
+    # (The fists come up bent, past the shoulders, after a little dip: straight from the hips to overhead
+    # one arm swung through level, held out stiff for a beat.)
+    P = {}
+    torso(P, lean=0.12, look=0.3)
+    standing(P, wide=0.14, bend=0.2)
+    for sd in "LR":
+        arm(P, sd, fwd=1.4, elbow=1.8, out=0.3, curl=1.35)
+    standing_turned(P, 2.9)
+    key(72, P, y=1.8)
     for d, up, bend in ((6, 1.0, 0.04), (11, 0.88, 0.16), (16, 1.0, 0.03), (24, 0.95, 0.08)):
         P = {}
         torso(P, lean=-0.2 * up, look=0.5 * up, breath=0.05)
@@ -2255,15 +2330,25 @@ def obstacle_clips():
     arm(P, "L", fwd=1.0, elbow=0.9, out=0.3, curl=0.9)
     arm(P, "R", fwd=-0.3, elbow=0.6, out=0.4, curl=0.6)
     key(6, P)
-    for fr, wob in ((9, 0.0), (13, 1.0), (18, -0.6)):
+    # (Frame 5 keyed between the stride and the drop, the lead foot over the stone: left to the curves it
+    # dipped ~7 cm into it.)
+    G5, x5 = loco(4 * OBST_CADENCE / FPS, RUN)
+    Q = lerp_pose(G5, P, 0.5)
+    z5 = 0.5 * (gait_root(4 * OBST_CADENCE / FPS, RUN) + solve_root(P))
+    key(5, Q, z=max(z5, floor_z(Q)) + 0.07, x=0.5 * x5)  # (+5 cm: the hips smoothing pulls this key down toward the drop)
+    # (Keyed every frame and never still: the stone chatters under him, the trunk rocks, the trailing hand
+    # skips, the lead heel bounces; on three near-identical keys he slid along as a statue for 7 frames.)
+    for fr in range(9, 19):
+        wob = 0.7 * math.sin(fr * 0.75)
         P = {}
         # Down on the right hip: the folded leg lies flat (thigh turned out), the trunk well back.
         # (The lean back is mostly the pelvis rolling back; the spine itself arches no more than ~25°.)
-        torso(P, lean=-0.56 + 0.03 * wob, look=0.4, hp=-0.36, roll=0.05 + 0.03 * wob)
-        leg(P, "L", hip=1.24, knee=0.1, ankle=-0.3)
-        leg(P, "R", hip=0.86, knee=2.4, ankle=0.3, out=0.9)
-        arm(P, "R", fwd=-0.5, elbow=0.2, out=0.5, wrist=-0.6, curl=0.3)
-        arm(P, "L", fwd=0.3 + 0.06 * wob, elbow=0.45, out=0.45, curl=1.0)
+        torso(P, lean=-0.56 + 0.04 * wob, look=0.4 + 0.04 * math.sin(fr * 0.6), hp=-0.36, roll=0.05 + 0.04 * wob,
+              head_yaw=0.08 * math.sin(fr * 0.5))
+        leg(P, "L", hip=1.24 + 0.04 * math.sin(fr * 1.1), knee=0.1 + 0.08 * max(0.0, math.sin(fr * 1.1)), ankle=-0.3 + 0.06 * math.sin(fr * 0.9))
+        leg(P, "R", hip=0.86, knee=2.4, ankle=0.3, out=0.9 + 0.04 * wob)
+        arm(P, "R", fwd=-0.5 + 0.06 * math.sin(fr * 0.9), elbow=0.2 + 0.06 * max(0.0, math.sin(fr * 0.9)), out=0.5, wrist=-0.6, curl=0.3)
+        arm(P, "L", fwd=0.3 + 0.08 * wob, elbow=0.45 + 0.06 * math.sin(fr * 0.6), out=0.45, curl=1.0)
         key(fr, P, z=SLIDE_Z)
     P_lie = P
     # Up: the folded right knee and the planted left heel lever him back over his feet. (Over 4 frames
@@ -2275,7 +2360,10 @@ def obstacle_clips():
     arm(P, "R", fwd=0.9, elbow=1.2, out=0.25, curl=1.0)
     arm(P, "L", fwd=-0.4, elbow=1.1, out=0.3, curl=1.0)
     z_up = solve_root(P)
-    key(20, lerp_pose(P_lie, P, 0.45), z=SLIDE_Z + (z_up - SLIDE_Z) * 0.35)
+    # (Every frame on the way up, the left heel kept on the stone: between 20 and 22 it sank 4 cm into it.)
+    for fr, w, zw in ((20, 0.45, 0.35), (21, 0.72, 0.68)):
+        Q = lerp_pose(P_lie, P, w)
+        key(fr, Q, z=max(SLIDE_Z + (z_up - SLIDE_Z) * zw, floor_z(Q)))
     key(22, P, z=z_up)
     P = {}
     torso(P, lean=0.45, look=0.45, hp=0.18)
@@ -2794,7 +2882,7 @@ def crash_clips():
     # planted ahead at 5 the in-between skimmed it, the foot jumping 22-50 cm a frame at 2 cm up.)
     G4, _ = loco(3 * CADENCE_F, RUN)
     P4 = lerp_pose(G4, P, 0.5)
-    leg(P4, "L", hip=0.45, knee=0.8, ankle=0.0)
+    leg(P4, "L", hip=0.62, knee=0.65, ankle=-0.05)
     y3 = 2 * V_RUN
     fkey(4, P4, y=0.5 * (y3 + 0.75), lift=0.03)
     fkey(5, P, y=0.75)
