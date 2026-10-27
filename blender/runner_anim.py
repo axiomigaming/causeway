@@ -1120,6 +1120,8 @@ def build(rig):
             ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit", "fall_drop") else 3.0)
         elif act.name == "slide":
             ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
+        if act.name == "fall_side_hit":
+            smooth_world_travel(act, 0, 40, sigma=3.0)
     for act in bpy.data.actions:
         # (Not the vault: its support arm is baked to the stone.)
         if act.name == "start" or act.name.startswith(("fall_", "win", "jump_", "leap_", "slide", "turn_cut", "stumble_")):
@@ -1134,6 +1136,79 @@ FOLLOW = [("neck", 0, ("hips", "spine", "chest"), 0.22), ("head", 0, ("hips", "s
           ("head", 2, ("spine", "chest"), 0.25),
           ("forearm.L", 0, ("upper_arm.L",), 0.3), ("forearm.R", 0, ("upper_arm.R",), 0.3),
           ("hand.L", 0, ("upper_arm.L", "forearm.L"), 0.25), ("hand.R", 0, ("upper_arm.R", "forearm.R"), 0.25)]
+
+
+def smooth_world_travel(act, f0, f1, sigma=3.0):
+    """The hips' path over the floor smoothed in the world (Gaussian, σ in frames) between frames f0 and f1,
+    the hips' location re-keyed to follow it. ease_hips smooths the location in the root bone's frame: under
+    a spinning root (the side hit) the world path still lurched (the hips forward 9, 9, -10, -7, +5 cm a frame
+    through the turn, a 12-19 cm/frame² jolt of the root under root motion)."""
+    rig = RIG
+    pb = rig.pose.bones["hips"]
+    prev = rig.animation_data.action
+    rig.animation_data.action = act
+    fa, fb = (int(x) for x in act.frame_range)
+    f0, f1 = max(f0, fa), min(f1, fb)
+    frames = list(range(f0, f1 + 1))
+
+    def world(t):
+        bpy.context.scene.frame_set(t)
+        w = rig.matrix_world @ pb.head
+        return w.x, w.y
+    W = [world(t) for t in frames]
+    r = int(math.ceil(3 * sigma))
+    wts = [math.exp(-0.5 * (d / sigma) ** 2) for d in range(-r, r + 1)]
+    n = len(W)
+    T = []
+    for i in range(n):
+        acc = [0.0, 0.0]
+        sw = 0.0
+        for j, w in zip(range(i - r, i + r + 1), wts):
+            # odd reflection at the ends, so they stay where they were keyed
+            if j < 0:
+                p = tuple(2 * W[0][k] - W[-j][k] for k in range(2))
+            elif j >= n:
+                p = tuple(2 * W[-1][k] - W[2 * n - 2 - j][k] for k in range(2))
+            else:
+                p = W[j]
+            acc[0] += w * p[0]
+            acc[1] += w * p[1]
+            sw += w
+        # blended back to the keyed path over the last σ frames before f1
+        b = min(1.0, max(0.0, (f1 - frames[i]) / sigma))
+        T.append((W[i][0] + (acc[0] / sw - W[i][0]) * b, W[i][1] + (acc[1] / sw - W[i][1]) * b))
+    fcs = {fc.array_index: fc for fc in act.fcurves if fc.data_path == 'pose.bones["hips"].location'}
+    for t, (tx, ty) in zip(frames, T):
+        for _ in range(2):
+            bpy.context.scene.frame_set(t)
+            base = [fcs[k].evaluate(t) for k in range(3)]
+            wx, wy = world(t)
+            # the world's response to the location's two horizontal channels (x and z), by finite difference
+            J = []
+            for k in (0, 2):
+                kp = next(p for p in fcs[k].keyframe_points if abs(p.co[0] - t) < 0.01)
+                kp.co[1] = base[k] + 0.01
+                fcs[k].update()
+                ex, ey = world(t)
+                J.append(((ex - wx) / 0.01, (ey - wy) / 0.01))
+                kp.co[1] = base[k]
+                fcs[k].update()
+            (a, c), (b_, d) = J
+            det = a * d - b_ * c
+            if abs(det) < 1e-6:
+                break
+            dx, dy = tx - wx, ty - wy
+            u = (d * dx - b_ * dy) / det
+            v = (-c * dx + a * dy) / det
+            for k, dv in ((0, u), (2, v)):
+                kp = next(p for p in fcs[k].keyframe_points if abs(p.co[0] - t) < 0.01)
+                kp.co[1] = base[k] + dv
+                fcs[k].update()
+    for fc in fcs.values():
+        for kp in fc.keyframe_points:
+            kp.handle_left_type = kp.handle_right_type = "AUTO_CLAMPED"
+        fc.update()
+    rig.animation_data.action = prev
 
 
 def ease_hips(act, sigma=1.25, upto=None):
