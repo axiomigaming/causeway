@@ -872,6 +872,10 @@ export class Game {
     const prev = base.onBeforeCompile;
     m.onBeforeCompile = (shader, renderer) => {
       prev?.call(base, shader, renderer);
+      // (No standing water on these: the wet-stone patch's puddles and wet seams read as streaks
+      // of water along the undercroft's wall feet.)
+      shader.fragmentShader = shader.fragmentShader.replace('#define WET_PUDDLES\n', '').replace('#define WET_EDGES\n', '');
+      shader.vertexShader = shader.vertexShader.replace('#define WET_EDGES\n', '');
       // (Before the roughness chunk: the wet-stone patch has already rewritten the map chunk.)
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <roughnessmap_fragment>',
