@@ -2957,18 +2957,36 @@ def crash_clips():
         arm(P, "L", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
         arm(P, "R", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
         fkey(fr, P, y=y, base=-DROP)
-    # Flat on his back, winded: chest heaving, a knee drawn up, an arm out on the stone, the head rolling.
-    for fr, br, hy in ((56, 1.0, 0.3), (68, 0.0, -0.2), (82, 1.0, 0.25), (98, 0.0, -0.1)) + tuple(
-            (fr, float(i % 2 == 0), 0.25 * math.sin(i * 1.4)) for i, fr in enumerate(range(112, LIVE_END + 1, 14))):
+    # Flat on his back, winded, and alive to the end of the shot (keyed every 3 frames: on sparse keys he
+    # lay still for the last 2 s): the chest heaving, slowing; a hand comes up to his head, then down to
+    # his ribs; the left knee draws up and lets go; the head rolls, dazed, and lifts once to look.
+    def bump(t, a, b, r=0.5):
+        return ease((t - a) / r) * (1 - ease((t - b) / r))
+    for fr in range(56, LIVE_END + 1, 3):
+        t = (fr - 56) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.8 + 0.4 * min(1.0, t / 5)))
+        head = bump(t, 0.8, 2.6, 0.6)       # right hand to the forehead
+        ribs = bump(t, 3.6, 5.6, 0.6)       # left hand to the ribs
+        knee = bump(t, 1.8, 3.4, 0.7)       # the left knee drawn up
+        look = bump(t, 4.2, 5.0, 0.4)       # the head lifts to look down at himself
         P = {}
-        torso(P, lean=0.0, look=0.15, hp=1.5, hroll=math.pi + 0.08, head_yaw=hy, breath=0.07 * br)
-        # (the legs down on the stone: the R out long, the L foot planted, knee up; at hip 0.05 / 0.7 they
-        # stuck up off the floor at ~20°)
-        leg(P, "L", hip=0.4, knee=1.3, ankle=0.2, out=0.1)
-        leg(P, "R", hip=-0.3, knee=0.15, ankle=0.2, out=0.12)
-        arm(P, "L", fwd=-0.2, elbow=0.4, out=0.9, curl=0.4)
-        arm(P, "R", fwd=0.1, elbow=1.2, out=0.5, curl=0.4)
-        fkey(fr, P, y=2.92, base=-DROP)
+        torso(P, lean=-0.06 * look, look=0.15 + 0.45 * look - 0.05 * br, hp=1.62, hroll=math.pi + 0.08,
+              head_yaw=0.35 * math.sin(t * 0.9) * (1 - look), head_roll=0.08 * math.sin(t * 0.7), breath=0.09 * br)
+        leg(P, "L", hip=0.12 + 0.75 * knee, knee=0.25 + 1.35 * knee, ankle=0.05 - 0.3 * knee, out=0.1 + 0.05 * knee)
+        leg(P, "R", hip=0.05 + 0.06 * math.sin(t * 0.6), knee=0.15 + 0.08 * max(0.0, math.sin(t * 0.6)), ankle=0.2, out=0.12)
+        # (the arm out along the stone, not behind his back: there the elbow propped him ~15 cm off it)
+        arm(P, "L", fwd=0.25 - 0.1 * ribs, elbow=0.4 + 1.5 * ribs, out=0.95 - 0.7 * ribs, twist=-1.1 * ribs, curl=0.4 + 0.3 * ribs)
+        arm(P, "R", fwd=0.15 + 1.95 * head, elbow=0.45 + 1.65 * head, out=0.65 - 0.3 * head, curl=0.4 + 0.2 * head,
+            wrist=-0.3 * head)
+        # On his back: the root from the body lying flat (the limbs move over the stone; propped on a heel
+        # or an elbow he hovered ~15 cm off it).
+        B = dict(P)
+        torso(B, lean=0.0, look=0.15, hp=1.62, hroll=math.pi + 0.08)
+        leg(B, "L", hip=0.0, knee=0.0, ankle=0.0)
+        leg(B, "R", hip=0.0, knee=0.0, ankle=0.0)
+        arm(B, "L", fwd=0.3, elbow=0.2, out=0.9)
+        arm(B, "R", fwd=0.3, elbow=0.2, out=0.9)
+        key(fr, P, z=floor_z(B, 0.0, 2.92) - DROP, y=2.92)
 
 
 # ------------------------------------------------------------------ look-dev previews
