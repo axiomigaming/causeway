@@ -1554,8 +1554,9 @@ export class Game {
           // him like a trapdoor and hid the landing: those drop near flat, pitch a little, and
           // break up early.
           const wide = !!tb && Math.max((tb.max.x - tb.min.x) * ts.x, (tb.max.z - tb.min.z) * ts.z) > 1.7;
-          // (Over the place he lands and lies, whatever their size.)
-          const overHim = Math.abs(tp.dot(h.right)) < 1.3 && along > -1.2 && along < 4.5;
+          // (Round 20: every slab from just behind him to well past where he comes to lie, whatever
+          // its size and side: one tipping out from the side bounced off the wall and lay on him.)
+          const overHim = along > -1.2 && along < 7;
           if ((wide && onTrack) || overHim) {
             // (A wide one over his landing crumbles as it goes: a few small pieces thrown to the
             // trough's sides. Its halves came to rest on him.)
