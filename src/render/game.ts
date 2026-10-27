@@ -8,7 +8,7 @@ import { DynamicResolution, tuneTextures, warmUp } from './perf';
 import { installShadowEdgeFade } from './shadows';
 import { ContactShadow } from './contact';
 import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
-import { causticUniforms } from '../world/caustics';
+import { causticUniforms, patchWetStone, ensureDetailMap } from '../world/caustics';
 import { Rain } from './rain';
 import { resetMood, setWorldDrive, stepMood, worldMood, worldTierUp } from '../world/mood';
 import { Debris } from '../world/debris';
@@ -1407,7 +1407,7 @@ export class Game {
           // from the lens behind him, stay clear: the slabs tip out to the trough's sides, and
           // the ones over his track break up as they go.)
           const along = tp.dot(h.fwd);
-          const onTrack = Math.abs(tp.dot(h.right)) < 1.1 && along > -1.5 && along < 4;
+          const onTrack = Math.abs(tp.dot(h.right)) < 1.3 && along > -1.5 && along < 5.5;
           // A slab as wide as the way (some sections' floors) tipping out to one side swung over
           // him like a trapdoor and hid the landing: those drop near flat, pitch a little, and
           // break up at once.
@@ -1416,8 +1416,17 @@ export class Game {
           const ts = new THREE.Vector3().setFromMatrixScale(t.world);
           const tb = tg?.boundingBox;
           const wide = !!tb && Math.max((tb.max.x - tb.min.x) * ts.x, (tb.max.z - tb.min.z) * ts.z) > 1.7;
-          if (wide && onTrack) {
-            this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0.5, 1), r.range(-0.2, 0.2)), new THREE.Vector3().addScaledVector(h.right, r.range(-0.8, 0.8)), bed, { breakInto: 3, breakAfter: r.range(0.1, 0.16), walls: pit, restitution: 0.18 });
+          if (onTrack) {
+            // (Round 20: the slabs over the place he lands crumble as they go: a few small pieces
+            // thrown to the trough's sides. Whole slabs or their halves came to rest on him or
+            // between him and the lens.)
+            const p0 = new THREE.Vector3().setFromMatrixPosition(t.world);
+            for (let k = 0; k < 3; k++) {
+              const o = k === 1 ? -out : out;
+              const p = p0.clone().addScaledVector(h.right, o * r.range(0.2, 0.6)).addScaledVector(h.fwd, r.range(-0.5, 0.5));
+              this.debris.spawn(`shard_${k + 1}`, new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.32, 0.32, 0.32).multiplyScalar(r.range(0.8, 1.2))), new THREE.Vector3(0, -r.range(0, 0.4), 0).addScaledVector(h.right, o * r.range(2.6, 3.4)), new THREE.Vector3(r.range(-4, 4), r.range(-2, 2), r.range(-4, 4)), bed, { walls: pit, restitution: 0.2 });
+            }
+            this.particles.burst(p0, 6, { spread: 0.5, up: 0.8, speed: 1.5, size: 0.05, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, drag: 0.4, grow: 0 });
             return;
           }
           this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack || wide ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : wide ? r.range(0.2, 0.3) : Infinity, walls: pit, restitution: 0.18 });
@@ -3057,21 +3066,31 @@ export class Game {
    * Round 18: the crown of a splash: droplets thrown from a ring round the entry point, outward and
    * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
    */
+  /** Plain dressed stone for the ledge's trough (floor or wall), made once each. */
+  private troughMats = new Map<string, THREE.Material>();
+  private troughMat(kind: 'floor' | 'wall'): THREE.Material {
+    let m = this.troughMats.get(kind);
+    if (m) return m;
+    m = new THREE.MeshStandardMaterial({ color: kind === 'floor' ? 0x8a6a52 : 0x7a5e4a, roughness: 0.92, metalness: 0 });
+    ensureDetailMap();
+    patchWetStone(m, false, false, 1.0);
+    this.troughMats.set(kind, m);
+    return m;
+  }
   /** Round 20: the causeway's lower course, revealed under a ledge cave-in (cleared with the world). */
   private ledgeBed: THREE.Object3D | null = null;
   private placeLedgeBed(h: { pos: THREE.Vector3; yaw: number; fwd: THREE.Vector3 }, y: number, len: number): void {
     if (this.ledgeBed) this.scene.remove(this.ledgeBed);
-    const mat = (this.kit.mat.get('stoneB') ?? this.kit.mat.values().next().value) as THREE.Material;
+    // (Round 20: plain dressed stone with the world's photoscan detail normals, world-projected.
+    // The kit's atlases are sheets of separate bakes: box faces mapped to them read as a mosaic.)
+    const mat = this.troughMat('wall');
     // A dry stone trough under the causeway: the course he lands on (below the waterline, so the
     // water is kept out of its footprint) and its two side walls up to the floor.
     const g = new THREE.Group();
     g.name = 'ledgeBed';
     const W = 2 * PATH_HALF + 0.6;
     const depth = h.pos.y - y;
-    // (Round 20: the kit's atlases at the world's own texel density — one atlas per ~4 m, as a floor
-    // tile carries it — not squeezed whole onto each 5-10 m face, which read as a dark mosaic. The
-    // course he lands on is the causeway's floor stone.)
-    const floorMat = (this.kit.mat.get('floor') ?? mat) as THREE.Material;
+    const floorMat = this.troughMat('floor');
     const bedM = new THREE.Mesh(boxAtDensity(W, 0.6, len, 4.2), floorMat);
     bedM.position.set(0, -0.3, 0);
     bedM.receiveShadow = true;
