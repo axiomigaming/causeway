@@ -1831,6 +1831,28 @@ def epic_clips():
         arm(P, "R", fwd=-0.75 + 0.16 * math.sin(fr * 1.3), elbow=0.25 + 0.15 * max(0.0, math.sin(fr * 1.3)), out=0.35, wrist=-0.6, curl=0.3)
         arm(P, "L", fwd=1.3 + 0.16 * wob, elbow=0.7 + 0.15 * math.sin(fr * 0.8), out=0.35, curl=1.1)
         key(fr, P, y=y)
+        if fr == 8:
+            P8 = P
+    # The run-in and the drop keyed every frame on the floor: left to the curves between the stride at 4
+    # and the slide at 8, the lead foot swept down through the stone (the toes 14 cm under it at 6).
+    for fr in (2, 3):
+        ph = (fr - 1) / 6.0
+        G_, x_ = loco(ph, RUN, 1.0 - 0.05 * (fr - 1) / 3.0)
+        key(fr, G_, x=x_)
+    # A little hop into it: off the right foot, both legs fold up under him in the air, the lead leg only
+    # opening out ahead as he lands on his seat at 8.
+    for fr, w, L_, R_ in ((5, 0.2, (0.75, 1.6, -0.3), (0.2, 1.35, -0.2)), (6, 0.45, (1.05, 1.35, -0.35), (0.28, 1.8, 0.05)),
+                          (7, 0.75, (1.2, 0.8, -0.3), (0.33, 2.05, 0.25))):
+        ph = 0.5 + (fr - 4) / 6.0
+        G_, x_ = loco(ph, RUN, 0.95)
+        Q = lerp_pose(G_, P8, w)
+        leg(Q, "L", hip=L_[0], knee=L_[1], ankle=L_[2])
+        leg(Q, "R", hip=R_[0], knee=R_[1], ankle=R_[2], out=0.15 * w)
+        # (the hips sink on a steady curve, the feet clear of the stone: held up by the legs to 6 they fell
+        # 28 cm in two frames)
+        z4, z8 = gait_root(0.5, RUN, 0.95), floor_z(P8, 0.0, 0.25)
+        zl = z4 + (z8 - z4) * ease((fr - 4) / 4.0)
+        key(fr, Q, z=max(zl, floor_z(Q, x_ * (1 - w), 0.25 * w) - 0.01), x=x_ * (1 - w), y=0.25 * w)
     P25 = P
     # Up: the folded knee drives him onto his feet. (The lead leg comes up and folds first, the foot kept
     # off the stone: swung straight round to the kneel, it swept 15 cm down through it.)
