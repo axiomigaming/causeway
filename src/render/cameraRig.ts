@@ -803,7 +803,15 @@ export class CameraRig {
     const now = performance.now();
     const wall = this.wallClock && this.lastWall > 0 ? Math.min(1, (now - this.lastWall) / 1000) : 0;
     this.lastWall = now;
-    const sdt = this.mode === 'run' || this.mode === 'lead' ? dt : Math.max(dt, wall);
+    // Clarity round 21: in the settled shots without keyframes (title, setup) every step of the
+    // shot — springs, clearance, the fit into the free band — runs on one dt, the frame's real time
+    // capped at 0.25 s. With the springs on real time (up to 1 s a frame) and the fit on 50 ms of
+    // presentation, a device at a frame every few seconds never settled: the runner sank behind the
+    // dock, then rose out of the top of the frame. (Crash and cash-out shots, keyed to presentation
+    // time, keep their springs on real time as before.)
+    const settled = this.mode === 'title' || this.mode === 'setup';
+    if (settled) dt = Math.max(dt, Math.min(wall, 0.25));
+    const sdt = this.mode === 'run' || this.mode === 'lead' ? dt : settled ? dt : Math.max(dt, wall);
     const fov = this.computeTarget(runnerPos, runnerYaw, intensity, dt);
     this.clearance(dt);
     const running = this.mode === 'run';

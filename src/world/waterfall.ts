@@ -100,6 +100,9 @@ export function makeWaterfallMaterial(): THREE.ShaderMaterial {
           c *= 0.92 + back * 0.3;
           col = vec4(c, a);
         }
+        // World round 23: a sheet or its spray right at the lens (a crash or cheer camera swinging past
+        // the falls) blanked the frame white for a second and more: it thins away inside the last metres.
+        col.a *= smoothstep(1.8, 6.0, length(vView));
         gl_FragColor = col;
         #include <fog_fragment>
       }`,

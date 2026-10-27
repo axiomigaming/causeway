@@ -12,7 +12,7 @@ import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
-import { causticUniforms, ensureDetailMap, patchBark, patchWetStone, updateCaustics } from './caustics';
+import { causticUniforms, ensureDetailMap, patchBark, patchNearFade, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { makeLilyMaterial, makeMossMaterial } from './moss';
 import { atmosphereUniforms } from './atmosphere';
@@ -71,6 +71,8 @@ export const WALLED: SectionType[] = ['gorge', 'tunnel', 'tall', 'cliff', 'ledge
 const LAND_FIRST = 3;
 /** How far ahead of the runner a section's pebble scatter is drawn (m; presentation only). */
 const GRIT_AHEAD = 45;
+/** How far behind the runner a section's paving is still drawn (m; crash and look-back shots stay well inside). */
+const TILES_BEHIND = 50;
 /** The same for lily pads (flat on the water: past ~70 m a pad is a pixel or two). */
 const LILY_AHEAD = 70;
 /** Corner clearance probe after the bend (m): fixed, whatever the tier's view distance. */
@@ -170,6 +172,8 @@ export interface SectionInstance {
   solid: [number, number, number][];
   /** World round 21: its ground (land sections). */
   ground?: THREE.Mesh;
+  /** World round 23: its slabs released, far behind the runner (see TILES_BEHIND). */
+  tilesGone?: boolean;
   /** World round 23: its pebble scatter and lily pads (drawn only near the runner: see GRIT_AHEAD). */
   grit?: THREE.Mesh[];
 }
@@ -188,16 +192,20 @@ export const KEEP_BEHIND = 90;
 /** Length along the path of each walkable piece (metres). */
 const TILE_LENGTH: Record<string, number> = { floor_wide_0: 8 };
 
+// World round 23: room for every tile standing at once (up to ~330 m of route: the longest view, the
+// despawn lead and what is kept behind; 4 m a tile). A full mesh silently dropped the tile: late in a run,
+// where the broken slab (floor_2) is common, a cap of 40 left whole stretches of the way unpaved — the
+// runner ran on the bare ground or over the water.
 const TILE_CAPACITY: Record<string, number> = {
-  floor_0: 110,
-  floor_1: 110,
-  floor_2: 40,
-  floor_wide_0: 16,
-  floor_narrow_0: 8,
-  floor_medallion_0: 36,
-  planks_0: 40,
-  planks_1: 40,
-  stairs_0: 8,
+  floor_0: 128,
+  floor_1: 128,
+  floor_2: 128,
+  floor_wide_0: 32,
+  floor_narrow_0: 48,
+  floor_medallion_0: 64,
+  planks_0: 96,
+  planks_1: 96,
+  stairs_0: 24,
 };
 
 /**
@@ -665,6 +673,13 @@ export class Track {
     // World round 23: pebbles 50 m out are under a pixel each, yet were a tenth of a desktop frame's
     // triangles (130k on a corridor): each section's scatter is drawn only while it is near the runner.
     for (const sec of this.sections) {
+      // The paving is one instanced mesh per slab (never culled): sections are kept 90 m and more
+      // behind the runner, and their slabs were drawn all the same — a third of a phone frame's paving.
+      // A section's slabs go once it lies TILES_BEHIND m back (presentation only; the section stays).
+      if (!sec.tilesGone && sec.s0 + sec.len < s - TILES_BEHIND) {
+        sec.tilesGone = true;
+        for (const t of sec.tiles) this.tiles.release(t);
+      }
       if (!sec.grit) continue;
       const near = sec.s0 < s + Math.min(GRIT_AHEAD, this.viewDistance * 0.3) && sec.s0 + sec.len > s - 15;
       const lily = sec.s0 < s + LILY_AHEAD && sec.s0 + sec.len > s - 25;
@@ -933,6 +948,9 @@ function stageKit(kit: Kit): void {
   }
   const leaf = kit.mat.get('leaf');
   if (leaf) upgradeLeafMaterial(leaf);
+  // World round 23: leaves and plants dissolve at the lens (crash and fall cameras swing close past them).
+  if (leaf) patchNearFade(leaf);
+  if (kit.mat.get('flora')) patchNearFade(kit.mat.get('flora')!);
   // World round 17: the moss cushions get their own material (fibre normal, colour breakup, fuzz).
   const flora = kit.mat.get('flora');
   if (flora && !kit.mat.has('moss')) {

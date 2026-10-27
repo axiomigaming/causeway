@@ -32,14 +32,17 @@ const SETS = {
   // Round 11: the photoscanned atlases carry far more fine detail (and bytes); the small groups'
   // normal/ORM (moss mounds, lilies, bark) and the boulders'/statues' ORM drop to 512 to stay in budget.
   high: {
-    simplify: null,
+    // World round 23: a light, error-bounded simplification on desktop too (0.1 % of a piece's radius, ≈5 mm on
+    // a 5 m wall; the baked normal maps keep the shading): late-run frames stood at 1.1-1.35M triangles.
+    simplify: { ratio: 0.7, error: 0.001 },
     cap: (name) => (/^(flora|bark)_(orm|normal)$/.test(name) || /^(rock|statue)_orm$/.test(name) ? 512 : /_(orm|normal)$/.test(name) ? 1024 : 2048),
     quality: { color: 74, normal: 62, orm: 60 },
   },
   // Phones also get lighter geometry: at most 0.2 % of a piece's radius of deviation (≈1 cm on a 5 m wall).
   // Round 11: the far temple atlas (pyramids, face gate) at 512 and colour q68 keep phones in budget
   // with the near detail map (≈0.28 MB, fetched on Medium) on top.
-  mobile: { simplify: { ratio: 0.5, error: 0.002 }, cap: (name) => (/^(wood|bark|flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
+  // (Round 23: 0.5/0.002 -> 0.4/0.003: real phone frames stood at 320-380k triangles.)
+  mobile: { simplify: { ratio: 0.4, error: 0.003 }, cap: (name) => (/^(wood|bark|flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
 };
 /**
  * The runner is the one thing always in the middle of the frame, a metre or two from the lens: its

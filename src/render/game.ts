@@ -177,7 +177,19 @@ export class Game {
   private mistAmount = 1;
   private tmpHead = new THREE.Vector3(); // perf
   private tmpSize = new THREE.Vector2(); // perf
-  private clock = new THREE.Clock();
+  // Frame clock on performance.now (THREE.Clock is deprecated in r186 and warned on every load).
+  private clock = {
+    last: 0,
+    start() {
+      this.last = performance.now();
+    },
+    getDelta() {
+      const now = performance.now();
+      const d = this.last ? (now - this.last) / 1000 : 0;
+      this.last = now;
+      return d;
+    },
+  };
   private raf = 0;
   private visible = true;
   sounds: WorldSounds = nullSounds;

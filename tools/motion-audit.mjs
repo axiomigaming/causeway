@@ -110,9 +110,10 @@ const TH = {
   // cannot tell a snap from a stride.)
   spike: 3,
   popOmega: 25, // °/frame floor for a joint snap
-  // Judder: J = mean |ω_t − (ω_t−1 + ω_t+1)/2| / mean ω over the gait frames (a smooth cycle ≈ 0.1–0.2;
-  // a curve that is not smooth at the key level, played at 3× in the gait, zig-zags frame to frame).
-  judder: 0.35,
+  // Judder: J = mean |ω_t − (ω_t−1 + ω_t+1)/2| / mean ω over the plain run. Judged as the excess over
+  // the same joint's curve low-passed at the 4th stride harmonic (J has a curve-dependent floor: ~0.2
+  // for a joint that swings once a stride, ~0.5 for one that bends twice).
+  judder: 0.1,
   flip: 90, // °/frame: a flip whatever the neighbours
   popStep: 0.04, // m/frame floor for a hand, foot or head jump (relative to the ground frame)
   hipsAccel: 0.1, // m/frame² of the hips relative to the ground frame
@@ -367,45 +368,109 @@ function analyse(name, frames, meta, signs, opts = {}) {
       }
     }
   }
-  // Judder per joint over the gait frames (run, start, sprint blends: clip 'run' or 'start').
-  const gait = frames.filter((f) => f.clip === 'run' && f.stage === 'run');
+  // Judder per joint over the longest stretch of plain run (clip 'run', stage 'run'). J alone has a floor
+  // that depends on the curve: a smooth joint that bends twice per stride (knee, ankle, toe) already
+  // reads ~0.5, one that swings once (thigh) ~0.2. So the joint's own curve is low-passed at the 4th
+  // stride harmonic (zero phase, on the even extension), J is measured on both, and the excess
+  // J − J_lp is what is judged: zig-zag that the motion itself does not explain.
   const judder = {};
-  if (gait.length > 20) {
-    for (const j of POP_JOINTS) {
-      const k = idx[j];
-      if (k === undefined) continue;
-      const w = [];
-      for (let i = 1; i < frames.length; i++) {
-        const f = frames[i], p = frames[i - 1];
-        if (!(f.clip === 'run' && f.stage === 'run' && p.clip === 'run')) {
-          w.push(null);
-          continue;
+  {
+    let best = [0, -1], st = -1;
+    for (let i = 0; i <= frames.length; i++) {
+      const ok = i < frames.length && frames[i].clip === 'run' && frames[i].stage === 'run';
+      if (ok && st < 0) st = i;
+      if (!ok && st >= 0) {
+        if (i - st > best[1] - best[0] + 1) best = [st, i - 1];
+        st = -1;
+      }
+    }
+    const seg = best[1] - best[0] + 1 >= 40 ? frames.slice(best[0], best[1] + 1) : [];
+    if (seg.length) {
+      const N = seg.length;
+      // Stride frequency (cycles/frame) from the left foot's height: the strongest component
+      // between 1 and 3.5 strides per second.
+      const hz = seg.map((f) => (f.wp.footL ? f.wp.footL[1] - f.grp[1] : 0));
+      const mh = hz.reduce((x, y) => x + y, 0) / N;
+      let fs = 0, pw = -1;
+      for (let k = 1; k < N / 2; k++) {
+        const fr = k / N;
+        if (fr * FPS < 1 || fr * FPS > 3.5) continue;
+        let re = 0, im = 0;
+        for (let t = 0; t < N; t++) {
+          re += (hz[t] - mh) * Math.cos(2 * Math.PI * k * t / N);
+          im -= (hz[t] - mh) * Math.sin(2 * Math.PI * k * t / N);
         }
-        w.push(angle(quat(f.q[k]), quat(p.q[k])));
+        if (re * re + im * im > pw) ((pw = re * re + im * im), (fs = fr));
       }
-      let num = 0, den = 0, n = 0;
-      const worst = [];
-      for (let i = 1; i < w.length - 1; i++) {
-        if (w[i] === null || w[i - 1] === null || w[i + 1] === null) continue;
-        const e = Math.abs(w[i] - (w[i - 1] + w[i + 1]) / 2);
-        num += e;
-        den += w[i];
-        n++;
-        worst.push([frames[i + 1].f, e]);
-      }
-      if (n < 15) continue;
-      const J = num / Math.max(den, n);
-      judder[j] = J;
-      if (J > TH.judder) {
-        worst.sort((a, b) => b[1] - a[1]);
-        const fr = frames.find((x) => x.f === worst[0][0]);
-        flags.push({ seq: name, f: worst[0][0], type: 'judder', what: `${j} judders in the gait`, value: +J.toFixed(3), detail: `J ${J.toFixed(2)} (limit ${TH.judder}); worst frames ${worst.slice(0, 6).map((x) => `f${x[0]} (${x[1].toFixed(0)}°)`).join(', ')}`, stage: fr.stage, clip: fr.clip });
+      const cut = 4 * fs; // cycles per frame
+      const lowpass = (x) => {
+        // Even extension (no jump at the ends), DFT, keep |f| <= cut, inverse.
+        const e = x.concat(x.slice().reverse());
+        const M = e.length;
+        const K = Math.floor(cut * M);
+        const out = new Array(M).fill(0);
+        for (let k = 0; k <= K; k++) {
+          let re = 0, im = 0;
+          for (let t = 0; t < M; t++) {
+            re += e[t] * Math.cos(2 * Math.PI * k * t / M);
+            im -= e[t] * Math.sin(2 * Math.PI * k * t / M);
+          }
+          const w = k === 0 ? 1 : 2;
+          for (let t = 0; t < M; t++) out[t] += (w / M) * (re * Math.cos(2 * Math.PI * k * t / M) - im * Math.sin(2 * Math.PI * k * t / M));
+        }
+        return out.slice(0, x.length);
+      };
+      const Jof = (qs) => {
+        const w = [];
+        for (let i = 1; i < qs.length; i++) w.push(angle(qs[i], qs[i - 1]));
+        let num = 0, den = 0, n = 0;
+        const per = [];
+        for (let i = 1; i < w.length - 1; i++) {
+          const e = Math.abs(w[i] - (w[i - 1] + w[i + 1]) / 2);
+          num += e;
+          den += w[i];
+          n++;
+          per.push(e);
+        }
+        return { J: num / Math.max(den, n), per };
+      };
+      for (const j of POP_JOINTS) {
+        const k = idx[j];
+        if (k === undefined || fs === 0) continue;
+        const qs = seg.map((f) => quat(f.q[k]));
+        // Rotation vectors about the segment's mean rotation (small enough to filter linearly).
+        const ref = qs[Math.floor(N / 2)].clone();
+        const rv = qs.map((q) => {
+          const d = ref.clone().invert().multiply(q);
+          if (d.w < 0) d.set(-d.x, -d.y, -d.z, -d.w);
+          const ang = 2 * Math.acos(Math.min(1, d.w));
+          const sn = Math.sqrt(Math.max(1e-12, 1 - d.w * d.w));
+          return [(d.x / sn) * ang, (d.y / sn) * ang, (d.z / sn) * ang];
+        });
+        const lp = [0, 1, 2].map((c) => lowpass(rv.map((v) => v[c])));
+        const qlp = rv.map((_, t) => {
+          const v = new THREE.Vector3(lp[0][t], lp[1][t], lp[2][t]);
+          const ang = v.length();
+          const q = ang > 1e-9 ? new THREE.Quaternion().setFromAxisAngle(v.normalize(), ang) : new THREE.Quaternion();
+          return ref.clone().multiply(q);
+        });
+        const A = Jof(qs), B = Jof(qlp);
+        const ex = A.J - B.J;
+        judder[j] = { J: +A.J.toFixed(3), Jlp: +B.J.toFixed(3), excess: +ex.toFixed(3), strideHz: +(fs * FPS).toFixed(2) };
+        if (ex > TH.judder) {
+          const worst = A.per.map((e, i) => [seg[i + 2].f, e - (B.per[i] ?? 0)]).sort((x, y) => y[1] - x[1]);
+          const fr = frames.find((x) => x.f === worst[0][0]);
+          flags.push({ seq: name, f: worst[0][0], type: 'judder', what: `${j} judders in the gait`, value: +ex.toFixed(3), detail: `J ${A.J.toFixed(2)} vs ${B.J.toFixed(2)} for its own curve low-passed at 4× stride (${(fs * FPS).toFixed(2)} Hz): excess ${ex.toFixed(2)} (limit ${TH.judder}); worst frames ${worst.slice(0, 6).map((x) => `f${x[0]}`).join(', ')}`, stage: fr.stage, clip: fr.clip });
+        }
       }
     }
   }
-  // A joint that judders is reported once as such; its per-frame snaps in the gait are dropped.
+  // In the plain run a leg joint's per-stride spikes (foot strike, toe-off) are judged by the judder
+  // measure above, against the joint's own curve; as single-frame "snaps" they are the stride itself.
+  // Any joint that judders is reported once as such.
   const jud = new Set(flags.filter((x) => x.type === 'judder').map((x) => x.what.split(' ')[0]));
-  const kept = flags.filter((x) => !(x.type === 'pop' && x.clip === 'run' && jud.has(x.what.split(' ')[0])));
+  const leg = /^(thigh|shin|foot|toe)[LR] snaps/;
+  const kept = flags.filter((x) => !(x.type === 'pop' && x.clip === 'run' && (leg.test(x.what) || jud.has(x.what.split(' ')[0]))));
   kept.judder = judder;
   return kept;
 }
@@ -446,6 +511,7 @@ const launch = () =>
 // (A browser killed under memory pressure is relaunched for the next attempt.)
 let browser = REANALYSE ? null : await launch();
 let lastErrors = [];
+const judderBy = {};
 const allFlags = [];
 const allRanges = [];
 const summary = [];
@@ -461,6 +527,7 @@ for (const name of SEQS) {
     }
     const raw = JSON.parse(readFileSync(`${OUT}/raw-${name}.json`, 'utf8'));
     const flags = analyse(name, raw.frames, raw.meta, raw.signs);
+    judderBy[name] = flags.judder;
     const rg = ranges(flags);
     allFlags.push(...flags);
     allRanges.push(...rg);
@@ -603,6 +670,7 @@ async function filmOn(page, name, S) {
   }
   // Full analysis over the whole window (the per-frame pass saw only a short tail).
   const flags = analyse(name, frames, meta, signs);
+  judderBy[name] = flags.judder;
   const rg = ranges(flags);
   allFlags.push(...flags);
   allRanges.push(...rg);
@@ -654,6 +722,9 @@ for (const s of summary) {
   md.push(`## ${s.name}`);
   md.push('');
   md.push(`Timeline: ${timeline[s.name].map((t) => `${t.from}–${t.to} ${t.k}`).join(' · ')}`);
+  const jd = judderBy[s.name] ?? {};
+  if (Object.keys(jd).length)
+    md.push('', `Gait judder (J / J of the joint's curve low-passed at 4× stride / excess; stride ${Object.values(jd)[0].strideHz} Hz): ${Object.entries(jd).map(([j, v]) => `${j} ${v.J.toFixed(2)}/${v.Jlp.toFixed(2)}/${v.excess >= 0 ? '+' : ''}${v.excess.toFixed(2)}`).join(', ')}`);
   md.push('');
   const rs = allRanges.filter((r) => r.seq === s.name);
   if (!rs.length) md.push('No flags.');

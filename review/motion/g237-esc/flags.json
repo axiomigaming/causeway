@@ -1,0 +1,878 @@
+{
+ "world": "7",
+ "q": "high",
+ "summary": [
+  {
+   "name": "cash5",
+   "frames": 331,
+   "window": [
+    739,
+    1069
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 4.99
+   },
+   "counts": {
+    "slide": 2,
+    "frozen": 1,
+    "pop": 2
+   },
+   "shots": 6,
+   "errors": []
+  },
+  {
+   "name": "cash1.5",
+   "frames": 331,
+   "window": [
+    166,
+    496
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 1.49
+   },
+   "counts": {
+    "slide": 3,
+    "pop": 7
+   },
+   "shots": 6,
+   "errors": []
+  },
+  {
+   "name": "cash20",
+   "frames": 331,
+   "window": [
+    1400,
+    1730
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 20.01
+   },
+   "counts": {
+    "pop": 6,
+    "slide": 3,
+    "frozen": 1,
+    "joint": 6
+   },
+   "shots": 11,
+   "errors": []
+  },
+  {
+   "name": "cash60",
+   "frames": 331,
+   "window": [
+    1938,
+    2268
+   ],
+   "actual": {
+    "ev": "cashout",
+    "mult": 61.96
+   },
+   "counts": {
+    "pop": 6,
+    "joint": 3,
+    "frozen": 5
+   },
+   "shots": 12,
+   "errors": []
+  }
+ ],
+ "ranges": [
+  {
+   "seq": "cash5",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 768,
+   "to": 768,
+   "peak": {
+    "f": 768,
+    "value": 0.033,
+    "detail": "3.3 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 899,
+   "to": 899,
+   "peak": {
+    "f": 899,
+    "value": 0.027,
+    "detail": "2.7 cm/frame while planted",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 910,
+   "to": 929,
+   "peak": {
+    "f": 910,
+    "value": 0.382,
+    "detail": "0.38°/frame mean limb motion, 4 frames in the air",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 20
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 959,
+   "to": 959,
+   "peak": {
+    "f": 959,
+    "value": 33.509,
+    "detail": "34°/frame between 1° and 0°",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash5",
+   "type": "pop",
+   "what": "footR jumps",
+   "from": 994,
+   "to": 994,
+   "peak": {
+    "f": 994,
+    "value": 0.045,
+    "detail": "4 cm in one frame between 0 and 0 cm",
+    "clip": "win_cheer",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 184,
+   "to": 184,
+   "peak": {
+    "f": 184,
+    "value": 0.034,
+    "detail": "3.4 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 268,
+   "to": 268,
+   "peak": {
+    "f": 268,
+    "value": 0.055,
+    "detail": "5.5 cm/frame while planted",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "slide",
+   "what": "footL slides",
+   "from": 292,
+   "to": 293,
+   "peak": {
+    "f": 292,
+    "value": 0.249,
+    "detail": "24.9 cm/frame while planted",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 306,
+   "to": 306,
+   "peak": {
+    "f": 306,
+    "value": 0.068,
+    "detail": "7 cm in one frame between 2 and 1 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 355,
+   "to": 355,
+   "peak": {
+    "f": 355,
+    "value": 0.253,
+    "detail": "25 cm in one frame between 0 and 0 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "chest snaps",
+   "from": 355,
+   "to": 355,
+   "peak": {
+    "f": 355,
+    "value": 29.302,
+    "detail": "29°/frame between 1° and 0°",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 355,
+   "to": 355,
+   "peak": {
+    "f": 355,
+    "value": 0.113,
+    "detail": "11 cm in one frame between 0 and 0 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 355,
+   "to": 355,
+   "peak": {
+    "f": 355,
+    "value": 0.236,
+    "detail": "24 cm in one frame between 3 and 2 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 366,
+   "to": 366,
+   "peak": {
+    "f": 366,
+    "value": 27.843,
+    "detail": "28°/frame between 0° and 0°",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash1.5",
+   "type": "pop",
+   "what": "footL jumps",
+   "from": 366,
+   "to": 366,
+   "peak": {
+    "f": 366,
+    "value": 0.047,
+    "detail": "5 cm in one frame between 0 and 0 cm",
+    "clip": "win_salute",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "footL snaps",
+   "from": 1421,
+   "to": 1421,
+   "peak": {
+    "f": 1421,
+    "value": 31.351,
+    "detail": "31°/frame between 8° and 8°",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 1428,
+   "to": 1429,
+   "peak": {
+    "f": 1428,
+    "value": 0.288,
+    "detail": "28.8 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 2
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "footR snaps",
+   "from": 1475,
+   "to": 1475,
+   "peak": {
+    "f": 1475,
+    "value": 32.45,
+    "detail": "32°/frame between 2° and 2°",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 1476,
+   "to": 1476,
+   "peak": {
+    "f": 1476,
+    "value": 0.261,
+    "detail": "26.1 cm/frame while planted",
+    "clip": "run",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "slide",
+   "what": "footR slides",
+   "from": 1533,
+   "to": 1533,
+   "peak": {
+    "f": 1533,
+    "value": 0.039,
+    "detail": "3.9 cm/frame while planted",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 1575,
+   "to": 1585,
+   "peak": {
+    "f": 1585,
+    "value": 0.893,
+    "detail": "0.89°/frame mean limb motion, 14 frames in the air",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 11
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "head jumps",
+   "from": 1584,
+   "to": 1584,
+   "peak": {
+    "f": 1584,
+    "value": 0.175,
+    "detail": "18 cm in one frame between 2 and 2 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 1584,
+   "to": 1584,
+   "peak": {
+    "f": 1584,
+    "value": 0.218,
+    "detail": "22 cm in one frame between 2 and 2 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 1584,
+   "to": 1584,
+   "peak": {
+    "f": 1584,
+    "value": 0.193,
+    "detail": "19 cm in one frame between 2 and 2 cm",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 1611,
+   "to": 1611,
+   "peak": {
+    "f": 1611,
+    "value": 25.445,
+    "detail": "25°/frame between 1° and 4°",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1665,
+   "to": 1676,
+   "peak": {
+    "f": 1670,
+    "value": 44.553,
+    "detail": "45° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 12
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1665,
+   "to": 1676,
+   "peak": {
+    "f": 1670,
+    "value": 44.555,
+    "detail": "45° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 12
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1694,
+   "to": 1714,
+   "peak": {
+    "f": 1703,
+    "value": 49.923,
+    "detail": "50° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 21
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1694,
+   "to": 1714,
+   "peak": {
+    "f": 1703,
+    "value": 49.924,
+    "detail": "50° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 21
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 1724,
+   "to": 1730,
+   "peak": {
+    "f": 1730,
+    "value": 49.543,
+    "detail": "50° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 7
+  },
+  {
+   "seq": "cash20",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 1724,
+   "to": 1730,
+   "peak": {
+    "f": 1730,
+    "value": 49.543,
+    "detail": "50° (limit 40°)",
+    "clip": "win_leap",
+    "stage": "cashout"
+   },
+   "n": 7
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "footR snaps",
+   "from": 2034,
+   "to": 2034,
+   "peak": {
+    "f": 2034,
+    "value": 34.918,
+    "detail": "35°/frame between 2° and 4°",
+    "clip": "leap_gap",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "footR swing",
+   "from": 2038,
+   "to": 2038,
+   "peak": {
+    "f": 2038,
+    "value": 60.851,
+    "detail": "61° (limit 60°)",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 2067,
+   "to": 2067,
+   "peak": {
+    "f": 2067,
+    "value": 0.115,
+    "detail": "11 cm in one frame between 2 and 3 cm",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 2067,
+   "to": 2067,
+   "peak": {
+    "f": 2067,
+    "value": 0.161,
+    "detail": "16 cm in one frame between 3 and 2 cm",
+    "clip": "run",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2077,
+   "to": 2101,
+   "peak": {
+    "f": 2101,
+    "value": 0.781,
+    "detail": "0.78°/frame mean limb motion, 28 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 25
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "shoulderL swing",
+   "from": 2105,
+   "to": 2111,
+   "peak": {
+    "f": 2108,
+    "value": 40.828,
+    "detail": "41° (limit 40°)",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 7
+  },
+  {
+   "seq": "cash60",
+   "type": "joint",
+   "what": "shoulderR swing",
+   "from": 2105,
+   "to": 2111,
+   "peak": {
+    "f": 2108,
+    "value": 40.829,
+    "detail": "41° (limit 40°)",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 7
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handL jumps",
+   "from": 2134,
+   "to": 2134,
+   "peak": {
+    "f": 2134,
+    "value": 0.129,
+    "detail": "13 cm in one frame between 1 and 0 cm",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "handR jumps",
+   "from": 2134,
+   "to": 2134,
+   "peak": {
+    "f": 2134,
+    "value": 0.144,
+    "detail": "14 cm in one frame between 4 and 0 cm",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2137,
+   "to": 2148,
+   "peak": {
+    "f": 2148,
+    "value": 0.206,
+    "detail": "0.21°/frame mean limb motion, 15 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 12
+  },
+  {
+   "seq": "cash60",
+   "type": "pop",
+   "what": "thighL snaps",
+   "from": 2179,
+   "to": 2179,
+   "peak": {
+    "f": 2179,
+    "value": 33.149,
+    "detail": "33°/frame between 1° and 1°",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2212,
+   "to": 2212,
+   "peak": {
+    "f": 2212,
+    "value": 0.517,
+    "detail": "0.52°/frame mean limb motion, 4 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 1
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2235,
+   "to": 2240,
+   "peak": {
+    "f": 2240,
+    "value": 0.352,
+    "detail": "0.35°/frame mean limb motion, 9 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 6
+  },
+  {
+   "seq": "cash60",
+   "type": "frozen",
+   "what": "airborne, limbs still",
+   "from": 2263,
+   "to": 2268,
+   "peak": {
+    "f": 2268,
+    "value": 0.34,
+    "detail": "0.34°/frame mean limb motion, 9 frames in the air",
+    "clip": "win_slide",
+    "stage": "cashout"
+   },
+   "n": 6
+  }
+ ],
+ "thresholds": {
+  "spike": 3,
+  "popOmega": 25,
+  "judder": 0.1,
+  "flip": 90,
+  "popStep": 0.04,
+  "hipsAccel": 0.1,
+  "groundAccel": 0.12,
+  "slide": 0.025,
+  "sink": 0.05,
+  "plantH": 0.02,
+  "plantVy": 0.01,
+  "airH": 0.1,
+  "frozenLimb": 1.2,
+  "frozenRun": 4,
+  "statueBody": 0.4,
+  "statueRun": 6,
+  "camOmega": 12,
+  "camSnap": 6,
+  "camJerk": 0.25
+ },
+ "limits": {
+  "spine": {
+   "swing": 45,
+   "twist": 40
+  },
+  "chest": {
+   "swing": 45,
+   "twist": 45
+  },
+  "neck": {
+   "swing": 50,
+   "twist": 60
+  },
+  "head": {
+   "swing": 55,
+   "twist": 70
+  },
+  "shoulderL": {
+   "swing": 40,
+   "twist": 45
+  },
+  "shoulderR": {
+   "swing": 40,
+   "twist": 45
+  },
+  "upper_armL": {
+   "swing": 178,
+   "twist": 110
+  },
+  "upper_armR": {
+   "swing": 178,
+   "twist": 110
+  },
+  "forearmL": {
+   "hinge": [
+    -12,
+    160
+   ],
+   "side": 30,
+   "twist": 110
+  },
+  "forearmR": {
+   "hinge": [
+    -12,
+    160
+   ],
+   "side": 30,
+   "twist": 110
+  },
+  "handL": {
+   "swing": 85,
+   "twist": 60
+  },
+  "handR": {
+   "swing": 85,
+   "twist": 60
+  },
+  "thighL": {
+   "swing": 135,
+   "twist": 55
+  },
+  "thighR": {
+   "swing": 135,
+   "twist": 55
+  },
+  "shinL": {
+   "hinge": [
+    -10,
+    160
+   ],
+   "side": 20,
+   "twist": 35
+  },
+  "shinR": {
+   "hinge": [
+    -10,
+    160
+   ],
+   "side": 20,
+   "twist": 35
+  },
+  "footL": {
+   "swing": 60,
+   "twist": 35
+  },
+  "footR": {
+   "swing": 60,
+   "twist": 35
+  },
+  "toeL": {
+   "swing": 70,
+   "twist": 30
+  },
+  "toeR": {
+   "swing": 70,
+   "twist": 30
+  }
+ }
+}

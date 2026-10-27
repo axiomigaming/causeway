@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { causticUniforms } from './caustics';
 
 /**
  * World round 21: land. The causeway leaves the lagoon and runs through jungle on solid ground: forest
@@ -105,6 +106,8 @@ export function makeGroundMaterial(): THREE.MeshLambertMaterial {
   const m = new THREE.MeshLambertMaterial({ color: 0xffffff });
   m.name = 'ground';
   m.onBeforeCompile = (sh) => {
+    sh.uniforms.uDetailMap = causticUniforms.uDetailMap;
+    sh.uniforms.uDetailReady = causticUniforms.uDetailReady;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGW;\nvarying vec3 vGN;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvGN = normalize(mat3(modelMatrix) * objectNormal);');
@@ -114,6 +117,8 @@ export function makeGroundMaterial(): THREE.MeshLambertMaterial {
         `#include <common>
 varying vec3 vGW;
 varying vec3 vGN;
+uniform sampler2D uDetailMap;
+uniform float uDetailReady;
 float gH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(gH(i), gH(i + vec2(1, 0)), f.x), mix(gH(i + vec2(0, 1)), gH(i + vec2(1, 1)), f.x), f.y); }`,
@@ -131,15 +136,29 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     // Moss on the flats, in patches.
     float flat_ = smoothstep(0.75, 0.95, vGN.y);
     c = mix(c, vec3(0.07, 0.11, 0.03) * (0.8 + 0.5 * n3), smoothstep(0.5, 0.7, n1) * flat_ * 0.85);
-    // Bare rock on the steep banks.
+    // Bare rock on the steep banks. (Round 23: they read as smooth dark-brown slides — now sandstone
+    // like the cliffs above them: bedded in strata that wander along the bank, weathered paler on the
+    // ledges, the scanned stone's pits and cracks worked in (projected on the bank's own plane).)
     float steep = 1.0 - smoothstep(0.55, 0.8, vGN.y);
-    c = mix(c, vec3(0.22, 0.15, 0.1) * (0.7 + 0.5 * n2), steep * 0.85);
+    if (steep > 0.0) {
+      vec2 rp = abs(vGN.x) > abs(vGN.z) ? vGW.zy : vGW.xy;
+      // Beds of uneven thickness that pinch and wander, soft-edged and low in contrast.
+      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      float strata = smoothstep(0.0, 0.5, abs(fract(bed) - 0.5)) * (0.5 + 0.5 * gN(rp * vec2(0.4, 1.5) + 3.0));
+      float b1 = gN(rp * 0.7 + 7.0), b2 = gN(rp * 2.6 + 1.0);
+      vec3 rock = mix(vec3(0.34, 0.2, 0.11), vec3(0.44, 0.28, 0.15), strata * 0.7 + b1 * 0.3) * (0.7 + 0.35 * b1 + 0.25 * b2);
+      float cav = uDetailReady > 0.0 ? texture2D(uDetailMap, rp * 0.45).b : 0.6;
+      rock *= 0.55 + 0.75 * cav;
+      // Moss and soil caught on the ledges.
+      rock = mix(rock, vec3(0.08, 0.1, 0.035), smoothstep(0.62, 0.8, gN(rp * 1.3 + 11.0)) * 0.6);
+      c = mix(c, rock, steep * 0.95);
+    }
     // Wet and dark where it shelves into the water.
     c *= mix(1.0, 0.55, smoothstep(${(WL + 0.6).toFixed(2)}, ${(WL - 0.1).toFixed(2)}, vGW.y));
     // Under the canopy: broad soft dapples of shade (the sun here is ~13: on phones, with no shadow
     // maps, the open floor lit full went to pale cream), and a forest floor is dark anyway.
     float dap = gN(p * 0.09 + 2.0) * 0.6 + gN(p * 0.31 + 5.0) * 0.4;
-    c *= 0.5 * mix(0.45, 1.0, smoothstep(0.35, 0.7, dap));
+    c *= 0.5 * mix(mix(0.45, 1.0, smoothstep(0.35, 0.7, dap)), 1.15, steep);
     diffuseColor.rgb = c;
   }`,
       )
@@ -156,6 +175,6 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'ground21';
+  m.customProgramCacheKey = () => 'ground23';
   return m;
 }
