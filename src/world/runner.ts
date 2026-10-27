@@ -101,6 +101,8 @@ export function leapFlight(distance: number, speed: number): number {
 
 type Foot = 'L' | 'R';
 const GAITS = ['run', 'sprint', 'dash'] as const;
+/** How far an additive beat may fold a knee (rad, the shin's local bend). */
+const KNEE_MAX = 2.5;
 /**
  * Ground covered per stride cycle (m) while a foot is planted, per gait clip. The clips are solved in
  * blender/runner_anim.py so the stance foot slides back exactly D per stance (S = D / ts); setting the
@@ -1080,8 +1082,13 @@ export class Runner {
       const e = Math.sin(Math.PI * u) * G;
       this.rotate(this.feet.L.thigh, -0.6 * e, 0, 0);
       this.rotate(this.feet.R.thigh, -0.45 * e, 0, 0);
-      this.rotate(this.feet.L.shin, 1.0 * e, 0, 0);
-      this.rotate(this.feet.R.shin, 0.85 * e, 0, 0);
+      // (The tuck goes on top of the stride, whose swing leg may already be folded heel to seat: added in
+      // full, the knee closed past 175° and flipped into a reverse bend. Capped at the knee's own range.)
+      const tuck = (s: THREE.Bone | undefined, a: number) => {
+        if (s) this.rotate(s, Math.max(0, Math.min(a, KNEE_MAX - 2 * Math.acos(Math.min(1, Math.abs(s.quaternion.w))))), 0, 0);
+      };
+      tuck(this.feet.L.shin, 1.0 * e);
+      tuck(this.feet.R.shin, 0.85 * e);
       this.rotate(b.spine, -0.1 * e, 0, 0);
       this.rotate(b.upper_armL, -0.2 * e, 0, 0.45 * e);
       this.rotate(b.upper_armR, -0.2 * e, 0, -0.45 * e);
