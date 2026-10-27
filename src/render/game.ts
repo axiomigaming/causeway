@@ -2814,12 +2814,21 @@ export class Game {
       this.s += this.speed * dt;
     } else if (this.stage === 'cashout' && this.brake) {
       // The clip's own braking: speed on its curve, so the planted feet stay planted.
+      // Round 20 (character agent, e48ab73): on the clip's own clock (Runner.escapeClock), not a
+      // timer from land(): the clip starts on the next foot strike, up to 0.34 s later, and part-way
+      // in (4/30 s on a right strike), and the planted foot slid 3 cm/frame against a root on its
+      // own clock. Until it starts he holds his pace. (Mid-frame: the clip advances dt this frame.)
       const B = this.brake;
-      B.t += dt;
-      this.speed = B.v0 * brakeCurve(B.t / B.T);
+      const clk = this.runner.escapeClock();
+      if (clk !== null) B.t = Math.min(B.T, clk + dt / 2);
+      this.speed = clk === null ? B.v0 : B.v0 * brakeCurve(B.t / B.T);
+      // (The mark moves on with him while he waits for the strike: held to it, he halted dead.)
+      if (clk === null) this.stopAt += this.speed * dt;
       this.s = Math.min(this.stopAt, this.s + this.speed * dt);
-      if (B.t >= B.T) {
-        this.s = this.stopAt;
+      if (clk !== null && clk + dt >= B.T) {
+        // (He stops where the curve brings him: snapping on to the precomputed mark moved the root
+        // 7 cm in a frame under a planted foot.)
+        this.stopAt = this.s;
         this.speed = 0;
         this.brake = null;
       }

@@ -456,7 +456,15 @@ async function cameraMotion(page, view) {
       }
       problems.push(`hips jump ${(hj * 100).toFixed(0)} cm/frame² at f${hjAt} (${r.L[hjAt]}; v@ts ${sp.join(' ')})`);
     }
-    if (gj > 0.1) problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]})`);
+    if (gj > 0.1) {
+      // The root's step per frame around it (cm: along x/z, and y), to tell the run-out from a height step.
+      const sp = [];
+      for (let f = Math.max(1, gjAt - 4); f <= Math.min(r.G.length - 1, gjAt + 3); f++) {
+        const [a, b] = [r.G[f], r.G[f - 1]];
+        sp.push(`${(Math.hypot(a[0] - b[0], a[2] - b[2]) * 100).toFixed(1)}/${((a[1] - b[1]) * 100).toFixed(1)}`);
+      }
+      problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]}; xz/y ${sp.join(' ')})`);
+    }
     // Round 20 (owner): the result card never lands before he has stopped.
     if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
     // Blocked: three or more of the five sight lines, on two samples running.
