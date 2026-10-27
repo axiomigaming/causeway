@@ -59,7 +59,7 @@ describe('world generation', () => {
     high.viewDistance = 165;
     const low = new Track(kit());
     await low.prepare({ foliage: 0.45, scenery: 0.4 });
-    low.viewDistance = 110;
+    low.viewDistance = 95;
     for (const seed of ['det-1', 'det-2', 'det-3']) {
       // A smooth 60 fps run (0.1–0.2 m a frame) with the intensity climbing as it should...
       const r1 = new Rng(`frames/${seed}`);

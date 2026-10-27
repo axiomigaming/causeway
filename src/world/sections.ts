@@ -295,6 +295,26 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
 }
 
 /**
+ * World round 23: the open-water side of a bridge or boardwalk is never bare: islets within 7.2 m
+ * carrying a palm, a shrub mass or a broken column (inside 7.5 m they never block a corner), and
+ * nothing further out (the far scenery is what blocks a corner).
+ */
+function openSide(b: Builder, side: number, len: number) {
+  for (let z = -b.rng.range(1.5, 4); z > -len; z -= b.rng.range(6, 9)) {
+    const x = side * b.rng.range(5.4, 7.2);
+    const top = islet(b, x, z, b.rng.range(0.55, 0.8));
+    const r = b.rng.range(0, 1);
+    if (r < 0.4 && b.foliage(0.9)) {
+      const j = b.rng.int(0, 2);
+      const ry = b.rng.range(0, 6.28);
+      b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
+      b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
+    } else if (r < 0.8 && b.foliage(0.9)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.75, 1.05));
+    else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
+  }
+}
+
+/**
  * World round 23: green on a giant root heaved over the parapet on `side` (spanning z0 … z0 − 4):
  * cushion moss in the crook over the crest, a curtain of leafy vine hanging off it down the inner face,
  * a fern at its foot where it meets the paving. (Bare, the roots read as smooth green tubes.)
@@ -441,9 +461,11 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       if (b.rich && b.foliage(0.25)) b.place(`moss_${b.rng.pick([0, 2])}`, side * (PATH_HALF + 0.05), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.7, 1.1));
       b.edgeRubble(side, z);
       if (b.rng.chance(gaps)) {
-        // (Round 22: the two lighter heaps on phones.)
-        b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 3)}`, side * (PATH_HALF + 0.6), 0, z - 2, b.rng.range(0, 6.28));
-        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 3)}`, side * (PATH_HALF + 0.9), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+        // (Round 22: the two lighter heaps on phones. Round 23: the biggest heap, 2 m across, sits further
+        // out — at the gap it spread to 0.7 m from the running line.)
+        const big = b.density.scenery >= 0.5 && b.rng.chance(0.25);
+        b.place(big ? 'rubble_3' : `rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 2)}`, side * (PATH_HALF + (big ? 1.4 : 0.6)), 0, z - 2, b.rng.range(0, 6.28));
+        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 2)}`, side * (PATH_HALF + 0.9), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
         continue;
       }
       if (b.rng.chance(b.carving)) {
@@ -462,7 +484,8 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.5, z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
       // (World round 19: seated into the wall's crest by its own height; at a fixed 0.9–1.4 m one
       // floated over the low, ragged walls and their gaps.)
-      if (b.foliage(0.4)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.42), LOW_WALL_H[lw]! * b.rng.range(0.42, 0.55), z - b.rng.range(0.8, 3.2), b.rng.range(0, 6.28), b.rng.range(0.55, 0.9));
+      // (Round 23: seated on the crest's outer half — the broad bush hung 0.7 m into the running line.)
+      if (b.foliage(0.4)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.75), LOW_WALL_H[lw]! * b.rng.range(0.42, 0.55), z - b.rng.range(0.8, 3.2), b.rng.range(0, 6.28), b.rng.range(0.55, 0.9));
       // Green spilling over the wall's outer side, down toward the water: against the foundation's
       // face (it stood 0.3 m out from it, over open water), only where there is one.
       else if (opts.foundation !== false && b.foliage(0.3)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.9), b.rng.range(-0.5, -0.1), z - b.rng.range(1, 3), b.rng.range(0, 6.28), b.rng.range(0.6, 0.85));
@@ -711,7 +734,9 @@ function forestSide(b: Builder, side: number, len: number, dense = 1) {
 
 /** A tall pillar standing at the causeway's edge, close enough to topple across it (crash: topple). */
 function edgePillar(b: Builder, side: number, z: number) {
-  b.place(b.rng.chance(0.5) ? 'pillar_topple_0' : 'pillar_1', side * (PATH_HALF + 0.7), gy(b, side * 3, z) + 0.1, z, b.rng.range(0, 6.28));
+  // (Round 23: 1.5 m out from the edge, not 0.7 — beside the chase path it filled a third of the frame
+  // as a flat, lens-blurred block; at 5 m tall it still topples right across the way.)
+  b.place(b.rng.chance(0.5) ? 'pillar_topple_0' : 'pillar_1', side * (PATH_HALF + 1.5), gy(b, side * 3.7, z) + 0.1, z, b.rng.range(0, 6.28));
 }
 
 /** A lower stone terrace beside the way on `side` (crash: a drop to a lower level): slabs 1.6 m down, a footing face. */
@@ -816,7 +841,9 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         else b.place(b.rng.pick(['stele_0', 'stele_1', 'pillar_0', 'pillar_2']), hi * (PATH_HALF + 3.2), 0, z, b.rng.range(0, 6.28));
         if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 1.4), 0.15, z - 1, b.rng.range(0, 6.28), [0.9, 0.3, 0.8], [Math.PI / 2, 0]);
       }
-      b.place(`column_fallen_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 2.2), 0.05, -len * b.rng.range(0.3, 0.7), b.rng.range(-0.5, 0.5));
+      // (Round 23: turned only away from the way — a 7.8 m drum turned toward it reached 0.6 m from the
+      // running line, and the runner stepped over it.)
+      b.place(`column_fallen_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 2.2), 0.05, -len * b.rng.range(0.3, 0.7), -hi * b.rng.range(0, 0.35));
       forestSide(b, hi, len, 0.9);
       // Beyond the lower terrace the forest goes on at its level.
       for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
@@ -1066,6 +1093,7 @@ const BUILDERS = {
       }
       if (style !== 'gorge') {
         for (const side of [-1, 1]) jungleBank(b, side, b.rng.range(11, 14), -len / 2, 0, 0.5);
+        for (const side of [-1, 1]) openSide(b, side, len);
         scenery(b, len, { minX: 6 });
         vista(b, len, ['arch', 'towers', 'temple'], 0.55);
       } else canopy(b, b.rng.pick([-1, 1]), -len * b.rng.range(0.3, 0.7), 0, 0.5);
@@ -1402,13 +1430,14 @@ const BUILDERS = {
           if (b.rich && b.foliage(big ? 0.45 : 0.2)) b.place(`moss_${b.rng.int(0, 2)}`, x, WL + s * 1.15, z, 0, s * 1.2);
         }
       }
+      openSide(b, -bank, len);
       // The bank: heaped rock, a green mass on top, palms and big trees behind.
       for (let z = 0; z > -len - 2; z -= b.rng.range(3.5, 5.5)) {
         const x = bank * b.rng.range(5.0, 6.4);
         const s = b.rng.range(1.0, 1.6);
         b.place(`rock_mid_${b.rng.int(0, 2)}`, x, WL + 0.3, z, b.rng.range(0, 6.28), [s * 1.2, s * 0.75, s * 1.4]);
         if (b.foliage(0.95)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x + bank * 0.4, WL + s * 1.35, z - b.rng.range(0, 1.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.15));
-        if (b.foliage(0.6)) b.place(`bush_${b.rng.int(0, 3)}`, x - bank * b.rng.range(0.8, 1.6), WL + s * 1.1, z - b.rng.range(0.5, 2.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+        if (b.foliage(0.6)) b.place(`bush_${b.rng.int(0, 3)}`, x - bank * b.rng.range(0.2, 0.6), WL + s * 1.1, z - b.rng.range(0.5, 2.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
         if (b.foliage(0.45)) b.place(`fern_${b.rng.int(0, 1)}`, x - bank * 1.8, WL + s * 0.9, z - 1, b.rng.range(0, 6.28), 1.1);
         b.foam(bank, 3.8, z, 5);
       }

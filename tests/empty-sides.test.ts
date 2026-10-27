@@ -84,7 +84,7 @@ describe('empty sides', () => {
     it(`no stretch shows empty water to the horizon at the sides (density ${d})`, async () => {
       const track = new Track(kit());
       await track.prepare({ foliage: d, scenery: d });
-      track.viewDistance = d < 1 ? 110 : 165;
+      track.viewDistance = d < 1 ? 95 : 165;
       let empty = 0;
       let total = 0;
       const notes: string[] = [];
