@@ -794,6 +794,9 @@ export class Game {
     // (Round 20, ledge0 review: he runs on for LEDGE_RUN s while the floor cracks round him, and the
     // cave-in reaches LEDGE_BACK m behind where it gives.)
     if (st.kind === 'ledge' && this.solidFloorIn(this.s + this.speed * LEDGE_RUN - LEDGE_BACK - 0.3, this.s + this.speed * LEDGE_RUN + 8)) st.kind = 'rockfall';
+    // (Nor on land: a stretch of ground with a scatter of slabs over it has no course below to fall
+    // onto, and the ground itself stays — he stood on bare earth where the floor had gone.)
+    if (st.kind === 'ledge' && this.landIn(this.s - 0.5, this.s + this.speed * LEDGE_RUN + 8)) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
     // A pier or a column coming down: he runs on toward it for most of a second, and the chase lens
     // stays with him (stageCrash switches to the crash shot as the clip starts). The settled crash
@@ -1340,6 +1343,11 @@ export class Game {
   }
 
   /** Whether any floor that cannot cave in (a wide slab, stairs) lies within [s0, s1]. */
+  /** Round 20: any land section (its own ground, no causeway course under it) overlaps [s0, s1]. */
+  private landIn(s0: number, s1: number): boolean {
+    return this.track.sections.some((sec) => (isLand(sec.type) || !!sec.ground) && sec.s0 + sec.len >= s0 && sec.s0 <= s1);
+  }
+
   private solidFloorIn(s0: number, s1: number): boolean {
     for (const sec of this.track.sections) {
       for (const t of sec.tiles) {
@@ -1455,12 +1463,12 @@ export class Game {
         return lat < LEDGE_HALF - 0.05 ? bedY : lat < PATH_HALF + 1.5 ? h.pos.y : null;
       };
       // The warning: cracks race across the floor under him and ahead (the way's width, spreading
-      // over most of the run-on), grit jumps from them, the ground groans. (They fade as the slabs
-      // go: a decal left in the air over the hole read as a floating line.)
+      // over most of the run-on), grit jumps from them, the ground groans. (They hold until the
+      // slabs go and fade as they drop: a decal left in the air over the hole read as a floating line.)
       const crackAt = (along: number, len: number, t0: number) =>
         this.later(t0, () => {
           const f = frameAt(sDrop + along);
-          this.cine.cracks.spawn(f.pos.clone().setY(f.pos.y + 0.05), f.yaw, PATH_HALF * 2 + 0.2, len, Math.max(0.15, LEDGE_RUN - 0.12 - t0), 0.12, 3.2);
+          this.cine.cracks.spawn(f.pos.clone().setY(f.pos.y + 0.05), f.yaw, PATH_HALF * 2 + 0.2, len, Math.max(0.15, LEDGE_RUN - 0.12 - t0), 0.4, 3.2);
         });
       crackAt(0.2, 1.6 + 0.4 * e, 0);
       crackAt(span * 0.55, 1.4 + 0.4 * e, 0.08);

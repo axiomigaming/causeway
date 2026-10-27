@@ -208,8 +208,10 @@ const CRACK_FRAG = /* glsl */ `
     float branch = (1.0 - smoothstep(0.008 * bold, 0.02 * bold, e)) * near * across;
     float crack = max(mainLine, branch * 0.85);
     // A pale dusty lip either side of the fissure.
-    float lip = (1.0 - smoothstep(0.01 * bold, (0.04 + 0.03 * t) * bold, main)) * across * 0.25;
-    vec3 col = mix(vec3(0.42, 0.32, 0.24), vec3(0.03, 0.02, 0.015), crack / max(1e-3, crack + lip));
+    float lip = (1.0 - smoothstep(0.01 * bold, (0.04 + 0.03 * t) * bold, main)) * across * (bold > 1.01 ? 0.55 : 0.25);
+    // (Bold: its lip darker too — pale, it read as a scuff, not a fissure opening.)
+    vec3 lipCol = mix(vec3(0.42, 0.32, 0.24), vec3(0.12, 0.09, 0.07), step(1.01, bold));
+    vec3 col = mix(lipCol, vec3(0.03, 0.02, 0.015), crack / max(1e-3, crack + lip));
     float a = clamp(crack + lip, 0.0, 1.0) * min(1.0, vP.y);
     a *= smoothstep(0.5, 0.42, abs(vUv.x)) * smoothstep(0.5, 0.4, abs(vUv.y));
     if (a < 0.004) discard;
