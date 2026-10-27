@@ -2670,6 +2670,8 @@ export class Game {
     this.rig.footfall(k * (0.8 + 0.3 * drive), foot);
   }
 
+  private groundY: number | null = null;
+  private groundV = 0;
   private placeRunner(dt: number) {
     const f = this.track.path.sample(this.s);
     this.runner.root.position.copy(f.pos);
@@ -2683,8 +2685,19 @@ export class Game {
     if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed && this.ledgeDown) this.runner.root.position.y = this.ledgeBed.position.y + LEDGE_DROP;
     else if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'ledge' && this.crashKind !== 'gate')) {
       const carry = this.subjOff.x * -Math.sin(f.yaw) + this.subjOff.z * -Math.cos(f.yaw);
-      this.runner.root.position.y = this.track.path.sample(this.s + carry, this.cframe).pos.y;
-    }
+      const want = this.track.path.sample(this.s + carry, this.cframe).pos.y;
+      // (Round 20: eased, critically damped: under a throw the hips' offset swings fast, and the
+      // ground under it stepped 12 cm/frame² on a grade — the side hit.)
+      if (this.groundY === null || dt <= 0) {
+        this.groundY = want;
+        this.groundV = 0;
+      } else {
+        const w = 18;
+        this.groundV += (w * w * (want - this.groundY) - 2 * w * this.groundV) * dt;
+        this.groundY += this.groundV * dt;
+      }
+      this.runner.root.position.y = this.groundY;
+    } else this.groundY = null;
     if (dt > 0) {
       const yawRate = (f.yaw - this.yawPrev) / dt;
       this.runner.roll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.05, -0.3, 0.3);
