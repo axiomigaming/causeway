@@ -1213,7 +1213,7 @@ def standing_turned(P, yaw):
     P["root"] = (0, 0, yaw)
 
 AKIMBO = dict(fwd=-0.1, elbow=1.8, out=0.5, twist=-1.1, wrist=0.3, curl=0.5)  # hand on the hip, knuckles in
-FISTS = dict(fwd=0.2, elbow=1.25, out=0.25, curl=1.1)  # loose fists at the waist
+FISTS = dict(fwd=0.1, elbow=0.75, out=0.2, curl=0.95)  # loose fists by the hips (they swing with the turn's steps)
 
 
 DECEL = 30  # frames from the run to the braking plant (decel())
@@ -1313,8 +1313,14 @@ def turn_to(f0, yaw, arms, y=0.0, yaw0=0.0):
         standing(P, wide=0.11, bend=0.1)
         if lift_leg:
             leg(P, lift_leg, hip=0.35, knee=0.65, ankle=0.1, out=0.1)
-        arm(P, "L", **arms)
-        arm(P, "R", **arms)
+        for sd in "LR":
+            a = dict(arms)
+            if arms is not AKIMBO and lift_leg:
+                # the arm opposite the lifted leg comes forward, as in a walk
+                sw = 0.22 if sd != lift_leg else -0.16
+                a["fwd"] = a.get("fwd", 0.0) + sw
+                a["elbow"] = a.get("elbow", 0.0) + 0.25 * max(0.0, sw)
+            arm(P, sd, **a)
         standing_turned(P, yaw0 + (yaw - yaw0) * k)
         return P
     first = "R" if yaw > yaw0 else "L"
@@ -1540,13 +1546,32 @@ def extra_clips():
         new_action(name)
         decel(1)
         if lvl == 0:
-            # Head back, a long breath out, hands to the hips.
-            for fr, br in ((DECEL + 4, 0.0), (DECEL + 11, 1.0), (DECEL + 18, 0.3)):
+            # "Yes!": the fist cocks as he stops, is yanked down with a dip of the knees and a hunch, rebounds;
+            # then the breath out, the head dropping, the hands going to the hips. (Not a stare at the sky
+            # with the arms hung: it read as a statue.)
+            for fr, ph in ((DECEL + 3, 0), (DECEL + 7, 1), (DECEL + 11, 2), (DECEL + 18, 3)):
                 P = {}
-                torso(P, lean=-0.08 - 0.06 * br, look=0.35 + 0.35 * br, hp=-0.04, breath=0.07 * br)
-                standing(P, wide=0.11, bend=0.08)
-                for sd in "LR":
-                    arm(P, sd, **AKIMBO)
+                if ph == 0:
+                    torso(P, lean=0.02, look=0.3, hp=0.0, yaw=-0.08)
+                    standing(P, wide=0.11, bend=0.1)
+                    # (cocked up and out beside the head: the camera is behind him)
+                    arm(P, "R", fwd=1.9, elbow=1.6, out=0.55, curl=1.35, twist=0.1)
+                    arm(P, "L", fwd=0.3, elbow=0.9, out=0.25, curl=0.9)
+                elif ph == 1:
+                    torso(P, lean=0.3, look=0.1, hp=0.08, yaw=0.12, breath=0.05)
+                    standing(P, wide=0.12, bend=0.26)
+                    arm(P, "R", fwd=-0.1, elbow=1.75, out=0.2, curl=1.35, twist=0.1, shrug=0.08)
+                    arm(P, "L", fwd=0.15, elbow=1.1, out=0.28, curl=1.0)
+                elif ph == 2:
+                    torso(P, lean=0.12, look=0.3, hp=0.03, yaw=0.04)
+                    standing(P, wide=0.11, bend=0.12)
+                    arm(P, "R", fwd=0.25, elbow=1.8, out=0.22, curl=1.35, twist=0.1)
+                    arm(P, "L", fwd=0.1, elbow=1.0, out=0.25, curl=0.9)
+                else:
+                    torso(P, lean=0.1, look=-0.05, hp=0.02, breath=0.07)
+                    standing(P, wide=0.11, bend=0.07)
+                    for sd in "LR":
+                        arm(P, sd, **AKIMBO)
                 key(fr, P)
             t = DECEL + 18
         else:
@@ -1555,7 +1580,9 @@ def extra_clips():
             heave = tuple((DECEL + d, br) for d, br in heave)
             for fr, br in heave:
                 P = {}
-                torso(P, lean=0.95 - 0.06 * br, look=0.85, hp=0.35, breath=0.07 * br)
+                # (the head never still: it shakes in disbelief and comes up with each breath)
+                torso(P, lean=0.95 - 0.08 * br, look=0.72 + 0.2 * br, hp=0.35, breath=0.08 * br,
+                      head_yaw=0.28 * math.sin(fr * 0.9), head_roll=0.06 * math.sin(fr * 0.9 + 1.0))
                 standing(P, wide=0.13, bend=0.3)
                 for sd in "LR":
                     arm(P, sd, fwd=1.0, elbow=0.25, out=0.22, wrist=-0.3, curl=0.35, shrug=0.06 * br)
@@ -1585,9 +1612,16 @@ def extra_clips():
             continue
         if lvl == 1:
             # Both fists up in a V, pumped twice (overhead, a negative "out" spreads the arms).
-            for d, up, bend in ((6, 1.0, 0.04), (11, 0.88, 0.16), (16, 1.0, 0.03), (22, 0.92, 0.12), (30, 1.0, 0.04)):
+            P = {}
+            torso(P, lean=0.22, look=0.2)
+            standing(P, wide=0.13, bend=0.24)
+            for sd in "LR":
+                arm(P, sd, fwd=0.35, elbow=1.9, out=0.3, curl=1.35)
+            standing_turned(P, FACE)
+            key(t + 3, P)
+            for d, up, bend in ((7, 1.0, 0.0), (11, 0.88, 0.16), (16, 1.0, 0.03), (22, 0.92, 0.12), (30, 1.0, 0.04)):
                 P = {}
-                torso(P, lean=-0.18 * up, look=0.45 * up)
+                torso(P, lean=-0.18 * up - (0.08 if d == 7 else 0.0), look=0.45 * up + (0.12 if d == 7 else 0.0))
                 standing(P, wide=0.13, bend=bend)
                 for sd in "LR":
                     arm(P, sd, fwd=2.85 * up, elbow=0.05 + (1 - up) * 1.6, out=-0.45 * up + 0.3 * (1 - up), curl=1.35)
@@ -1601,12 +1635,20 @@ def extra_clips():
             hold(t + 10, FACE, arms1)
             continue
         # High: the roar, arms flung wide; then two jumping cheers, fists up; then the V held.
-        for d in (6, 14):
+        for d, sh in ((4, -1.0), (7, 1.0), (10, 0.4), (14, 1.0)):
             P = {}
-            torso(P, lean=-0.28, look=0.55, breath=0.06)
-            standing(P, wide=0.18, bend=0.16)
-            for sd in "LR":
-                arm(P, sd, fwd=0.55, elbow=0.35, out=1.45, twist=0.3, curl=1.35)
+            if sh < 0:
+                # the wind-up: fists pulled in low, knees bent, chin down
+                torso(P, lean=0.3, look=0.05, breath=0.02)
+                standing(P, wide=0.17, bend=0.3)
+                for sd in "LR":
+                    arm(P, sd, fwd=0.2, elbow=2.0, out=0.35, curl=1.35, shrug=0.1)
+            else:
+                torso(P, lean=-0.3 + 0.04 * (1 - sh), look=0.6 - 0.08 * (1 - sh), roll=0.05 * (sh - 0.7), breath=0.06)
+                standing(P, wide=0.18, bend=0.14 + 0.05 * (1 - sh))
+                for sd in "LR":
+                    arm(P, sd, fwd=0.35 + 0.15 * (1 - sh), elbow=1.55 + 0.25 * (1 - sh), out=1.05 - 0.1 * (1 - sh), twist=0.4, curl=1.35,
+                        shrug=0.12 * sh)
             standing_turned(P, FACE)
             key(t + d, P)
         t += 14
@@ -1751,13 +1793,24 @@ def extra_clips():
     arm(P, "R", fwd=2.85, elbow=0.3, out=-0.25, curl=1.35, twist=0.2)
     arm(P, "L", fwd=0.4, elbow=0.8, out=0.9, curl=0.8)
     key(14, P, lift=0.45)
+    P14 = P
     P = {}
     torso(P, lean=-0.05, look=0.45)
     leg(P, "L", hip=1.1, knee=1.3, ankle=0.1)
     leg(P, "R", hip=0.2, knee=1.2, ankle=0.3)
-    arm(P, "R", fwd=3.0, elbow=0.2, out=-0.25, curl=1.35, twist=0.2)
+    arm(P, "R", fwd=2.8, elbow=0.25, out=-0.25, curl=1.35, twist=0.0)
     arm(P, "L", fwd=0.5, elbow=0.8, out=1.0, curl=0.8)
-    key(20, P, lift=0.55)
+    # On a real arc: the apex at 17, falling from there (rising to 20 and dropping 55 cm in the last 7
+    # frames, he hung in the air).
+    Pm = lerp_pose(P14, P, 0.5)
+    leg(Pm, "L", hip=1.25, knee=1.55, ankle=0.1)
+    key(17, Pm, lift=0.52)
+    key(20, P, lift=0.4)
+    P = dict(P)
+    leg(P, "L", hip=1.2, knee=1.1, ankle=-0.1)
+    leg(P, "R", hip=0.35, knee=1.0, ankle=0.2)
+    arm(P, "R", fwd=2.0, elbow=0.8, out=0.1, curl=1.35, twist=0.2)
+    key(23, P, lift=0.17)
     P = {}
     torso(P, lean=0.55, look=0.4, hp=0.25)
     leg(P, "L", hip=1.3, knee=2.0, ankle=-0.55)  # (the heel down: up on the toes he read as hovering)
@@ -1825,12 +1878,37 @@ def epic_clips():
         y = 0.25 + 1.25 * (1 - (1 - u) ** 1.6)
         wob = 1.3 * (math.sin(fr * 0.9) + 0.5 * math.sin(fr * 2.1 + 1))
         P = {}
-        torso(P, lean=-0.42 + 0.05 * wob, look=0.55 + 0.05 * math.sin(fr * 0.7), hp=-0.15, roll=0.06 * wob, head_yaw=0.12 * math.sin(fr * 0.5))
-        leg(P, "L", hip=0.95 + 0.06 * math.sin(fr * 1.7), knee=0.12 + 0.12 * max(0.0, math.sin(fr * 1.7)), ankle=-0.25 + 0.08 * math.sin(fr * 1.1))
-        leg(P, "R", hip=0.35 + 0.05 * math.sin(fr * 0.9), knee=2.1, ankle=0.35, out=0.15 + 0.06 * wob)
+        # Down on the stone: sat on the folded right leg (thigh, shin and instep along the floor), the lead
+        # heel skimming it. (Sat up on the right toes with the leg folded behind, he slid along ~30 cm in
+        # the air.)
+        torso(P, lean=-0.55 + 0.05 * wob, look=0.6 + 0.05 * math.sin(fr * 0.7), hp=-0.2, roll=0.06 * wob, head_yaw=0.12 * math.sin(fr * 0.5))
+        leg(P, "L", hip=1.15 + 0.05 * math.sin(fr * 1.7), knee=0.12 + 0.1 * max(0.0, math.sin(fr * 1.7)), ankle=-0.25 + 0.08 * math.sin(fr * 1.1))
+        leg(P, "R", hip=0.5 + 0.04 * math.sin(fr * 0.9), knee=2.5, ankle=-1.0, toe=0.4, out=0.35 + 0.05 * wob)
         arm(P, "R", fwd=-0.75 + 0.16 * math.sin(fr * 1.3), elbow=0.25 + 0.15 * max(0.0, math.sin(fr * 1.3)), out=0.35, wrist=-0.6, curl=0.3)
         arm(P, "L", fwd=1.3 + 0.16 * wob, elbow=0.7 + 0.15 * math.sin(fr * 0.8), out=0.35, curl=1.1)
         key(fr, P, y=y)
+        if fr == 8:
+            P8 = P
+    # The run-in and the drop keyed every frame on the floor: left to the curves between the stride at 4
+    # and the slide at 8, the lead foot swept down through the stone (the toes 14 cm under it at 6).
+    for fr in (2, 3):
+        ph = (fr - 1) / 6.0
+        G_, x_ = loco(ph, RUN, 1.0 - 0.05 * (fr - 1) / 3.0)
+        key(fr, G_, x=x_)
+    # A little hop into it: off the right foot, both legs fold up under him in the air, the lead leg only
+    # opening out ahead as he lands on his seat at 8.
+    for fr, w, L_, R_ in ((5, 0.2, (0.75, 1.6, -0.3), (0.2, 1.35, -0.2)), (6, 0.45, (1.05, 1.35, -0.35), (0.28, 1.8, 0.05)),
+                          (7, 0.75, (1.2, 0.6, -0.3), (0.45, 2.3, -0.6))):
+        ph = 0.5 + (fr - 4) / 6.0
+        G_, x_ = loco(ph, RUN, 0.95)
+        Q = lerp_pose(G_, P8, w)
+        leg(Q, "L", hip=L_[0], knee=L_[1], ankle=L_[2])
+        leg(Q, "R", hip=R_[0], knee=R_[1], ankle=R_[2], out=0.15 * w)
+        # (the hips sink on a steady curve, the feet clear of the stone: held up by the legs to 6 they fell
+        # 28 cm in two frames)
+        z4, z8 = gait_root(0.5, RUN, 0.95), floor_z(P8, 0.0, 0.25)
+        zl = z4 + (z8 - z4) * ease((fr - 4) / 4.0)
+        key(fr, Q, z=max(zl, floor_z(Q, x_ * (1 - w), 0.25 * w) - 0.01), x=x_ * (1 - w), y=0.25 * w)
     P25 = P
     # Up: the folded knee drives him onto his feet. (The lead leg comes up and folds first, the foot kept
     # off the stone: swung straight round to the kneel, it swept 15 cm down through it.)
@@ -2879,18 +2957,36 @@ def crash_clips():
         arm(P, "L", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
         arm(P, "R", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
         fkey(fr, P, y=y, base=-DROP)
-    # Flat on his back, winded: chest heaving, a knee drawn up, an arm out on the stone, the head rolling.
-    for fr, br, hy in ((56, 1.0, 0.3), (68, 0.0, -0.2), (82, 1.0, 0.25), (98, 0.0, -0.1)) + tuple(
-            (fr, float(i % 2 == 0), 0.25 * math.sin(i * 1.4)) for i, fr in enumerate(range(112, LIVE_END + 1, 14))):
+    # Flat on his back, winded, and alive to the end of the shot (keyed every 3 frames: on sparse keys he
+    # lay still for the last 2 s): the chest heaving, slowing; a hand comes up to his head, then down to
+    # his ribs; the left knee draws up and lets go; the head rolls, dazed, and lifts once to look.
+    def bump(t, a, b, r=0.5):
+        return ease((t - a) / r) * (1 - ease((t - b) / r))
+    for fr in range(56, LIVE_END + 1, 3):
+        t = (fr - 56) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.8 + 0.4 * min(1.0, t / 5)))
+        head = bump(t, 0.8, 2.6, 0.6)       # right hand to the forehead
+        ribs = bump(t, 3.6, 5.6, 0.6)       # left hand to the ribs
+        knee = bump(t, 1.8, 3.4, 0.7)       # the left knee drawn up
+        look = bump(t, 4.2, 5.0, 0.4)       # the head lifts to look down at himself
         P = {}
-        torso(P, lean=0.0, look=0.15, hp=1.5, hroll=math.pi + 0.08, head_yaw=hy, breath=0.07 * br)
-        # (the legs down on the stone: the R out long, the L foot planted, knee up; at hip 0.05 / 0.7 they
-        # stuck up off the floor at ~20°)
-        leg(P, "L", hip=0.4, knee=1.3, ankle=0.2, out=0.1)
-        leg(P, "R", hip=-0.3, knee=0.15, ankle=0.2, out=0.12)
-        arm(P, "L", fwd=-0.2, elbow=0.4, out=0.9, curl=0.4)
-        arm(P, "R", fwd=0.1, elbow=1.2, out=0.5, curl=0.4)
-        fkey(fr, P, y=2.92, base=-DROP)
+        torso(P, lean=-0.06 * look, look=0.15 + 0.45 * look - 0.05 * br, hp=1.62, hroll=math.pi + 0.08,
+              head_yaw=0.35 * math.sin(t * 0.9) * (1 - look), head_roll=0.08 * math.sin(t * 0.7), breath=0.09 * br)
+        leg(P, "L", hip=0.12 + 0.75 * knee, knee=0.25 + 1.35 * knee, ankle=0.05 - 0.3 * knee, out=0.1 + 0.05 * knee)
+        leg(P, "R", hip=0.05 + 0.06 * math.sin(t * 0.6), knee=0.15 + 0.08 * max(0.0, math.sin(t * 0.6)), ankle=0.2, out=0.12)
+        # (the arm out along the stone, not behind his back: there the elbow propped him ~15 cm off it)
+        arm(P, "L", fwd=0.25 - 0.1 * ribs, elbow=0.4 + 1.5 * ribs, out=0.95 - 0.7 * ribs, twist=-1.1 * ribs, curl=0.4 + 0.3 * ribs)
+        arm(P, "R", fwd=0.15 + 1.95 * head, elbow=0.45 + 1.65 * head, out=0.65 - 0.3 * head, curl=0.4 + 0.2 * head,
+            wrist=-0.3 * head)
+        # On his back: the root from the body lying flat (the limbs move over the stone; propped on a heel
+        # or an elbow he hovered ~15 cm off it).
+        B = dict(P)
+        torso(B, lean=0.0, look=0.15, hp=1.62, hroll=math.pi + 0.08)
+        leg(B, "L", hip=0.0, knee=0.0, ankle=0.0)
+        leg(B, "R", hip=0.0, knee=0.0, ankle=0.0)
+        arm(B, "L", fwd=0.3, elbow=0.2, out=0.9)
+        arm(B, "R", fwd=0.3, elbow=0.2, out=0.9)
+        key(fr, P, z=floor_z(B, 0.0, 2.92) - DROP, y=2.92)
 
 
 # ------------------------------------------------------------------ look-dev previews

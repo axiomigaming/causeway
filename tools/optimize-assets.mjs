@@ -42,7 +42,7 @@ const SETS = {
   // Round 11: the far temple atlas (pyramids, face gate) at 512 and colour q68 keep phones in budget
   // with the near detail map (≈0.28 MB, fetched on Medium) on top.
   // (Round 23: 0.5/0.002 -> 0.4/0.003: real phone frames stood at 320-380k triangles.)
-  mobile: { simplify: { ratio: 0.4, error: 0.003 }, cap: (name) => (/^(wood|bark|flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
+  mobile: { simplify: { ratio: 0.4, error: 0.003, heavy: { re: /^(vault|tunnel_mouth|tower|arch|wall_tall|wall_mid|wall_low|foundation|facade|face_gate|temple|lintel_gate)_/, ratio: 0.25, error: 0.007 } }, cap: (name) => (/^(wood|bark|flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
 };
 /**
  * The runner is the one thing always in the middle of the frame, a metre or two from the lens: its
@@ -159,7 +159,11 @@ function simplifySolids(opts) {
       for (const prim of mesh.listPrimitives()) {
         if (/leaf/i.test(prim.getMaterial()?.getName() ?? '') || !prim.getIndices()) continue;
         before += prim.getIndices().getCount() / 3;
-        simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, lockBorder: false, ...opts });
+        // (World round 23: the big masonry — vaults, portals, tall walls — may take a coarser bound on
+        // phones: `heavy` names them; a few centimetres on a 6 m vault.)
+        const { heavy, ...base } = opts;
+        const o = heavy && heavy.re.test(mesh.getName()) ? { ratio: heavy.ratio, error: heavy.error } : base;
+        simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, lockBorder: false, ...o });
         after += prim.getIndices().getCount() / 3;
       }
     console.log(`  simplified solids: ${before} → ${after} triangles`);

@@ -839,7 +839,15 @@ export class Track {
 
   sectionAt(s: number): SectionInstance | undefined {
     for (const sec of this.sections) if (s >= sec.s0 && s < sec.s0 + sec.len) return sec;
-    return this.sections[this.sections.length - 1];
+    // (Round 23: outside every section — before the first one kept, or past the built end — the
+    // nearest one, not the last built: a point behind the route read as the section 165 m ahead.)
+    let best: SectionInstance | undefined;
+    let d = Infinity;
+    for (const sec of this.sections) {
+      const e = s < sec.s0 ? sec.s0 - s : s - (sec.s0 + sec.len);
+      if (e < d) ((d = e), (best = sec));
+    }
+    return best;
   }
 
   /**
@@ -965,7 +973,9 @@ function stageKit(kit: Kit): void {
   for (const key of ['stoneA', 'stoneB', 'floor', 'rock', 'cliff', 'statue', 'glyph', 'wood', 'temple']) {
     const m = kit.mat.get(key);
     // Detail normals strongest underfoot, where the camera is closest.
-    const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' ? 0.8 : key === 'wood' ? 0.4 : 0.6;
+    // (Round 23: the gate jambs and dressed blocks the route passes within 2-3 m of — temple, statue,
+    // glyph stone — read as plain flat cards at 0.6: they get the masonry's 0.9.)
+    const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' || key === 'temple' || key === 'statue' || key === 'glyph' ? 0.9 : key === 'wood' ? 0.4 : 0.6;
     if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
   }
   // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):
