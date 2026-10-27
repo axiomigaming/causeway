@@ -328,6 +328,8 @@ export class CameraRig {
     this.swing = this.swingTarget = 0;
     this.pull = this.pullTarget = 1;
     this.standBack = this.standBackV = 0;
+    this.zoom = 1;
+    this.zoomV = 0;
     this.sideK = this.sideV = 0;
     this.fov = 58;
     const c = this.camera;
@@ -351,6 +353,8 @@ export class CameraRig {
     this.trauma = 0;
     this.joltX = this.joltY = 0;
     this.standBack = this.standBackV = 0;
+    this.zoom = 1;
+    this.zoomV = 0;
     this.fovKick = 0;
     this.bob = this.bobV = this.sway = this.swayV = 0;
     const fov = this.computeTarget(runnerPos, runnerYaw, 0, 1 / 60, true);
@@ -966,7 +970,7 @@ export class CameraRig {
     this.keepInFrame(this.bodyAt ?? runnerPos, dt, rdt);
     this.rollKick *= Math.exp(-dt * 2.6);
     this.camera.rotateZ(this.dutch + hr + this.rollKick);
-    this.camera.fov = this.fov;
+    this.camera.fov = this.zoom > 1.001 ? (2 * Math.atan(Math.tan((this.fov * Math.PI) / 360) * this.zoom) * 180) / Math.PI : this.fov;
     this.revealK += ((this.revealed && (this.mode === 'crash' || this.mode === 'cashout') ? 1 : 0) - this.revealK) * (1 - Math.exp(-rdt * 2.5));
     // The title fly-over rides high over the causeway, level with the arch crowns: their stones
     // passed a metre or two above the lens and filled the top of a phone frame as huge, soft blocks.
@@ -1028,6 +1032,9 @@ export class CameraRig {
   /** Eased stand-back distance of a settled shot (m along the view; see keepInFrame). */
   private standBack = 0;
   private standBackV = 0;
+  /** Round 20: the escape's lens widening (tan of the half-angle times this), in place of a long stand-back. */
+  private zoom = 1;
+  private zoomV = 0;
   private tmp2 = new THREE.Vector3();
   private tmp3 = new THREE.Vector3();
   /**
@@ -1151,11 +1158,20 @@ export class CameraRig {
       // result card and dock arrive (or the shot settles) the band shrinks at once, and an instant
       // stand-back cut the lens several metres back in one frame.
       let want = 0;
+      let zoomWant = 1;
       if (settled) {
         const needV = (m.head - m.feet) / ((hi - lo) * tanV * 0.92);
         const needH = (m.right - m.left) / ((side > 0.5 ? 0.6 : 2 * mx) * tanH * 0.92);
         const k = Math.max(needV, needH);
         if (k > 1) want = Math.min(3.5, m.depth * (k - 1));
+        // Round 20 (coordinator, cash-out review): the escape stands back a metre at most; the rest
+        // is taken by a wider lens. Under the multiplier and the dock the band is short, and the
+        // stand-back took the lens 3.5 m out from the close three-quarter view — into a boulder.
+        zoomWant = 1;
+        if (this.mode === 'cashout' && want > 1.0) {
+          zoomWant = Math.min(1.6, (m.depth + want) / (m.depth + 1.0));
+          want = 1.0;
+        }
 
         // Never back into the scenery behind the lens (a wall, a statue): stop short of the first
         // solid on the way out from his chest.
@@ -1170,6 +1186,8 @@ export class CameraRig {
       }
       // Critically damped (it starts from rest, so the dolly-out has no lurch at its first frame).
       const w = 4;
+      this.zoomV += (w * w * (zoomWant - this.zoom) - 2 * w * this.zoomV) * dt;
+      this.zoom = Math.max(1, this.zoom + this.zoomV * dt);
       this.standBackV += (w * w * (want - this.standBack) - 2 * w * this.standBackV) * dt;
       this.standBack = Math.max(0, this.standBack + this.standBackV * dt);
       if (Math.abs(this.standBack) > 0.01) {
