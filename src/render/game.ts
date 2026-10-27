@@ -88,6 +88,7 @@ const DUST_DARK = new THREE.Color('#8a7058');
 const SPRAY = new THREE.Color('#e9f2ee');
 /** Round 20: dust turning in the ledge's shaft of sun. */
 const MOTE = new THREE.Color('#fff0cf');
+const DOWN = new THREE.Vector3(0, -1, 0);
 /** Round 20: the ledge crash's drop onto the lower course (fall_drop's root drop) and its landing time. */
 const LEDGE_DROP = 2.75;
 const LEDGE_LAND = 0.93;
@@ -1258,6 +1259,17 @@ export class Game {
         o.rc.far = len;
         o.hits.length = 0;
         o.mesh.raycast(o.rc, o.hits);
+        for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
+      }
+      // Round 20 (coordinator, cash-out review): a land section's ground too — its banks and
+      // sandstone outcrops stand beside the way, and the escape's orbit round to his face ran into
+      // one (the lens inside the rock for a second and a half).
+      // (Settled shots only: the ground is thousands of triangles, and the chase never leaves the way.)
+      if (sec.ground && (this.stage === 'cashout' || this.stage === 'crash')) {
+        o.rc.set(from, o.dir);
+        o.rc.far = len;
+        o.hits.length = 0;
+        sec.ground.raycast(o.rc, o.hits);
         for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
       }
     }
@@ -2602,6 +2614,16 @@ export class Game {
     if (p.y < WATER_Y + 0.15) return true;
     for (const sec of this.track.sections) {
       if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 45) continue; // a settled lens can stand well back
+      // (Round 20: under a land section's ground — inside a bank or an outcrop: a ray down from
+      // high above meets the ground over the lens.)
+      if (sec.ground) {
+        const o = this.occl;
+        o.rc.set(this.guardP.set(p.x, p.y + 60, p.z), DOWN);
+        o.rc.far = 60;
+        o.hits.length = 0;
+        sec.ground.raycast(o.rc, o.hits);
+        if (o.hits.some((h) => h.point.y > p.y + 0.1)) return true;
+      }
       // Every solid prop, the far scenery too: after a corner the way can pass a section's vista.
       for (const e of this.solids(sec, true)) {
         this.guardP.copy(p).applyMatrix4(e.inv);
