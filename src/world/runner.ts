@@ -299,6 +299,8 @@ interface FootLock {
   locked: boolean;
   pos: THREE.Vector3;
   w: number;
+  /** Let go because the body ran on from it: no new pin until this foot has left the floor. */
+  spent?: boolean;
 }
 
 /**
@@ -1376,18 +1378,45 @@ export class Runner {
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
       const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
-      else if (!f.locked && h < 0.125) {
+      else if (!f.locked && h < 0.125 && !f.spent) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
+      if (h > 0.16) f.spent = false;
       // Gone below the floor (the drop), or sliding along it: let go at once.
       if (h < -0.05 || sliding || kneeling) f.w = 0;
       f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : 10)));
       if (f.w < 0.01) continue;
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);
+      // A pin the body has run on from (a push-off the floor outruns, a move slowed by the brake): the
+      // hold gives way to the clip by as much as keeps the knee bent, and goes on letting go over the
+      // next frames. (Held in full, the leg was hauled straight in a frame — the knee 48° to 15°,
+      // stiff for 4 frames — and let go with a snap.)
+      const H = f.thigh.getWorldPosition(this.v3);
+      const reachMax = 0.94 * this.legLen(f);
+      if (H.distanceTo(this.v2.copy(ankle).lerp(f.pos, f.w)) > reachMax) {
+        let lo = 0, hi = f.w;
+        for (let i = 0; i < 8; i++) {
+          const m = 0.5 * (lo + hi);
+          if (H.distanceTo(this.v2.copy(ankle).lerp(f.pos, m)) > reachMax) hi = m;
+          else lo = m;
+        }
+        f.w = lo;
+        f.locked = false;
+        f.spent = true;
+        if (f.w < 0.01) continue;
+      }
       const target = this.v2.copy(ankle).lerp(f.pos, f.w);
       if (!this.solveLeg(f, target)) f.locked = false;
     }
+  }
+
+  /** Hip to ankle with the knee straight (m). */
+  private legLen(f: FootLock): number {
+    const H = f.thigh!.getWorldPosition(new THREE.Vector3());
+    const K = f.shin!.getWorldPosition(new THREE.Vector3());
+    const A = f.foot!.getWorldPosition(new THREE.Vector3());
+    return H.distanceTo(K) + K.distanceTo(A);
   }
 
   /** Two-bone IK in world space, bending in the current knee plane. False if out of reach. */
