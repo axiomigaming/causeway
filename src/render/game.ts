@@ -3039,6 +3039,7 @@ export class Game {
       this.rig.bodyAt = null;
       this.rig.bodyPts = null;
     }
+    this.rig.realDt = rawDt;
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), subject, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);
     const cam = this.rig.camera;
     // (The ceiling and the guard run inside rig.update, before its output spring: see preOutput.)

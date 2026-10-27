@@ -920,11 +920,14 @@ export class CameraRig {
     this.camera.fov = this.fov;
     // Round 18: the title too (its high pass looked down the way ahead with him just under the
     // bottom edge): the boots tilt up into the band, never a stand-back (settled shots only).
-    this.keepInFrame(this.bodyAt ?? runnerPos, dt);
+    // (Round 20: the result card comes in on real time, so the composition beside it does too: on
+    // the slow motion's clock the lens took a second to move him out from behind the 60x card.)
+    const rdt = this.realDt > 0 ? this.realDt : dt;
+    this.keepInFrame(this.bodyAt ?? runnerPos, dt, rdt);
     this.rollKick *= Math.exp(-dt * 2.6);
     this.camera.rotateZ(this.dutch + hr + this.rollKick);
     this.camera.fov = this.fov;
-    this.revealK += ((this.revealed && (this.mode === 'crash' || this.mode === 'cashout') ? 1 : 0) - this.revealK) * (1 - Math.exp(-dt * 2.5));
+    this.revealK += ((this.revealed && (this.mode === 'crash' || this.mode === 'cashout') ? 1 : 0) - this.revealK) * (1 - Math.exp(-rdt * 2.5));
     // The title fly-over rides high over the causeway, level with the arch crowns: their stones
     // passed a metre or two above the lens and filled the top of a phone frame as huge, soft blocks.
     // Nothing the title is about is nearer than the runner, so its near plane follows him: up to
@@ -999,6 +1002,8 @@ export class CameraRig {
     this.uiTopBar = Math.min(0.3, Math.max(0, topBar / Math.max(1, heightPx)));
   }
   private uiCol: [number, number] | null = null;
+  /** Real (unscaled) frame time, set by the game before update(): the interface runs on it. */
+  realDt = 0;
   private uiTopBar = 0;
   private sideK = 0;
   private sideV = 0;
@@ -1013,7 +1018,7 @@ export class CameraRig {
   bodyPts: THREE.Vector3[] | null = null;
   private tmp4 = new THREE.Vector3();
 
-  private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60): void {
+  private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60, rdt = dt): void {
     // (Looking down into the gap after him; once the lens has closed in on him lying on the ledge's
     // stone, he is framed again.)
     if (this.mode === 'crash' && this.gap > 0.3 && this.closeK < 0.5) return;
@@ -1033,9 +1038,9 @@ export class CameraRig {
         if (this.sideK < 0.02) this.sideX = target * 2 - 1;
       }
     }
-    const ws = 4.5;
-    this.sideV += (ws * ws * (sideWant - this.sideK) - 2 * ws * this.sideV) * dt;
-    this.sideK = THREE.MathUtils.clamp(this.sideK + this.sideV * dt, 0, 1);
+    const ws = 5.5;
+    this.sideV += (ws * ws * (sideWant - this.sideK) - 2 * ws * this.sideV) * rdt;
+    this.sideK = THREE.MathUtils.clamp(this.sideK + this.sideV * rdt, 0, 1);
     const side = this.sideK;
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
