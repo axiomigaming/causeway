@@ -1501,7 +1501,8 @@ export class Game {
       // The floor goes (fall_drop's floor goes at 0.13 s): from behind him to a few metres ahead.
       // The slabs under and round him tip outward about their outer edges as they drop, he drops
       // with them; they break up before they land.
-      this.later(LEDGE_RUN + 0.1, () => {
+      // (0.2 s: with the clip's cross-fade his feet leave the floor then; sooner, he stood in the air.)
+      this.later(LEDGE_RUN + 0.2, () => {
         const tiles = this.collapseFrom(sDrop - LEDGE_BACK, sDrop + span);
         tiles.forEach((t, i) => {
           const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
@@ -1519,7 +1520,9 @@ export class Game {
           // him like a trapdoor and hid the landing: those drop near flat, pitch a little, and
           // break up early.
           const wide = !!tb && Math.max((tb.max.x - tb.min.x) * ts.x, (tb.max.z - tb.min.z) * ts.z) > 1.7;
-          if (wide && onTrack) {
+          // (Over the place he lands and lies, whatever their size.)
+          const overHim = Math.abs(tp.dot(h.right)) < 1.3 && along > -1.2 && along < 4.5;
+          if ((wide && onTrack) || overHim) {
             // (A wide one over his landing crumbles as it goes: a few small pieces thrown to the
             // trough's sides. Its halves came to rest on him.)
             const p0 = new THREE.Vector3().setFromMatrixPosition(t.world);
@@ -1581,6 +1584,9 @@ export class Game {
         // The lens comes down into the trough beside him: a low three-quarter view ~2.6 m off.
         this.rig.closeIn = 1.05;
         this.rig.closeUp = -0.45;
+        // (Off to his side by about 1 m only: further, the lens was outside the open trough's
+        // footprint, and the guard held it over the floor above, looking down from 3 m.)
+        this.rig.closeSide = 0.75;
         // A shaft of sun down through the hole onto him, steep (through the hole, never through a
         // wall), with dust turning in it.
         const sd = this.sunDir;

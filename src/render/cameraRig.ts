@@ -130,6 +130,8 @@ export class CameraRig {
   closeIn = 0;
   /** Crash close-in: metres higher (the ledge: over the fragments lying round him in the trough). */
   closeUp = 0;
+  /** Crash close-in: its sideways offset times this (the ledge: the trough is 3.2 m wide). */
+  closeSide = 1;
   private closeK = 0;
   /** Crash: close in from this frame on, without first easing through the crash shot's own framing. */
   closeNow(): void {
@@ -178,6 +180,7 @@ export class CameraRig {
     this.modeT = 0;
     this.closeIn = 0;
     this.closeUp = 0;
+    this.closeSide = 1;
     this.closeK = 0;
     this.wide = 0;
     this.wideK = 0;
@@ -552,7 +555,7 @@ export class CameraRig {
         let cf = this.crashFrame(T / (1 + 0.5 * this.epic), s);
         // (closeIn > 1 comes closer still; a portrait screen opens its lens, so it comes closer too.)
         const ck = (this.camera.aspect < 1 ? 0.72 : 1) / Math.max(1, this.closeIn);
-        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
+        if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * this.closeSide * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         break;
       }
