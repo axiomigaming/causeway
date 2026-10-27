@@ -12,7 +12,7 @@ import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
-import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
+import { causticUniforms, ensureDetailMap, patchBark, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { makeLilyMaterial, makeMossMaterial } from './moss';
 import { atmosphereUniforms } from './atmosphere';
@@ -622,7 +622,10 @@ export class Track {
       // the way has stepped down), unless a landmark's staging or QA holds the route.
       if (!forced && !isLand(t) && t !== 'turnL' && t !== 'turnR' && this.sinceLand >= LAND_DUE) {
         const land = LAND_TYPES.filter((x) => x !== this.lastType && allow(x));
-        if (land.length) t = this.rng.pick(land);
+        // (A corner that may come now sometimes goes first: land runs take the slots corners need.)
+        const turn = (['turnL', 'turnR'] as const).filter((x) => allow(x));
+        if (turn.length && this.rng.chance(0.3)) t = this.rng.pick(turn);
+        else if (land.length) t = this.rng.pick(land);
         else if (this.elevation < -0.01 && allow('stairsUp') && this.lastType !== 'stairsUp') t = 'stairsUp';
       }
       // World round 21: land comes in runs (two or three sections of forest, cutting, plaza or ravine,
@@ -695,12 +698,18 @@ export class Track {
     if (this.pendingLandmark || !this.landmarkQueue.length || sec.s0 + sec.len < this.nextLandmarkS) return;
     if (!OPEN_APPROACH.includes(t) || this.turnBlock.n > 0) return;
     // World round 23: its open run-up (water and sky, about ten seconds) starts as a land run ends, so the
-    // open stretch around it stays short.
-    if (!afterLand) return;
+    // open stretch around it stays short: straight after land, or after a short run of land staged first
+    // (where land may stand: level, clear of the last corner).
+    const lead: SectionType[] = [];
+    if (!afterLand) {
+      if (Math.abs(this.elevation) > 0.01 || (this.cornered && this.sinceTurn < 2)) return;
+      const a = this.lmRng.pick(LAND_TYPES);
+      lead.push(a, this.lmRng.pick(LAND_TYPES.filter((x) => x !== a)));
+    }
     const turn: SectionType = this.heading > 0 ? 'turnR' : this.heading < 0 ? 'turnL' : this.lmRng.chance(0.5) ? 'turnL' : 'turnR';
     // Four open sections of run-up (bridge or stepping slabs: water and sky in view), the corner, an open exit.
     const open = (): SectionType => 'approach';
-    this.staged.push(open(), open(), open(), open(), turn, open());
+    this.staged.push(...lead, open(), open(), open(), open(), turn, open());
     this.pendingLandmark = this.landmarkQueue.shift()!;
   }
 
@@ -944,6 +953,8 @@ function stageKit(kit: Kit): void {
     bark.userData.lifted = true;
     bark.color.multiplyScalar(4);
   }
+  // World round 23: real furrows on the near bark (the giant roots arch right beside the camera).
+  if (bark) patchBark(bark);
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {
     gold.userData.staged = true;

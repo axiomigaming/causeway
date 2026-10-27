@@ -294,6 +294,18 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
   return WL - 0.5 + 1.4 * s * 1.1 - 0.12;
 }
 
+/**
+ * World round 23: green on a giant root heaved over the parapet on `side` (spanning z0 … z0 − 4):
+ * cushion moss in the crook over the crest, a curtain of leafy vine hanging off it down the inner face,
+ * a fern at its foot where it meets the paving. (Bare, the roots read as smooth green tubes.)
+ */
+function rootDress(b: Builder, side: number, z0: number, y = 0, crest = 1.3) {
+  const zc = z0 - b.rng.range(1, 3);
+  if (b.foliage(0.9)) b.place(`moss_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.5), y + crest + 0.05, zc, b.rng.range(0, 6.28), b.rng.range(0.45, 0.65));
+  if (b.foliage(0.7)) b.place(`vines_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.1), y + crest + 0.2, zc + b.rng.range(-0.6, 0.6), side * Math.PI / 2, [0.55, b.rng.range(0.35, 0.5), 1]);
+  if (b.foliage(0.6)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.25), y - 0.05, z0 - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.6, 0.85));
+}
+
 function bananas(b: Builder, x: number, y: number, z: number, p = 1) {
   // (Round 20: out over the water, on an islet of its own, never with its foot in the air.)
   if (Math.abs(x) > PATH_HALF + 0.95 && y > WL - 0.2 && y < -0.2) {
@@ -744,6 +756,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
             const k = b.rng.int(0, 1);
             if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, gy(b, 3, z), z + 2, 0, [0.9, 0.8, 0.9]);
             else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), gy(b, -3, z), z - 2, Math.PI, [0.9, 0.8, 0.9]);
+            rootDress(b, side, z + 2, gy(b, 3 * side, z), (k === 1 ? 1.3 : 1.2) * 0.8);
           }
         }
         forestSide(b, side, len, 1.2);
@@ -1577,6 +1590,7 @@ const BUILDERS = {
           if (b.rng.chance(0.7)) {
             if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, 0, z, 0);
             else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), 0, z - 4, Math.PI);
+            rootDress(b, side, z, 0, k === 1 ? 1.3 : 1.2);
           }
           if (b.foliage(0.5)) bananas(b, side * b.rng.range(3.2, 4.2), -0.6, z - 1.5);
         }
@@ -1735,7 +1749,7 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['turnL', 1.8 + 0.8 * intensity],
     ['turnR', 1.8 + 0.8 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
-    // World round 21: land (a run of two to four; see Track.update).
+    // World round 21: land (a run of two or three; see Track.update).
     ['forest', 2.4],
     ['forestWall', 1.5],
     ['cutting', 1.1 + 0.7 * intensity],
