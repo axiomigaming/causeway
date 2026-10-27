@@ -256,7 +256,10 @@ async function cameraMotion(page, view) {
         const C = [];
         const H = [];
         const T = [];
-        window.__fc = { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
+        // World round 23 releases a section's paving once it lies 50 m behind him: any of those
+        // sections' path in the frame (occlusion ignored, so conservative) is bare ground on screen.
+        const gone = [];
+        window.__fc = { gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
       },
       { c, shake, seed },
     );
@@ -278,6 +281,15 @@ async function cameraMotion(page, view) {
             Q.push([q.x, q.y, q.z, q.w]);
             L.push(`${g.stage}/${g.runner.current ?? g.runner.anim}`);
             if (f % 3 === 0) {
+              let n = 0;
+              for (const sec of g.track.sections) {
+                if (!sec.tilesGone) continue;
+                for (let ds = 0; ds <= sec.len; ds += 4) {
+                  const v = g.track.path.sample(sec.s0 + ds).pos.clone().project(cam);
+                  if (v.z < 1 && Math.abs(v.x) < 1 && Math.abs(v.y) < 1) n++;
+                }
+              }
+              if (n) S.gone.push(`f${f}:${n}`);
               const fr = g.debugFraming();
               O.push([f, fr.solid, (fr.hits ?? []).slice(0, 2).join('|')]);
             }
@@ -332,14 +344,14 @@ async function cameraMotion(page, view) {
     const r = await page.evaluate(
       () => {
         const S = window.__fc;
-        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp } = S;
+        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp, gone } = S;
         const { revealAt, revealSpeed } = S;
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
         g.debris.onImpact = onImp;
-        return { P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        return { gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
     );
     const ang = (a, b) => {
@@ -444,7 +456,15 @@ async function cameraMotion(page, view) {
       }
       problems.push(`hips jump ${(hj * 100).toFixed(0)} cm/frame² at f${hjAt} (${r.L[hjAt]}; v@ts ${sp.join(' ')})`);
     }
-    if (gj > 0.1) problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]})`);
+    if (gj > 0.1) {
+      // The root's step per frame around it (cm: along x/z, and y), to tell the run-out from a height step.
+      const sp = [];
+      for (let f = Math.max(1, gjAt - 4); f <= Math.min(r.G.length - 1, gjAt + 3); f++) {
+        const [a, b] = [r.G[f], r.G[f - 1]];
+        sp.push(`${(Math.hypot(a[0] - b[0], a[2] - b[2]) * 100).toFixed(1)}/${((a[1] - b[1]) * 100).toFixed(1)}`);
+      }
+      problems.push(`ground jumps ${(gj * 100).toFixed(0)} cm/frame² at f${gjAt} (${r.L[gjAt]}; xz/y ${sp.join(' ')})`);
+    }
     // Round 20 (owner): the result card never lands before he has stopped.
     if (!c.kind && r.revealAt >= 0 && r.revealSpeed > 0.3) problems.push(`card at f${r.revealAt} while he runs at ${r.revealSpeed.toFixed(1)} m/s`);
     // Blocked: three or more of the five sight lines, on two samples running.
@@ -459,6 +479,7 @@ async function cameraMotion(page, view) {
     if (worst.omega > CAM.omega) problems.push(`fast turn ${worst.omega.toFixed(1)}°/frame at f${at.omega}`);
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
     if (r.cuts.length) problems.push(`hard cut ${r.cuts.join(' ')}`);
+    if (r.gone.length) problems.push(`released paving in frame ${r.gone.slice(0, 6).join(' ')}`);
     // Round 20 (coordinator): the pier comes to rest on the floor, visibly: level, both ends
     // down (axis no higher than its radius + 0.2 m over the floor), and down before he meets it.
     if (r.C?.length && c.kind === 'pillar') {
