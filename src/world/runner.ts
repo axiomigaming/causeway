@@ -562,6 +562,18 @@ export class Runner {
    * Metres the clip has carried him forward (along the way he faces) since the last call, while root
    * motion is on and a fall or escape clip plays; 0 otherwise. Move the root by it each frame.
    */
+  /**
+   * Seconds into the escape's slowing steps: the playing win clip's own time (its first frames are keyed
+   * on the braking curve, CLIP_PACE × brakeCurve(t)), or null while no win clip plays (a cash-out still
+   * pending on its strike) and for win_slide, which keeps the game's own braking. Drive the braking root
+   * from it and the planted feet stay planted whatever strike or offset the clip joined at.
+   */
+  escapeClock(): number | null {
+    if (!this.current.startsWith('win') || this.current === 'win_slide') return null;
+    const a = this.actions.get(this.current);
+    return a ? a.time : null;
+  }
+
   takeTravel(): number {
     const t = this.travelOut;
     this.travelOut = 0;

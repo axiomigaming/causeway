@@ -1231,6 +1231,17 @@ FISTS = dict(fwd=0.1, elbow=0.75, out=0.2, curl=0.95)  # loose fists by the hips
 DECEL = 30  # frames from the run to the braking plant (decel())
 
 
+def _stance_back(P0, P1):
+    """How far the lower (planted) foot sweeps back under the hips from pose P0 to P1 (m, sagittal FK)."""
+    def fk(P, s):
+        hp = -P.get("hips", (0, 0, 0))[0]
+        at = THIGH0 - P.get(f"thigh.{s}", (0, 0, 0))[0] - hp
+        as_ = at - P.get(f"shin.{s}", (0, 0, 0))[0] - K0
+        return LT * math.sin(at) + LS * math.sin(as_), -LT * math.cos(at) - LS * math.cos(as_)
+    s = min("LR", key=lambda s: fk(P0, s)[1] + fk(P1, s)[1])
+    return fk(P0, s)[0] - fk(P1, s)[0]
+
+
 def decel(f0=1):
     """Run → stop over ~1 s: four slowing steps, each a little longer, the stride shortening, the arm
     swing dying away and the trunk coming up and back to brake; a last braking plant, a glance back over
@@ -1267,7 +1278,17 @@ def decel(f0=1):
             x = x * (1 - w)
         key(f0 + i, P, z=z, x=x)
         bm = brake((i + 0.5) / FPS)
-        ph += CLIP_PACE * bm / (S * (0.35 + 0.65 * max(0.05, bm ** 1.5))) / FPS
+        dph = CLIP_PACE * bm / (S * (0.35 + 0.65 * max(0.05, bm ** 1.5))) / FPS
+        # (Then trued on the legs themselves: the planted foot is to sweep back under the hips at the
+        # braking speed. On the turnover formula alone the slowing stance swept back at ~2 m/s where the
+        # root brakes at 4-5: the foot skated 10-12 cm a frame through the first steps of every escape.)
+        k1 = max(0.05, brake((i + 1) / FPS) ** 1.5)
+        for _ in range(3 if f_plant is None else 0):
+            P1, x1 = loco((ph + dph) % 1.0, RUN, k1)
+            sweep = _stance_back(P, P1) - (x1 - x)  # (the hips' own sway in the cycle carries the foot too)
+            if sweep > 0.004:
+                dph *= min(1.6, max(0.6, CLIP_PACE * bm / FPS / sweep))
+        ph += dph
         if f_plant is None and ph >= 1.5:
             f_plant = i + 1
     key(f0 + DECEL, P_end)
@@ -2899,11 +2920,14 @@ def crash_clips():
     arm(P, "R", fwd=1.35, elbow=0.45, out=0.32, wrist=-0.4, curl=0.1)
     fkey(8, P, y=1.05)
     # Hands on the stone (0.37 s), palms flat, the body checked into them.
-    for fr, lean, look, el, y in ((11, 0.2, 0.0, 0.35, 1.2), (13, 0.35, -0.3, 0.9, 1.22), (17, 0.4, -0.5, 0.75, 1.22)):
+    # (13-17: the breath knocked out of him into the stone, the head dropping between the arms and the
+    # knees giving; on two near-alike keys he stood braced there still.)
+    for fr, lean, look, el, y, kn, br in ((11, 0.2, 0.0, 0.35, 1.2, 0.0, 0.0), (13, 0.35, -0.3, 0.9, 1.22, 0.0, 0.0),
+                                          (15, 0.46, -0.55, 1.05, 1.22, 0.12, 0.08), (17, 0.4, -0.45, 0.75, 1.22, 0.05, 0.0)):
         P = {}
-        torso(P, lean=lean, look=look, hp=0.05)
-        leg(P, "L", hip=0.35 + 0.05, knee=0.3, ankle=0.0)
-        leg(P, "R", hip=-0.15 + 0.05, knee=0.35, ankle=0.3)
+        torso(P, lean=lean, look=look, hp=0.05, breath=br, head_yaw=0.12 * br / 0.08)
+        leg(P, "L", hip=0.35 + 0.05 + 0.5 * kn, knee=0.3 + kn, ankle=-0.5 * kn)
+        leg(P, "R", hip=-0.15 + 0.05 + 0.5 * kn, knee=0.35 + kn, ankle=0.3 - 0.5 * kn)
         arm(P, "L", fwd=1.45, elbow=el, out=0.28, wrist=-0.9, curl=0.1)
         arm(P, "R", fwd=1.42, elbow=el + 0.05, out=0.3, wrist=-0.9, curl=0.1)
         fkey(fr, P, y=y)
@@ -2940,11 +2964,19 @@ def crash_clips():
     P["neck"] = (0.0, 0.3, 0.0)
     P["head"] = (0.0, 0.35, 0.0)
     key(7, P, z=gait_root((CADENCE_F * 6) % 1.0, RUN), x=x, y=1.2)
+    P7 = P
     # IMPACT: the R shoulder knocked back, the trunk thrown toward the L side, the head whipped.
     P = {}
     torso(P, lean=0.1, look=0.1, hp=0.0, roll=-0.45, yaw=0.5, head_yaw=0.9, head_roll=-0.4)
     leg(P, "L", hip=0.5, knee=0.7, ankle=0.2)
     leg(P, "R", hip=-0.3, knee=0.6, ankle=0.4)
+    # (The legs only half way there on the hit, the stride carried through it: snapped from the stride in a
+    # frame, the R thigh swung 66° and the feet 65-84 cm; out of a slide, with no stride around it, a pop.)
+    for sd in "LR":
+        for b in ("thigh", "shin", "foot", "toe"):
+            k = f"{b}.{sd}"
+            if k in P and k in P7:
+                P[k] = tuple(0.5 * (u + v) for u, v in zip(P[k], P7[k]))
     arm(P, "R", fwd=0.5, elbow=0.9, out=1.0, curl=0.3)
     arm(P, "L", fwd=0.6, elbow=1.0, out=0.7, curl=0.3)
     spin = [(8, P, 0.05, 1.35, 0.03)]
@@ -2968,11 +3000,11 @@ def crash_clips():
     standing_turned(P, 2.9)
     spin.append((16, P, 0.7, 1.7, 0.0))
 
-    def side_lie(P, roll, kn=1.0, br=0.0, ra=(0.6, 0.8, 0.3), look=0.0):
-        torso(P, lean=0.2, look=look, hp=0.25, hroll=roll, breath=0.04 * br)
-        leg(P, "L", hip=0.6, knee=kn, ankle=0.2, out=0.05)
-        leg(P, "R", hip=0.75, knee=kn + 0.15, ankle=0.2, out=0.05)
-        arm(P, "L", fwd=1.5, elbow=0.5, out=-0.3, curl=0.5)
+    def side_lie(P, roll, kn=1.0, br=0.0, ra=(0.6, 0.8, 0.3), look=0.0, hip=0.0, hy=0.0, bra=0.04, la=(1.5, 0.5, -0.3), knl=None):
+        torso(P, lean=0.2, look=look, hp=0.25, hroll=roll, breath=bra * br, head_yaw=hy)
+        leg(P, "L", hip=0.6 + hip, knee=kn if knl is None else knl, ankle=0.2, out=0.05)
+        leg(P, "R", hip=0.75 + 1.2 * hip, knee=kn + 0.15, ankle=0.2, out=0.05)
+        arm(P, "L", fwd=la[0], elbow=la[1], out=la[2], curl=0.5)
         arm(P, "R", fwd=ra[0], elbow=ra[1], out=ra[2], curl=0.5)
         standing_turned(P, 3.4)
     # … down on the L side (0.63 s), a bounce, curled up; the R hand comes over to the struck shoulder.
@@ -2981,15 +3013,39 @@ def crash_clips():
     side_lie(P, -1.45, 1.0)
     spin.append((19, P, 0.85, 1.72, 0.0))
     spin_keys(spin, flail_amp=0.22)
-    for fr, roll, kn, y, x in ((22, -1.62, 0.8, 1.74, 0.88), (26, -1.55, 1.1, 1.75, 0.9), (31, -1.6, 1.35, 1.75, 0.9), (33, -1.52, 0.95, 1.75, 0.9)):
+    # (No lull between the bounce and the curl: the knees come up and the hand goes over in one movement,
+    # the under foot settling onto the stone as it does.)
+    for fr, roll, kn, y, x in ((22, -1.62, 0.8, 1.74, 0.88), (26, -1.52, 1.25, 1.75, 0.9), (29, -1.5, 1.45, 1.75, 0.9), (32, -1.5, 0.95, 1.75, 0.9)):
         P = {}
-        side_lie(P, roll, kn, ra={31: (0.9, 1.4, 0.1), 33: (1.3, 2.0, -0.05)}.get(fr, (0.6, 0.8, 0.3)))
+        side_lie(P, roll, kn, ra={26: (0.75, 1.15, 0.2), 29: (0.95, 1.5, 0.1), 32: (1.3, 2.0, -0.05)}.get(fr, (0.6, 0.8, 0.3)))
         wkey(fr, P, x, y)
-    for i, fr in enumerate(range(36, LIVE_END + 1, 14)):
-        br = float(i % 2 == 0)
-        ra = (1.2 + 0.1 * (i % 2), 1.9 + 0.2 * (i % 2), -0.1 - 0.05 * (i % 2))
+    # Curled on his side and alive to the end of the shot (keyed every 3 frames: on keys 14 frames apart he
+    # lay still as a statue for 6 s): the breath heaving, slowing; the hand working at the struck shoulder;
+    # the knees drawn up with the pain and let go; the head lifting once to look back at the stone.
+    def bump(t, a, b, r=0.5):
+        return ease((t - a) / r) * (1 - ease((t - b) / r))
+    for fr in range(36, LIVE_END + 1, 3):
+        t = (fr - 36) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.75 + 0.35 * min(1.0, t / 5)))
+        rub = 0.5 + 0.5 * math.sin(t * 4.0)
+        curl = bump(t, 1.0, 2.4, 0.6) + 0.7 * bump(t, 4.6, 5.8, 0.6)
+        lift = bump(t, 2.8, 4.0, 0.5)
+        ra = (1.15 + 0.3 * rub, 1.8 + 0.5 * rub, -0.1 - 0.15 * rub)
+        # (the L arm under him stirs only a little: it is what he lies on, and the root follows the lowest point)
+        la = (1.5 + 0.06 * math.sin(t * 1.3), 0.5, -0.3)
         P = {}
-        side_lie(P, -1.55, 1.15 + 0.08 * math.sin(i * 1.3), br, ra, look=-0.2 + 0.08 * math.sin(i * 0.9))
+        side_lie(P, -1.5, 1.15 + 0.4 * curl + 0.25 * math.sin(t * 1.7), br, ra,
+                 look=-0.2 + 0.5 * lift + 0.1 * math.sin(t * 1.4), hip=0.12 * curl + 0.08 * math.sin(t * 1.2),
+                 hy=0.3 * lift + 0.2 * math.sin(t * 0.9), bra=0.09, la=la,
+                 knl=1.1 + 0.1 * curl + 0.1 * math.sin(t * 1.7))  # (the under leg stays down on the stone)
+        # (the feet working against each other with the pain)
+        for sd, ph in (("L", 0.0), ("R", 2.0)):
+            fx, fy, fz = P[f"foot.{sd}"]
+            P[f"foot.{sd}"] = (fx + 0.35 * math.sin(t * 2.4 + ph), fy, fz)
+        # (the top leg shifting on its own, out of step with the under one)
+        for bn, amp in (("shin.R", 0.3), ("thigh.R", -0.15)):
+            bx, by, bz = P[bn]
+            P[bn] = (bx + amp * math.sin(t * 1.3 + 1.0), by, bz)
         wkey(fr, P, 0.9, 1.75)
 
     # ---------------------------------------------------------- fall_drop: the floor gives under him (0.13 s); he
