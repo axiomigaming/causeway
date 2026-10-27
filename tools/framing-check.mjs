@@ -316,7 +316,7 @@ async function cameraMotion(page, view) {
                 if (fw.lengthSq() > 1e-6 && to.lengthSq() > 1e-6) fc = +fw.normalize().dot(to.normalize()).toFixed(2);
               }
               Fc.push(fc);
-              RK.push([+g.rig.revealK.toFixed(2), g.rig.uiCol ? g.rig.uiCol.map((x) => +x.toFixed(3)) : null]);
+              RK.push([+g.rig.revealK.toFixed(2), g.rig.uiCol ? g.rig.uiCol.map((x) => +x.toFixed(3)) : null, +(g.guardK ?? 0).toFixed(2), g.rig.faceEnd === null ? null : +g.rig.faceEnd.toFixed(2)]);
             }
             S.setF(f + 1);
             if (S.revealAt < 0 && g.rig.revealed) (S.revealAt = f), (S.revealSpeed = g.speed);
@@ -373,7 +373,8 @@ async function cameraMotion(page, view) {
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
         g.debris.onImpact = onImp;
-        return { RK, Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        const ct = true ? JSON.stringify({ salute: g.clipTurn?.('win_salute'), names: g.runner.actions.get('win_salute')?.getClip().tracks.slice(0, 3).map((t) => t.name) }) : '';
+        return { ct, RK, Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
     );
     const ang = (a, b) => {
@@ -528,6 +529,22 @@ async function cameraMotion(page, view) {
         if (worst > 2) problems.push(`runner hidden or off frame for ${worst} frames (to f${worstAt})`);
       }
     }
+    if (process.env.ESC) {
+      // (Debug: from frame ESC on, the lens's bearing off the line to his hips, and the distance.)
+      const f0 = +process.env.ESC;
+      const out = [];
+      for (let f = f0; f < Math.min(r.P.length, f0 + 24); f += 2) {
+        const p = r.P[f], q = r.Q[f], g = r.G[f], h = r.H[f];
+        const hx = g[0] + h[0] - p[0], hz = g[2] + h[2] - p[2];
+        // camera forward from quaternion (0,0,-1)
+        const [x, y, z, w] = q;
+        const fx = -(2 * (x * z + w * y)), fz = -(1 - 2 * (x * x + y * y));
+        const ang = ((Math.atan2(hx, hz) - Math.atan2(fx, fz)) * 180) / Math.PI;
+        const a2 = ((ang + 540) % 360) - 180;
+        out.push(`f${f}:${a2.toFixed(0)}°/${Math.hypot(hx, hz).toFixed(1)}m/h${Math.hypot(h[0], h[2]).toFixed(1)}/c${p.map((v) => v.toFixed(1)).join(",")}/g${g[0].toFixed(1)},${g[2].toFixed(1)}/gk${r.RK[f][2]}/fe${r.RK[f][3]}`);
+      }
+      problems.push(`(esc ${r.ct} ${out.join(' ')})`);
+    }
     // Round 20 (coordinator, cash-out review): the escape is seen. Through the braking (the half
     // second before the celebration clip) he is a fifth of the frame or more; from 0.5 s into the
     // celebration to the card he is a quarter or more, and faces the lens (front or three-quarter)
@@ -541,7 +558,8 @@ async function cameraMotion(page, view) {
       if (clip0 > 0) {
         const brake = [];
         for (let f = Math.max(0, clip0 - 15); f < clip0; f++) brake.push(hOf(f));
-        const end = r.revealAt > clip0 ? r.revealAt : Math.min(r.L.length, clip0 + 75);
+        // (To 1.5 s after the card: the clips turn him round to the lens near their end.)
+        const end = Math.min(r.L.length, (r.revealAt > clip0 ? r.revealAt : clip0 + 75) + 45);
         const cel = [];
         let front = 0;
         // (From a second in: the swing round to his face takes about that.)

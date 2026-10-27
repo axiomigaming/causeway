@@ -1104,9 +1104,17 @@ export class Game {
       // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
       if (this.speed > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
       this.stageEscape(E);
-      // Round 20: the card waits until he has pulled up and turned (the celebration clips now take
-      // four real steps, 0.33 s more, before their beat).
-      this.holdReveal(0.33 + T * 0.7, 'escape');
+      // Round 20 (coordinator, cash-out review): every celebration clip turns him round (about 166°,
+      // between 1.6 and 3 s in) to face back the way he came. The clip is known: the lens aims at the
+      // three-quarter view of the way he will face at its end — so the turn brings his face round
+      // to it — and the card waits until he has turned.
+      // (The clip asked for: play() may hold it for the next foot strike, and until then the runner's
+      // current clip is still the run.)
+      const cur = (this.runner as unknown as { current: string }).current;
+      const turn = this.clipTurn(cur?.startsWith('win') ? cur : clip);
+      this.rig.faceEnd = turn ? turn.yaw : null;
+      const H = revealHold('escape', this.live.mult, this.motion);
+      this.holdReveal(Math.max(0.33 + T * 0.7, turn ? turn.t - (st.offset ?? 0) + 0.4 - H.after : 0), 'escape');
     };
     if (runOn > 0) {
       this.runOn = true;
@@ -2736,6 +2744,32 @@ export class Game {
   private tmpV1 = new THREE.Vector3();
   private tmpV2 = new THREE.Vector3();
   private groundY: number | null = null;
+  /**
+   * Round 20: the turn a clip's root makes (rad about the vertical, toward his right, as the rig
+   * measures facing) and when it is 90 % done (s of clip time); null without one.
+   */
+  private clipTurn(name: string): { yaw: number; t: number } | null {
+    const act = (this.runner as unknown as { actions: Map<string, THREE.AnimationAction> }).actions.get(name);
+    const tr = act?.getClip().tracks.find((k) => /(^|\.)root\.quaternion$/.test(k.name) || k.name === 'root.quaternion');
+    if (!tr || tr.values.length < 8) return null;
+    const v = tr.values;
+    const q0 = new THREE.Quaternion(v[0], v[1], v[2], v[3]).invert();
+    const yawAt = (i: number) => {
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(v[i * 4], v[i * 4 + 1], v[i * 4 + 2], v[i * 4 + 3]).premultiply(q0));
+      return Math.atan2(f.x, -f.z);
+    };
+    const n = tr.times.length;
+    const end = yawAt(n - 1);
+    if (Math.abs(end) < 0.5) return null;
+    let t = tr.times[n - 1]!;
+    for (let i = 0; i < n; i++) {
+      if (Math.abs(yawAt(i)) >= 0.9 * Math.abs(end)) {
+        t = tr.times[i]!;
+        break;
+      }
+    }
+    return { yaw: end, t };
+  }
   private groundV = 0;
   private placeRunner(dt: number) {
     const f = this.track.path.sample(this.s);

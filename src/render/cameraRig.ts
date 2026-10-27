@@ -94,6 +94,8 @@ export class CameraRig {
   /** Round 20: the way his chest faces (horizontal, world), set by the game in a cash-out. */
   readonly bodyFwd = new THREE.Vector3();
   bodyFwdOk = false;
+  /** Round 20: where the celebration clip will leave him facing (rad off the way, toward its right), or null. */
+  faceEnd: number | null = null;
   /** His facing off the rig's forward (rad, toward its right), eased. */
   private faceD = 0;
   private variant = 0;
@@ -190,6 +192,7 @@ export class CameraRig {
     this.closeIn = 0;
     this.closeUp = 0;
     this.closeSide = 1;
+    if (m !== 'cashout') this.faceEnd = null;
     this.closeK = 0;
     this.wide = 0;
     this.wideK = 0;
@@ -607,6 +610,20 @@ export class CameraRig {
       }
       case 'cashout': {
         fov = this.shot(runnerPos, this.resultFrame(this.settled(this.escapeFrame(T, s))));
+        // Round 20: the orbit is about the composition's eased subject; the clips walk him a metre
+        // or two off it (the salute turns and steps back toward the lens), and the lens came within
+        // half a metre of him. Never nearer his body than 1.9 m across the ground.
+        if (this.bodyAt) {
+          const dx = this.targetPos.x - this.bodyAt.x;
+          const dz = this.targetPos.z - this.bodyAt.z;
+          const d = Math.hypot(dx, dz);
+          const dMin = this.camera.aspect < 1 ? 1.6 : 1.9;
+          if (d < dMin) {
+            const k = d > 1e-3 ? dMin / d : 1;
+            this.targetPos.x = this.bodyAt.x + (d > 1e-3 ? dx * k : -this.fwd.x * dMin);
+            this.targetPos.z = this.bodyAt.z + (d > 1e-3 ? dz * k : -this.fwd.z * dMin);
+          }
+        }
         break;
       }
     }
@@ -756,9 +773,17 @@ export class CameraRig {
       // (From where the run-on left the lens, 45° off his back on his right, over 1.15 s.)
       const a0 = lerp(0.27, 0.79, this.escapeWide);
       const w = ease(T / 1.15);
-      const aFront = Math.PI - ((s || 1) * this.faceD + 0.65);
+      // (With the clip's end facing known, the three-quarter view of that — on whichever side is
+      // nearer — and held: he turns round into it.)
+      const fd = this.faceEnd !== null ? this.faceEnd : this.faceD;
+      const f1 = Math.PI - ((s || 1) * fd + 0.65);
+      const f2 = Math.PI - ((s || 1) * fd - 0.65);
+      const aFront = Math.abs(angleDelta(a0, f1)) <= Math.abs(angleDelta(a0, f2)) ? f1 : f2;
       const aU = a0 + angleDelta(a0, aFront);
       a = lerp(a0, aU, w);
+      // (The look comes onto him as the lens swings: a look point metres up the way, from a lens
+      // in front of him, put him at the frame's edge.)
+      lAlong *= 1 - ease(T / 0.5);
     }
     // Grand escapes: a wider orbit that cranes up as it settles. (Round 20: closer all round: he
     // was a fifth of the frame in the turn.)
