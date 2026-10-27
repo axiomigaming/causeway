@@ -1117,7 +1117,8 @@ def build(rig):
         elif act.name.startswith("fall_"):
             # the crash keys' jolts (the falls key the body's path every 2-4 frames); the impacts that stop his
             # travel against something (under root motion the root carries it) a little wider still
-            ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit", "fall_drop") else 3.0)
+            ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit") else 1.5 if act.name == "fall_drop" else 3.0)
+            # (the drop: not σ 4 through its impact, which slowed the fall before the stone into a soft landing)
         elif act.name == "slide":
             ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
         if act.name == "fall_side_hit":
@@ -3157,30 +3158,40 @@ def crash_clips():
     arm(P, "L", fwd=1.0, elbow=0.4, out=0.5, curl=0.3)
     arm(P, "R", fwd=0.95, elbow=0.45, out=0.55, curl=0.3)
     fkey(int(round(fr_land)) + 1, P, y=0.75 + 1.9 * land_u, base=-DROP)
-    # Crumpling: the knees right down, the hands slap the stone, he pitches over onto the R shoulder …
+    # (A 2.75 m drop does not land on its feet: he crumples on impact, the legs buckling under him and the
+    # seat hitting the stone in 2 frames, and slams over onto his back within 8. Crumpling over 20 frames on
+    # hips smoothed through the impact, he read as landing soft and standing there for a second.)
+    # The legs buckle, the hands slap the stone …
     P = {}
     torso(P, lean=0.7, look=0.4, hp=0.75)
     leg(P, "L", hip=1.6, knee=2.2, ankle=0.4, out=0.12)
     leg(P, "R", hip=1.5, knee=2.15, ankle=0.4, out=0.14)
     arm(P, "L", fwd=1.3, elbow=0.3, out=0.4, wrist=-0.8, curl=0.1)
     arm(P, "R", fwd=1.25, elbow=0.35, out=0.45, wrist=-0.8, curl=0.1)
-    fkey(32, P, y=2.35, base=-DROP)
+    fkey(int(round(fr_land)) + 3, P, y=2.3, base=-DROP)
+    f_c = int(round(fr_land)) + 3
+    # … the seat down, the trunk thrown back over it …
     P = {}
     torso(P, lean=0.2, look=0.5, hp=1.3, hroll=0.4)
     leg(P, "L", hip=0.8, knee=1.6, ankle=0.3)
     leg(P, "R", hip=0.7, knee=1.5, ankle=0.3)
     arm(P, "L", fwd=0.9, elbow=1.6, out=0.3, curl=0.6)
     arm(P, "R", fwd=0.9, elbow=1.6, out=0.3, curl=0.6)
-    fkey(35, P, y=2.55, base=-DROP)
-    # … rolls over along the stone, and onto his back.
-    for fr, roll, y, kn in ((38, 1.1, 2.7, 1.2), (41, 2.0, 2.8, 0.9), (44, 2.8, 2.86, 0.7), (48, math.pi + 0.08, 2.9, 0.6)):
+    fkey(f_c + 2, P, y=2.5, base=-DROP)
+    # … and over along the stone onto his back, a bounce, the knees dropping.
+    for d, roll, y, kn in ((4, 1.3, 2.68, 1.2), (6, 2.3, 2.8, 0.9), (8, math.pi + 0.08, 2.88, 0.7), (12, math.pi + 0.02, 2.9, 0.55)):
         P = {}
-        torso(P, lean=0.05, look=0.3, hp=1.5, hroll=roll)
+        torso(P, lean=0.05, look=0.3 if d < 12 else 0.1, hp=1.5 if d < 8 else 1.6, hroll=roll)
         leg(P, "L", hip=0.3, knee=kn, ankle=0.3, out=0.06)
         leg(P, "R", hip=0.25, knee=kn - 0.1, ankle=0.3, out=0.06)
-        arm(P, "L", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
-        arm(P, "R", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
-        fkey(fr, P, y=y, base=-DROP)
+        # (flung out along the stone as his back hits it, not held up off it)
+        if d < 8:
+            arm(P, "L", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
+            arm(P, "R", fwd=0.7, elbow=1.8, out=0.25, curl=0.7)
+        else:
+            arm(P, "L", fwd=0.25, elbow=0.4, out=0.95, curl=0.4)
+            arm(P, "R", fwd=0.15, elbow=0.45, out=0.65, curl=0.4)
+        fkey(f_c + d, P, y=y, base=-DROP)
     # Flat on his back, winded, and alive to the end of the shot (keyed every 3 frames: on sparse keys he
     # lay still for the last 2 s): the chest heaving, slowing; a hand comes up to his head, then down to
     # his ribs; the left knee draws up and lets go; the head rolls, dazed, and lifts once to look.
