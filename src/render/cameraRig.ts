@@ -710,7 +710,7 @@ export class CameraRig {
         break;
       case 'leap':
         // Swing out to profile to watch the leap, then on round to a low three-quarter front.
-        a = lerp(0.2, 1.45, ease(T / 0.6)) + lerp(0, 0.75, ease((T - 0.7) / 0.9));
+        a = lerp(0.2, 1.45, ease(T / 0.9)) + lerp(0, 0.75, ease((T - 0.9) / 1.0));
         r = lerp(3.8, 4.4, ease(T / 0.8)) - 0.2 * low;
         up = lerp(1.5, 1.25, ease(T / 0.8)) - 0.15 * low;
         lAlong = lerp(2.5, 0, ease(T / 1.2));
