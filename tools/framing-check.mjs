@@ -307,7 +307,14 @@ async function cameraMotion(page, view) {
               const len = a.distanceTo(b) || 1;
               const tilt = (Math.asin(Math.min(1, Math.abs(b.y - a.y) / len)) * 180) / Math.PI;
               const fy = g.runner.root.position.y;
-              C.push([f, tilt, a.y - fy, b.y - fy, (Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2) * new cam.position.constructor().setFromMatrixScale(m.matrixWorld).x]);
+              const rad = (Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2) * new cam.position.constructor().setFromMatrixScale(m.matrixWorld).x;
+              // His chest's horizontal gap to the pier's surface (distance to its axis less its radius).
+              const chest = bones[0].getWorldPosition(cam.position.clone()).lerp(bones[1].getWorldPosition(cam.position.clone()), 0.4);
+              const ab = b.clone().sub(a).setY(0);
+              const ap = chest.clone().sub(a).setY(0);
+              const t = Math.max(0, Math.min(1, ap.dot(ab) / Math.max(1e-6, ab.lengthSq())));
+              const gap = ap.clone().sub(ab.clone().multiplyScalar(t)).length() - rad;
+              C.push([f, tilt, a.y - fy, b.y - fy, rad, gap]);
             }
           }
         },
@@ -458,7 +465,10 @@ async function cameraMotion(page, view) {
       const [, tilt, ya, yb, rad] = r.C[r.C.length - 1];
       const flatAt = r.C.find(([, t]) => t < 12)?.[0] ?? -1;
       const clipAt = r.L.findIndex((l) => l.includes('fall_'));
-      const pierMsg = `pier ${tilt.toFixed(0)}° ends ${ya.toFixed(2)}/${yb.toFixed(2)} m r ${rad.toFixed(2)}, flat f${flatAt} clip f${clipAt}`;
+      // The closest his chest comes to its surface in the clip's first 0.6 s (contact: under 0.15 m).
+      const near = Math.min(...r.C.filter(([f]) => f >= clipAt && f <= clipAt + 18).map((x) => x[5]));
+      const pierMsg = `pier ${tilt.toFixed(0)}° ends ${ya.toFixed(2)}/${yb.toFixed(2)} m r ${rad.toFixed(2)}, flat f${flatAt} clip f${clipAt}, chest gap ${near.toFixed(2)} m`;
+      if (near > 0.15) problems.push(`no contact: his chest stops ${near.toFixed(2)} m short of the pier`);
       if (tilt > 10 || Math.max(ya, yb) > rad + 0.2 || Math.min(ya, yb) < rad - 0.3) problems.push(`pier not at rest on the floor (${pierMsg})`);
       else if (flatAt < 0 || flatAt > clipAt + 8) problems.push(`pier down late (${pierMsg})`);
       else if (process.env.DEBUG) problems.push(`(${pierMsg})`);

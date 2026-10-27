@@ -893,6 +893,10 @@ export class Game {
           // brightness drawn halfway toward the stone's mean; the carving stays in the normals.
           float l2 = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
           diffuseColor.rgb *= mix(1.0, 0.2 / max(l2, 0.02), 0.5);
+          // And the atlas's small painted leaves (red and green flecks: confetti at 2-3 m) go to
+          // the stone's own hue.
+          float l3 = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          diffuseColor.rgb = mix(diffuseColor.rgb, l3 * vec3(1.45, 0.92, 0.62), 0.55);
         }
         #include <roughnessmap_fragment>`,
       );
@@ -1813,7 +1817,11 @@ export class Game {
       const clip = st.clip as RunnerAnim;
       const palms = clip === 'fall_pillar_b';
       const contactT = trip ? 0.17 : palms ? 0.33 : 0.27;
-      const contactY = trip ? 1.3 : palms ? 1.77 : 1.85;
+      // (Round 20: with root motion and the eased cross-fade, measured by framing-check: his chest
+      // stopped 1.1 m short of the pier's face at these distances. Put the face where his palms
+      // meet it.)
+      const PIER_PULL = 1.0;
+      const contactY = trip ? 1.3 : (palms ? 1.77 : 1.85) - PIER_PULL;
       const side = r.chance(0.5) ? 1 : -1;
       // (The trip: the toppling pier piece, uniformly scaled to about 0.42 m across: a stout carved
       // drum, not a pole, and low enough for fall_trip's hooked toe and the leg that steps over.)
@@ -1925,7 +1933,9 @@ export class Game {
       this.later(tHit, () => {
         const p = sPlayPoint(trip ? 0.95 : contactY - 0.1, trip ? 0.35 : 1.25);
         this.particles.burst(p, 8, { spread: 0.5, up: 1, speed: 2, size: 0.06, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
-        B.puff(p, { count: 2, spread: 0.6, jitter: 0.5, size: [0.4, 1.4], life: 1.3, alpha: 0.3, tint: DUST_T, rise: 0.1 });
+        // (Grit off the stone where his hands meet it, kept small and low: a large pale puff at
+        // hand height read as white cards at his wrists.)
+        B.puff(p.clone().setY(p.y - 0.6), { count: 1, spread: 0.5, jitter: 0.4, size: [0.3, 0.8], life: 1.1, alpha: 0.18, tint: DUST_T, rise: 0.05 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
         this.rig.closeIn = 1;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
@@ -3126,7 +3136,9 @@ export class Game {
     const W = 2 * LEDGE_HALF;
     const depth = h.pos.y - y;
     const floorMat = this.troughMat('floor');
-    const bedM = new THREE.Mesh(boxAtDensity(W, 0.6, len, 4.2), floorMat);
+    // (Wider than the floor: it runs under the walls, whose faces are set back from their
+    // footprint, so no seam opens onto the sky below.)
+    const bedM = new THREE.Mesh(boxAtDensity(W + 3.2, 0.6, len + 3.2, 4.2), floorMat);
     bedM.position.set(0, -0.36, 0);
     bedM.receiveShadow = true;
     g.add(bedM);
@@ -3160,7 +3172,7 @@ export class Game {
     {
       const sd0 = 3.98;
       const n = Math.ceil(len / sd0);
-      for (let k = 0; k < n; k++) put(rng.pick(['floor_0', 'floor_1', 'floor_2']), 0, 0, -len / 2 + ((k + 0.5) * len) / n, rng.chance(0.5) ? 0 : Math.PI, W / 4.36, 1, len / (n * sd0), 'stone');
+      for (let k = 0; k < n; k++) put(rng.pick(['floor_0', 'floor_1', 'floor_2']), 0, 0, -len / 2 + ((k + 0.5) * len) / n, rng.chance(0.5) ? 0 : Math.PI, (W + 0.8) / 4.36, 1, len / (n * sd0), 'stone');
     }
     // Side walls: courses of masonry from the bed up to the way above.
     const wy = (depth + 0.4) / 3.0;
@@ -3185,17 +3197,24 @@ export class Game {
       put('wall_mid_0', 0, -0.3 - b.min.y * wy, sd * (len / 2 + (b.max.x - b.min.x) / 2), Math.PI / 2 + (sd > 0 ? Math.PI : 0), 1, wy, (W + 3) / (b.max.z - b.min.z), 'stone');
     }
     // Moss in the corners and along the wall feet; ferns; rubble along the walls.
-    for (const [cx, cz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) put(rng.pick(['moss_0', 'moss_1']), cx * (W / 2 - 0.5), 0.0, cz * (len / 2 - 0.6), rng.range(0, 6.28), 0.9, 1, 0.9);
+    // (Moss low and flat, in two of the corners, with a fern beside it: full-height lumps read as
+    // smooth plastic blobs.)
+    for (const [cx, cz] of [[-1, -1], [1, 1]] as const) {
+      put('moss_2', cx * (W / 2 - 0.35), -0.01, cz * (len / 2 - 0.5), rng.range(0, 6.28), 1.1, 0.35, 1.1);
+      put(rng.pick(['fern_0', 'fern_1']), cx * (W / 2 - 0.5), 0.0, cz * (len / 2 - 1.1), rng.range(0, 6.28), 0.7, 0.8, 0.7);
+    }
     for (let k = 0; k < 4; k++) {
       const sd = rng.chance(0.5) ? 1 : -1;
       const z = rng.range(-len / 2 + 0.8, len / 2 - 0.8);
-      put(rng.pick(['moss_2', 'fern_0', 'fern_1', 'moss_0']), sd * (W / 2 - 0.4), 0.0, z, rng.range(0, 6.28), 0.8, 1, 0.8);
+      put(rng.pick(['moss_2', 'fern_0', 'fern_1']), sd * (W / 2 - 0.35), -0.01, z, rng.range(0, 6.28), 0.8, 0.45, 0.8);
       put(rng.pick(['debris_0', 'debris_0', 'rubble_0']), sd * (W / 2 - 0.55), 0.05, z + rng.range(-1, 1), rng.range(0, 6.28), 0.5, 0.5, 0.5, 'stone');
     }
     // Roots and vines hanging in from the top edge of the side walls.
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 2; k++) {
       const sd = k % 2 ? 1 : -1;
-      put(rng.pick(['vines_0', 'roots_0', 'vines_1']), sd * (W / 2 - 0.12), depth + 0.05, rng.range(-len / 2 + 1.5, len / 2 - 1.5), Math.PI / 2, 0.55, rng.range(0.5, 0.8), 0.55);
+      // (Roots only: the vines' small leaves read as confetti scattered over the masonry. And only
+      // at the far end, short: near the lens they hung across the frame as big black strands.)
+      put('roots_0', sd * (W / 2 - 0.1), depth + 0.05, rng.range(-len / 2 + 0.8, -len / 4), Math.PI / 2, 0.45, rng.range(0.4, 0.6), 0.45);
     }
     const c = h.pos.clone().addScaledVector(h.fwd, len / 2 - 1.2);
     g.position.copy(c).setY(y);
