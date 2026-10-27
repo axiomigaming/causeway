@@ -8,7 +8,7 @@ import * as THREE from 'three';
 const BEAM_VERT = /* glsl */ `
   attribute vec3 aTop;
   attribute vec3 aBot;
-  attribute vec4 aW; // width, alpha, seed, -
+  attribute vec4 aW; // width, alpha, seed, near (1: seen from close by)
   varying vec2 vUv;
   varying vec4 vW;
   varying float vFar;
@@ -23,7 +23,8 @@ const BEAM_VERT = /* glsl */ `
     vUv = vec2(position.x * 2.0, t);
     vW = aW;
     // Round 17: a shaft the lens stands in (or right beside) washed the whole frame: fade it out.
-    vFar = smoothstep(1.2, 4.5, length(cameraPosition - p));
+    // (A short shaft framed close by — the ledge's, ~2.5 m off — keeps most of itself.)
+    vFar = smoothstep(mix(1.2, 0.4, aW.w), mix(4.5, 1.6, aW.w), length(cameraPosition - p));
     gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
   }`;
 
@@ -50,6 +51,7 @@ interface Beam {
   alpha: number;
   target: number;
   seed: number;
+  near: number;
   on: boolean;
 }
 
@@ -84,7 +86,7 @@ export class Beams {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 5;
     this.mesh.name = 'fx.beams';
-    for (let i = 0; i < cap; i++) this.beams.push({ top: new THREE.Vector3(), bot: new THREE.Vector3(), width: 1, alpha: 0, target: 0, seed: 0, on: false });
+    for (let i = 0; i < cap; i++) this.beams.push({ top: new THREE.Vector3(), bot: new THREE.Vector3(), width: 1, alpha: 0, target: 0, seed: 0, near: 0, on: false });
   }
 
   /**
@@ -101,6 +103,7 @@ export class Beams {
     const dir = len ? sunDir.clone().normalize() : new THREE.Vector3(sunDir.x, Math.min(sunDir.y, 0.55), sunDir.z).normalize();
     b.top.copy(ground).addScaledVector(dir, len ?? 34);
     b.width = width;
+    b.near = len ? 1 : 0;
     b.alpha = 0;
     b.target = alpha;
     b.seed = Math.random();
@@ -124,7 +127,7 @@ export class Beams {
       b.alpha += (b.target - b.alpha) * (1 - Math.exp(-dt * 1.2));
       t.set([b.top.x, b.top.y, b.top.z], n * 3);
       bo.set([b.bot.x, b.bot.y, b.bot.z], n * 3);
-      w.set([b.width, b.alpha, b.seed, 0], n * 4);
+      w.set([b.width, b.alpha, b.seed, b.near], n * 4);
       n++;
     }
     this.geo.instanceCount = this.strength > 0.002 ? n : 0;

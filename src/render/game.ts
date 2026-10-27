@@ -1460,7 +1460,7 @@ export class Game {
       const crackAt = (along: number, len: number, t0: number) =>
         this.later(t0, () => {
           const f = frameAt(sDrop + along);
-          this.cine.cracks.spawn(f.pos.clone().setY(f.pos.y + 0.05), f.yaw, PATH_HALF * 2 + 0.2, len, Math.max(0.15, LEDGE_RUN - 0.12 - t0), 0.12);
+          this.cine.cracks.spawn(f.pos.clone().setY(f.pos.y + 0.05), f.yaw, PATH_HALF * 2 + 0.2, len, Math.max(0.15, LEDGE_RUN - 0.12 - t0), 0.12, 3.2);
         });
       crackAt(0.2, 1.6 + 0.4 * e, 0);
       crackAt(span * 0.55, 1.4 + 0.4 * e, 0.08);
@@ -1538,7 +1538,7 @@ export class Game {
           const tip = h.fwd.clone().multiplyScalar(-out * (wide ? 0.5 : onTrack ? r.range(2.2, 3.0) : r.range(1.2, 2.0)));
           const vel = new THREE.Vector3(r.range(-0.15, 0.15), -r.range(0.2, 0.6), r.range(-0.15, 0.15)).addScaledVector(h.right, out * (onTrack ? r.range(2.0, 2.4) : r.range(0.5, 1.1)));
           this.debris.spawn(t.piece, t.world, vel, tip.add(new THREE.Vector3(r.range(-0.3, 0.3), r.range(-0.2, 0.2), r.range(-0.3, 0.3))), bed, {
-            breakInto: onTrack || wide || i % 3 === 0 ? 2 : 0,
+            breakInto: onTrack || wide ? 3 : i % 3 === 0 ? 2 : 0,
             breakAfter: onTrack ? r.range(0.42, 0.52) : wide ? r.range(0.3, 0.38) : i % 3 === 0 ? r.range(0.5, 0.7) : Infinity,
             walls: pit,
             restitution: 0.1,
@@ -1592,12 +1592,13 @@ export class Game {
         const sd = this.sunDir;
         const along = sd.x * h.fwd.x + sd.z * h.fwd.z;
         const dir = h.fwd.clone().multiplyScalar(0.55 * along).setY(1).normalize();
-        this.cine.beams.add(p.clone().setY(bedY), dir, 1.5, 1, 9);
+        this.cine.beams.add(p.clone().setY(bedY), dir, 1.3, 1, 9);
+        this.cine.beams.add(p.clone().setY(bedY).addScaledVector(h.fwd, 0.25), dir, 0.8, 0.8, 9);
         this.cine.beams.level = 1;
-        for (let k = 0; k < 40; k++) {
-          this.later(0.2 + k * 0.15, () => {
+        for (let k = 0; k < 60; k++) {
+          this.later(0.2 + k * 0.1, () => {
             const q = p.clone().addScaledVector(dir, r.range(0.4, 2.6)).add(new THREE.Vector3(r.range(-0.35, 0.35), 0, r.range(-0.35, 0.35)));
-            this.particles.burst(q, 2, { spread: 0.3, up: 0.05, speed: 0.08, size: 0.022, life: 2.6, color: MOTE, alpha: 0.85, gravity: 0.04, drag: 1.5, grow: 0 });
+            this.particles.burst(q, 2, { spread: 0.3, up: 0.05, speed: 0.08, size: 0.03, life: 2.6, color: MOTE, alpha: 0.9, gravity: 0.04, drag: 1.5, grow: 0 });
           });
         }
       });

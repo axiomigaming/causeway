@@ -191,6 +191,9 @@ const CRACK_FRAG = /* glsl */ `
     // Local metres: x across the path, y along it (0 = the seam that will give).
     vec2 m = vec2(vUv.x, vUv.y * vP.w);
     float t = vP.x;
+    // (Round 20: an alpha over 1 is a bolder fissure — the ledge's cave-in, read from the chase lens
+    // 4-6 m back, where the plain one is a pixel-wide hairline.)
+    float bold = max(1.0, vP.y);
     // The main fissure runs across the path along the seam, jagged.
     float jag = 0.02 * sin(m.x * 13.0 + vP.z * 20.0) + 0.012 * sin(m.x * 41.0 - vP.z * 7.0) + 0.006 * sin(m.x * 97.0);
     float main = abs(m.y - 0.02 - jag);
@@ -198,16 +201,16 @@ const CRACK_FRAG = /* glsl */ `
     float start = vP.z - 0.5;
     float reach = t * 1.4;
     float across = smoothstep(reach, reach - 0.12, abs(m.x - start));
-    float mainLine = (1.0 - smoothstep(0.003, 0.008 + 0.01 * t, main)) * across;
+    float mainLine = (1.0 - smoothstep(0.003 * bold, (0.008 + 0.01 * t) * bold, main)) * across;
     float e = edges(m * vec2(5.0, 3.2) + vP.z * 9.0);
     float branchReach = 0.02 + 0.6 * smoothstep(0.05, 1.0, t);
     float near = smoothstep(branchReach, branchReach * 0.5, max(0.0, m.y)) * step(-0.05, m.y);
-    float branch = (1.0 - smoothstep(0.008, 0.02, e)) * near * across;
+    float branch = (1.0 - smoothstep(0.008 * bold, 0.02 * bold, e)) * near * across;
     float crack = max(mainLine, branch * 0.85);
     // A pale dusty lip either side of the fissure.
-    float lip = (1.0 - smoothstep(0.01, 0.04 + 0.03 * t, main)) * across * 0.25;
+    float lip = (1.0 - smoothstep(0.01 * bold, (0.04 + 0.03 * t) * bold, main)) * across * 0.25;
     vec3 col = mix(vec3(0.42, 0.32, 0.24), vec3(0.03, 0.02, 0.015), crack / max(1e-3, crack + lip));
-    float a = clamp(crack + lip, 0.0, 1.0) * vP.y;
+    float a = clamp(crack + lip, 0.0, 1.0) * min(1.0, vP.y);
     a *= smoothstep(0.5, 0.42, abs(vUv.x)) * smoothstep(0.5, 0.4, abs(vUv.y));
     if (a < 0.004) discard;
     gl_FragColor = vec4(col, a);
@@ -226,8 +229,8 @@ export class Cracks extends DecalPool {
    * Cracks across the path at `pos` (on the floor, the seam that will give), spreading over
    * `spreadT` seconds and holding for `hold` more; `len` metres along the route, `width` across.
    */
-  spawn(pos: THREE.Vector3, yaw: number, width: number, len: number, spreadT: number, hold: number): void {
-    const i = this.place(pos, yaw, width, len * 2, spreadT + hold, 0.92);
+  spawn(pos: THREE.Vector3, yaw: number, width: number, len: number, spreadT: number, hold: number, bold = 1): void {
+    const i = this.place(pos, yaw, width, len * 2, spreadT + hold, 0.92 * bold);
     this.grow.set(this.slots[i]!, spreadT);
     (this.aP.array as Float32Array)[i * 4 + 3] = (len * 2) / width;
   }
