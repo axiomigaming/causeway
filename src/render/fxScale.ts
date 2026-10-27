@@ -165,6 +165,7 @@ export function nextDangerCue(rng: Rng, mult: number): { cue: DangerCue; wait: n
 export function revealHold(outcome: 'fall' | 'escape', mult: number, motion: Motion = 'full'): { after: number; cap: number } {
   const g = grandOf(mult);
   const reduced = motion === 'reduced';
-  if (outcome === 'escape') return { after: reduced ? 0.8 : 1.0 + 0.2 * g, cap: 2.0 };
+  // (Round 20, coordinator cash-out review: the card lands once the celebration's peak has been seen.)
+  if (outcome === 'escape') return { after: reduced ? 0.8 : 1.4 + 0.3 * g, cap: 2.0 };
   return { after: reduced ? 0.7 : 0.85 + 0.35 * g, cap: 3.4 };
 }

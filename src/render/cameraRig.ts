@@ -87,6 +87,13 @@ export class CameraRig {
   private side = 1;
   private crashShot: CrashShot = 'gate';
   private escapeShot: EscapeShot = 'lookback';
+  /** Round 20: 0 → 1 through the escape's run-on and braking (the game sets it): the chase closes in. */
+  escapeIn = 0;
+  /** Round 20: the way his chest faces (horizontal, world), set by the game in a cash-out. */
+  readonly bodyFwd = new THREE.Vector3();
+  bodyFwdOk = false;
+  /** His facing off the rig's forward (rad, toward its right), eased. */
+  private faceD = 0;
   private variant = 0;
   /** 0..1: how grand the settled moment is (slower, wider, higher). */
   private epic = 0;
@@ -473,6 +480,11 @@ export class CameraRig {
     const yaw = this.yaw;
     this.fwd.set(-Math.sin(yaw), 0, -Math.cos(yaw));
     this.right.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    if (this.bodyFwdOk) {
+      const d = Math.atan2(this.bodyFwd.dot(this.right), this.bodyFwd.dot(this.fwd));
+      // (Eased: a spin in the clip turns the orbit, never whips it.)
+      this.faceD += angleDelta(this.faceD, d) * (1 - Math.exp(-5 * dt * k));
+    } else this.faceD = 0;
     const I = intensity;
     const s = this.side;
     const T = this.modeT;
@@ -547,7 +559,24 @@ export class CameraRig {
         // rises 1.4 m (pitch up) and the lens is 8° narrower before the portrait widening: the bottom
         // 40 % of a phone frame was paving tiles, the world a thin band above him. Landscape is
         // unchanged (narrow = 0).
-        fov = this.shot(runnerPos, this.fitInBand(F(-dist, lat + drift, 1.24 - 0.08 * I - 0.06 * hi, 9, lerp(0.6, 0.3, narrow) + drift * 0.4, 1.0 + 0.08 * I + 1.4 * narrow, 64 + 14 * I + 3 * hi - 8 * narrow)));
+        // Round 20 (coordinator, cash-out review): through the escape's run-on and braking the chase
+        // comes in closer and lower on a longer lens (escapeIn, set by the game, 0 → 1), so he
+        // grows from a small figure under the multiplier to a fifth of the frame and more.
+        const k = this.escapeIn;
+        fov = this.shot(
+          runnerPos,
+          this.fitInBand(
+            F(
+              lerp(-dist, -2.3, k),
+              lerp(lat + drift, 0.62, k),
+              lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k),
+              lerp(9, 3, k),
+              lerp(lerp(0.6, 0.3, narrow) + drift * 0.4, 0.2, k),
+              lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k),
+              lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
+            ),
+          ),
+        );
         break;
       }
       case 'crash': {
@@ -658,7 +687,10 @@ export class CameraRig {
   private escapeFrame(T0: number, s: number): Frame {
     const e = this.epic;
     // (Round 20: the celebration's beats come 0.33 s later now: four real steps to turn.)
-    const T = Math.max(0, T0 - 0.33) / (1 + 0.4 * e);
+    // (Round 20, coordinator cash-out review: the swing to the front no longer slows with the size
+    // of the win — at 60x it took 3 s and the celebration played to his back.)
+    // (Round 20: and it starts with the clip — the 0.33 s wait is gone too.)
+    const T = Math.max(0, T0 - 0.05);
     let a: number;
     let r: number;
     let up: number;
@@ -669,7 +701,7 @@ export class CameraRig {
     switch (this.escapeShot) {
       case 'salute':
         // Stay behind: the runner turns back to face the lens for the salute.
-        a = lerp(0.15, 0.6, ease((T - 0.3) / 2));
+        a = lerp(0.15, 0.6, ease(T / 1.1));
         r = lerp(3.6, 4.3, ease(T / 2));
         up = lerp(1.7, 1.45, ease((T - 1) / 1.5));
         lAlong = lerp(2.5, 0, ease(T / 1.4));
@@ -678,7 +710,7 @@ export class CameraRig {
         break;
       case 'leap':
         // Swing out to profile to watch the leap, then on round to a low three-quarter front.
-        a = lerp(0.2, 1.45, ease(T / 0.8)) + lerp(0, 0.75, ease((T - 1.6) / 2));
+        a = lerp(0.2, 1.45, ease(T / 0.6)) + lerp(0, 0.75, ease((T - 0.7) / 0.9));
         r = lerp(3.8, 4.4, ease(T / 0.8)) - 0.2 * low;
         up = lerp(1.5, 1.25, ease(T / 0.8)) - 0.15 * low;
         lAlong = lerp(2.5, 0, ease(T / 1.2));
@@ -687,7 +719,7 @@ export class CameraRig {
         break;
       case 'cheer':
         // Round to the front, low, looking up at the raised fists.
-        a = T < 0.35 ? 0.15 : lerp(0.15, 2.55, ease((T - 0.35) / 2.0));
+        a = lerp(0.15, 2.45, ease(T / 1.0));
         r = lerp(3.6, 4.1, low);
         up = lerp(1.6, 0.95, low);
         lAlong = T < 0.35 ? 3 : lerp(1.5, 0, ease((T - 0.35) / 1.5));
@@ -696,33 +728,36 @@ export class CameraRig {
         break;
       default:
         // Look-back: orbit round to a three-quarter front as they stop, then low for the fist.
-        a = T < 0.45 ? 0.15 : lerp(0.15, 2.25, ease((T - 0.45) / 2.1)) + Math.max(0, T - 3.4) * 0.03;
+        a = lerp(0.15, 2.25, ease((T - 0.1) / 1.0)) + Math.max(0, T - 3.4) * 0.03;
         r = lerp(3.6, 4.0, low);
         up = lerp(T < 0.45 ? 1.65 : 1.5, 1.1, low);
         lAlong = T < 0.45 ? 3 : lerp(1.5, 0, ease((T - 0.45) / 1.5));
         lUp = lerp(1.2, 1.15, low);
         fov = lerp(52, 48, low);
     }
+    // Round 20 (coordinator, cash-out review): the orbit ends where he is FACING, not on a fixed
+    // angle off the way: the clips turn him (the look-back turns him round to the lens behind, the
+    // slide turns him across), and a fixed front-of-the-way angle filmed his back. The swing runs
+    // from behind (0.15) to a three-quarter view 0.65 rad off his face, on the variant's own beat.
+    if (this.bodyFwdOk) {
+      const aEnd = { salute: 0.6, leap: 2.2, cheer: 2.45, lookback: 2.25 }[this.escapeShot] ?? 2.25;
+      const w = THREE.MathUtils.clamp((a - 0.15) / (aEnd - 0.15), 0, 1.2);
+      const aFront = Math.PI - ((s || 1) * this.faceD + 0.65);
+      const aU = 0.15 + angleDelta(0.15, aFront);
+      a = lerp(0.15, aU, w);
+    }
     // Grand escapes: a wider orbit that cranes up as it settles. (Round 20: closer all round: he
     // was a fifth of the frame in the turn.)
+    // (Round 20, coordinator: closer and lower than before — he was a tenth of the frame, the crane
+    // looked down on him from over his head.)
     const crane = e * ease((T - 1.2) / 2.5);
-    r *= 0.8 * (1 + 0.2 * e);
-    up += 1.1 * crane;
+    r *= 0.72 * (1 + 0.1 * e);
+    up += 0.35 * crane;
     fov += 3 * e;
     lUp += 0.2 * crane;
-    // The threshold: after the first beat the lens swings round behind the runner's shoulder and
-    // pushes slowly toward the gate of light ahead (the way stays whole and calm), the runner a
-    // silhouette against the daylight.
-    const v = this.reveal * ease((T - 1.4) / 1.8);
-    if (v > 0) {
-      const push = ease((T - 2.6) / 4);
-      a = lerp(a, 0.32, v);
-      r = lerp(r, 4.0 + 0.4 * e - 1.0 * push, v);
-      up = lerp(up, 1.9 + 0.5 * e, v);
-      lAlong = lerp(lAlong, this.gateAhead, v);
-      lUp = lerp(lUp, 2.4, v);
-      fov = lerp(fov, 56 + 3 * e, v);
-    }
+    // (Round 20, coordinator cash-out review: the threshold shot is gone — after the first beat the
+    // lens swung back behind him toward the gate of light, and the celebration played to his back,
+    // small against the light. The card lands once its peak has been seen from the front.)
     // Portrait: the lens is already opened up for width; come in so the figure keeps its size.
     if (this.camera.aspect < 1) r *= 0.66;
     return { along: -Math.cos(a) * r, lat: s * Math.sin(a) * r, up, lAlong, lLat: 0, lUp, focus: 0, fov };

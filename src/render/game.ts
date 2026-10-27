@@ -2706,6 +2706,10 @@ export class Game {
     this.rig.footfall(k * (0.8 + 0.3 * drive), foot);
   }
 
+  private shoulderL: THREE.Object3D | null = null;
+  private shoulderR: THREE.Object3D | null = null;
+  private tmpV1 = new THREE.Vector3();
+  private tmpV2 = new THREE.Vector3();
   private groundY: number | null = null;
   private groundV = 0;
   private placeRunner(dt: number) {
@@ -3040,6 +3044,29 @@ export class Game {
       this.rig.bodyPts = null;
     }
     this.rig.realDt = rawDt;
+    // Round 20 (coordinator): the escape's orbit ends in front of his face (the clip turns him).
+    {
+      // (Across his shoulders, left to right, turned a quarter about the vertical: the bones' own
+      // axes are not the body's.)
+      const sl = (this.shoulderL ??= this.runner.body.getObjectByName('shoulderL') ?? null);
+      const sr = (this.shoulderR ??= this.runner.body.getObjectByName('shoulderR') ?? null);
+      this.rig.bodyFwdOk = false;
+      if (sl && sr && this.stage === 'cashout' && !this.runOn) {
+        const ac = sr.getWorldPosition(this.tmpV1).sub(sl.getWorldPosition(this.tmpV2));
+        // (The rig's shoulderL stands on his right as he faces: measured on the run, his back to the lens.)
+        this.rig.bodyFwd.set(-ac.z, 0, ac.x);
+        if (this.rig.bodyFwd.lengthSq() > 1e-4) {
+          this.rig.bodyFwd.normalize();
+          this.rig.bodyFwdOk = true;
+        }
+      }
+    }
+    // Round 20 (coordinator): the chase closes in through the escape's run-on and braking.
+    if (this.stage === 'cashout') {
+      const R = this.runOnProf;
+      const want = this.runOn ? (R ? Math.min(1, R.t / Math.max(0.2, R.dur)) : 1) : 1;
+      this.rig.escapeIn += (want - this.rig.escapeIn) * (1 - Math.exp(-rawDt * 4));
+    } else this.rig.escapeIn = 0;
     // (Either way the hold ends: its time after the impact, or its cap.)
     this.rig.revealSoon = !!this.rev && (this.stage === 'cashout' || this.stage === 'crash') && ((this.worldT >= this.rev.impactAt && this.rev.t >= this.rev.after - 0.5) || this.stageT >= this.rev.cap - 0.5);
     this.rig.update(rawDt * (this.stage === 'crash' || this.stage === 'cashout' ? Math.max(this.timeScale, 0.55) : 1), subject, this.runner.root.rotation.y, this.stage === 'run' || (this.stage === 'cashout' && this.runOn) ? I : 0);

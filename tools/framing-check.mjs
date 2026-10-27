@@ -254,12 +254,15 @@ async function cameraMotion(page, view) {
         // Kept on the page: the run is stepped in chunks so stills can be taken on the way.
         const pier = () => (g.debris.bodies ?? []).find((b) => b.tag === 'column');
         const C = [];
+        // Round 20 (coordinator, cash-out review): how squarely he faces the lens (the chest's forward
+        // against the line to the camera, -1 his back .. 1 his face).
+        const Fc = [];
         const H = [];
         const T = [];
         // World round 23 releases a section's paving once it lies 50 m behind him: any of those
         // sections' path in the frame (occlusion ignored, so conservative) is bare ground on screen.
         const gone = [];
-        window.__fc = { gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
+        window.__fc = { Fc, gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
       },
       { c, shake, seed },
     );
@@ -268,7 +271,7 @@ async function cameraMotion(page, view) {
       await page.evaluate(
         ({ until }) => {
           const S = window.__fc;
-          const { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, pier } = S;
+          const { g, cam, P, Q, L, O, D, G, H, T, B, C, bones, pier, Fc } = S;
           for (; S.f < until; S.f++) {
             const f = S.f;
             g.virtualNow += 1000 / 30;
@@ -296,6 +299,22 @@ async function cameraMotion(page, view) {
             G.push(g.runner.root.position.toArray());
             H.push(bones[1].getWorldPosition(cam.position.clone()).sub(g.runner.root.position).toArray());
             T.push(+g.timeScale.toFixed(3));
+            {
+              // His facing: across his shoulders (left to right) turned a quarter about the vertical,
+              // against the horizontal line from his chest to the lens (+1 his face, -1 his back).
+              const sl = g.runner.body.getObjectByName('shoulderL');
+              const sr = g.runner.body.getObjectByName('shoulderR');
+              const hp = bones[1].getWorldPosition(cam.position.clone());
+              const to = cam.getWorldPosition(cam.position.clone()).sub(hp).setY(0);
+              let fc = 0;
+              if (sl && sr) {
+                const ac = sr.getWorldPosition(cam.position.clone()).sub(sl.getWorldPosition(cam.position.clone())).setY(0);
+                // (The rig's shoulderL stands on his right as he faces: running away from the lens reads -1.)
+                const fw = new cam.position.constructor(-ac.z, 0, ac.x);
+                if (fw.lengthSq() > 1e-6 && to.lengthSq() > 1e-6) fc = +fw.normalize().dot(to.normalize()).toFixed(2);
+              }
+              Fc.push(fc);
+            }
             S.setF(f + 1);
             if (S.revealAt < 0 && g.rig.revealed) (S.revealAt = f), (S.revealSpeed = g.speed);
             D.push(cam.getWorldPosition(cam.position.clone()).distanceTo(bones[1].getWorldPosition(cam.position.clone())));
@@ -344,14 +363,14 @@ async function cameraMotion(page, view) {
     const r = await page.evaluate(
       () => {
         const S = window.__fc;
-        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp, gone } = S;
+        const { g, cam, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, onImp, gone, Fc } = S;
         const { revealAt, revealSpeed } = S;
         const hp = g.runner.body.getObjectByName('hips').getWorldPosition(cam.position.clone());
         const cp = cam.getWorldPosition(cam.position.clone());
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
         g.debris.onImpact = onImp;
-        return { gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        return { Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
     );
     const ang = (a, b) => {
@@ -372,6 +391,7 @@ async function cameraMotion(page, view) {
       if (sn > worst.snap) [worst.snap, at.snap] = [sn, f];
     }
     const problems = [];
+    let note = '';
     // Round 20 (coordinator): no Dutch angle: the horizon's roll stays within 4° (shake included).
     let roll = 0;
     let rollAt = 0;
@@ -480,6 +500,34 @@ async function cameraMotion(page, view) {
     if (worst.snap > CAM.snap) problems.push(`snap ${worst.snap.toFixed(1)}°/frame² at f${at.snap}`);
     if (r.cuts.length) problems.push(`hard cut ${r.cuts.join(' ')}`);
     if (r.gone.length) problems.push(`released paving in frame ${r.gone.slice(0, 6).join(' ')}`);
+    // Round 20 (coordinator, cash-out review): the escape is seen. Through the braking (the half
+    // second before the celebration clip) he is a fifth of the frame or more; from 0.5 s into the
+    // celebration to the card he is a quarter or more, and faces the lens (front or three-quarter)
+    // most of the time. Size here is his height over the frame's (the bones' extent).
+    if (!c.kind) {
+      const hOf = (f) => {
+        const ys = r.B[f].filter((p) => p[2] < 1).map((p) => p[1]);
+        return ys.length ? (Math.max(...ys) - Math.min(...ys)) / 2 : 0;
+      };
+      const clip0 = r.L.findIndex((l) => /\/win/.test(l));
+      if (clip0 > 0) {
+        const brake = [];
+        for (let f = Math.max(0, clip0 - 15); f < clip0; f++) brake.push(hOf(f));
+        const end = r.revealAt > clip0 ? r.revealAt : Math.min(r.L.length, clip0 + 75);
+        const cel = [];
+        let front = 0;
+        // (From a second in: the swing round to his face takes about that.)
+        for (let f = clip0 + 30; f < end; f++) {
+          cel.push(hOf(f));
+          if (r.Fc[f] > 0.25) front++;
+        }
+        const med = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
+        const share = cel.length ? front / cel.length : 0;
+        const msg = `escape (run facing ${r.Fc[3]}): braking ${(med(brake) * 100).toFixed(0)}%, celebration ${(med(cel) * 100).toFixed(0)}% facing ${(share * 100).toFixed(0)}% (f${clip0 + 30}..f${end}; ${[15, 30, 45, 60].map((k) => r.Fc[clip0 + k]).join(" ")})`;
+        if (med(brake) < 0.2 || med(cel) < 0.25 || share < 0.5) problems.push(msg);
+        else note = ` ${msg}`;
+      }
+    }
     // Round 20 (coordinator): the pier comes to rest on the floor, visibly: level, both ends
     // down (axis no higher than its radius + 0.2 m over the floor), and down before he meets it.
     if (r.C?.length && c.kind === 'pillar') {
@@ -507,7 +555,7 @@ async function cameraMotion(page, view) {
       problems.push(`(${r.L[at.jerk]})`);
     }
     console.log(
-      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${(c.name + (seeds.length > 1 ? ` s${seed}` : '')).padEnd(15)} size ${(ext * 100).toFixed(0)}% roll ${roll.toFixed(1)}° card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${problems.length ? '  ← ' + problems.join('; ') : ''}`,
+      `${problems.length ? 'FAIL' : 'ok  '} ${view} camera ${(c.name + (seeds.length > 1 ? ` s${seed}` : '')).padEnd(15)} size ${(ext * 100).toFixed(0)}% roll ${roll.toFixed(1)}° card f${r.revealAt}${process.env.DEBUG ? ' ' + JSON.stringify(r.dbg) : ''}${c.kind && r.kind !== c.kind ? ` (staged ${r.kind})` : ''} jerk ${(worst.jerk * 100).toFixed(1)} cm/f² (f${at.jerk}) turn ${worst.omega.toFixed(1)}°/f (f${at.omega}) snap ${worst.snap.toFixed(1)}°/f² (f${at.snap})${note}${problems.length ? '  ← ' + problems.join('; ') : ''}`,
     );
   }
   return bad;
