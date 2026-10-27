@@ -3136,7 +3136,9 @@ export class Game {
     const W = 2 * LEDGE_HALF;
     const depth = h.pos.y - y;
     const floorMat = this.troughMat('floor');
-    const bedM = new THREE.Mesh(boxAtDensity(W, 0.6, len, 4.2), floorMat);
+    // (Wider than the floor: it runs under the walls, whose faces are set back from their
+    // footprint, so no seam opens onto the sky below.)
+    const bedM = new THREE.Mesh(boxAtDensity(W + 3.2, 0.6, len + 3.2, 4.2), floorMat);
     bedM.position.set(0, -0.36, 0);
     bedM.receiveShadow = true;
     g.add(bedM);
@@ -3170,7 +3172,7 @@ export class Game {
     {
       const sd0 = 3.98;
       const n = Math.ceil(len / sd0);
-      for (let k = 0; k < n; k++) put(rng.pick(['floor_0', 'floor_1', 'floor_2']), 0, 0, -len / 2 + ((k + 0.5) * len) / n, rng.chance(0.5) ? 0 : Math.PI, W / 4.36, 1, len / (n * sd0), 'stone');
+      for (let k = 0; k < n; k++) put(rng.pick(['floor_0', 'floor_1', 'floor_2']), 0, 0, -len / 2 + ((k + 0.5) * len) / n, rng.chance(0.5) ? 0 : Math.PI, (W + 0.8) / 4.36, 1, len / (n * sd0), 'stone');
     }
     // Side walls: courses of masonry from the bed up to the way above.
     const wy = (depth + 0.4) / 3.0;
@@ -3208,10 +3210,11 @@ export class Game {
       put(rng.pick(['debris_0', 'debris_0', 'rubble_0']), sd * (W / 2 - 0.55), 0.05, z + rng.range(-1, 1), rng.range(0, 6.28), 0.5, 0.5, 0.5, 'stone');
     }
     // Roots and vines hanging in from the top edge of the side walls.
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 2; k++) {
       const sd = k % 2 ? 1 : -1;
-      // (Roots only: the vines' small leaves read as confetti scattered over the masonry.)
-      put(rng.pick(['roots_0', 'roots_1']), sd * (W / 2 - 0.12), depth + 0.05, rng.range(-len / 2 + 1.5, len / 2 - 1.5), Math.PI / 2, 0.55, rng.range(0.5, 0.8), 0.55);
+      // (Roots only: the vines' small leaves read as confetti scattered over the masonry. And only
+      // at the far end, short: near the lens they hung across the frame as big black strands.)
+      put('roots_0', sd * (W / 2 - 0.1), depth + 0.05, rng.range(-len / 2 + 0.8, -len / 4), Math.PI / 2, 0.45, rng.range(0.4, 0.6), 0.45);
     }
     const c = h.pos.clone().addScaledVector(h.fwd, len / 2 - 1.2);
     g.position.copy(c).setY(y);
