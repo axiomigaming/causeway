@@ -585,41 +585,70 @@ def buttress_roots(name, seed, length=4.0, n=3, crest=1.2):
     Y, Z = Vector((0, 1, 0)), Vector((0, 0, 1))
     for k in range(n):
         y0 = length * (k + rng.uniform(0.2, 0.8)) / n
-        r0 = rng.uniform(0.2, 0.34)
+        # Round 23: thinner (they read as fat smooth tubes up close), tapering harder, twisted round
+        # their length (the flutes spiral), and running out a metre onto the paving, not one and a half.
+        r0 = rng.uniform(0.12, 0.2)
         sd = seed * 1.7 + k * 3.1
         wob = lambda s, sd=sd: noise.noise(Vector((sd, s * 1.3, 0.5)))  # -1..1
-        lift = rng.uniform(0.15, 0.6)
-        skew = rng.uniform(-0.9, 0.9)
-        fin = rng.uniform(0.24, 0.36)  # the foot's plank: half its height
+        lift = rng.uniform(0.1, 0.45)
+        skew = rng.uniform(-0.7, 0.7)
+        fin = rng.uniform(0.17, 0.26)  # the foot's plank: half its height
         # Out of the ground behind the wall, over the crest, down the inner face, out across the paving.
-        ctrl = [(2.7, -0.3), (2.0, crest * 0.7 + lift), (1.1, crest + lift), (0.3, crest + 0.1 + lift * 0.3), (-0.36, crest - 0.15),
-                (-0.5, 0.75), (-0.62, 0.32), (-0.85, 0.12), (-1.25, 0.04), (-1.55, -0.04)]
+        ctrl = [(2.7, -0.3), (2.0, crest * 0.7 + lift), (1.1, crest + lift), (0.3, crest + 0.1 + lift * 0.3), (-0.34, crest - 0.15),
+                (-0.46, 0.75), (-0.55, 0.32), (-0.68, 0.12), (-0.88, 0.04), (-1.05, -0.04)]
         ps = []
         for i, (x, z) in enumerate(ctrl):
             f = i / (len(ctrl) - 1)
             ps.append(Vector((x + 0.06 * wob(i), y0 + skew * (f - 0.5) + 0.22 * wob(i + 10) * f, z)))
         pts = _catmull(ps, 5)
-        tw = rng.uniform(0.35, 0.8) * rng.choice((-1, 1))
+        tw = rng.uniform(1.6, 2.6) * rng.choice((-1, 1))
 
         def prof(u, r0=r0, fin=fin):
             # e1 is off the surface (up on the crest, out of the face, up on the floor), e2 across.
-            if u < 0.58:  # over the wall: thick, tapering
-                w = r0 * (1.0 - 0.45 * u / 0.58)
+            if u < 0.58:  # over the wall: tapering hard from the bank
+                w = r0 * (1.0 - 0.55 * (u / 0.58) ** 0.8)
                 return (w * 1.1, w)
             if u < 0.78:  # the turn onto the paving: the section stands up into a plank
                 f = (u - 0.58) / 0.2
                 f = f * f * (3 - 2 * f)
-                w = r0 * 0.55
+                w = r0 * 0.45
                 return (w * (1.1 - 0.62 * f), w * (1.0 + (fin / w - 1.0) * f))
             f = (u - 0.78) / 0.22  # the fin running out, thinning and sinking
-            return (r0 * 0.55 * 0.48 * (1 - 0.85 * f) + 0.008, fin * (1 - 0.92 * f * f) + 0.01)
+            return (r0 * 0.45 * 0.48 * (1 - 0.85 * f) + 0.008, fin * (1 - 0.92 * f * f) + 0.01)
 
-        _root_sweep(bm, pts, prof, lambda u, tw=tw: tw * u * u, ref=Y, seed=sd, grain=grain)
+        _root_sweep(bm, pts, prof, lambda u, tw=tw: tw * u, ring_n=14, ref=Y, seed=sd, grain=grain, knuckle=0.18)
+        # Round 23: lianas — one or two thin woody vines wound round the root over the crest, one
+        # dropping off it in a loose loop toward the paving (rope-thin, not a second root).
+        for li in range(rng.choice((1, 2))):
+            ph = rng.uniform(0, 6.28)
+            turns = rng.uniform(2.0, 3.2)
+            rl = rng.uniform(0.022, 0.035)
+            lp = []
+            m_ = len(pts)
+            i0, i1 = int(m_ * 0.12), int(m_ * 0.62)
+            for i in range(i0, i1):
+                u = (i - i0) / (i1 - i0 - 1)
+                tng = (pts[min(m_ - 1, i + 1)] - pts[max(0, i - 1)]).normalized()
+                e1 = tng.cross(Y)
+                if e1.length < 1e-4:
+                    e1 = tng.cross(Z)
+                e1.normalize()
+                e2 = tng.cross(e1).normalized()
+                w = prof(i / (m_ - 1))
+                a = ph + turns * 6.2832 * u
+                rad = max(w[0], w[1]) * 1.05 + rl
+                lp.append(pts[i] + (e1 * math.cos(a) + e2 * math.sin(a)) * rad)
+            # Off the root's inner end: a sagging loop down toward the floor.
+            end = lp[-1]
+            drop = rng.uniform(0.5, 0.9)
+            lp += [end + Vector((-0.12, 0.08 * rng.choice((-1, 1)), -drop * 0.5)), end + Vector((-0.2, 0.15 * rng.choice((-1, 1)), -drop))]
+            _root_sweep(bm, lp, lambda u, rl=rl: (rl * (1 - 0.4 * u) + 0.004, rl * (1 - 0.4 * u) + 0.004), lambda u: 0.0, ring_n=6,
+                        ref=Y, seed=sd + 21 + li, ridges=3, knuckle=0.25, grain=grain)
         # A fork off the inner face: thinner, down to the paving a little way along, its own fin.
         if rng.random() < 0.75:
             side = rng.choice((-1, 1))
-            fp = [Vector((-0.42, ps[4].y, crest - 0.3)), Vector((-0.55, ps[4].y + side * 0.25, 0.7)), Vector((-0.7, ps[4].y + side * 0.6, 0.18)),
-                  Vector((-0.95, ps[4].y + side * 0.85, 0.04)), Vector((-1.2, ps[4].y + side * 1.0, -0.04))]
+            fp = [Vector((-0.4, ps[4].y, crest - 0.3)), Vector((-0.5, ps[4].y + side * 0.25, 0.7)), Vector((-0.6, ps[4].y + side * 0.55, 0.18)),
+                  Vector((-0.75, ps[4].y + side * 0.78, 0.04)), Vector((-0.92, ps[4].y + side * 0.92, -0.04))]
             rf = r0 * 0.5
             ff = fin * 0.6
 

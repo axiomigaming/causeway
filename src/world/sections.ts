@@ -118,7 +118,8 @@ class Builder {
    * variants are carved stretches, the rest only now and then. */
   get carving(): number {
     // (Round 22: half as many on phones — a carved parapet is twice a plain one's triangles.)
-    return (this.variant % 3 === 1 ? 0.65 : 0.12) * (this.density.scenery < 0.5 ? 0.5 : 1);
+    // (Round 23: 0.65 -> 0.5 in the carved variants — a carved run is 3.5k triangles a tile against 2.3k.)
+    return (this.variant % 3 === 1 ? 0.5 : 0.12) * (this.density.scenery < 0.5 ? 0.5 : 1);
   }
 
   /** A round pillar; the whole ones (pillar_0, 5 m) often carry a carved capital. */
@@ -293,6 +294,18 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
   return WL - 0.5 + 1.4 * s * 1.1 - 0.12;
 }
 
+/**
+ * World round 23: green on a giant root heaved over the parapet on `side` (spanning z0 … z0 − 4):
+ * cushion moss in the crook over the crest, a curtain of leafy vine hanging off it down the inner face,
+ * a fern at its foot where it meets the paving. (Bare, the roots read as smooth green tubes.)
+ */
+function rootDress(b: Builder, side: number, z0: number, y = 0, crest = 1.3) {
+  const zc = z0 - b.rng.range(1, 3);
+  if (b.foliage(0.9)) b.place(`moss_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.5), y + crest + 0.05, zc, b.rng.range(0, 6.28), b.rng.range(0.45, 0.65));
+  if (b.foliage(0.7)) b.place(`vines_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.1), y + crest + 0.2, zc + b.rng.range(-0.6, 0.6), side * Math.PI / 2, [0.55, b.rng.range(0.35, 0.5), 1]);
+  if (b.foliage(0.6)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.25), y - 0.05, z0 - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.6, 0.85));
+}
+
 function bananas(b: Builder, x: number, y: number, z: number, p = 1) {
   // (Round 20: out over the water, on an islet of its own, never with its foot in the air.)
   if (Math.abs(x) > PATH_HALF + 0.95 && y > WL - 0.2 && y < -0.2) {
@@ -420,7 +433,8 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
     for (let i = 0; i < n; i++) {
       const z = z0 - TILE * i;
       if (opts.foundation !== false) {
-        b.wall(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side, PATH_HALF + 0.42, 0, z);
+        // (Round 23: phones take the lighter footing only — a corridor of them stood at 318k triangles.)
+        b.wall(b.rng.chance(0.5) || b.density.scenery < 0.5 ? 'foundation_0' : 'foundation_1', side, PATH_HALF + 0.42, 0, z);
         b.foam(side, PATH_HALF + 0.84, z);
       }
       if (b.foliage(0.3)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.05), -0.05, z - b.rng.range(0.4, 3.6), b.rng.range(0, 6.28), b.rng.range(0.6, 0.95));
@@ -441,7 +455,8 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
         continue;
       }
       carvedRun = false;
-      const lw = b.rng.pick(LOW_WALLS);
+      // (Round 23: on phones mostly the two lighter parapets, 560-760 triangles against 790-860.)
+      const lw = b.density.scenery < 0.5 && b.rng.chance(0.7) ? b.rng.pick(['wall_low_1', 'wall_low_2']) : b.rng.pick(LOW_WALLS);
       b.wall(lw, side, PATH_HALF + 0.36, 0, z);
       // Round 11 detail: now and then roots creeping over the parapet and down its sides.
       if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.5, z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
@@ -678,9 +693,13 @@ function forestSide(b: Builder, side: number, len: number, dense = 1) {
     else if (r < 0.93) b.place(`scatter_edge_${b.rng.int(0, 2)}`, side * 3.4, y + 0.08, z, side > 0 ? 0 : Math.PI);
     else if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, x, y + 0.2, z, b.rng.range(0, 6.28), [0.8, 0.25, 0.7], [Math.PI / 2, 0]);
   }
+  // (Round 23: on phones the mid-band trees are kept — at the phone's density over half went, and the
+  // portrait frame, narrow at the sides, showed a "forest" as bare ground and sky — and stand a little
+  // closer in, where the portrait frame still holds them.)
+  const phone = b.density.foliage < 0.6;
   for (let z = -b.rng.range(1, 4); z > -len - 2; z -= b.rng.range(5, 8) / dense) {
-    const x = side * b.rng.range(6.5, 12);
-    landTree(b, x, z, b.rng.range(0.9, 1.25), 'land', 0.95);
+    const x = side * (phone ? b.rng.range(5.4, 9) : b.rng.range(6.5, 12));
+    landTree(b, x, z, b.rng.range(0.9, 1.25), 'land', phone ? Math.min(1, 0.95 / b.density.foliage) : 0.95);
     if (b.foliage(0.7)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * b.rng.range(5.5, 9), gy(b, side * 7, z - 2.5) - 0.2, z - 2.5, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
   }
   for (let z = -b.rng.range(0, 6); z > -len - 4; z -= b.rng.range(7, 11) / dense) {
@@ -741,6 +760,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
             const k = b.rng.int(0, 1);
             if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, gy(b, 3, z), z + 2, 0, [0.9, 0.8, 0.9]);
             else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), gy(b, -3, z), z - 2, Math.PI, [0.9, 0.8, 0.9]);
+            rootDress(b, side, z + 2, gy(b, 3 * side, z), (k === 1 ? 1.3 : 1.2) * 0.8);
           }
         }
         forestSide(b, side, len, 1.2);
@@ -896,7 +916,10 @@ const BUILDERS = {
       // a broken pier, drowned columns further out.
       for (const side of [-1, 1]) {
         for (let z = -b.rng.range(2, 5); z > -len; z -= b.rng.range(6, 9)) {
-          const x = side * b.rng.range(5.5, 11);
+          // (Round 23: nothing past 7.5 m out in the last 9 m: there the landmark's corner turns, and the
+          // clearance probe found the far islets in the new leg every time — the corner never came and the
+          // run-up was staged again and again, 40 % of the route open water.)
+          const x = side * (z < -len + 9 ? b.rng.range(5.5, 7.2) : b.rng.range(5.5, 11));
           const top = islet(b, x, z, b.rng.range(0.6, 0.9));
           const r = b.rng.range(0, 1);
           if (r < 0.4) {
@@ -928,7 +951,7 @@ const BUILDERS = {
         }
         if (b.rng.chance(0.6)) {
           const cx = side * b.rng.range(13, 20);
-          const cz = -b.rng.range(2, len - 2);
+          const cz = -b.rng.range(2, len - 9);
           b.place('column_lone_0', cx, WL - 1.5, cz, b.rng.range(0, 6.28), b.rng.range(0.9, 1.1));
           b.foamRing(cx, cz, 1.6);
         }
@@ -995,7 +1018,8 @@ const BUILDERS = {
       vista(b, len, ['arch', 'guardians', 'temple', 'towers', 'falls'], 0.65);
       {
         const side = b.rng.pick([-1, 1]);
-        colossus(b, side, -len * b.rng.range(0.3, 0.6), 0.4);
+        // (Round 23: a guardian in every other corridor on phones — 1.1k triangles each, on the near side.)
+        colossus(b, side, -len * b.rng.range(0.3, 0.6), b.density.scenery < 0.5 ? 0.2 : 0.4);
         ruinFront(b, -side, -len * b.rng.range(0.3, 0.7), 0.3);
       }
       return { hazards: ['chasm', 'rockfall'], walls: 'low' };
@@ -1573,6 +1597,7 @@ const BUILDERS = {
           if (b.rng.chance(0.7)) {
             if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, 0, z, 0);
             else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), 0, z - 4, Math.PI);
+            rootDress(b, side, z, 0, k === 1 ? 1.3 : 1.2);
           }
           if (b.foliage(0.5)) bananas(b, side * b.rng.range(3.2, 4.2), -0.6, z - 1.5);
         }
@@ -1731,7 +1756,7 @@ export function nextType(rng: Rng, prev: SectionType, elevation: number, intensi
     ['turnL', 1.8 + 0.8 * intensity],
     ['turnR', 1.8 + 0.8 * intensity],
     [elevation > -0.5 ? 'stairsDown' : 'stairsUp', 1.1],
-    // World round 21: land (a run of two to four; see Track.update).
+    // World round 21: land (a run of two or three; see Track.update).
     ['forest', 2.4],
     ['forestWall', 1.5],
     ['cutting', 1.1 + 0.7 * intensity],

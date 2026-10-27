@@ -306,3 +306,97 @@ export function updateCaustics(time: number, feet: Iterable<THREE.Vector4>): voi
   }
   for (; k < MAX_FEET; k++) arr[k]!.copy(foot.set(0, -1e4, 0, 0));
 }
+
+// World round 23: near bark. The bark atlas is 1K for every trunk, limb and root in the kit: up close
+// (the crash cameras sit beside the parapets, where the giant roots arch over) it read as a soft,
+// blotchy green tube. detail_bark.webp is a 512 tile cut from the Poly Haven "bark_brown_02" scan
+// (CC0, see THIRD_PARTY_NOTICES.md): R,G its tangent normal, B cavity. Projected three ways in world
+// space at two scales, it gives the near bark real furrows, plates and pores, darkens the furrows,
+// and fades out by 16 m. Fetched on every tier (it is small and the close-ups happen on phones too).
+import barkDetailUrl from './detail_bark.webp?url';
+
+const barkUniforms = {
+  uBarkMap: { value: null as THREE.Texture | null },
+  uBarkReady: { value: 0 },
+};
+let barkMap: THREE.Texture | null = null;
+function ensureBarkMap(): void {
+  if (barkMap || typeof document === 'undefined') return;
+  barkMap = new THREE.TextureLoader().load(barkDetailUrl, () => (barkUniforms.uBarkReady.value = 1));
+  barkMap.wrapS = barkMap.wrapT = THREE.RepeatWrapping;
+  barkMap.colorSpace = THREE.NoColorSpace;
+  barkMap.anisotropy = 4;
+  barkUniforms.uBarkMap.value = barkMap;
+}
+
+/** Near-camera bark furrows on the kit's bark material (see above). */
+export function patchBark(m: THREE.Material): void {
+  const sm = m as THREE.MeshStandardMaterial;
+  if (!sm.isMeshStandardMaterial || sm.userData.barkDetail) return;
+  sm.userData.barkDetail = true;
+  ensureBarkMap();
+  const prev = sm.onBeforeCompile;
+  const prevKey = sm.customProgramCacheKey?.bind(sm);
+  sm.onBeforeCompile = (shader, renderer) => {
+    prev?.call(sm, shader, renderer);
+    Object.assign(shader.uniforms, barkUniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBkPos;\nvarying vec3 vBkN;')
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+        {
+          vec4 bp = vec4(transformed, 1.0);
+          vec3 bn = objectNormal;
+          #ifdef USE_INSTANCING
+            bp = instanceMatrix * bp;
+            bn = mat3(instanceMatrix) * bn;
+          #endif
+          vBkPos = (modelMatrix * bp).xyz;
+          vBkN = normalize(mat3(modelMatrix) * bn);
+        }`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vBkPos;
+        varying vec3 vBkN;
+        uniform sampler2D uBarkMap;
+        uniform float uBarkReady;
+        // Triplanar: the scan's furrows run along its V, so each side plane keeps world up as V.
+        vec4 bkTri(vec3 p, vec3 w, vec3 n) {
+          vec3 tx = texture2D(uBarkMap, p.zy).rgb, ty = texture2D(uBarkMap, p.xz).rgb, tz = texture2D(uBarkMap, p.xy).rgb;
+          vec2 ax = tx.rg * 2.0 - 1.0, ay = ty.rg * 2.0 - 1.0, az = tz.rg * 2.0 - 1.0;
+          vec3 s = sign(n);
+          vec3 d = w.x * vec3(0.0, ax.y, ax.x * s.x) + w.y * vec3(ay.x * s.y, 0.0, ay.y) + w.z * vec3(az.x * s.z, az.y, 0.0);
+          return vec4(d, dot(w, vec3(tx.b, ty.b, tz.b)));
+        }`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        if (uBarkReady > 0.0) {
+          float bdist = length(vViewPosition);
+          float k = 1.0 - smoothstep(6.0, 16.0, bdist);
+          if (k > 0.0) {
+            vec3 wn = normalize(vBkN);
+            vec3 w = pow(abs(wn), vec3(4.0));
+            w /= max(w.x + w.y + w.z, 1e-4);
+            vec4 a = bkTri(vBkPos * 1.6, w, wn);
+            float fine = 1.0 - smoothstep(2.5, 7.0, bdist);
+            vec4 b = bkTri(vBkPos * 4.3 + 0.41, w, wn);
+            vec3 dw = a.xyz * 1.6 + b.xyz * 0.7 * fine;
+            vec3 bn2 = normal + (mat3(viewMatrix) * dw) * k;
+            float bl = length(bn2);
+            if (bl > 1e-4) normal = bn2 / bl;
+            float cav = mix(a.w, a.w * (0.65 + 0.7 * b.w), fine);
+            // Deep, dark furrows between lighter plates (the soft atlas alone read as clay).
+            diffuseColor.rgb *= mix(1.0, 0.42 + 0.95 * cav, k);
+          }
+        }`,
+      );
+  };
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|bark23`;
+  sm.needsUpdate = true;
+}

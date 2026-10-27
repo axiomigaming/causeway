@@ -209,8 +209,14 @@ function installSkyGrade(): void {
           // gives at ~300 m, more the darker it is (sky texels, already near the haze, barely change).
           float hzL = dot(skyHaze.rgb, vec3(0.2126, 0.7152, 0.0722));
           float land = smoothstep(0.75, 0.2, skyL / max(hzL, 1e-3)) * smoothstep(0.42, 0.18, skyD.y) * smoothstep(-0.35, -0.05, skyD.y);
-          float hzLand = clamp(1.0 - exp(-skyHaze.w * 300.0), 0.0, 0.5) * land;
-          texColor.rgb = mix(texColor.rgb, skyHaze.rgb, max(hz, hzLand));
+          // (Round 23: balanced — a flat grey wash took the far layer's depth and colour: the land's
+          // haze is held a touch darker than the sky's, so the far bank still stands off the sky behind
+          // it, and the crowns keep part of their own green.)
+          float hzLand = clamp(1.0 - exp(-skyHaze.w * 300.0), 0.0, 0.42) * land;
+          vec3 hzCol = mix(skyHaze.rgb, skyHaze.rgb * 0.86, land);
+          vec3 texChroma = texColor.rgb - vec3(skyL);
+          float hzA = max(hz, hzLand);
+          texColor.rgb = mix(texColor.rgb, hzCol, hzA) + texChroma * hzLand * 0.55;
         }
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
         float skyL2 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
