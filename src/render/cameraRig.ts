@@ -1004,6 +1004,8 @@ export class CameraRig {
   private uiCol: [number, number] | null = null;
   /** Real (unscaled) frame time, set by the game before update(): the interface runs on it. */
   realDt = 0;
+  /** The result card lands within about half a second (set by the game). */
+  revealSoon = false;
   private uiTopBar = 0;
   private sideK = 0;
   private sideV = 0;
@@ -1024,7 +1026,9 @@ export class CameraRig {
     if (this.mode === 'crash' && this.gap > 0.3 && this.closeK < 0.5) return;
     const c = this.camera;
     const s = this.shift;
-    const result = (this.mode === 'cashout' || this.mode === 'crash') ? this.revealK : 0;
+    // (Round 20: from just before the card lands, too — set by the game half a second ahead — so he
+    // is already moving out from behind where it will stand.)
+    const result = (this.mode === 'cashout' || this.mode === 'crash') ? Math.max(this.revealK, this.revealSoon ? 0.02 : 0) : 0;
     // Landscape with a centre interface column: compose beside it, on the wider free side.
     let sideWant = 0;
     if (result > 0.01 && c.aspect > 1.15 && this.uiCol) {
@@ -1041,7 +1045,9 @@ export class CameraRig {
     const ws = 5.5;
     this.sideV += (ws * ws * (sideWant - this.sideK) - 2 * ws * this.sideV) * rdt;
     this.sideK = THREE.MathUtils.clamp(this.sideK + this.sideV * rdt, 0, 1);
-    const side = this.sideK;
+    // (The band beside the column only once the card is actually landing: ahead of it the dock still
+    // stands under him, and the pan alone starts early.)
+    const side = Math.min(this.sideK, this.revealK * 1.5);
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
     const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side) + (this.mode === 'cashout' ? 0.08 : 0); // (the slide's legs swing out: footroom too)
@@ -1144,10 +1150,10 @@ export class CameraRig {
     if (m.left < -mT) pan = Math.atan(-mT) - Math.atan(m.left);
     else if (m.right > mT) pan = -(Math.atan(m.right) - Math.atan(mT));
     // The result shot on landscape: pan so he stands on a third, beside the interface column.
-    if (side > 0.001) {
+    if (this.sideK > 0.001) {
       const cx = (m.left + m.right) / 2;
       const want = Math.atan(this.sideX * tanH) - Math.atan(cx);
-      pan = THREE.MathUtils.lerp(pan, want, side);
+      pan = THREE.MathUtils.lerp(pan, want, this.sideK);
       // Round 18: the third never pushes a limb past the side margins (the 50x+ slide's turn
       // swings him a metre or two across the frame).
       const pMin = Math.atan(-mT) - Math.atan(m.left);
@@ -1193,7 +1199,7 @@ export class CameraRig {
     // A settled shot under the result card centres the band between the card and the dock, which
     // can sit higher than the run's own limits allow.
     const cine = this.revealK > 0.001 ? Math.min(0.32, Math.max(-0.3, (this.insetBottom - this.insetTop) / 2)) : this.shiftTarget;
-    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, this.sideK);
+    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, Math.min(this.sideK, this.revealK * 1.5));
     this.shift += (target - this.shift) * (1 - Math.exp(-dt * 3));
     const c = this.camera;
     if (Math.abs(this.shift) < 0.001) {
