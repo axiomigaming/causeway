@@ -70,7 +70,12 @@ export function Dock() {
       let bar = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0;
       for (const q of ['.hud', '.result']) {
         const e = document.querySelector<HTMLElement>(q);
-        if (e) bar = Math.max(bar, e.offsetTop + e.offsetHeight);
+        if (!e) continue;
+        // A block standing to one side (the landscape result card) does not cover the runner's
+        // column (the middle third): it stays out of the band.
+        const r = e.getBoundingClientRect();
+        if (r.right < window.innerWidth / 3 || r.left > (2 * window.innerWidth) / 3) continue;
+        bar = Math.max(bar, e.offsetTop + e.offsetHeight);
       }
       ctl.game.rig.setInsets(bar, window.innerHeight - top, window.innerHeight);
       // Cinematics hook (round 17): the interface column's horizontal extent (dock + result card)
