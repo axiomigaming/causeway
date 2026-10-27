@@ -455,7 +455,8 @@ export class CameraRig {
     // on him, keepInFrame alone keeps him whole; the standing stand-back would undo the close-in.)
     const lying = this.mode === 'crash' && this.closeK > 0.5;
     const mBand = d0 < needBand ? (lying ? 1 : needBand / d0) : d0 > needFar ? needFar / d0 : 1;
-    const m = lerp(mBand, needSide / d0, this.sideK);
+    // (With the card itself, not the early pan ahead of it: that stood the crash close-in back.)
+    const m = lerp(mBand, needSide / d0, Math.min(this.sideK, k * 1.5));
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
     return mixFrame(f, out, k);
   }
