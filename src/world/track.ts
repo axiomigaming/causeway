@@ -188,16 +188,20 @@ export const KEEP_BEHIND = 90;
 /** Length along the path of each walkable piece (metres). */
 const TILE_LENGTH: Record<string, number> = { floor_wide_0: 8 };
 
+// World round 23: room for every tile standing at once (up to ~330 m of route: the longest view, the
+// despawn lead and what is kept behind; 4 m a tile). A full mesh silently dropped the tile: late in a run,
+// where the broken slab (floor_2) is common, a cap of 40 left whole stretches of the way unpaved — the
+// runner ran on the bare ground or over the water.
 const TILE_CAPACITY: Record<string, number> = {
-  floor_0: 110,
-  floor_1: 110,
-  floor_2: 40,
-  floor_wide_0: 16,
-  floor_narrow_0: 8,
-  floor_medallion_0: 36,
-  planks_0: 40,
-  planks_1: 40,
-  stairs_0: 8,
+  floor_0: 128,
+  floor_1: 128,
+  floor_2: 128,
+  floor_wide_0: 32,
+  floor_narrow_0: 48,
+  floor_medallion_0: 64,
+  planks_0: 96,
+  planks_1: 96,
+  stairs_0: 24,
 };
 
 /**

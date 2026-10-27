@@ -17,6 +17,22 @@ function fakeKit(): Kit {
 }
 
 describe('walkable tiles', () => {
+  it('are all drawn, however long the run (no instanced mesh runs out of room)', async () => {
+    // World round 23: floor_2 had room for 40; late in a run, where broken slabs are common, the rest
+    // were silently dropped and stretches of the way stood unpaved.
+    const track = new Track(fakeKit());
+    await track.prepare({ foliage: 1, scenery: 1 });
+    track.viewDistance = 200;
+    for (const seed of ['cap-1', 'cap-2', '97-0.5']) {
+      track.reset(seed);
+      for (let s = 0; s < 3000; s += 40) {
+        track.update(s, 0.5);
+        const dropped = track.sections.flatMap((sec) => sec.tiles).filter((t) => t.alive && t.index < 0);
+        expect(dropped.map((t) => t.piece), `${seed}@${s}`).toEqual([]);
+      }
+    }
+  }, 120000);
+
   it('know where they lie along the route, however they are rotated', async () => {
     const track = new Track(fakeKit());
     await track.prepare({ foliage: 1, scenery: 1 });
