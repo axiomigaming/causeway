@@ -1,0 +1,276 @@
+{
+ "world": "7",
+ "q": "high",
+ "summary": [
+  {
+   "name": "start",
+   "frames": 229,
+   "window": [
+    0,
+    228
+   ],
+   "actual": {
+    "ev": "lead"
+   },
+   "counts": {},
+   "shots": 1,
+   "errors": []
+  },
+  {
+   "name": "log",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:log",
+    "placed": true,
+    "fired": {
+     "log": 1
+    }
+   },
+   "counts": {},
+   "shots": 0,
+   "errors": []
+  },
+  {
+   "name": "beam",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:beam",
+    "placed": true,
+    "fired": {
+     "beam": 1
+    }
+   },
+   "counts": {
+    "pop": 2
+   },
+   "shots": 2,
+   "errors": []
+  },
+  {
+   "name": "pillar",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:pillar",
+    "placed": true,
+    "fired": {
+     "pillar": 1
+    }
+   },
+   "counts": {},
+   "shots": 0,
+   "errors": []
+  },
+  {
+   "name": "blocks",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "obstacle:blocks",
+    "placed": true,
+    "fired": {
+     "blocks": 1
+    }
+   },
+   "counts": {
+    "pop": 1
+   },
+   "shots": 1,
+   "errors": []
+  },
+  {
+   "name": "corner",
+   "frames": 286,
+   "window": [
+    78,
+    363
+   ],
+   "actual": {
+    "ev": "lead"
+   },
+   "counts": {},
+   "shots": 0,
+   "errors": []
+  }
+ ],
+ "ranges": [
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 237,
+   "to": 237,
+   "peak": {
+    "f": 237,
+    "value": 0.102,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "slide",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "beam",
+   "type": "pop",
+   "what": "hips jump",
+   "from": 293,
+   "to": 293,
+   "peak": {
+    "f": 293,
+    "value": 0.1,
+    "detail": "10 cm/frame² relative to the ground",
+    "clip": "slide",
+    "stage": "run"
+   },
+   "n": 1
+  },
+  {
+   "seq": "blocks",
+   "type": "pop",
+   "what": "shinL snaps",
+   "from": 282,
+   "to": 282,
+   "peak": {
+    "f": 282,
+    "value": 27.006,
+    "detail": "27°/frame between 5° and 8°",
+    "clip": "leap_gap",
+    "stage": "run"
+   },
+   "n": 1
+  }
+ ],
+ "thresholds": {
+  "spike": 3,
+  "popOmega": 25,
+  "judder": 0.1,
+  "flip": 90,
+  "popStep": 0.04,
+  "hipsAccel": 0.1,
+  "groundAccel": 0.12,
+  "slide": 0.025,
+  "sink": 0.05,
+  "plantH": 0.02,
+  "plantVy": 0.01,
+  "airH": 0.1,
+  "frozenLimb": 1.2,
+  "frozenRun": 4,
+  "statueBody": 0.4,
+  "statueRun": 6,
+  "camOmega": 12,
+  "camSnap": 6,
+  "camJerk": 0.25
+ },
+ "limits": {
+  "spine": {
+   "swing": 45,
+   "twist": 40
+  },
+  "chest": {
+   "swing": 45,
+   "twist": 45
+  },
+  "neck": {
+   "swing": 50,
+   "twist": 60
+  },
+  "head": {
+   "swing": 55,
+   "twist": 70
+  },
+  "shoulderL": {
+   "swing": 40,
+   "twist": 45
+  },
+  "shoulderR": {
+   "swing": 40,
+   "twist": 45
+  },
+  "upper_armL": {
+   "swing": 178,
+   "twist": 110
+  },
+  "upper_armR": {
+   "swing": 178,
+   "twist": 110
+  },
+  "forearmL": {
+   "hinge": [
+    -12,
+    160
+   ],
+   "side": 30,
+   "twist": 110
+  },
+  "forearmR": {
+   "hinge": [
+    -12,
+    160
+   ],
+   "side": 30,
+   "twist": 110
+  },
+  "handL": {
+   "swing": 85,
+   "twist": 60
+  },
+  "handR": {
+   "swing": 85,
+   "twist": 60
+  },
+  "thighL": {
+   "swing": 135,
+   "twist": 55
+  },
+  "thighR": {
+   "swing": 135,
+   "twist": 55
+  },
+  "shinL": {
+   "hinge": [
+    -10,
+    160
+   ],
+   "side": 20,
+   "twist": 35
+  },
+  "shinR": {
+   "hinge": [
+    -10,
+    160
+   ],
+   "side": 20,
+   "twist": 35
+  },
+  "footL": {
+   "swing": 60,
+   "twist": 35
+  },
+  "footR": {
+   "swing": 60,
+   "twist": 35
+  },
+  "toeL": {
+   "swing": 70,
+   "twist": 30
+  },
+  "toeR": {
+   "swing": 70,
+   "twist": 30
+  }
+ }
+}

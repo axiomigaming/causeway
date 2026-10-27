@@ -34,8 +34,8 @@ export class Water {
         uShelf: { value: typeof location !== 'undefined' && /[?&]water0\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 0 : 1 },
         // QA (?qa&wdbg): the distance to the causeway's centre line (red bands a metre apart, green past its edge).
         // Round 20: a dry pit under the causeway (the ledge crash's stone course): no water drawn there.
-        uDryA: { value: new THREE.Vector4(0, 0, 1, 0) },
-        uDryB: { value: new THREE.Vector4(0, 0, 0, 0) },
+        uDryA: DRY.uDryA,
+        uDryB: DRY.uDryB,
         uDbg: { value: typeof location !== 'undefined' && /[?&]wdbg\b/.test(location.search) && /[?&]qa\b/.test(location.search) ? 1 : 0 },
         uSplash: { value: [new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0), new THREE.Vector4(0, 0, -99, 0)] },
       },
@@ -410,6 +410,9 @@ export function makeFoamRing(): THREE.BufferGeometry {
 
 export const foamTime = { value: 0 };
 
+/** (FX round 20) The ledge trough's dry rectangle, shared by the water and the foam strips. */
+export const DRY = { uDryA: { value: new THREE.Vector4(0, 0, 1, 0) }, uDryB: { value: new THREE.Vector4(0, 0, 0, 0) } };
+
 export function makeFoamMaterial(): THREE.ShaderMaterial {
   const m = new THREE.ShaderMaterial({
     name: 'foam',
@@ -420,7 +423,7 @@ export function makeFoamMaterial(): THREE.ShaderMaterial {
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
+    uniforms: { ...THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]), uDryA: DRY.uDryA, uDryB: DRY.uDryB },
     vertexShader: /* glsl */ `
       #include <fog_pars_vertex>
       varying vec2 vUv;
@@ -436,12 +439,21 @@ export function makeFoamMaterial(): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       #include <fog_pars_fragment>
       uniform float uTime;
+      uniform vec4 uDryA;
+      uniform vec4 uDryB;
       varying vec2 vUv;
       varying vec3 vW;
       float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
       void main() {
+        // (FX round 20: no foam inside the ledge trough's dry footprint: it showed as pale streaks
+        // along the undercroft's wall feet.)
+        if (uDryB.z > 0.5) {
+          vec2 dq = vW.xz - uDryA.xy;
+          vec2 lq = vec2(dq.x * uDryA.z - dq.y * uDryA.w, dq.x * uDryA.w + dq.y * uDryA.z);
+          if (abs(lq.x) < uDryB.x && abs(lq.y) < uDryB.y) discard;
+        }
         float e = clamp(vUv.x, 0.0, 1.0);
         vec2 p = vW.xz;
         float nz = n(p * 2.3 + vec2(uTime * 0.35, -uTime * 0.2)) * 0.6 + n(p * 6.1 - uTime * 0.5) * 0.4;

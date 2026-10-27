@@ -248,9 +248,16 @@ function WonPlate({ stake, payout, mult, auto, verify }: { stake: number; payout
       if (k < 1) raf = requestAnimationFrame(step);
     };
     step();
+    // Frames can stall (a hidden tab, a starved device): the settled amount lands on time regardless,
+    // never a figure frozen part-way (seen: "Return 11.13" on a 17.60 payout), as the top bar does.
+    const guard = window.setTimeout(() => {
+      cancelAnimationFrame(raf);
+      el.textContent = formatCredits(payout);
+    }, dur + 50);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(stampT);
+      clearTimeout(guard);
     };
   }, [ctl, motion, payout, stake, grade]);
 

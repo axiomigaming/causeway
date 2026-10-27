@@ -8,7 +8,7 @@ import { DynamicResolution, tuneTextures, warmUp } from './perf';
 import { installShadowEdgeFade } from './shadows';
 import { ContactShadow } from './contact';
 import { installAtmosphere, patchFogUniforms, setAtmosphereMist, setAtmosphereSun, setSkyLook } from '../world/atmosphere';
-import { causticUniforms } from '../world/caustics';
+import { causticUniforms, patchWetStone, ensureDetailMap } from '../world/caustics';
 import { Rain } from './rain';
 import { resetMood, setWorldDrive, stepMood, worldMood, worldTierUp } from '../world/mood';
 import { Debris } from '../world/debris';
@@ -89,6 +89,8 @@ const SPRAY = new THREE.Color('#e9f2ee');
 /** Round 20: the ledge crash's drop onto the lower course (fall_drop's root drop) and its landing time. */
 const LEDGE_DROP = 2.75;
 const LEDGE_LAND = 0.93;
+/** Half the ledge undercroft's width (inside the way's edge, in front of the world's foundations). */
+const LEDGE_HALF = PATH_HALF - 0.6;
 /**
  * Round 20 (character agent): the celebration clips' slowing steps (win_cheer, win_pump,
  * win_cheer_big, win_leap, win_salute) are keyed for the ground speed falling from run pace
@@ -111,6 +113,20 @@ function brakeCurve(u: number): number {
   }
   return 0;
 }
+/** A box whose faces carry one texture repeat per `tile` metres (BoxGeometry maps 0..1 per face). */
+function boxAtDensity(w: number, h: number, d: number, tile: number): THREE.BoxGeometry {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const uv = g.attributes.uv as THREE.BufferAttribute;
+  // Faces in order +x, -x, +y, -y, +z, -z; four vertices each (one segment).
+  const dims: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) {
+    const [a, b] = dims[f]!;
+    for (let i = f * 4; i < f * 4 + 4; i++) uv.setXY(i, (uv.getX(i) * a) / tile, (uv.getY(i) * b) / tile);
+  }
+  uv.needsUpdate = true;
+  return g;
+}
+
 /** ∫₀¹ brakeCurve: the braking distance is v0 · T · BRAKE_AREA. */
 const BRAKE_AREA = BRAKE_KEYS.slice(1).reduce((a, [u1, v1], i) => a + ((u1 - BRAKE_KEYS[i]![0]) * (v1 + BRAKE_KEYS[i]![1])) / 2, 0);
 /** Tints for the lit dust clouds (multiplied by their sun and shade colours). */
@@ -161,7 +177,19 @@ export class Game {
   private mistAmount = 1;
   private tmpHead = new THREE.Vector3(); // perf
   private tmpSize = new THREE.Vector2(); // perf
-  private clock = new THREE.Clock();
+  // Frame clock on performance.now (THREE.Clock is deprecated in r186 and warned on every load).
+  private clock = {
+    last: 0,
+    start() {
+      this.last = performance.now();
+    },
+    getDelta() {
+      const now = performance.now();
+      const d = this.last ? (now - this.last) / 1000 : 0;
+      this.last = now;
+      return d;
+    },
+  };
   private raf = 0;
   private visible = true;
   sounds: WorldSounds = nullSounds;
@@ -749,6 +777,9 @@ export class Game {
     // the floor gives into the water instead.
     if (st.kind === 'ledge' && !(this.runner as unknown as { actions: Map<string, unknown> }).actions.has('fall_drop')) st.kind = 'chasm';
     if ((st.kind === 'chasm' || st.kind === 'ledge') && this.tileEdge(this.s + 1.4, this.s + (this.speed * 0.45) / 2 + 5) === null) st.kind = 'rockfall';
+    // (The ledge caves in right under him: a wide slab or stairs there would stay up and he would
+    // drop through solid floor.)
+    if (st.kind === 'ledge' && this.solidFloorIn(this.s - 1.5, this.s + 8)) st.kind = 'rockfall';
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
     // A pier or a column coming down: he runs on toward it for most of a second, and the chase lens
     // stays with him (stageCrash switches to the crash shot as the clip starts). The settled crash
@@ -762,7 +793,8 @@ export class Game {
     // (The pier and the trip start their clip later, on its contact: he runs on until then. Playing
     // it now and switching back to the run restarted the stride: a hip jump.)
     const deferred = (st.kind === 'pillar' || st.kind === 'trip') && !standing;
-    if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.12);
+    // (A 0.2 s blend: the runner eases cross-fades of 0.2 s or more, and the root's run-out matches.)
+    if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.2);
     this.crashKind = st.kind;
     this.staging = st;
     this.epic = st.epic;
@@ -846,9 +878,16 @@ export class Game {
     const base = this.kit.mat.get(this.kit.matOf.get(piece) ?? '');
     if (!base) return undefined;
     const m = base.clone();
+    // (Its baked occlusion is a dark speckle on the lower courses: kept faint.)
+    const ms = m as THREE.MeshStandardMaterial;
+    if (ms.aoMap) ms.aoMapIntensity = 0.3;
     const prev = base.onBeforeCompile;
     m.onBeforeCompile = (shader, renderer) => {
       prev?.call(base, shader, renderer);
+      // (No standing water on these: the wet-stone patch's puddles and wet seams read as streaks
+      // of water along the undercroft's wall feet.)
+      shader.fragmentShader = shader.fragmentShader.replace('#define WET_PUDDLES\n', '').replace('#define WET_EDGES\n', '');
+      shader.vertexShader = shader.vertexShader.replace('#define WET_EDGES\n', '');
       // (Before the roughness chunk: the wet-stone patch has already rewritten the map chunk.)
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <roughnessmap_fragment>',
@@ -857,8 +896,19 @@ export class Game {
           float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
           // (The atlas's moss is olive: green nearly level with red, where the stone's runs at about
           // 0.4 of it in linear light.)
-          float moss = smoothstep(0.52, 0.7, diffuseColor.g / max(diffuseColor.r, 1e-3));
-          diffuseColor.rgb = mix(diffuseColor.rgb, lum * vec3(1.45, 0.92, 0.62), moss * 0.9);
+          float moss = smoothstep(0.5, 0.66, diffuseColor.g / max(diffuseColor.r, 1e-3));
+          // (The masonry's damp lower course is a dark green-black speckle: that goes to the
+          // stone's mean colour, darkened a little, rather than to its own near-black.)
+          vec3 stoneMean = vec3(0.26, 0.165, 0.11);
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(lum * vec3(1.45, 0.92, 0.62), stoneMean * 0.8, smoothstep(0.12, 0.03, lum)), moss * 0.9);
+          // And the atlas's low-frequency mottling at half its contrast (grey blotches at 2-3 m):
+          // brightness drawn halfway toward the stone's mean; the carving stays in the normals.
+          float l2 = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          diffuseColor.rgb *= mix(1.0, 0.2 / max(l2, 0.02), 0.5);
+          // And the atlas's small painted leaves (red and green flecks: confetti at 2-3 m) go to
+          // the stone's own hue.
+          float l3 = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          diffuseColor.rgb = mix(diffuseColor.rgb, l3 * vec3(1.45, 0.92, 0.62), 0.55);
         }
         #include <roughnessmap_fragment>`,
       );
@@ -1271,6 +1321,18 @@ export class Game {
     return true;
   }
 
+  /** Whether any floor that cannot cave in (a wide slab, stairs) lies within [s0, s1]. */
+  private solidFloorIn(s0: number, s1: number): boolean {
+    for (const sec of this.track.sections) {
+      for (const t of sec.tiles) {
+        if (!t.alive || this.collapsible(t)) continue;
+        const [a, b] = this.tileSpan(t);
+        if (b >= s0 && a <= s1) return true;
+      }
+    }
+    return false;
+  }
+
   private collapsible(t: { piece: string; alive: boolean }): boolean {
     return t.alive && t.piece !== 'floor_wide_0' && !t.piece.startsWith('stairs');
   }
@@ -1355,9 +1417,9 @@ export class Game {
       // flailing, feet on the bed at 0.93 s, crumple, roll onto his back. The slabs round him go
       // with him, land on the bed, break, bounce and settle; the camera at the lip tilts down after
       // him; grit streaks fall with him; the slow motion waits for the landing.
-      // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+      // (The root runs out over the clip's 0.2 s cross-fade while the clip's own travel, carried
       // by the root, fades in: their sum keeps his speed.)
-      const halt = v * 0.06;
+      const halt = v * 0.1;
       this.setStop(this.s + halt);
       const h = frameAt(this.s + halt);
       const bedY = h.pos.y - LEDGE_DROP;
@@ -1366,10 +1428,12 @@ export class Game {
       // trough's end wall the lagoon showed in the hole.)
       this.placeLedgeBed(frameAt(this.s - 1.6), bedY, span + 5.2);
       B.settleBelow = bedY + 0.3;
-      const pit = { origin: h.pos.clone(), right: h.right.clone(), half: PATH_HALF + 0.15, top: h.pos.y - 0.05 };
+      // (The undercroft's walls stand just inside the way's edge, in front of the world's own
+      // foundations, whose damp lower course read as camouflage: see placeLedgeBed.)
+      const pit = { origin: h.pos.clone(), right: h.right.clone(), half: LEDGE_HALF - 0.05, top: h.pos.y - 0.05 };
       const bed = (x: number, z: number) => {
         const lat = Math.abs((x - h.pos.x) * h.right.x + (z - h.pos.z) * h.right.z);
-        return lat < PATH_HALF + 0.15 ? bedY : lat < PATH_HALF + 1.5 ? h.pos.y : null;
+        return lat < LEDGE_HALF - 0.05 ? bedY : lat < PATH_HALF + 1.5 ? h.pos.y : null;
       };
       // The lens cranes over the lip looking down to where he will lie (not the chasm's tilt
       // straight down at the root: that lost him as he rolled on along the trough).
@@ -1388,7 +1452,7 @@ export class Game {
           // from the lens behind him, stay clear: the slabs tip out to the trough's sides, and
           // the ones over his track break up as they go.)
           const along = tp.dot(h.fwd);
-          const onTrack = Math.abs(tp.dot(h.right)) < 1.1 && along > -1.5 && along < 4;
+          const onTrack = Math.abs(tp.dot(h.right)) < 1.3 && along > -1.5 && along < 5.5;
           // A slab as wide as the way (some sections' floors) tipping out to one side swung over
           // him like a trapdoor and hid the landing: those drop near flat, pitch a little, and
           // break up at once.
@@ -1397,8 +1461,17 @@ export class Game {
           const ts = new THREE.Vector3().setFromMatrixScale(t.world);
           const tb = tg?.boundingBox;
           const wide = !!tb && Math.max((tb.max.x - tb.min.x) * ts.x, (tb.max.z - tb.min.z) * ts.z) > 1.7;
-          if (wide && onTrack) {
-            this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0.5, 1), r.range(-0.2, 0.2)), new THREE.Vector3().addScaledVector(h.right, r.range(-0.8, 0.8)), bed, { breakInto: 3, breakAfter: r.range(0.1, 0.16), walls: pit, restitution: 0.18 });
+          if (onTrack) {
+            // (Round 20: the slabs over the place he lands crumble as they go: a few small pieces
+            // thrown to the trough's sides. Whole slabs or their halves came to rest on him or
+            // between him and the lens.)
+            const p0 = new THREE.Vector3().setFromMatrixPosition(t.world);
+            for (let k = 0; k < 3; k++) {
+              const o = k === 1 ? -out : out;
+              const p = p0.clone().addScaledVector(h.right, o * r.range(0.2, 0.6)).addScaledVector(h.fwd, r.range(-0.5, 0.5));
+              this.debris.spawn(`shard_${k + 1}`, new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.32, 0.32, 0.32).multiplyScalar(r.range(0.8, 1.2))), new THREE.Vector3(0, -r.range(0, 0.4), 0).addScaledVector(h.right, o * r.range(2.6, 3.4)), new THREE.Vector3(r.range(-4, 4), r.range(-2, 2), r.range(-4, 4)), bed, { walls: pit, restitution: 0.2 });
+            }
+            this.particles.burst(p0, 6, { spread: 0.5, up: 0.8, speed: 1.5, size: 0.05, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, drag: 0.4, grow: 0 });
             return;
           }
           this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.2, 0.2), -r.range(0, 0.4), r.range(-0.2, 0.2)).addScaledVector(h.right, out * (onTrack ? r.range(2.4, 3.2) : r.range(0.6, 1.4))), new THREE.Vector3(r.range(-1, 1), r.range(-0.3, 0.3), r.range(-1, 1)).addScaledVector(h.fwd, out * 2.5), bed, { breakInto: onTrack || wide ? 2 : i % 3 === 0 ? 2 : 0, breakAfter: onTrack ? r.range(0.25, 0.4) : wide ? r.range(0.2, 0.3) : Infinity, walls: pit, restitution: 0.18 });
@@ -1439,6 +1512,9 @@ export class Game {
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
         this.slowFloorTarget = 0;
         this.rig.closeIn = 1.3;
+        // A shaft of sun down through the hole onto him.
+        this.cine.beams.add(this.runner.body.getObjectByName('hips')?.getWorldPosition(new THREE.Vector3()).setY(bedY) ?? f.pos.clone().setY(bedY), this.sunDir, 1.9, 0.8);
+        this.cine.beams.level = 0.6;
         // (A little higher: from the trough's floor the fragments round him stood between the lens and him.)
         this.rig.closeUp = 0.45;
       });
@@ -1753,7 +1829,11 @@ export class Game {
       const clip = st.clip as RunnerAnim;
       const palms = clip === 'fall_pillar_b';
       const contactT = trip ? 0.17 : palms ? 0.33 : 0.27;
-      const contactY = trip ? 1.3 : palms ? 1.77 : 1.85;
+      // (Round 20: with root motion and the eased cross-fade, measured by framing-check: his chest
+      // stopped 1.1 m short of the pier's face at these distances. Put the face where his palms
+      // meet it.)
+      const PIER_PULL = 1.0;
+      const contactY = trip ? 1.3 : (palms ? 1.77 : 1.85) - PIER_PULL;
       const side = r.chance(0.5) ? 1 : -1;
       // (The trip: the toppling pier piece, uniformly scaled to about 0.42 m across: a stout carved
       // drum, not a pole, and low enough for fall_trip's hooked toe and the leg that steps over.)
@@ -1801,7 +1881,11 @@ export class Game {
       this.rig.subjectAhead = 0;
       this.rig.focus.copy(at.pos).setY(at.pos.y + (trip ? 0.4 : 1));
       // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
-      const foot = at.pos.clone().addScaledVector(at.right, side * (trip ? 1.4 : PATH_HALF - 0.3));
+      // Round 20 (coordinator): the pier falls at a slant across the way (10-25° off square), not as
+      // a neat low wall: its line through the way's centre still crosses where he meets it.
+      const slant = trip ? 0 : r.range(0.18, 0.42) * (r.chance(0.5) ? 1 : -1);
+      const acrossDir = at.right.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), slant);
+      const foot = at.pos.clone().addScaledVector(acrossDir, side * (trip ? 1.4 : PATH_HALF - 0.3) / Math.cos(slant) * (trip ? 1 : 0.92));
       // Floor under it: the way (the trip's drum also has the footing at its foot).
       const ground = (x: number, z: number) => {
         const lat = ((x - at.pos.x) * at.right.x + (z - at.pos.z) * at.right.z) * side;
@@ -1809,9 +1893,9 @@ export class Game {
         return Math.abs(lat) > PATH_HALF + 0.15 ? null : at.pos.y;
       };
       // Standing, leaning a few degrees in, already turning about the line along the way.
-      const axis = at.fwd.clone().multiplyScalar(-side);
+      const axis = new THREE.Vector3(0, 1, 0).cross(acrossDir).multiplyScalar(-side);
       const lean = new THREE.Quaternion().setFromAxisAngle(axis, 0.12);
-      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), at.yaw + r.range(-0.04, 0.04)).premultiply(lean);
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), at.yaw + slant + r.range(-0.04, 0.04)).premultiply(lean);
       const m = new THREE.Matrix4().compose(foot.clone().setY(at.pos.y + 0.02), q, new THREE.Vector3(sc * girth, sc, sc * girth));
       this.sounds.event?.('pillar_crack', trip ? 0.6 : 1);
       this.cine.cracks.spawn(foot.clone().setY(at.pos.y + 0.05), at.yaw + Math.PI / 2, 1.2, 1.2, 0.25, 0.05);
@@ -1836,6 +1920,18 @@ export class Game {
         });
       }
       this.later(tFall, () => {
+        // A drum cracks off its head as it lands, and grit and chips scatter round it.
+        if (!trip && col) {
+          col.updateMatrixWorld();
+          const head = new THREE.Vector3(0, (bb?.max.y ?? 3) * 0.9, 0).applyMatrix4(col.matrixWorld).setY(at.pos.y + 0.4);
+          for (let k = 0; k < 2; k++)
+            this.debris.spawn(`shard_${k}`, new THREE.Matrix4().compose(head.clone().add(new THREE.Vector3(r.range(-0.3, 0.3), 0.1 * k, r.range(-0.3, 0.3))), new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.55, 0.55, 0.55)), acrossDir.clone().multiplyScalar(-side * r.range(0.8, 1.6)).add(at.fwd.clone().multiplyScalar(r.range(-0.6, 0.6))).setY(r.range(0.6, 1.4)), new THREE.Vector3(r.range(-4, 4), r.range(-2, 2), r.range(-4, 4)), ground, { walls: edges });
+          for (let k = 0; k < 5; k++) {
+            const t = r.range(0.15, 0.95);
+            const p = foot.clone().lerp(head, t).addScaledVector(at.fwd, r.range(-0.7, 0.7)).setY(at.pos.y + 0.3);
+            this.debris.spawn(`shard_${2 + (k % 4)}`, new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.18, 0.18, 0.18).multiplyScalar(r.range(0.7, 1.3))), at.fwd.clone().multiplyScalar(r.range(-1.5, 1.5)).setY(r.range(1, 2.2)), new THREE.Vector3(r.range(-6, 6), r.range(-3, 3), r.range(-6, 6)), ground, { walls: edges });
+          }
+        }
         kick(trip ? 0.6 : 0.9);
         this.sounds.event?.('pillar_hit', trip ? 0.7 : 1);
         for (let k = -2; k <= 2; k++) {
@@ -1849,7 +1945,9 @@ export class Game {
       this.later(tHit, () => {
         const p = sPlayPoint(trip ? 0.95 : contactY - 0.1, trip ? 0.35 : 1.25);
         this.particles.burst(p, 8, { spread: 0.5, up: 1, speed: 2, size: 0.06, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
-        B.puff(p, { count: 2, spread: 0.6, jitter: 0.5, size: [0.4, 1.4], life: 1.3, alpha: 0.3, tint: DUST_T, rise: 0.1 });
+        // (Grit off the stone where his hands meet it, kept small and low: a large pale puff at
+        // hand height read as white cards at his wrists.)
+        B.puff(p.clone().setY(p.y - 0.6), { count: 1, spread: 0.5, jitter: 0.4, size: [0.3, 0.8], life: 1.1, alpha: 0.18, tint: DUST_T, rise: 0.05 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
         this.rig.closeIn = 1;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
@@ -1878,9 +1976,9 @@ export class Game {
       // starts (the clip carries him); the stone glances off him and tumbles on.
       if (st.clip === 'fall_side_hit') {
         this.rig.wide = 1;
-        // (The root runs out over the clip's 0.12 s cross-fade while the clip's own travel, carried
+        // (The root runs out over the clip's 0.2 s cross-fade while the clip's own travel, carried
       // by the root, fades in: their sum keeps his speed.)
-      const halt = v * 0.06;
+      const halt = v * 0.1;
         this.setStop(this.s + halt);
         const h0 = frameAt(this.s + halt);
         const tt = 0.23;
@@ -2494,7 +2592,10 @@ export class Game {
     // Round 20 (character agent): a clip that carries him metres off the root (the 50x+ slide, a
     // dive) stands him on the ground under his body, not under the root: on a grade the 1.8 m of
     // the slide left his feet 15 cm in (or over) the floor.
-    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'ledge' && this.crashKind !== 'gate')) {
+    // (The ledge: the root keeps the height it dropped from, so he lands on the level trough floor
+    // wherever the way above slopes.)
+    if (this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeBed) this.runner.root.position.y = this.ledgeBed.position.y + LEDGE_DROP;
+    else if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'ledge' && this.crashKind !== 'gate')) {
       const carry = this.subjOff.x * -Math.sin(f.yaw) + this.subjOff.z * -Math.cos(f.yaw);
       this.runner.root.position.y = this.track.path.sample(this.s + carry, this.cframe).pos.y;
     }
@@ -3022,34 +3123,110 @@ export class Game {
    * Round 18: the crown of a splash: droplets thrown from a ring round the entry point, outward and
    * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
    */
+  /** Plain dressed stone for the ledge's trough (floor or wall), made once each. */
+  private troughMats = new Map<string, THREE.Material>();
+  private troughMat(kind: 'floor' | 'wall'): THREE.Material {
+    let m = this.troughMats.get(kind);
+    if (m) return m;
+    m = new THREE.MeshStandardMaterial({ color: kind === 'floor' ? 0x8a6a52 : 0x7a5e4a, roughness: 0.92, metalness: 0 });
+    ensureDetailMap();
+    patchWetStone(m, false, false, 1.0);
+    this.troughMats.set(kind, m);
+    return m;
+  }
   /** Round 20: the causeway's lower course, revealed under a ledge cave-in (cleared with the world). */
   private ledgeBed: THREE.Object3D | null = null;
   private placeLedgeBed(h: { pos: THREE.Vector3; yaw: number; fwd: THREE.Vector3 }, y: number, len: number): void {
     if (this.ledgeBed) this.scene.remove(this.ledgeBed);
-    const mat = (this.kit.mat.get('stoneB') ?? this.kit.mat.values().next().value) as THREE.Material;
+    // (Round 20: plain dressed stone with the world's photoscan detail normals, world-projected.
+    // The kit's atlases are sheets of separate bakes: box faces mapped to them read as a mosaic.)
+    const mat = this.troughMat('wall');
     // A dry stone trough under the causeway: the course he lands on (below the waterline, so the
     // water is kept out of its footprint) and its two side walls up to the floor.
     const g = new THREE.Group();
     g.name = 'ledgeBed';
-    const W = 2 * PATH_HALF + 0.6;
+    const W = 2 * LEDGE_HALF;
     const depth = h.pos.y - y;
-    const bedM = new THREE.Mesh(new THREE.BoxGeometry(W, 0.6, len), mat);
-    bedM.position.set(0, -0.3, 0);
+    const floorMat = this.troughMat('floor');
+    // (Wider than the floor: it runs under the walls, whose faces are set back from their
+    // footprint, so no seam opens onto the sky below.)
+    const bedM = new THREE.Mesh(boxAtDensity(W + 3.2, 0.6, len + 3.2, 4.2), floorMat);
+    bedM.position.set(0, -0.36, 0);
     bedM.receiveShadow = true;
     g.add(bedM);
-    for (const sd of [-1, 1]) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, depth + 0.6, len), mat);
-      wall.position.set(sd * (W / 2 + 0.25), (depth + 0.6) / 2 - 0.6, 0);
-      wall.receiveShadow = true;
-      wall.castShadow = true;
-      g.add(wall);
+    // Round 20 (coordinator): a collapsed undercroft, not a box. Its walls are the world's own
+    // masonry courses (wall_mid pieces, their moss turned to stone as on the pier), its floor the
+    // causeway's dressed slabs; moss in the corners, ferns at the wall feet, roots and vines hanging
+    // in from the top edge, rubble along the walls.
+    const rng = this.cosmetic;
+    const put = (piece: string, x: number, y0: number, z: number, rotY: number, sx: number, sy: number, sz: number, matKey?: 'stone') => {
+      const geo = this.kit.geo.get(piece);
+      if (!geo) return null;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      const m = matKey ? this.pierMaterial(piece) : this.kit.mat.get(this.kit.matOf.get(piece) ?? '');
+      if (!m) return null;
+      const o = new THREE.Mesh(geo, m);
+      o.scale.set(sx, sy, sz);
+      o.rotation.y = rotY;
+      // (Centred on its footprint: the kit's pieces are not built about their middle.)
+      const bb = geo.boundingBox!;
+      const cx = ((bb.max.x + bb.min.x) / 2) * sx;
+      const cz = ((bb.max.z + bb.min.z) / 2) * sz;
+      const cs = Math.cos(rotY);
+      const sn = Math.sin(rotY);
+      o.position.set(x - (cx * cs + cz * sn), y0, z - (-cx * sn + cz * cs));
+      o.castShadow = true;
+      o.receiveShadow = true;
+      g.add(o);
+      return o;
+    };
+    // Floor: rows of dressed slabs, their tops at the bed.
+    {
+      const sd0 = 3.98;
+      const n = Math.ceil(len / sd0);
+      for (let k = 0; k < n; k++) put(rng.pick(['floor_0', 'floor_1', 'floor_2']), 0, 0, -len / 2 + ((k + 0.5) * len) / n, rng.chance(0.5) ? 0 : Math.PI, (W + 0.8) / 4.36, 1, len / (n * sd0), 'stone');
     }
-    // And its two ends.
+    // Side walls: courses of masonry from the bed up to the way above.
+    const wy = (depth + 0.4) / 3.0;
     for (const sd of [-1, 1]) {
-      const end = new THREE.Mesh(new THREE.BoxGeometry(W + 1, depth + 0.6, 0.5), mat);
-      end.position.set(0, (depth + 0.6) / 2 - 0.6, sd * (len / 2 + 0.25));
-      end.receiveShadow = true;
-      g.add(end);
+      const n = Math.ceil(len / 4.5);
+      for (let k = 0; k < n; k++) {
+        const piece = rng.pick(['wall_mid_0', 'wall_mid_1']);
+        const geo = this.kit.geo.get(piece);
+        if (!geo) continue;
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        const b = geo.boundingBox!;
+        const th = b.max.x - b.min.x;
+        put(piece, sd * (W / 2 + th / 2), -0.3 - b.min.y * wy, -len / 2 + ((k + 0.5) * len) / n, sd > 0 ? 0 : Math.PI, 1, wy, len / (n * (b.max.z - b.min.z)), 'stone');
+      }
+    }
+    // The two ends, across.
+    for (const sd of [-1, 1]) {
+      const geo = this.kit.geo.get('wall_mid_0');
+      if (!geo) break;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      const b = geo.boundingBox!;
+      put('wall_mid_0', 0, -0.3 - b.min.y * wy, sd * (len / 2 + (b.max.x - b.min.x) / 2), Math.PI / 2 + (sd > 0 ? Math.PI : 0), 1, wy, (W + 3) / (b.max.z - b.min.z), 'stone');
+    }
+    // Moss in the corners and along the wall feet; ferns; rubble along the walls.
+    // (Moss low and flat, in two of the corners, with a fern beside it: full-height lumps read as
+    // smooth plastic blobs.)
+    for (const [cx, cz] of [[-1, -1], [1, 1]] as const) {
+      put('moss_2', cx * (W / 2 - 0.35), -0.01, cz * (len / 2 - 0.5), rng.range(0, 6.28), 1.1, 0.35, 1.1);
+      put(rng.pick(['fern_0', 'fern_1']), cx * (W / 2 - 0.5), 0.0, cz * (len / 2 - 1.1), rng.range(0, 6.28), 0.7, 0.8, 0.7);
+    }
+    for (let k = 0; k < 4; k++) {
+      const sd = rng.chance(0.5) ? 1 : -1;
+      const z = rng.range(-len / 2 + 0.8, len / 2 - 0.8);
+      put(rng.pick(['moss_2', 'fern_0', 'fern_1']), sd * (W / 2 - 0.35), -0.01, z, rng.range(0, 6.28), 0.8, 0.45, 0.8);
+      put(rng.pick(['debris_0', 'debris_0', 'rubble_0']), sd * (W / 2 - 0.55), 0.05, z + rng.range(-1, 1), rng.range(0, 6.28), 0.5, 0.5, 0.5, 'stone');
+    }
+    // Roots and vines hanging in from the top edge of the side walls.
+    for (let k = 0; k < 2; k++) {
+      const sd = k % 2 ? 1 : -1;
+      // (Roots only: the vines' small leaves read as confetti scattered over the masonry. And only
+      // at the far end, short: near the lens they hung across the frame as big black strands.)
+      put('roots_0', sd * (W / 2 - 0.1), depth + 0.05, rng.range(-len / 2 + 0.8, -len / 4), Math.PI / 2, 0.45, rng.range(0.4, 0.6), 0.45);
     }
     const c = h.pos.clone().addScaledVector(h.fwd, len / 2 - 1.2);
     g.position.copy(c).setY(y);
@@ -3058,7 +3235,8 @@ export class Game {
     this.ledgeBed = g;
     this.ledgeDims = [W, len];
     g.updateMatrixWorld(true);
-    this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 0.5, halfL: len / 2 + 0.5 });
+    // (Over its walls too: water showed in the seam at their feet.)
+    this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 1.7, halfL: len / 2 + 1.7 });
   }
 
   private splashCrown(p: THREE.Vector3, k: number): void {
