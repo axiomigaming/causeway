@@ -760,6 +760,11 @@ export class CameraRig {
     // small against the light. The card lands once its peak has been seen from the front.)
     // Portrait: the lens is already opened up for width; come in so the figure keeps its size.
     if (this.camera.aspect < 1) r *= 0.66;
+    // Round 20 (coordinator, cash-out review): the orbit stays over the way. Facing out over the
+    // edge he drew the lens out sideways into the rocks and the water beside the causeway (it sat
+    // inside a boulder for a second and a half): sideways, it comes in closer instead.
+    const latMax = 1.75;
+    if (Math.abs(Math.sin(a)) * r > latMax) r = Math.max(1.6, latMax / Math.abs(Math.sin(a)));
     return { along: -Math.cos(a) * r, lat: s * Math.sin(a) * r, up, lAlong, lLat: 0, lUp, focus: 0, fov };
   }
 
