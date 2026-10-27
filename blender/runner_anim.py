@@ -282,26 +282,28 @@ def configure(rig):
     print(f"  anim rig: thigh {LT:.3f} shin {LS:.3f} hip {HIP_Z:.3f} ±{HIP_W:.3f}  sole {[(round(a, 3), round(b, 3)) for a, b in SOLE]}", flush=True)
 G_ACC = 9.81
 
+# Arms (round 28): the hands pump to the chest, the chin only in the dash, and stay in front of their own
+# shoulder (out_fwd opens the arm as it comes forward). Swung across to the chin, they crossed the body.
 RUN = dict(
     ts=0.28, D=0.78, xtd=0.24, knee=(0.38, 0.97, 0.45), v=6.0,
     af=[(0.0, 0.14), (0.14, 0.0), (0.32, 0.0), (1.0, -0.88)],
     swing=[(0.18, -0.34, 1.05, 0.45), (0.42, 0.12, 1.85, 0.12), (0.68, 0.72, 1.42, -0.12), (0.86, 0.66, 0.66, -0.16)],
     hp=0.17, lean=0.25, hyaw=0.12, hroll=0.05, chest=0.85, head_down=0.14,
-    arm_c=0.24, arm_a=1.02, elbow=1.62, elbow_a=0.4, out=0.25, curl=0.95, peak=0.76, frames=48,
+    arm_c=0.14, arm_a=0.88, elbow=1.45, elbow_a=0.25, out=0.25, out_fwd=-0.3, curl=0.95, peak=0.76, frames=48,
 )
 SPRINT = dict(
     ts=0.225, D=0.88, xtd=0.18, knee=(0.42, 0.9, 0.4), v=9.0,
     af=[(0.0, -0.2), (0.4, -0.05), (0.5, -0.08), (1.0, -0.98)],
     swing=[(0.15, -0.4, 1.28, 0.55), (0.38, 0.2, 2.3, 0.1), (0.64, 1.12, 1.75, -0.2), (0.84, 0.92, 0.78, -0.12)],
     hp=0.23, lean=0.32, hyaw=0.16, hroll=0.06, chest=0.9, head_down=0.1,
-    arm_c=0.3, arm_a=1.1, elbow=1.6, elbow_a=0.5, out=0.22, curl=1.1, peak=0.74, frames=48,
+    arm_c=0.2, arm_a=1.0, elbow=1.45, elbow_a=0.3, out=0.22, out_fwd=-0.3, curl=1.1, peak=0.74, frames=48,
 )
 # The desperate all-out run of the top tiers: longer reach, higher knees, a harder pump, a deeper lean.
 DASH = dict(SPRINT, ts=0.19, D=0.92, xtd=0.21, knee=(0.44, 0.88, 0.38), v=12.6,
             af=[(0.0, -0.26), (0.4, -0.08), (0.5, -0.1), (1.0, -1.02)],
             swing=[(0.15, -0.42, 1.38, 0.55), (0.37, 0.24, 2.42, 0.1), (0.63, 1.26, 1.85, -0.22), (0.83, 1.02, 0.84, -0.12)],
             hp=0.27, lean=0.42, hyaw=0.19, hroll=0.07, chest=0.95, head_down=0.18,
-            arm_c=0.35, arm_a=1.35, elbow=1.58, elbow_a=0.6, out=0.24, curl=1.25, peak=0.73)
+            arm_c=0.27, arm_a=1.25, elbow=1.5, elbow_a=0.35, out=0.24, curl=1.25, peak=0.73)
 
 
 def _rot(y, z, a):
@@ -466,6 +468,39 @@ def _stance_leg(s, ph, t, G):
 
 
 STRIKE_M = 1.0
+# The last stretch of each swing (cycles before the strike) is set in floor space, not in joint angles:
+# the foot reaches the stone already still over it and comes down onto it. (Swung in on joint keys it
+# skimmed in low and fast, ~2 cm up while still sweeping 20 cm/frame forward, and the cycle's smoothing
+# carried that sweep past the strike: the planted foot slid 3-6 cm in the strike frame at every tier.)
+APPROACH = 0.15
+APPROACH_VD = 1.6  # descent speed at the strike, as a multiple of the window's mean descent
+APPROACH_LAM = 0.45  # the last fraction of the window: straight down, the sweep already stopped
+ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung 2-4 cm sideways in each contact
+
+
+def _anchor_of(ax, az, af, Ht):
+    """Inverse of _ankle_from: (anchor, contact height above the floor) for an ankle at (ax, az)."""
+    if af > 0:
+        ox, oz = _rot(*HEEL, af)
+        return ax + ox, az + oz + Ht
+    ox, oz = _rot(*BALL_J, af)
+    return ax - BALL_OFF + ox, az - BALL_JH + oz + Ht
+
+
+def _sag_ankle(at, knee):
+    kx, kz = LT * math.sin(at), -LT * math.cos(at)
+    as_ = at - knee
+    return kx + LS * math.sin(as_), kz - LS * math.cos(as_)
+
+
+def _floor_state(s, ph, at, knee, ankle, G):
+    """(anchor rel. the pelvis centre, contact height, foot pitch) of a leg pose at phase ph."""
+    hy, roll, H = _pelvis(ph, G)
+    hx, hz = _hip_of(s, hy, roll)
+    ax, az = _sag_ankle(at, knee)
+    af = (at - knee) - ankle
+    A_, h = _anchor_of(ax, az, af, H + hz)
+    return A_ + hx, h, af
 
 
 def _leg_state(s, ph, G):
@@ -474,6 +509,54 @@ def _leg_state(s, ph, G):
     ts = G["ts"]
     if t < ts:
         return _stance_leg(s, ph, t, G)
+    ap = G.get("ap", APPROACH)
+    if ap > 0 and t > 1.0 - ap:
+        return _approach(s, ph, t, G, ap)
+    return _swing_leg(s, ph, t, G)
+
+
+def _herm(a, b, va, vb, u, L):
+    u = max(0.0, min(1.0, u))
+    h00, h10, h01, h11 = 2 * u ** 3 - 3 * u ** 2 + 1, u ** 3 - 2 * u ** 2 + u, -2 * u ** 3 + 3 * u ** 2, u ** 3 - u ** 2
+    return h00 * a + h10 * L * va + h01 * b + h11 * L * vb
+
+
+def _approach(s, ph, t, G, ap):
+    """The swing's floor-space tail, from the joint-keyed swing at 1 - ap (matched in place and speed) to
+    the strike: over the floor the foot stops its forward sweep first (by 1 - lam of the window), then
+    comes down onto the stone; its pitch eases to the strike's."""
+    e = 0.002
+    t0 = 1.0 - ap
+    ph0 = ph - (t - t0)
+    ts = G["ts"]
+    S = G["D"] / ts
+    sa = _swing_leg(s, ph0, t0, G)
+    sb = _swing_leg(s, ph0 - e, t0 - e, G)
+    p0 = _floor_state(s, ph0, *sa[:3], G)
+    pm = _floor_state(s, ph0 - e, *sb[:3], G)
+    v0 = [(a - b) / e for a, b in zip(p0, pm)]
+    af1 = _pw(G["af"], 0.0)
+    daf = (_pw(G["af"], 0.01) - af1) / (0.01 * ts)
+    u = (t - t0) / ap
+    lam = G.get("ap_lam", APPROACH_LAM)
+    # Over the floor (anchor + the pelvis's travel since the window opened): forward sweep to a stop.
+    Lx = ap * (1.0 - lam)
+    xw = _herm(p0[0], G["xtd"] + S * ap, v0[0] + S, 0.0, u / (1.0 - lam), Lx)
+    A_ = xw - S * (t - t0)
+    h = _herm(p0[1], 0.0, v0[1], -G.get("ap_vd", APPROACH_VD) * max(0.0, p0[1]) / ap, u, ap)
+    af = _herm(p0[2], af1, v0[2], daf, u, ap)
+    hy, roll, H = _pelvis(ph, G)
+    hx, hz = _hip_of(s, hy, roll)
+    ax, az = _ankle_from(A_ - hx, af, H + hz - h)
+    at, knee = _ik(ax, az)
+    ankle = (at - knee) - af
+    toe = min(1.2, max(0.0, -G["af"][-1][1])) * math.exp(-(((t - ts) / (1.0 - ts)) / 0.22) ** 2)
+    return at, max(0.04, knee), ankle, toe
+
+
+def _swing_leg(s, ph, t, G):
+    off = 0.0 if s == "L" else 0.5
+    ts = G["ts"]
     # Swing: Hermite from the toe-off solution through the keys to the next strike's solution.
     e = 0.004
     ph_to = (ts - off) % 1.0
@@ -511,10 +594,12 @@ def _gait(ph, G, k=1.0):
         t = (ph + (0.0 if s == "L" else 0.5)) % 1.0
         stance = t < ts
         # The stance foot lands under the body's line (a narrow track); the swing knee tracks straight.
-        out = -0.035 if stance else -0.005 + 0.02 * math.sin(math.pi * (t - ts) / (1 - ts))
+        # (Eased in and out of the stance's: stepped at the strike, the planted foot slid ~2.5 cm sideways
+        # as the cycle's smoothing spread that step over the contact.)
+        out = -0.035 if stance else -0.035 + G.get("swing_out", 0.05) * math.sin(math.pi * (t - ts) / (1 - ts)) ** 2
         # Solved angles are world (sagittal); the rig's rest leg is not quite straight: take its rest
         # angles out so the joints land where the solver put them (else the soles sink and slide).
-        P[f"thigh.{s}"] = (-(at + hp - THIGH0), hy * 0.8, out * sgn(s))
+        P[f"thigh.{s}"] = (-(at + hp - THIGH0), hy * 0.8, out * sgn(s) + ROLL_COMP * roll)
         P[f"shin.{s}"] = (knee - K0, 0, 0)
         P[f"foot.{s}"] = (-(ankle - A0), 0, 0)
         P[f"toe.{s}"] = (toe, 0, 0)
@@ -527,7 +612,7 @@ def _gait(ph, G, k=1.0):
         wide = 0.0 if m == "R" else 0.02            # … the left rides a touch wider
         fwd = (G["arm_c"] + G["arm_a"] * a * asym) * k + 0.05 * (1 - k)
         arm(P, m, fwd=fwd, elbow=(G["elbow"] + G["elbow_a"] * lag) * (0.55 + 0.45 * k),
-            out=G["out"] + wide - 0.06 * k + 0.03 * a * k, wrist=0.08 + 0.12 * flop * k, twist=0.08 * a * k,
+            out=G["out"] + wide - 0.06 * k + (0.03 * a + G.get("out_fwd", 0.0) * max(0.0, a)) * k, wrist=0.08 + 0.12 * flop * k, twist=0.08 * a * k,
             curl=G["curl"] + 0.1 * lag * k, prot=0.15 * a * k, shrug=(0.03 + 0.05 * max(0.0, a)) * k)
     # Trunk: a steady forward lean with a small flex as each stance loads, the chest counter-rotating
     # against the pelvis; the head keeps its gaze level through all of it.
@@ -668,8 +753,9 @@ def build(rig):
         # Left foot a half step ahead; the weight rocks onto the right hip and back.
         leg(P, "L", hip=0.2 + 0.05 * sway, knee=0.32 + 0.08 * sway, ankle=0.12 + 0.03 * sway, out=0.07)
         leg(P, "R", hip=0.05 - 0.05 * sway, knee=0.18 - 0.06 * sway, ankle=0.12 - 0.03 * sway, out=0.1)
-        arm(P, "L", fwd=0.3 + 0.03 * br, elbow=0.95 + 0.05 * br, out=-0.04, wrist=0.2, twist=-0.2, curl=0.25)
-        arm(P, "R", fwd=0.22 + 0.45 * tug, elbow=0.8 + 1.1 * tug, out=-0.02 + 0.02 * tug, wrist=0.15, twist=-0.15 + 0.4 * tug, curl=0.3 + 0.8 * tug)
+        # (The arms hang, elbows soft: held out in front at ~50° the forearms read as carrying a tray.)
+        arm(P, "L", fwd=0.14 + 0.03 * br, elbow=0.42 + 0.05 * br, out=0.1, wrist=0.15, twist=-0.25, curl=0.3)
+        arm(P, "R", fwd=0.1 + 0.57 * tug, elbow=0.36 + 1.54 * tug, out=0.1 - 0.1 * tug, wrist=0.12 + 0.03 * tug, twist=-0.25 + 0.5 * tug, curl=0.3 + 0.8 * tug)
         P["shoulder.L"] = (0.03 * br, 0, 0.04)
         P["shoulder.R"] = (0.03 * br + 0.08 * tug, 0, 0.04)
         key(f + 1, P, x=0.012 * sway)
@@ -692,9 +778,9 @@ def build(rig):
               head_roll=0.18 * neck * math.cos((f - 20) / 36 * 2 * math.pi) if 20 <= f <= 56 else 0.0, breath=0.016 * br)
         leg(P, "R", hip=0.02, knee=0.02, ankle=0.0, out=0.08 + 0.02 * hipk)
         leg(P, "L", hip=0.1 + 0.12 * hipk, knee=0.12 + 0.3 * hipk, ankle=0.08 + 0.12 * hipk, out=0.06 - 0.02 * hipk)
-        arm(P, "L", fwd=0.26 + 0.55 * brush, elbow=0.85 + 0.6 * brush, out=-0.04 + 0.02 * brush, twist=-0.2 + 0.7 * brush, curl=0.3 - 0.1 * brush)
-        arm(P, "R", fwd=0.22 + 0.42 * brush + 0.05 * stroke * brush, elbow=0.8 + 0.9 * brush, out=-0.03 - 0.03 * brush + 0.04 * stroke * brush,
-            twist=0.3 * brush, curl=0.3 - 0.2 * brush)
+        arm(P, "L", fwd=0.13 + 0.68 * brush, elbow=0.42 + 1.03 * brush, out=0.1 - 0.12 * brush, twist=-0.25 + 0.75 * brush, curl=0.3 - 0.1 * brush)
+        arm(P, "R", fwd=0.1 + 0.54 * brush + 0.05 * stroke * brush, elbow=0.38 + 1.32 * brush, out=0.1 - 0.16 * brush + 0.04 * stroke * brush,
+            twist=-0.25 + 0.55 * brush, curl=0.3 - 0.2 * brush)
         P["shoulder.L"] = (0.02 * br + 0.1 * neck * max(0.0, nroll), 0, 0)
         P["shoulder.R"] = (0.02 * br + 0.1 * neck * max(0.0, -nroll), 0, 0)
         key(f + 1, P, x=-0.03 * hipk)
@@ -718,8 +804,8 @@ def build(rig):
         bend = 0.1 + 0.1 * bz + 0.04 * look
         standing(P, wide=0.07, bend=bend)
         for s_, k in (("L", 1.0), ("R", -1.0)):
-            arm(P, s_, fwd=0.24 + 0.15 * shake + 0.05 * sh * k + 0.05 * bz, elbow=0.75 + 0.1 * shake + 0.2 * bz,
-                out=-0.02 + 0.12 * shake + 0.03 * sh, wrist=0.35 * sh * k, twist=0.2 * sh, curl=0.3 - 0.2 * shake,
+            arm(P, s_, fwd=0.12 + 0.27 * shake + 0.05 * sh * k + 0.05 * bz, elbow=0.4 + 0.45 * shake + 0.2 * bz,
+                out=0.1 + 0.02 * shake + 0.03 * sh, wrist=0.35 * sh * k, twist=-0.25 + 0.25 * shake + 0.2 * sh, curl=0.3 - 0.2 * shake,
                 shrug=0.08 * roll * max(0.0, math.sin(rph)), prot=0.1 * roll * math.cos(rph))
         # On the toes at the top of each bounce.
         for s_ in "LR":
