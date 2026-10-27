@@ -12,13 +12,15 @@ Fonts, under the SIL Open Font License 1.1 and bundled from npm: Archivo (`@font
 These scans are bake inputs: `tools/fetch-polyhaven.mjs` downloads their 2K maps into
 `blender/cache/polyhaven/` (not committed; treated as data only), the kit bake projects them onto
 the stones, pavers and boards, and the game ships only the baked atlases. `src/world/detail_stone.webp`
-is a 1K tile derived from Rock Face (normal map and cavity) for the near-camera detail normals.
+is a 1K tile derived from Rock Face (normal map and cavity) for the near-camera detail normals;
+`src/world/detail_bark.webp` is a 512 tile derived the same way from Bark Brown 02, for the near bark.
 Licence: CC0 1.0 Universal (public domain dedication), https://polyhaven.com/license.
 
 | Asset | Author | URL | Used for |
 | --- | --- | --- | --- |
 | Rock Face (`rock_face`) | Greg Zaal (photography), Dario Barresi (processing) | https://polyhaven.com/a/rock_face | wall and pier blocks, statues, boulders and cliff faces, near detail map |
 | Sandstone Cracks (`sandstone_cracks`) | Rob Tuytel | https://polyhaven.com/a/sandstone_cracks | causeway pavers and floors |
+| Bark Brown 02 (`bark_brown_02`) | Rob Tuytel | https://polyhaven.com/a/bark_brown_02 | tree trunks, limbs and roots (bark atlas), near bark detail map |
 | Old Planks 02 (`old_planks_02`) | Rob Tuytel | https://polyhaven.com/a/old_planks_02 | boardwalk plank grain |
 | Shrub 04 (`shrub_04`, model) | Rico Cilliers | https://polyhaven.com/a/shrub_04 | leaf atlas: leafy masses (canopies, bushes, wall greenery) |
 | Nettle Plant (`nettle_plant`, model) | Rob Tuytel (photography), Rico Cilliers (modelling) | https://polyhaven.com/a/nettle_plant | leaf atlas: broadleaf clumps |

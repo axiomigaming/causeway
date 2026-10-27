@@ -12,7 +12,7 @@ import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
-import { causticUniforms, ensureDetailMap, patchWetStone, updateCaustics } from './caustics';
+import { causticUniforms, ensureDetailMap, patchBark, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { makeLilyMaterial, makeMossMaterial } from './moss';
 import { atmosphereUniforms } from './atmosphere';
@@ -60,6 +60,19 @@ export const genIntensity = (() => {
   }
   return (d: number) => table[Math.max(0, Math.min(table.length - 1, Math.floor(d / 5)))]!;
 })();
+/**
+ * World round 23: land cadence, in nominal run seconds. Land is due LAND_DUE s after the last land
+ * section; the first comes LAND_FIRST s into the run. (A landmark's open run-up is staged only straight
+ * after land: see maybeLandmark.)
+ */
+const LAND_DUE = 7.5;
+/** Sections whose sides are closed by rock or walls (they neither count toward LAND_DUE nor reset it). */
+export const WALLED: SectionType[] = ['gorge', 'tunnel', 'tall', 'cliff', 'ledge'];
+const LAND_FIRST = 3;
+/** How far ahead of the runner a section's pebble scatter is drawn (m; presentation only). */
+const GRIT_AHEAD = 45;
+/** The same for lily pads (flat on the water: past ~70 m a pad is a pixel or two). */
+const LILY_AHEAD = 70;
 /** Corner clearance probe after the bend (m): fixed, whatever the tier's view distance. */
 const CLEAR_PROBE = 210;
 /**
@@ -157,6 +170,8 @@ export interface SectionInstance {
   solid: [number, number, number][];
   /** World round 21: its ground (land sections). */
   ground?: THREE.Mesh;
+  /** World round 23: its pebble scatter and lily pads (drawn only near the runner: see GRIT_AHEAD). */
+  grit?: THREE.Mesh[];
 }
 
 /** How close a later stretch of route may come to a piece of earlier scenery (m, edge to centreline). */
@@ -274,6 +289,10 @@ export class Track {
   /** Quarter turns from the start heading (−1, 0, +1) and sections since the last corner. */
   private heading = 0;
   private sinceTurn = 0;
+  /** World round 23: nominal run seconds since the last land section ended (see LAND_DUE). */
+  private sinceLand = 0;
+  /** Whether this world has turned a corner yet (land keeps its distance from a bend, not from the start). */
+  private cornered = false;
   /** World round 12: a corner toward `side` is held back for `n` more sections (a landmark stands there). */
   private turnBlock = { side: 0, n: 0 };
   private styleIndex = -1;
@@ -388,7 +407,10 @@ export class Track {
       // Jungle banks, shrub masses and banana clumps stand by the path but throw no shadow (in a low sun
       // ahead their masses would blanket the causeway in sky-lit grey): they join the far scenery's
       // draw call. Like it they follow the water when stairs lower a section, which they rise out of. The limbs over the way do cast, through holes (see leafDepth).
-      const zone = isWaterPiece(pl.piece)
+      // (Round 23: lily pads a zone of their own, drawn only near the runner like the pebbles.)
+      const zone = pl.piece.startsWith('lily_')
+        ? 'lily'
+        : isWaterPiece(pl.piece)
         ? 'water'
         : pl.piece.startsWith('scatter_')
           ? 'grit'
@@ -419,7 +441,7 @@ export class Track {
       mesh.name = key;
       mesh.castShadow = zone === 'near' && mat !== 'flora';
       if (mesh.castShadow && mat === 'leaf') mesh.customDepthMaterial = leafDepth(this.kit);
-      if (zone === 'water') mesh.renderOrder = 1;
+      if (zone === 'water' || zone === 'lily') mesh.renderOrder = 1;
       mesh.receiveShadow = true;
       group.add(mesh);
     }
@@ -475,6 +497,9 @@ export class Track {
     this.lastType = 'start';
     this.heading = 0;
     this.sinceTurn = 0;
+    this.cornered = false;
+    // The start line stands on water; the first land comes within a few seconds of it.
+    this.sinceLand = LAND_DUE - LAND_FIRST;
     this.update(0, 0);
     // QA (dev builds only): ?obs=log@24,beam@34 lays obstacles to look at.
     for (const spec of QA_OBS) {
@@ -550,7 +575,8 @@ export class Track {
       // A landmark just set out on one side also holds back a corner toward it for a few sections.
       // Sections with cliffs or tall walls along their sides reach past their ends: a corner never
       // follows one (the exit leg ran through the gorge's cliff), and none follows a corner.
-      // (World round 21: land too: its forest runs far out to the sides, into the legs either side of a bend.)
+      // (World round 21: land too: its forest runs far out to the sides, into the legs either side of a bend.
+      // Round 23: a corner may follow land when the clearance probe finds the bend's leg clear of it.)
       const BIG = ['gorge', 'cliff', 'ledge', 'tall', 'tunnel', 'colossi', 'gate', ...LAND_TYPES];
       const afterCorner = this.lastType === 'turnL' || this.lastType === 'turnR';
       const blocked = new Map<SectionType, boolean>();
@@ -559,13 +585,13 @@ export class Track {
         return !blocked.get(t);
       };
       const allow = (t: SectionType) =>
-        isLand(t) && (Math.abs(this.elevation) > 0.01 || this.sinceTurn < 2)
+        isLand(t) && (Math.abs(this.elevation) > 0.01 || (this.cornered && this.sinceTurn < 2))
           ? false
           : (t === 'turnL' || t === 'turnR') && !clear(t)
           ? false
           : afterCorner && BIG.includes(t)
           ? false
-          : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType)
+          : (t === 'turnL' || t === 'turnR') && BIG.includes(this.lastType) && !isLand(this.lastType)
             ? false
             : t === 'turnL'
           ? this.heading < 1 && this.sinceTurn >= 3 && !(this.turnBlock.n > 0 && this.turnBlock.side < 0)
@@ -585,16 +611,31 @@ export class Track {
             this.landmarkQueue.unshift(this.pendingLandmark);
             this.pendingLandmark = null;
             this.staged = this.staged.filter((x) => x !== 'approach');
+            // World round 23: and it waits a while. Re-staged at once (the next open section), a
+            // blocked landmark ran up four more open approaches, and again: with the real kit's
+            // bounds 40 % of the route was open-water run-up — the "empty sides" the owner saw.
+            this.nextLandmarkS = this.path.length + this.lmRng.range(110, 170);
           }
         }
       }
       this.clearBehind(this.path.length);
       const intensity = genIntensity(this.path.length);
-      const t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
-      // World round 21: land comes in runs (two to four sections of forest, cutting, plaza or ravine,
+      let t = forced ?? nextType(this.rng, this.lastType, this.elevation, intensity, THEMES[this.themeIndex]?.types, allow);
+      // World round 23: the sides must not stay open water for long. Once LAND_DUE seconds of run have
+      // passed since the last land, the next section that may be land is (corners keep their place; back up the stairs first if
+      // the way has stepped down), unless a landmark's staging or QA holds the route.
+      if (!forced && !isLand(t) && t !== 'turnL' && t !== 'turnR' && this.sinceLand >= LAND_DUE) {
+        const land = LAND_TYPES.filter((x) => x !== this.lastType && allow(x));
+        // (A corner that may come now sometimes goes first: land runs take the slots corners need.)
+        const turn = (['turnL', 'turnR'] as const).filter((x) => allow(x));
+        if (turn.length && this.rng.chance(0.3)) t = this.rng.pick(turn);
+        else if (land.length) t = this.rng.pick(land);
+        else if (this.elevation < -0.01 && allow('stairsUp') && this.lastType !== 'stairsUp') t = 'stairsUp';
+      }
+      // World round 21: land comes in runs (two or three sections of forest, cutting, plaza or ravine,
       // no corner among them), so the causeway leaves the water, crosses a stretch of jungle and returns.
       if (!forced && isLand(t) && !isLand(this.lastType)) {
-        const more = this.rng.int(1, 3);
+        const more = this.rng.int(1, 2);
         let prev: SectionType = t;
         const run: SectionType[] = [];
         for (let k = 0; k < more; k++) {
@@ -604,17 +645,31 @@ export class Track {
         }
         this.landRun.push(...run);
       }
+      const afterLand = isLand(this.lastType);
       this.spawn(t, intensity);
+      const built = this.sections[this.sections.length - 1];
+      // (Walled sections, a gorge or a cliff face along the way, close the sides too: they pause the count.)
+      if (isLand(t)) this.sinceLand = 0;
+      else if (!WALLED.includes(t)) this.sinceLand += (built ? built.len : 0) / GEN_SPEED(intensity);
       this.lastType = t;
       if (t === 'turnL' || t === 'turnR') {
         this.heading += t === 'turnL' ? 1 : -1;
         this.sinceTurn = 0;
+        this.cornered = true;
       } else this.sinceTurn++;
       if (this.turnBlock.n > 0) this.turnBlock.n--;
-      this.maybeLandmark(t);
+      this.maybeLandmark(t, afterLand);
     }
     this.clearBehind(this.path.length);
     this.obstacles.trim(s);
+    // World round 23: pebbles 50 m out are under a pixel each, yet were a tenth of a desktop frame's
+    // triangles (130k on a corridor): each section's scatter is drawn only while it is near the runner.
+    for (const sec of this.sections) {
+      if (!sec.grit) continue;
+      const near = sec.s0 < s + Math.min(GRIT_AHEAD, this.viewDistance * 0.3) && sec.s0 + sec.len > s - 15;
+      const lily = sec.s0 < s + LILY_AHEAD && sec.s0 + sec.len > s - 25;
+      for (const g of sec.grit) g.visible = g.name.endsWith('|lily') ? lily : near;
+    }
   }
 
   /** Despawn by the built end (see DESPAWN_LEAD): what stands at each build is a function of the route alone. */
@@ -634,7 +689,7 @@ export class Track {
    * past the corner's start and 10 m to the outside of the bend: it fills the end of the view for the
    * run-up, then the route turns away from it and it slides past on the outside.
    */
-  private maybeLandmark(t: SectionType): void {
+  private maybeLandmark(t: SectionType, afterLand = false): void {
     const sec = this.sections[this.sections.length - 1];
     if (!sec) return;
     if (this.pendingLandmark && (t === 'turnL' || t === 'turnR')) {
@@ -646,10 +701,19 @@ export class Track {
     }
     if (this.pendingLandmark || !this.landmarkQueue.length || sec.s0 + sec.len < this.nextLandmarkS) return;
     if (!OPEN_APPROACH.includes(t) || this.turnBlock.n > 0) return;
+    // World round 23: its open run-up (water and sky, about ten seconds) starts as a land run ends, so the
+    // open stretch around it stays short: straight after land, or after a short run of land staged first
+    // (where land may stand: level, clear of the last corner).
+    const lead: SectionType[] = [];
+    if (!afterLand) {
+      if (Math.abs(this.elevation) > 0.01 || (this.cornered && this.sinceTurn < 2)) return;
+      const a = this.lmRng.pick(LAND_TYPES);
+      lead.push(a, this.lmRng.pick(LAND_TYPES.filter((x) => x !== a)));
+    }
     const turn: SectionType = this.heading > 0 ? 'turnR' : this.heading < 0 ? 'turnL' : this.lmRng.chance(0.5) ? 'turnL' : 'turnR';
     // Four open sections of run-up (bridge or stepping slabs: water and sky in view), the corner, an open exit.
     const open = (): SectionType => 'approach';
-    this.staged.push(open(), open(), open(), open(), turn, open());
+    this.staged.push(...lead, open(), open(), open(), open(), turn, open());
     this.pendingLandmark = this.landmarkQueue.shift()!;
   }
 
@@ -683,6 +747,7 @@ export class Track {
     root.matrixWorldNeedsUpdate = true;
     // Scenery and floating things keep to the water, whatever the path's elevation.
     const toWater = -seg.p0.y;
+    let grit: THREE.Mesh[] | undefined;
     for (const child of variant.group.children) {
       const m = child as THREE.Mesh;
       const inst = new THREE.Mesh(m.geometry, m.material);
@@ -692,6 +757,7 @@ export class Track {
       inst.customDepthMaterial = m.customDepthMaterial;
       inst.name = m.name;
       if (!m.name.endsWith('|near') && !m.name.endsWith('|grit')) inst.position.y = toWater;
+      if (m.name.endsWith('|grit') || m.name.endsWith('|lily')) (grit ??= []).push(inst);
       root.add(inst);
     }
     // Every fall in the section is one mesh: sheets and spray in a single draw call.
@@ -720,7 +786,7 @@ export class Track {
     }
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground, grit };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -891,6 +957,8 @@ function stageKit(kit: Kit): void {
     bark.userData.lifted = true;
     bark.color.multiplyScalar(4);
   }
+  // World round 23: real furrows on the near bark (the giant roots arch right beside the camera).
+  if (bark) patchBark(bark);
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {
     gold.userData.staged = true;

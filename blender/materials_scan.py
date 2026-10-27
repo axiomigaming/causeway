@@ -98,7 +98,9 @@ def bark(name="bark"):
     patches = M._noise(nt, vec, 1.6, 4, 0.6)
     moss = math_node(nt, "MULTIPLY", up, maprange(nt, patches.outputs[0], 0.38, 0.6, 0.0, 0.9))
     # The roots' crests (flagged `grainw`) carry more moss: a green back over the dark bark.
-    moss = math_node(nt, "MINIMUM", 1.0, math_node(nt, "ADD", moss, math_node(nt, "MULTIPLY", up, math_node(nt, "MULTIPLY", gw.outputs["Fac"], 0.45))))
+    # (Round 23: 0.45 -> 0.2 — at the atlas's texel size the crest moss baked as soft green blotches
+    # and the roots read as green tubes; the moss now sits in the furrows' patches, the bark shows.)
+    moss = math_node(nt, "MINIMUM", 1.0, math_node(nt, "ADD", moss, math_node(nt, "MULTIPLY", up, math_node(nt, "MULTIPLY", gw.outputs["Fac"], 0.2))))
     tufts = M._noise(nt, vec, 60, 4, 0.6)
     mc = ramp(nt, tufts.outputs[0], [(0.3, (0.07, 0.11, 0.03, 1)), (0.7, (0.2, 0.27, 0.07, 1))])
     base_in = bsdf.inputs["Base Color"]
