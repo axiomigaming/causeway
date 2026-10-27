@@ -400,3 +400,31 @@ export function patchBark(m: THREE.Material): void {
   sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|bark23`;
   sm.needsUpdate = true;
 }
+
+/**
+ * World round 23: foliage at the lens. A crash or fall camera swinging close past the jungle dressing
+ * filled a third of the frame with one blurred leaf. Leaves and plants within ~1.8 m of the camera
+ * dissolve (a screen-space dither, so the alpha-tested cards need no sorting), gone inside 0.7 m.
+ * Presentation only: shadows and the far leaf alpha (foliage.ts) are untouched.
+ */
+export function patchNearFade(m: THREE.Material): void {
+  const sm = m as THREE.MeshStandardMaterial;
+  if (sm.userData.nearFade) return;
+  sm.userData.nearFade = true;
+  const prev = sm.onBeforeCompile;
+  const prevKey = sm.customProgramCacheKey?.bind(sm);
+  sm.onBeforeCompile = (shader, renderer) => {
+    prev?.call(sm, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <alphatest_fragment>',
+      `{
+        float nf = smoothstep(0.7, 1.8, length(vViewPosition));
+        float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+        if (nf < 1.0 && ign > nf) discard;
+      }
+      #include <alphatest_fragment>`,
+    );
+  };
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|near23`;
+  sm.needsUpdate = true;
+}

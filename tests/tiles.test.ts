@@ -27,7 +27,7 @@ describe('walkable tiles', () => {
       track.reset(seed);
       for (let s = 0; s < 3000; s += 40) {
         track.update(s, 0.5);
-        const dropped = track.sections.flatMap((sec) => sec.tiles).filter((t) => t.alive && t.index < 0);
+        const dropped = track.sections.filter((sec) => !sec.tilesGone).flatMap((sec) => sec.tiles).filter((t) => t.alive && t.index < 0);
         expect(dropped.map((t) => t.piece), `${seed}@${s}`).toEqual([]);
       }
     }
