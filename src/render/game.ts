@@ -1616,9 +1616,10 @@ export class Game {
         this.particles.burst(p, 14, { spread: 0.8, up: 1.6, speed: 2.4, size: 0.06, life: 0.9, color: DUST_DARK, alpha: 0.7, gravity: 9.8, drag: 0.3, grow: 0 });
         kick(1);
         this.sounds.event?.('ledge_land', 0.6 + 0.4 * e);
-        // The lens comes down into the trough beside him: a low three-quarter view ~2.6 m off.
-        this.rig.closeIn = 1.05;
-        this.rig.closeUp = -0.45;
+        // The lens comes down into the trough beside him: a low three-quarter view ~2.1 m off,
+        // 0.9 m over the stone (coordinator, ledge0 review 2: 0.5 m lower and closer).
+        this.rig.closeIn = 1.25;
+        this.rig.closeUp = -0.6;
         // (Off to his side by about 1 m only: further, the lens was outside the open trough's
         // footprint, and the guard held it over the floor above, looking down from 3 m.)
         this.rig.closeSide = 0.75;
