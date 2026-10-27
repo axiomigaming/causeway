@@ -87,15 +87,19 @@ export class Beams {
     for (let i = 0; i < cap; i++) this.beams.push({ top: new THREE.Vector3(), bot: new THREE.Vector3(), width: 1, alpha: 0, target: 0, seed: 0, on: false });
   }
 
-  /** A shaft of sun landing at `ground`, slanting in from `sunDir`. */
-  add(ground: THREE.Vector3, sunDir: THREE.Vector3, width: number, alpha: number): void {
+  /**
+   * A shaft of sun landing at `ground`, slanting in from `sunDir`. `len` m long; given one, `sunDir`
+   * is taken as it is (round 20: the ledge's short steep shaft down through the hole onto him — the
+   * long one was all but faded out over the trough's 3 m, and lowered it leaned through a wall).
+   */
+  add(ground: THREE.Vector3, sunDir: THREE.Vector3, width: number, alpha: number, len?: number): void {
     const b = this.beams.find((x, i) => !x.on && i < this.budget);
     if (!b) return;
     b.on = true;
     b.bot.copy(ground);
     // Lower the sun a touch so the shafts lean visibly even under a high sun.
-    const dir = new THREE.Vector3(sunDir.x, Math.min(sunDir.y, 0.55), sunDir.z).normalize();
-    b.top.copy(ground).addScaledVector(dir, 34);
+    const dir = len ? sunDir.clone().normalize() : new THREE.Vector3(sunDir.x, Math.min(sunDir.y, 0.55), sunDir.z).normalize();
+    b.top.copy(ground).addScaledVector(dir, len ?? 34);
     b.width = width;
     b.alpha = 0;
     b.target = alpha;

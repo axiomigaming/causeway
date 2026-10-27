@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export type CamMode = 'title' | 'setup' | 'lead' | 'run' | 'crash' | 'cashout';
-export type CrashShot = 'chasm' | 'gate' | 'rockfall';
+export type CrashShot = 'chasm' | 'gate' | 'rockfall' | 'ledge';
 export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 
 /** Round 20: an impact knock is a push over ~1/JOLT_K s (80 ms), not an instant change of velocity. */
@@ -728,6 +728,9 @@ export class CameraRig {
     const grow = ease(T / 2.6) * this.epic;
     // A tall screen already opens the lens (and settles further back): stay closer on the gate.
     const tall = this.camera.aspect < 1 ? 0.8 : 1;
+    // (The ledge: no crane or pull-back with the size of the fall. The beat is him dropping with
+    // the floor, held at the lip; see crashBase.)
+    if (this.crashShot === 'ledge') return f;
     if (this.crashShot === 'gate') return { ...f, along: f.along * (1 + 0.18 * grow) * tall, up: f.up + 0.7 * grow, lUp: f.lUp + 0.4 * grow, fov: f.fov + 2 * grow };
     const v = this.variant ? -0.35 : 0;
     // (Round 20: a throw across the frame — the side hit — opens the shot while he flies.)
@@ -763,6 +766,22 @@ export class CameraRig {
             [0.55, F(-3.0, 0.8 * s, 2.3, 4, 0, 0.1, 57, 0.3)],
             [2.0, F(-3.3, 1.55 * s, 3.3, 3, 0, -0.4, 55, 0.5)],
             [6.5, F(-2.6, 1.7 * s, 2.7, 3, 0, -0.2, 52, 0.45)],
+          ],
+          T,
+        );
+      case 'ledge':
+        // Round 20 (coordinator, ledge0 review): the floor gives under him. The lens goes on from
+        // the chase, behind his shoulder at the lip, and tilts down after him as he drops with
+        // the slabs (the look point sinks with him to the trough's floor, 2.75 m below the root
+        // this frame is measured from); it never cranes up over the walls. Once he is down the
+        // close-in brings it down into the trough beside him (game sets closeIn).
+        return track(
+          [
+            [0, F(-2.35, 0.65 * s, 1.3, 2.2, 0, 0.9, 60, 0)],
+            [0.3, F(-2.3, 0.75 * s, 1.35, 1.1, 0, -0.3, 58, 0)],
+            [0.75, F(-2.1, 0.9 * s, 1.3, 0.5, 0, -1.8, 56, 0)],
+            [1.2, F(-2.0, 1.0 * s, 1.25, 0.3, 0, -2.2, 55, 0)],
+            [6.5, F(-1.9, 1.0 * s, 1.2, 0.3, 0, -2.2, 54, 0)],
           ],
           T,
         );
