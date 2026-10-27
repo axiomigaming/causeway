@@ -583,7 +583,7 @@ export class CameraRig {
               // half a second whipped the frame and lost him.)
               // (Not for the knee slide: it carries him metres across to his right, out of that frame;
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
-              lerp(-dist, lerp(-2.3, -1.6, this.escapeWide), k),
+              lerp(-dist, lerp(-2.0, -1.6, this.escapeWide), k),
               lerp(lat + drift, lerp(0.62, 1.6, this.escapeWide), k),
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k),
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
@@ -651,6 +651,36 @@ export class CameraRig {
     return out;
   }
 
+  /**
+   * Round 20: the share of a 5 x 3 grid of sight lines from a lens at `p` (looking at his chest)
+   * that meet a solid nearer than 60 % of the way to him.
+   */
+  private foreCover(p: THREE.Vector3): number {
+    const r = this.runnerAt;
+    const chest = this.fcC.set(r.x, r.y + 1.1, r.z);
+    const d = p.distanceTo(chest);
+    if (d < 0.5) return 0;
+    const fwd = this.fcF.copy(chest).sub(p).normalize();
+    const right = this.fcR.crossVectors(fwd, this.fcU.set(0, 1, 0)).normalize();
+    const up = this.fcU.crossVectors(right, fwd).normalize();
+    const tv = Math.tan((this.fov * Math.PI) / 360);
+    const th = tv * this.camera.aspect;
+    let hits = 0;
+    for (const v of [-0.6, 0, 0.6])
+      for (const h of [-0.8, -0.4, 0, 0.4, 0.8]) {
+        const dir = this.fcD.copy(fwd).addScaledVector(right, h * th).addScaledVector(up, v * tv).normalize();
+        const to = this.fcT.copy(p).addScaledVector(dir, 0.6 * d);
+        if (this.occlude(p, to) !== null) hits++;
+      }
+    return hits / 15;
+  }
+  private fcC = new THREE.Vector3();
+  private fcF = new THREE.Vector3();
+  private fcR = new THREE.Vector3();
+  private fcU = new THREE.Vector3();
+  private fcD = new THREE.Vector3();
+  private fcT = new THREE.Vector3();
+
   /** The nearest obstacle between the runner's chest/head and `p`, as a fraction of the way (or null). */
   private blockedAt(p: THREE.Vector3): number | null {
     const r = this.runnerAt;
@@ -676,7 +706,11 @@ export class CameraRig {
       const step = run ? 0.25 : 0.1;
       this.occT = step;
       const cur = this.applyClearance(this.cand.copy(this.rawTarget), this.swingTarget, 1);
-      const hit = this.blockedAt(cur);
+      // Round 20 (coordinator, cash-out review): in the settled result shot, a near solid filling
+      // the foreground (a stone block beside the lens, a tree trunk) counts as blocking too, though
+      // it hides none of him: more than 15 % of the frame nearer than 60 % of the way to him.
+      const fore = (p: THREE.Vector3) => (!run && this.revealK > 0.3 && this.foreCover(p) > 0.15 ? 1 : null);
+      const hit = this.blockedAt(cur) ?? fore(cur);
       if (hit === null) {
         this.blockedT = 0;
         this.clearT += step;
@@ -691,7 +725,8 @@ export class CameraRig {
             for (const d of [0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4]) {
               const a = this.swingTarget + d;
               if (Math.abs(a) > 1.6) continue;
-              if (this.blockedAt(this.applyClearance(this.cand.copy(this.rawTarget), a, 1)) === null) {
+              const cand = this.applyClearance(this.cand.copy(this.rawTarget), a, 1);
+              if (this.blockedAt(cand) === null && fore(cand) === null) {
                 this.swingTarget = a;
                 this.pullTarget = 1;
                 found = true;

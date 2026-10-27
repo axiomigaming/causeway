@@ -316,7 +316,7 @@ async function cameraMotion(page, view) {
                 if (fw.lengthSq() > 1e-6 && to.lengthSq() > 1e-6) fc = +fw.normalize().dot(to.normalize()).toFixed(2);
               }
               Fc.push(fc);
-              RK.push([+g.rig.revealK.toFixed(2), g.rig.uiCol ? g.rig.uiCol.map((x) => +x.toFixed(3)) : null, +(g.guardK ?? 0).toFixed(2), g.rig.faceEnd === null ? null : +g.rig.faceEnd.toFixed(2)]);
+              RK.push([+g.rig.revealK.toFixed(2), g.rig.uiCol ? g.rig.uiCol.map((x) => +x.toFixed(3)) : null, +(g.guardK ?? 0).toFixed(2), g.rig.faceEnd === null ? null : +g.rig.faceEnd.toFixed(2), g.runner.current?.startsWith("win") ? +(g.runner.actions.get(g.runner.current)?.time ?? 0).toFixed(3) : null, g.runner.current]);
             }
             S.setF(f + 1);
             if (S.revealAt < 0 && g.rig.revealed) (S.revealAt = f), (S.revealSpeed = g.speed);
@@ -373,8 +373,10 @@ async function cameraMotion(page, view) {
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
         g.debris.onImpact = onImp;
-        const ct = true ? JSON.stringify({ salute: g.clipTurn?.('win_salute'), names: g.runner.actions.get('win_salute')?.getClip().tracks.slice(0, 3).map((t) => t.name) }) : '';
-        return { ct, RK, Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
+        // The celebration clip's turn round to the lens (s of clip time), for the escape's facing window.
+        const winClip = [...RK].reverse().find((x) => typeof x[5] === 'string' && x[5].startsWith('win'))?.[5];
+        const turnT = winClip && g.clipTurn ? g.clipTurn(winClip)?.t ?? null : null;
+        return { turnT, RK, Fc, gone, P, Q, L, B, O, D, G, H, T, C, cuts, colHits, revealAt, revealSpeed, dbg, kind: g.debugState?.crashKind ?? null };
       },
     );
     const ang = (a, b) => {
@@ -543,7 +545,7 @@ async function cameraMotion(page, view) {
         const a2 = ((ang + 540) % 360) - 180;
         out.push(`f${f}:${a2.toFixed(0)}°/${Math.hypot(hx, hz).toFixed(1)}m/h${Math.hypot(h[0], h[2]).toFixed(1)}/c${p.map((v) => v.toFixed(1)).join(",")}/g${g[0].toFixed(1)},${g[2].toFixed(1)}/gk${r.RK[f][2]}/fe${r.RK[f][3]}`);
       }
-      problems.push(`(esc ${r.ct} ${out.join(' ')})`);
+      problems.push(`(esc ${out.join(' ')})`);
     }
     // Round 20 (coordinator, cash-out review): the escape is seen. Through the braking (the half
     // second before the celebration clip) he is a fifth of the frame or more; from 0.5 s into the
@@ -562,14 +564,21 @@ async function cameraMotion(page, view) {
         const end = Math.min(r.L.length, (r.revealAt > clip0 ? r.revealAt : clip0 + 75) + 45);
         const cel = [];
         let front = 0;
-        // (From a second in: the swing round to his face takes about that.)
-        for (let f = clip0 + 30; f < end; f++) {
+        // (The celebration proper: from the clip's turn round to the lens — every celebration clip
+        // walks him on for its slowing steps first, his back to a lens behind him — or from a second
+        // in where it has no turn.)
+        let c0 = clip0 + 30;
+        if (r.turnT !== null) {
+          const k = r.RK.findIndex((x, f) => f >= clip0 && x[4] !== null && x[4] >= r.turnT);
+          if (k > 0) c0 = k;
+        }
+        for (let f = c0; f < end; f++) {
           cel.push(hOf(f));
           if (r.Fc[f] > 0.25) front++;
         }
         const med = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
         const share = cel.length ? front / cel.length : 0;
-        const msg = `escape (run facing ${r.Fc[3]}): braking ${(med(brake) * 100).toFixed(0)}%, celebration ${(med(cel) * 100).toFixed(0)}% facing ${(share * 100).toFixed(0)}% (f${clip0 + 30}..f${end}; ${[15, 30, 45, 60].map((k) => r.Fc[clip0 + k]).join(" ")})`;
+        const msg = `escape (run facing ${r.Fc[3]}): braking ${(med(brake) * 100).toFixed(0)}%, celebration ${(med(cel) * 100).toFixed(0)}% facing ${(share * 100).toFixed(0)}% (f${c0}..f${end}; ${[15, 30, 45, 60].map((k) => r.Fc[clip0 + k]).join(" ")})`;
         if (med(brake) < 0.2 || med(cel) < 0.25 || share < 0.5) problems.push(msg);
         else note = ` ${msg}`;
       }

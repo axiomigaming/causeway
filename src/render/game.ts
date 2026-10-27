@@ -2753,9 +2753,10 @@ export class Game {
     const tr = act?.getClip().tracks.find((k) => /(^|\.)root\.quaternion$/.test(k.name) || k.name === 'root.quaternion');
     if (!tr || tr.values.length < 8) return null;
     const v = tr.values;
+    // (The turn in the scene's frame: the root bone stands in a Z-up armature turned upright.)
     const q0 = new THREE.Quaternion(v[0], v[1], v[2], v[3]).invert();
     const yawAt = (i: number) => {
-      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(v[i * 4], v[i * 4 + 1], v[i * 4 + 2], v[i * 4 + 3]).premultiply(q0));
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(v[i * 4], v[i * 4 + 1], v[i * 4 + 2], v[i * 4 + 3]).multiply(q0));
       return Math.atan2(f.x, -f.z);
     };
     const n = tr.times.length;
