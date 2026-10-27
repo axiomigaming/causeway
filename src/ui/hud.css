@@ -85,6 +85,7 @@
   animation: cardIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @keyframes cardIn { from { opacity: 0; transform: translate(-50%, 12px); } }
+@keyframes cardInSide { from { opacity: 0; transform: translateY(12px); } }
 .result .r-head { display: flex; align-items: center; gap: 8px; height: 16px; }
 .result .r-head svg { color: var(--amber); }
 .result .r-k { font-size: var(--t12); line-height: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber-hi); }
@@ -154,7 +155,10 @@
   .hud { --hud-top: 0px; top: calc(var(--safe-t) + 72px); }
   .hud .mult { font-size: var(--t44); }
   .hud .hud-sub { margin-top: 8px; }
-  .result { top: calc(64px + var(--safe-t)); padding: 16px 24px 8px; }
+  /* The card stands at the left under the top bar, not over the middle: the only free band between the
+     top bar and the slim dock is ~250 px tall, and a centred card left the runner a sliver under it.
+     (The dock then leaves it out of the top inset: see Dock's report().) */
+  .result { top: calc(64px + var(--safe-t)); left: calc(16px + var(--safe-l)); width: min(260px, 30vw); transform: none; padding: 16px 16px 8px; animation-name: cardInSide; }
   .result .big { font-size: var(--t28); line-height: 32px; margin-top: 8px; }
   .result .big .unit { font-size: var(--t12); }
   .result .r-label { margin-top: 8px; }
