@@ -12,6 +12,7 @@ import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
 import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
+import { MeshoptSimplifier } from 'meshoptimizer/simplifier';
 import { causticUniforms, ensureDetailMap, patchBark, patchNearFade, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { makeLilyMaterial, makeMossMaterial } from './moss';
@@ -69,6 +70,39 @@ const LAND_DUE = 7.5;
 /** Sections whose sides are closed by rock or walls (they neither count toward LAND_DUE nor reset it). */
 export const WALLED: SectionType[] = ['gorge', 'tunnel', 'tall', 'cliff', 'ledge'];
 const LAND_FIRST = 3;
+/**
+ * World round 23: masonry, rock and statue meshes of a section that starts more than LOD_AT m ahead
+ * are drawn simplified (meshoptimizer, error bound LOD_ERROR of the section's extent: ~5 cm on a 25 m
+ * section, a fraction of a pixel at 60 m). Late in a run the desktop frame stood at 1.2M triangles,
+ * most of it masonry far down the way.
+ */
+const LOD_AT = 60;
+const LOD_ERROR = 0.002;
+const LOD_MATS = new Set(['stoneA', 'stoneB', 'rock', 'cliff', 'temple', 'statue', 'glyph']);
+let lodReady = false;
+void MeshoptSimplifier.ready.then(() => (lodReady = true)).catch(() => {});
+function farLod(g: THREE.BufferGeometry): THREE.BufferGeometry | null {
+  if (!lodReady || !g.index) return null;
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  if (!(pos.array instanceof Float32Array) || pos.itemSize !== 3) return null;
+  const src = g.index.array;
+  if (src.length < 3000) return null;
+  const idx = src instanceof Uint32Array ? src : new Uint32Array(src);
+  let out: Uint32Array;
+  try {
+    [out] = MeshoptSimplifier.simplify(idx, pos.array, 3, Math.floor(idx.length * 0.1) * 3, LOD_ERROR);
+  } catch {
+    return null; // (a far version is an optimisation: never a reason to fail the build)
+  }
+  if (out.length > idx.length * 0.85) return null;
+  const lod = new THREE.BufferGeometry();
+  for (const [n, a] of Object.entries(g.attributes)) lod.setAttribute(n, a);
+  lod.setIndex(new THREE.BufferAttribute(out, 1));
+  lod.boundingSphere = g.boundingSphere;
+  lod.boundingBox = g.boundingBox;
+  return lod;
+}
+
 /** How far ahead of the runner a section's pebble scatter is drawn (m; presentation only). */
 const GRIT_AHEAD = 45;
 /** How far behind the runner a section's paving is still drawn (m; crash and look-back shots stay well inside). */
@@ -172,6 +206,8 @@ export interface SectionInstance {
   solid: [number, number, number][];
   /** World round 21: its ground (land sections). */
   ground?: THREE.Mesh;
+  /** World round 23: its masonry meshes that have a far version (see LOD_AT). */
+  lods?: THREE.Mesh[];
   /** World round 23: its slabs released, far behind the runner (see TILES_BEHIND). */
   tilesGone?: boolean;
   /** World round 23: its pebble scatter and lily pads (drawn only near the runner: see GRIT_AHEAD). */
@@ -329,6 +365,8 @@ export class Track {
     const i = LOOKS.findIndex((l) => l.name === name);
     if (i >= 0) this.lookIndex = i;
   }
+  /** QA: draw every section's masonry at full detail (to measure the far version's pop). */
+  farLodOff = false;
   /** QA: section types to spawn next, in order, before the pacing rules resume. */
   forceNext: SectionType[] = [];
   /** World round 21: the rest of the current run of land (cleared with the world). */
@@ -360,6 +398,8 @@ export class Track {
   /** Build every section variant. Yields between variants so a loading screen can animate. */
   async prepare(density: { foliage: number; scenery: number }, onStep?: (i: number, n: number) => void): Promise<void> {
     this.density = density;
+    // (The far masonry versions need the simplifier's wasm; without it sections simply keep one version.)
+    if (!lodReady) await MeshoptSimplifier.ready.then(() => (lodReady = true)).catch(() => {});
     // The lightest tier (phones) skips the detail normals: a few dozen ALU per stone pixel.
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
     // (It keeps one planar fetch on the near paving: one texture read on the pixels nearest the lens.)
@@ -451,6 +491,11 @@ export class Track {
       if (mesh.castShadow && mat === 'leaf') mesh.customDepthMaterial = leafDepth(this.kit);
       if (zone === 'water' || zone === 'lily') mesh.renderOrder = 1;
       mesh.receiveShadow = true;
+      // World round 23: a far version of the masonry (see LOD_AT).
+      if (LOD_MATS.has(mat)) {
+        const lod = farLod(merged);
+        if (lod) mesh.userData.lod = lod;
+      }
       group.add(mesh);
     }
     return group;
@@ -680,6 +725,12 @@ export class Track {
         sec.tilesGone = true;
         for (const t of sec.tiles) this.tiles.release(t);
       }
+      if (sec.lods) {
+        // Far masonry: the simplified version once the section starts LOD_AT m ahead (or lies as far
+        // behind); the full one nearer. The bound is a few centimetres: under a pixel at that range.
+        const far = !this.farLodOff && (sec.s0 > s + LOD_AT || sec.s0 + sec.len < s - LOD_AT);
+        for (const m of sec.lods) m.geometry = far ? m.userData.lod : m.userData.full;
+      }
       if (!sec.grit) continue;
       const near = sec.s0 < s + Math.min(GRIT_AHEAD, this.viewDistance * 0.3) && sec.s0 + sec.len > s - 15;
       const lily = sec.s0 < s + LILY_AHEAD && sec.s0 + sec.len > s - 25;
@@ -763,6 +814,7 @@ export class Track {
     // Scenery and floating things keep to the water, whatever the path's elevation.
     const toWater = -seg.p0.y;
     let grit: THREE.Mesh[] | undefined;
+    let lods: THREE.Mesh[] | undefined;
     for (const child of variant.group.children) {
       const m = child as THREE.Mesh;
       const inst = new THREE.Mesh(m.geometry, m.material);
@@ -771,6 +823,11 @@ export class Track {
       inst.renderOrder = m.renderOrder;
       inst.customDepthMaterial = m.customDepthMaterial;
       inst.name = m.name;
+      if (m.userData.lod) {
+        inst.userData.full = m.geometry;
+        inst.userData.lod = m.userData.lod;
+        (lods ??= []).push(inst);
+      }
       if (!m.name.endsWith('|near') && !m.name.endsWith('|grit')) inst.position.y = toWater;
       if (m.name.endsWith('|grit') || m.name.endsWith('|lily')) (grit ??= []).push(inst);
       root.add(inst);
@@ -801,7 +858,7 @@ export class Track {
     }
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground, grit };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground, grit, lods };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -1044,5 +1101,8 @@ function leafDepth(kit: Kit): THREE.MeshDepthMaterial {
 }
 
 function disposeGroup(g: THREE.Group) {
-  g.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+  g.traverse((o) => {
+    (o as THREE.Mesh).geometry?.dispose();
+    (o.userData.lod as THREE.BufferGeometry | undefined)?.dispose();
+  });
 }
