@@ -247,7 +247,8 @@ export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30,
  * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
  * game's launch carries the body off a pinned foot faster than the clip sweeps it back: it ran out of reach
  * at the last push and let go with a 27° shin snap). */
-const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start']);
+// (And the chasm skid to its knees: a pin caught a foot as the skid slowed under 4.5 m/s and snapped the shin 26°.)
+const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start', 'fall_chasm_b']);
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -376,6 +377,16 @@ export class Runner {
   private rest = new Map<THREE.Bone, THREE.Quaternion>();
   /** Every bone's rotation as the clips alone left it last frame (see update()). */
   private clipPose = new Map<THREE.Bone, THREE.Quaternion>();
+  /**
+   * Root motion for the falls and the escapes (off until the game drives the root by it): the clip's
+   * forward travel of the hips is taken out of the pose (the body is held over the root) and handed to
+   * the game through takeTravel(), which moves the root by it. The root then carries the whole travel and
+   * its speed stays continuous from the run into the clip.
+   */
+  rootMotion = false;
+  private travelPrev: number | null = null;
+  private travelAcc = 0;
+  private travelOut = 0;
   private chestPrev = new THREE.Vector3();
   private chestVel = new THREE.Vector3();
   private hipPrev = new THREE.Vector3();
@@ -539,7 +550,43 @@ export class Runner {
     this.start(name, fade, offset);
   }
 
+  /**
+   * Metres the clip has carried him forward (along the way he faces) since the last call, while root
+   * motion is on and a fall or escape clip plays; 0 otherwise. Move the root by it each frame.
+   */
+  takeTravel(): number {
+    const t = this.travelOut;
+    this.travelOut = 0;
+    return t;
+  }
+
+  private extractTravel(): void {
+    const hips = this.bones.hips;
+    // (Not win_slide: it turns as it travels, and its slide keeps the game's own braking with the pose's carry.)
+    const on = this.rootMotion && hips !== undefined && this.current !== 'win_slide' && (this.current.startsWith('fall_') || this.current.startsWith('win'));
+    if (!on || !hips) {
+      if (this.travelPrev !== null || this.travelAcc !== 0) {
+        this.travelPrev = null;
+        this.travelAcc = 0;
+        this.body.position.z = 0;
+      }
+      return;
+    }
+    // The hips in the body's own frame (it faces -Z), as the clip alone places them.
+    this.body.updateWorldMatrix(true, true);
+    const fwd = -this.body.worldToLocal(this.v1.setFromMatrixPosition(hips.matrixWorld)).z;
+    if (this.travelPrev === null) this.travelPrev = fwd;
+    const d = fwd - this.travelPrev;
+    this.travelPrev = fwd;
+    this.travelAcc += d;
+    this.travelOut += d;
+    // Held over the root: the body steps back by what the clip carried him on.
+    this.body.position.z = this.travelAcc;
+  }
+
   private start(name: RunnerAnim, fade: number, offset: number) {
+    // (A new clip measures its travel from its own first frame.)
+    this.travelPrev = null;
     if (this.obst && this.obst.name !== name) this.obst = null;
     this.obstLift = 0;
     this.current = name;
@@ -740,7 +787,12 @@ export class Runner {
     const gaitW = Math.max(...GAITS.map((g) => this.weights.get(g) ?? 0));
     const split = new Map<string, number>();
     for (const [k, w] of this.weights) {
-      const x = w * (mix[k] ?? 1);
+      // Cross-fades of 0.2 s and more are eased (smoothstep: the two sides still sum to 1): linear, the blended pose and the
+      // clips' root travel changed rate at a fade's start and end (a hip jump where the run hands over
+      // to a fall under root motion).
+      // (Only into the falls, which hand the run's travel to the root; short fades stay linear: eased, their
+      // middle runs 1.5x faster and a pose snaps, as the hands did into the 62x slide.)
+      const x = (this.fade >= 0.2 && this.current.startsWith('fall_') ? smoothstep(0, 1, w) : w) * (mix[k] ?? 1);
       split.set(k, x);
       sum += x;
     }
@@ -767,6 +819,7 @@ export class Runner {
     for (const [b, q] of this.clipPose) b.quaternion.copy(q);
     this.mixer.update(dt);
     for (const [b, q] of this.clipPose) q.copy(b.quaternion);
+    this.extractTravel();
     this.overlays(dt);
     this.airLayer(dt, rawDt);
 

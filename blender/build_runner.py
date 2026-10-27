@@ -114,6 +114,63 @@ runner_anim.build(rig)
 if PREVIEW:
     runner_anim.previews(rig, PREVIEW)
     sys.exit(0)
+def tint_scalp(rig):
+    """From above and behind under the sun, the crown and back of the head (the supplied albedo's hair
+    there is the brow's mid brown, blurred) read as a bald, skin-coloured scalp. Those texels are darkened
+    under a feathered UV mask (the brow's hue, ~30% darker) and kept matte, with no metal."""
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFilter
+    body = bpy.data.objects["runner_mesh"]
+    me = body.data
+    M = body.matrix_world
+    head = rig.matrix_world @ rig.data.bones["head"].head_local
+    uv = me.uv_layers.active.data
+    col = bpy.data.images["runner_color"]
+    W, H = col.size
+    px = np.array(col.pixels[:], dtype=np.float32).reshape(H, W, 4)
+    back = Image.new("L", (W, H), 0)
+    front = Image.new("L", (W, H), 0)
+    db, df = ImageDraw.Draw(back), ImageDraw.Draw(front)
+    for p in me.polygons:
+        c = M @ p.center
+        n = (M.to_3x3() @ p.normal).normalized()
+        rel = c - head
+        if rel.length > 0.17 or rel.z < 0.02:
+            continue
+        poly = [(uv[li].uv.x * W, (1 - uv[li].uv.y) * H) for li in p.loop_indices]
+        if n.y > 0.35 and rel.z > 0.13:
+            df.polygon(poly, fill=255)  # the hair over the brow (+Y is his front)
+        elif n.y < 0.25 and (n.z > 0.25 or n.y < -0.3) and rel.z > 0.05:
+            db.polygon(poly, fill=255)  # crown and back of the head
+    fm = np.array(front)[::-1] > 0  # image rows run bottom-up in Blender's pixel buffer
+    bm = np.array(back)[::-1] > 0
+    if fm.sum() < 50 or bm.sum() < 50:
+        print("  tint_scalp: masks empty, skipped", flush=True)
+        return
+    fr = px[fm][:, :3]
+    lum = fr.mean(axis=1)
+    hair = fr[lum < np.percentile(lum, 40)]  # the hair at the brow, not the skin of the forehead under it
+    bk = np.median(px[bm][:, :3], axis=0)
+    print(f"  tint_scalp: front hair {np.round(np.median(hair, axis=0), 3)} back {np.round(bk, 3)}", flush=True)
+    gain = np.median(hair, axis=0) / np.maximum(bk, 1e-3)
+    # (Same colour as the brow in the texture, but the crown faces the sun: it is taken ~30% darker still,
+    # as hair reads against the sky, and it must not read as skin.)
+    gain = np.clip(gain * 0.7, 0.4, 0.75)
+    feather = np.array(back.filter(ImageFilter.GaussianBlur(4)))[::-1].astype(np.float32) / 255.0
+    px[..., :3] *= 1.0 - feather[..., None] * (1.0 - gain[None, None, :])
+    col.pixels.foreach_set(px.ravel())
+    col.pack()
+    orm = bpy.data.images["runner_orm"]
+    po = np.array(orm.pixels[:], dtype=np.float32).reshape(H, W, 4)
+    print(f"  tint_scalp: orm back {np.round(np.median(po[bm], axis=0), 3)} front {np.round(np.median(po[fm], axis=0), 3)}", flush=True)
+    po[..., 1] = np.maximum(po[..., 1], feather * 0.85)  # roughness (G): matte hair
+    po[..., 2] *= 1.0 - feather  # metallic (B): none
+    orm.pixels.foreach_set(po.ravel())
+    orm.pack()
+    print(f"  tint_scalp: {int(bm.sum())} texels, gain {np.round(gain, 2)}", flush=True)
+
+
+tint_scalp(rig)
 # The clips are authored from frame 1 and the runtime reads clip seconds as (frame − 1) / 30, but the
 # exporter writes a key's time as frame / 30: every clip started with a one-frame hold (three.js holds the
 # first key before it), and a gait cycle froze a frame at each wrap (the left strike: the planted foot

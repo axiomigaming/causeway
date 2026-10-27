@@ -84,6 +84,8 @@ export interface SpawnOpts {
   breakAfter?: number;
   /** Material key from the kit (kit pieces only; fragments always show raw broken stone). */
   mat?: string;
+  /** A material of its own (overrides `mat`). */
+  material?: THREE.Material;
   /** Side walls to bounce off (a gorge). */
   walls?: Walls;
   /** Bounciness (default 0.25; heavy pieces 0.05). */
@@ -211,7 +213,7 @@ export class Debris {
 
   spawn(piece: string, world: THREE.Matrix4, vel: THREE.Vector3, spin: THREE.Vector3, ground: (x: number, z: number) => number | null, opts: SpawnOpts = {}): THREE.Mesh | null {
     const geo = this.geoOf(piece);
-    const mat = this.matOf(piece, opts.mat);
+    const mat = opts.material ?? this.matOf(piece, opts.mat);
     if (!geo || !mat) return null;
     while (this.bodies.length >= this.budget) {
       // Over budget: drop what nobody will miss first — a resting pebble, then a small fragment,
