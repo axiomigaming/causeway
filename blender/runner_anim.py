@@ -293,14 +293,14 @@ RUN = dict(
 )
 SPRINT = dict(
     ts=0.225, D=0.88, xtd=0.18, knee=(0.42, 0.9, 0.4), v=9.0,
-    af=[(0.0, -0.2), (0.4, -0.05), (0.5, -0.08), (1.0, -0.98)],
+    af=[(0.0, -0.2), (0.3, -0.06), (0.6, -0.3), (1.0, -0.95)],  # (the push-off rolls through the second half: held flat to 0.5, it flicked the foot ~50° in a frame)
     swing=[(0.15, -0.4, 1.28, 0.55), (0.38, 0.2, 2.3, 0.1), (0.64, 1.12, 1.75, -0.2), (0.84, 0.92, 0.78, -0.12)],
     hp=0.23, lean=0.32, hyaw=0.16, hroll=0.06, chest=0.9, head_down=0.1,
     arm_c=0.2, arm_a=1.0, elbow=1.45, elbow_a=0.3, out=0.22, out_fwd=-0.3, curl=1.1, peak=0.74, frames=48,
 )
 # The desperate all-out run of the top tiers: longer reach, higher knees, a harder pump, a deeper lean.
 DASH = dict(SPRINT, ts=0.19, D=0.92, xtd=0.21, knee=(0.44, 0.88, 0.38), v=12.6,
-            af=[(0.0, -0.26), (0.4, -0.08), (0.5, -0.1), (1.0, -1.02)],
+            af=[(0.0, -0.26), (0.3, -0.08), (0.6, -0.32), (1.0, -1.0)],
             swing=[(0.15, -0.42, 1.38, 0.55), (0.37, 0.24, 2.42, 0.1), (0.63, 1.26, 1.85, -0.22), (0.83, 1.02, 0.84, -0.12)],
             hp=0.27, lean=0.42, hyaw=0.19, hroll=0.07, chest=0.95, head_down=0.18,
             arm_c=0.27, arm_a=1.25, elbow=1.5, elbow_a=0.35, out=0.24, curl=1.25, peak=0.73)
@@ -468,39 +468,8 @@ def _stance_leg(s, ph, t, G):
 
 
 STRIKE_M = 1.0
-# The last stretch of each swing (cycles before the strike) is set in floor space, not in joint angles:
-# the foot reaches the stone already still over it and comes down onto it. (Swung in on joint keys it
-# skimmed in low and fast, ~2 cm up while still sweeping 20 cm/frame forward, and the cycle's smoothing
-# carried that sweep past the strike: the planted foot slid 3-6 cm in the strike frame at every tier.)
-APPROACH = 0.15
-APPROACH_VD = 1.6  # descent speed at the strike, as a multiple of the window's mean descent
-APPROACH_LAM = 0.45  # the last fraction of the window: straight down, the sweep already stopped
+STRIKE_ANKLE_M = 0.0  # the ankle meets the stance's speed at the strike only in part: in full it overshot ~15° and snapped back
 ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung 2-4 cm sideways in each contact
-
-
-def _anchor_of(ax, az, af, Ht):
-    """Inverse of _ankle_from: (anchor, contact height above the floor) for an ankle at (ax, az)."""
-    if af > 0:
-        ox, oz = _rot(*HEEL, af)
-        return ax + ox, az + oz + Ht
-    ox, oz = _rot(*BALL_J, af)
-    return ax - BALL_OFF + ox, az - BALL_JH + oz + Ht
-
-
-def _sag_ankle(at, knee):
-    kx, kz = LT * math.sin(at), -LT * math.cos(at)
-    as_ = at - knee
-    return kx + LS * math.sin(as_), kz - LS * math.cos(as_)
-
-
-def _floor_state(s, ph, at, knee, ankle, G):
-    """(anchor rel. the pelvis centre, contact height, foot pitch) of a leg pose at phase ph."""
-    hy, roll, H = _pelvis(ph, G)
-    hx, hz = _hip_of(s, hy, roll)
-    ax, az = _sag_ankle(at, knee)
-    af = (at - knee) - ankle
-    A_, h = _anchor_of(ax, az, af, H + hz)
-    return A_ + hx, h, af
 
 
 def _leg_state(s, ph, G):
@@ -509,49 +478,7 @@ def _leg_state(s, ph, G):
     ts = G["ts"]
     if t < ts:
         return _stance_leg(s, ph, t, G)
-    ap = G.get("ap", APPROACH)
-    if ap > 0 and t > 1.0 - ap:
-        return _approach(s, ph, t, G, ap)
     return _swing_leg(s, ph, t, G)
-
-
-def _herm(a, b, va, vb, u, L):
-    u = max(0.0, min(1.0, u))
-    h00, h10, h01, h11 = 2 * u ** 3 - 3 * u ** 2 + 1, u ** 3 - 2 * u ** 2 + u, -2 * u ** 3 + 3 * u ** 2, u ** 3 - u ** 2
-    return h00 * a + h10 * L * va + h01 * b + h11 * L * vb
-
-
-def _approach(s, ph, t, G, ap):
-    """The swing's floor-space tail, from the joint-keyed swing at 1 - ap (matched in place and speed) to
-    the strike: over the floor the foot stops its forward sweep first (by 1 - lam of the window), then
-    comes down onto the stone; its pitch eases to the strike's."""
-    e = 0.002
-    t0 = 1.0 - ap
-    ph0 = ph - (t - t0)
-    ts = G["ts"]
-    S = G["D"] / ts
-    sa = _swing_leg(s, ph0, t0, G)
-    sb = _swing_leg(s, ph0 - e, t0 - e, G)
-    p0 = _floor_state(s, ph0, *sa[:3], G)
-    pm = _floor_state(s, ph0 - e, *sb[:3], G)
-    v0 = [(a - b) / e for a, b in zip(p0, pm)]
-    af1 = _pw(G["af"], 0.0)
-    daf = (_pw(G["af"], 0.01) - af1) / (0.01 * ts)
-    u = (t - t0) / ap
-    lam = G.get("ap_lam", APPROACH_LAM)
-    # Over the floor (anchor + the pelvis's travel since the window opened): forward sweep to a stop.
-    Lx = ap * (1.0 - lam)
-    xw = _herm(p0[0], G["xtd"] + S * ap, v0[0] + S, 0.0, u / (1.0 - lam), Lx)
-    A_ = xw - S * (t - t0)
-    h = _herm(p0[1], 0.0, v0[1], -G.get("ap_vd", APPROACH_VD) * max(0.0, p0[1]) / ap, u, ap)
-    af = _herm(p0[2], af1, v0[2], daf, u, ap)
-    hy, roll, H = _pelvis(ph, G)
-    hx, hz = _hip_of(s, hy, roll)
-    ax, az = _ankle_from(A_ - hx, af, H + hz - h)
-    at, knee = _ik(ax, az)
-    ankle = (at - knee) - af
-    toe = min(1.2, max(0.0, -G["af"][-1][1])) * math.exp(-(((t - ts) / (1.0 - ts)) / 0.22) ** 2)
-    return at, max(0.04, knee), ankle, toe
 
 
 def _swing_leg(s, ph, t, G):
@@ -571,12 +498,15 @@ def _swing_leg(s, ph, t, G):
     # still drifted forward over the floor at ~40% of the run's pace through the strike frame).
     m1 = [(y - x) / (e / sw) * STRIKE_M for x, y in zip(a1, a1p)]
     m0[1] = max(0.0, m0[1])  # the knee folds straight after toe-off, never locks back
+    m1[2] *= STRIKE_ANKLE_M
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
     at, knee, ankle = _hermite(pts, (t - ts) / sw)
     knee = max(0.04, knee)
     # The toes leave the ground bent (as they were at toe-off), then straighten in the swing.
     # (Over the first third of the swing: snapped straight in a frame or two it read as a flick.)
     toe = min(1.2, max(0.0, -G["af"][-1][1])) * math.exp(-(((t - ts) / sw) / 0.22) ** 2)
+    # ... and a forefoot strike's toes come round to meet the stone (they bent flat the moment it landed).
+    toe += min(1.2, max(0.0, -G["af"][0][1])) * ease(((t - ts) / sw - 0.75) / 0.25)
     return at, knee, ankle, toe
 
 
@@ -633,6 +563,8 @@ def _gait(ph, G, k=1.0):
 # (sigma ~1.6 % of a cycle): positions move by millimetres, the velocity corners round off.
 CYCLE_N = 192
 CYCLE_SIGMA = 6.0  # samples
+STRIKE_SIG = 0.3  # the legs' filter width over each strike (a share of the cycle's) ...
+STRIKE_W = 0.05  # ... easing back to full width over this much of the cycle either side
 FEET_SIG = 1.5  # the feet and toes filtered wider (their push-off is the fastest motion in the stride)
 
 
@@ -645,18 +577,29 @@ def _cycle(G, k):
         return _CYC[key_]
     raw = [_gait(i / CYCLE_N, G, k) for i in range(CYCLE_N)]
     names = list(raw[0][0].keys())
-    def smooth(vals, sig=CYCLE_SIGMA):
-        r = int(math.ceil(3 * sig))
-        w = [math.exp(-0.5 * (j / sig) ** 2) for j in range(-r, r + 1)]
-        ws = sum(w)
+    def smooth(vals, sig=CYCLE_SIGMA, strike=None):
         n = len(vals)
-        return [sum(w[j + r] * vals[(i + j) % n] for j in range(-r, r + 1)) / ws for i in range(n)]
+        out_ = []
+        for i in range(n):
+            si = sig
+            if strike is not None:
+                # Narrow over the leg's strike: there the foot comes to rest on the stone, and a filter as
+                # wide as the swing's carried the swing's sweep into the stance (the planted foot slid
+                # 3-6 cm in the strike frame at every tier; unfiltered it is still to within ~1 cm).
+                d = min((i - strike) % n, (strike - i) % n) / n
+                si = sig * (1.0 - (1.0 - STRIKE_SIG) * math.exp(-((d / STRIKE_W) ** 2)))
+            r = int(math.ceil(3 * si))
+            w = [math.exp(-0.5 * (j / si) ** 2) for j in range(-r, r + 1)]
+            out_.append(sum(w[j + r] * vals[(i + j) % n] for j in range(-r, r + 1)) / sum(w))
+        return out_
     chans = {}
     for nm in names:
         # The feet and toes swing fastest (the whole push-off in ~2 game frames): filtered wider.
         sig = CYCLE_SIGMA * (FEET_SIG if nm.split(".")[0] in ("foot", "toe") else 1.0)
+        leg_ = nm.split(".")[0] in ("thigh", "shin", "foot", "toe")
+        strike = (0 if nm.endswith(".L") else CYCLE_N // 2) if leg_ else None
         for a in range(3):
-            chans[(nm, a)] = smooth([R[0][nm][a] for R in raw], sig)
+            chans[(nm, a)] = smooth([R[0][nm][a] for R in raw], sig, strike)
     xs = smooth([R[1] for R in raw])
     zs = smooth([R[2] for R in raw])
     out = []
@@ -1870,8 +1813,11 @@ def epic_clips():
     # pop up on the far side, fist to the sky (held under the result card)
     new_action("win_slide")
     run_in()
-    P, x = loco(0.5, RUN, 0.95)
-    key(4, P, z=gait_root(0.5, RUN, 0.95), x=x)
+    # (Every frame on the stride: interpolated between the strikes the planted foot dipped 2 cm into the stone.)
+    for fr in (2, 3, 4):
+        ph, k = (fr - 1) / 6.0, 1.0 - 0.05 * (fr - 1) / 3.0
+        P, x = loco(ph, RUN, k)
+        key(fr, P, z=gait_root(ph, RUN, k), x=x)
     # Drop: the lead leg shoots forward, the other folds under, the trunk lies back, a hand trails.
     # (Keyed every frame and never still: the stone chatters under him, the trunk rocks, the trailing hand
     # bounces, the lead heel skips; held between sparse keys he read as a statue sliding along.)
@@ -2271,7 +2217,7 @@ def obstacle_clips():
     run_up(4)
     T = {}
     torso(T, lean=0.55, look=0.45, hp=0.2, yaw=-0.1)
-    leg(T, "L", hip=-0.35, knee=0.3, ankle=0.75, toe=0.65)
+    leg(T, "L", hip=-0.35, knee=0.5, ankle=0.85, toe=0.65)
     leg(T, "R", hip=1.75, knee=2.15, ankle=-0.1)
     arm(T, "R", fwd=VA[0], elbow=0.25, out=0.12, wrist=-0.9, curl=0.25)
     arm(T, "L", fwd=0.5, elbow=1.0, out=0.45, curl=0.4)
@@ -2327,7 +2273,10 @@ def obstacle_clips():
     arm(D, "R", fwd=0.4, elbow=1.2, out=0.3, curl=0.45)
     arm(D, "L", fwd=-0.1, elbow=1.1, out=0.45, curl=0.45)
     zl = solve_root(D)
-    air(6, V_LAND, [(0.0, T), (0.15, T2), (0.24, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
+    # (The push-off leg folds over ~3 frames, not between two: 20° to 93° in one frame was a snap.)
+    T1 = lerp_pose(T, T2, 0.35)
+    leg(T1, "L", hip=0.2, knee=1.15, ankle=0.4, toe=0.3, yaw=VY * 0.2 * VT)
+    air(6, V_LAND, [(0.0, T), (0.08, T1), (0.17, T2), (0.25, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
     A = {}
     torso(A, lean=0.45, look=0.45, hp=0.2, hyaw=0.05)
     leg(A, "L", hip=0.45, knee=0.75, ankle=-0.15)
