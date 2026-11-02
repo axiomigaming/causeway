@@ -305,7 +305,7 @@ RUN = dict(
     knee=(0.32, 0.78, 0.42),
     af=[(0.0, 0.06), (0.15, 0.0), (0.5, 0.0), (0.74, -0.32), (1.0, -1.0)],
     swing=[(0.13, -0.3, 1.3, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
-           (0.7, 0.84, 1.15, -0.18), (0.86, 0.62, 0.58, -0.14)],
+           (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
     hp=0.16, hp_a=0.03, hyaw=0.12, hroll=0.075, lean=0.14, chest=1.15, head_down=0.12,
     arm_f=0.6, arm_b=-1.05, el_f=1.85, el_b=1.1, arm_out=0.16, curl=0.9, sway=0.012,
 )
@@ -314,7 +314,7 @@ SPRINT = dict(
     knee=(0.3, 0.72, 0.45),
     af=[(0.0, -0.2), (0.3, -0.07), (0.55, -0.12), (0.78, -0.45), (1.0, -1.1)],
     swing=[(0.13, -0.3, 1.6, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
-           (0.67, 1.12, 1.42, -0.2), (0.85, 0.9, 0.68, -0.15)],
+           (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
     hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
     arm_f=1.0, arm_b=-1.25, el_f=2.0, el_b=0.85, arm_out=0.15, curl=1.0, sway=0.01,
 )
@@ -324,7 +324,7 @@ DASH = dict(
     knee=(0.28, 0.7, 0.45),
     af=[(0.0, -0.26), (0.3, -0.1), (0.55, -0.15), (0.78, -0.48), (1.0, -1.12)],
     swing=[(0.13, -0.28, 1.75, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
-           (0.66, 1.25, 1.5, -0.22), (0.85, 1.0, 0.72, -0.15)],
+           (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
     hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
     arm_f=1.15, arm_b=-1.35, el_f=2.05, el_b=0.75, arm_out=0.15, curl=1.1, sway=0.009,
 )
@@ -517,6 +517,9 @@ def _stance_leg(s, ph, t, G):
 
 
 ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung sideways
+STRIKE_U0 = 0.76  # share of the swing from which the ankle is steered onto its strike in floor space ...
+STRIKE_W = 0.12  # ... taking over fully this much later
+LAND_VZ = -1.6  # m/s: the foot comes down onto the stone at the strike (it keeps its height until late, then drops onto it)
 
 
 def _swing_leg(s, ph, t, G):
@@ -537,12 +540,48 @@ def _swing_leg(s, ph, t, G):
     m0[1] = max(0.0, m0[1])  # the knee folds straight after toe-off, never locks back
     m0[0] *= 0.3  # the hip is already flexing at toe-off: the thigh turns forward at once, it does not trail on back
     m1[2] = 0.0  # the ankle settles into the strike rather than flicking at the stance's rate
-    # The knee comes into the strike nearly at rest (~20° flexed, giving as it lands): carried in at the
-    # stance's loading rate, the Hermite overshot to a locked knee just before the strike (a straight-leg reach).
     m1[1] *= 0.3
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
     u = (t - ts) / sw
     at, knee, ankle = _hermite(pts, u)
+    if u > STRIKE_U0:
+        # The strike, in floor space: from where the swing has the ankle at STRIKE_U0 (and how it is moving)
+        # the ankle comes down onto its contact from above, arriving still over the floor (pawing back at
+        # the floor's own speed) and settling at ~LAND_VZ. Joint space alone let the run's foot skim the
+        # floor forward for a frame or two before the strike (18 cm of "skate" against the moving floor).
+        S = G["D"] / ts
+        T = _cycle_time(G)
+        t0 = ts + STRIKE_U0 * sw
+
+        def floor_of(tt, at_, kn_):
+            ph_ = (tt - off) % 1.0
+            hy_, roll_, _, H_ = _pelvis(ph_, G)
+            hx_, hz_ = _hip_of(s, hy_, roll_)
+            ax_ = LT * math.sin(at_) + LS * math.sin(at_ - kn_)
+            az_ = -LT * math.cos(at_) - LS * math.cos(at_ - kn_)
+            return ax_ + hx_ + S * tt, az_ + H_ + hz_
+        q0 = _hermite(pts, STRIKE_U0)
+        q0p = _hermite(pts, STRIKE_U0 + e)
+        X0, Z0 = floor_of(t0, q0[0], q0[1])
+        Xp, Zp = floor_of(t0 + e * sw, q0p[0], q0p[1])
+        V0 = ((Xp - X0) / (e * sw), (Zp - Z0) / (e * sw))
+        X1, Z1 = floor_of(1.0, a1[0], a1[1])
+        X1p, Z1p = floor_of(1.0 + e, a1p[0], a1p[1])
+        V1 = ((X1p - X1) / e, (Z1p - Z1) / e + LAND_VZ * T)
+        h = 1.0 - t0
+        # Forward, the foot only slows into its contact: it never reaches past it and claws back (a
+        # monotone Hermite: entry speed at most 1.4x the mean over the stretch).
+        V0 = (max(0.0, min(V0[0], 1.4 * (X1 - X0) / h)), V0[1])
+        sN = (t - t0) / h
+        b = (2 * sN ** 3 - 3 * sN ** 2 + 1, sN ** 3 - 2 * sN ** 2 + sN, -2 * sN ** 3 + 3 * sN ** 2, sN ** 3 - sN ** 2)
+        Xf = b[0] * X0 + b[1] * h * V0[0] + b[2] * X1 + b[3] * h * V1[0]
+        Zf = b[0] * Z0 + b[1] * h * V0[1] + b[2] * Z1 + b[3] * h * V1[1]
+        hy, roll, _, H = _pelvis(ph, G)
+        hx, hz = _hip_of(s, hy, roll)
+        at_i, kn_i = _ik(Xf - hx - S * t, Zf - (H + hz))
+        w = ease((u - STRIKE_U0) / STRIKE_W)
+        at += (at_i - at) * w
+        knee += (kn_i - knee) * w
     knee = max(0.04, knee)
     # The toes leave the ground bent and straighten over the first part of the swing; a forefoot strike's
     # toes come round to meet the stone.
