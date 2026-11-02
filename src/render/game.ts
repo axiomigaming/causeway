@@ -77,9 +77,9 @@ const nullSounds: WorldSounds = { footstep() {}, impact() {}, tremor() {}, run()
 export { intensityOf };
 
 export function speedOf(intensity: number): number {
-  // Round 13: 5 m/s at tier 0 read as a jog. He sprints for his life from the first second (6.5 m/s
-  // since round 16's longer run stride, 2.33 strides/s, under the turnover cap so the feet never
-  // skate) and climbs to ~13 m/s.
+  // Round 13: 5 m/s at tier 0 read as a jog. He sprints for his life from the first second (6.5 m/s:
+  // 1.8 stride cycles/s on round 31's run, a real runner's turnover at that pace, under the cap so the
+  // feet never skate) and climbs to ~13 m/s.
   return Math.max(6.5, 5.0 + 7.6 * Math.pow(intensity, 0.85));
 }
 
