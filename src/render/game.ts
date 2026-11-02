@@ -1290,6 +1290,9 @@ export class Game {
   }
 
   /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
+  /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
+  private hipRest: number | null = null;
+  private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
   debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
   private corridor(p: THREE.Vector3): void {
@@ -3065,7 +3068,25 @@ export class Game {
       const d = this.track.path.sample(this.s + 6).yaw - y0;
       const want = 0.45 * Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yawLead += (want - this.rig.yawLead) * (1 - Math.exp(-rawDt * 5));
-    } else this.rig.yawLead = 0;
+      // FX round 21: where the way is about a second ahead, across his heading line (the look point
+      // leans toward it), and how far his hips stand off their running height (a jump, a slide).
+      const ahead = this.track.path.sample(this.s + Math.max(8, Math.min(16, this.speed * 1.1)), this.cframeAhead);
+      const lat = (ahead.pos.x - rp.x) * Math.cos(y0) - (ahead.pos.z - rp.z) * Math.sin(y0);
+      this.rig.aheadLat += (lat - this.rig.aheadLat) * (1 - Math.exp(-rawDt * 4));
+      const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
+      if (hips && this.stage === 'run') {
+        this.runner.body.updateWorldMatrix(true, true);
+        const hy = this.tmpSubj.setFromMatrixPosition(hips.matrixWorld).y - rp.y;
+        this.hipRest = this.hipRest === null ? hy : this.hipRest + (hy - this.hipRest) * (1 - Math.exp(-rawDt * 0.6));
+        const d = hy - this.hipRest;
+        this.rig.lift = Math.sign(d) * Math.max(0, Math.abs(d) - 0.08);
+      } else this.rig.lift = 0;
+    } else {
+      this.rig.yawLead = 0;
+      this.rig.aheadLat = 0;
+      this.rig.lift = 0;
+      this.hipRest = null;
+    }
     // Round 18 (character audit, win_slide): the celebration clips carry him off the root (the
     // 50x+ slide travels metres along the way, then turns), and a lens framing the root lost him
     // at the frame edge. Once he pulls up, the rig frames the hips (ground height of the root),

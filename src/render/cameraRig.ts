@@ -8,6 +8,8 @@ export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 const JOLT_K = 12;
 /** FX round 21: how fast (1/s) the output spring's feed-forward takes up the target's velocity. */
 const FF_K = 3;
+/** …and lets it go (as fast as a jump decays it: a target that stops is not fed on). */
+const FF_DOWN = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
@@ -115,6 +117,17 @@ export class CameraRig {
   gateAhead = 12;
   /** Run mode: how far (rad) the lens leads the runner's heading into a bend ahead (the game sets it). */
   yawLead = 0;
+  /**
+   * FX round 21, run mode: where the way is ~1 s ahead, metres to the right of his heading line (the
+   * game sets it, eased). The look point pans toward it, so a bend is seen opening before he turns.
+   */
+  aheadLat = 0;
+  /**
+   * FX round 21, run mode: metres his hips stand above (+, a jump or a vault) or below (-, a slide)
+   * their running height (the game sets it). The chase rises and dips with a share of it.
+   */
+  lift = 0;
+  private liftK = 0;
   /**
    * Set by the game when the result card appears: the settled shot then keeps the whole runner in
    * the band between the card (reported as the top inset) and the dock.
@@ -285,14 +298,14 @@ export class CameraRig {
     S.rv.copy(tv);
     // (Eased back in, never switched: a feed-forward that came back at once was itself a kick.)
     if (jumpV) tv.copy(S.tv).multiplyScalar(Math.exp(-dt * 6));
-    else tv.copy(S.tv.lerp(tv, 1 - Math.exp(-dt * FF_K)));
+    else tv.copy(S.tv.lerp(tv, 1 - Math.exp(-dt * (tv.lengthSq() < S.tv.lengthSq() ? FF_DOWN : FF_K))));
     S.tv.copy(tv);
     S.tp.copy(c.position);
     const tw = this.rotVec(c.quaternion, S.tq, this.smT).divideScalar(dt);
     const jumpW = tw.distanceTo(S.rw) > 20 * dt + 0.15 || tw.length() > 5;
     S.rw.copy(tw);
     if (jumpW) tw.copy(S.tw).multiplyScalar(Math.exp(-dt * 6));
-    else tw.copy(S.tw.lerp(tw, 1 - Math.exp(-dt * FF_K)));
+    else tw.copy(S.tw.lerp(tw, 1 - Math.exp(-dt * (tw.lengthSq() < S.tw.lengthSq() ? FF_DOWN : FF_K))));
     S.tw.copy(tw);
     S.tq.copy(c.quaternion);
     const n = Math.max(1, Math.ceil(dt / (1 / 240)));
@@ -593,6 +606,20 @@ export class CameraRig {
         // comes in closer and lower on a longer lens (escapeIn, set by the game, 0 → 1), so he
         // grows from a small figure under the multiplier to a fifth of the frame and more.
         const k = this.escapeIn;
+        // FX round 21 (camera life): an operator, not a rail. The aim wanders slowly over the way
+        // (two incommensurate sines each, periods ~9-15 s: never a visible loop) — a couple of degrees
+        // of pan, under one of tilt — and the lens drifts a hand across the way with it. With it the
+        // look point leans toward where the way goes a second ahead (aheadLat, from the route), so a
+        // bend opens in the frame before he takes it, and the chase rises and dips with a share of a
+        // jump or a slide (lift) instead of watching him leave the frame's level. Faded out through
+        // the escape's run-on (k), scaled by the motion setting.
+        const life = this.motionScale * (1 - k);
+        const t = this.t;
+        const wx = Math.sin(t * 0.43 + 0.3) * 0.6 + Math.sin(t * 0.69 + 2.1) * 0.4;
+        const wy = Math.sin(t * 0.51 + 1.7) * 0.6 + Math.sin(t * 0.83 + 0.4) * 0.4;
+        this.liftK = damp(this.liftK, THREE.MathUtils.clamp(this.lift, -0.6, 1.2), 6, dt);
+        const lift = this.liftK * (1 - k);
+        const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k);
         fov = this.shot(
           runnerPos,
           this.fitInBand(
@@ -604,10 +631,10 @@ export class CameraRig {
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
               lerp(-dist, lerp(-2.0, -1.6, this.escapeWide), k),
               lerp(lat + drift, lerp(0.62, 1.6, this.escapeWide), k),
-              lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k),
+              lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.4 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
-              lerp(lerp(0.6, 0.3, narrow) + drift * 0.4, 0.2, k),
-              lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k),
+              lerp(lerp(0.6, 0.3, narrow) + drift * 0.4, 0.2, k) + 0.4 * wx * life + bend,
+              lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift,
               lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
             ),
           ),
