@@ -330,6 +330,13 @@ export class Runner {
   /** The obstacle move in play: its clip rate, and leap_gap's flight time (s). */
   private obst: { name: Obstacle; rate: number; flight: number } | null = null;
   private obstLift = 0;
+  private obstLiftV = 0;
+  /**
+   * A stretched leap's extra lift when the move is cut short in the air (a crash or an escape mid-leap):
+   * it keeps falling on its arc (m, m/s). Dropped with the move, the hips fell 17-19 cm in one frame.
+   */
+  private liftCarry = 0;
+  private liftCarryV = 0;
   /** Which idle clip is playing (they alternate), and for how long. */
   private idleClip: string = 'idle';
   private idleT = 0;
@@ -608,7 +615,11 @@ export class Runner {
     // (A new clip measures its travel from its own first frame.)
     this.travelPrev = null;
     if (this.obst && this.obst.name !== name) this.obst = null;
-    this.obstLift = 0;
+    if (this.obstLift > 0.001) {
+      this.liftCarry = this.obstLift;
+      this.liftCarryV = this.obstLiftV;
+    }
+    this.obstLift = this.obstLiftV = 0;
     this.current = name;
     this.fade = Math.max(0.001, fade);
     this.eventT = offset;
@@ -718,7 +729,13 @@ export class Runner {
     }
     // Obstacle moves: keep step with the run; leap_gap's flight stretches to the gap and its arc with
     // it; each hands back to the gait on the phase it ends on.
-    this.obstLift = 0;
+    const lift0 = this.obstLift;
+    this.obstLift = this.obstLiftV = 0;
+    if (this.liftCarry > 0) {
+      this.liftCarryV -= 9.81 * dt;
+      this.liftCarry = Math.max(0, this.liftCarry + this.liftCarryV * dt);
+      if (this.liftCarry === 0) this.liftCarryV = 0;
+    }
     if (this.obst && this.current === this.obst.name) {
       const O = OBSTACLES[this.obst.name];
       const a = this.actions.get(this.obst.name)!;
@@ -730,6 +747,7 @@ export class Runner {
         const u = (a.time - O.takeoff) / nominal;
         // The clip carries a 0.5 s arc; add the rest of a ballistic one for the actual flight.
         this.obstLift = 4 * u * (1 - u) * (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+        this.obstLiftV = dt > 0 ? (this.obstLift - lift0) / dt : 0;
       }
       // Hand back a fade's length before the end, so the move is still playing (in step with the floor)
       // through the cross-fade, not held on its last frame while the floor runs on (at speed, the feet
@@ -1145,7 +1163,7 @@ export class Runner {
       this.plankY += this.plankV * (Math.min(dt, 0.1) / n);
     }
     this.plankY = THREE.MathUtils.clamp(this.plankY, -0.03, 0.015);
-    lift += this.plankY + this.obstLift;
+    lift += this.plankY + this.obstLift + this.liftCarry;
     this.rotate(b.chest, this.plankY * 2.5, 0, 0);
     this.body.position.y = lift;
   }
@@ -1562,6 +1580,7 @@ export class Runner {
     this.beatGain = 1;
     this.pending = null;
     this.body.position.y = 0;
+    this.obstLift = this.obstLiftV = this.liftCarry = this.liftCarryV = 0;
     this.driveS = this.drive = 0;
     this.exertion = 0;
     this.look.want = this.look.w = 0;

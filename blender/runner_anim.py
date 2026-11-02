@@ -2217,6 +2217,14 @@ def epic_clips():
     # ---------------------------------------------------------- win_slide: a baseball slide under a closing gate,
     # pop up on the far side, fist to the sky (held under the result card)
     new_action("win_slide")
+
+    def slide_carry(fr):
+        # The slide's own carry over the stone comes in gradually, from the stride's right strike (where an
+        # escape can join, frame 4) to the end of the slide (25): the game's braking root carries him on
+        # meanwhile. (In full from the hop, the run's 0.2 s fade into the clip scaled a hips path already
+        # running ~10 cm a frame: when the fade finished, the hips lost a third of their speed in a frame,
+        # the critic's 60x hips jump.)
+        return ease((fr - 4) / 21.0)
     run_in()
     P, x = loco(0.5, RUN, 0.95)
     key(4, P, z=gait_root(0.5, RUN, 0.95), x=x)
@@ -2236,7 +2244,7 @@ def epic_clips():
         leg(P, "R", hip=0.5 + 0.04 * math.sin(fr * 0.9), knee=2.5, ankle=-1.0, toe=0.4, out=0.35 + 0.05 * wob)
         arm(P, "R", fwd=-0.75 + 0.16 * math.sin(fr * 1.3), elbow=0.25 + 0.15 * max(0.0, math.sin(fr * 1.3)), out=0.35, wrist=-0.6, curl=0.3)
         arm(P, "L", fwd=1.3 + 0.16 * wob, elbow=0.7 + 0.15 * math.sin(fr * 0.8), out=0.35, curl=1.1)
-        key(fr, P, y=y)
+        key(fr, P, y=y * slide_carry(fr))
         if fr == 8:
             P8 = P
     # The run-in and the drop keyed every frame on the floor: left to the curves between the stride at 4
@@ -2258,7 +2266,7 @@ def epic_clips():
         # 28 cm in two frames)
         z4, z8 = gait_root(0.5, RUN, 0.95), floor_z(P8, 0.0, 0.25)
         zl = z4 + (z8 - z4) * ease((fr - 4) / 4.0)
-        key(fr, Q, z=max(zl, floor_z(Q, x_ * (1 - w), 0.25 * w) - 0.01), x=x_ * (1 - w), y=0.25 * w)
+        key(fr, Q, z=max(zl, floor_z(Q, x_ * (1 - w), 0.25 * w) - 0.01), x=x_ * (1 - w), y=0.25 * w * slide_carry(fr))
     P25 = P
     # Up: the folded knee drives him onto his feet. (The lead leg comes up and folds first, the foot kept
     # off the stone: swung straight round to the kneel, it swept 15 cm down through it.)
