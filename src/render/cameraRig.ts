@@ -6,8 +6,9 @@ export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 
 /** Round 20: an impact knock is a push over ~1/JOLT_K s (80 ms), not an instant change of velocity. */
 const JOLT_K = 12;
-/** FX round 21: how fast (1/s) the output spring's feed-forward follows the target's own velocity. */
-const FF_K = 3;
+/** FX round 21: seconds over which the output spring's feed-forward is trusted again after a jump. */
+const FF_T = 1;
+const FF_DROP = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
@@ -238,6 +239,9 @@ export class CameraRig {
     /** The target's raw velocities last frame (a jump is judged against these, not the fed-forward ones). */
     rv: new THREE.Vector3(),
     rw: new THREE.Vector3(),
+    /** How far the target's velocities are trusted again since the last jump (0..1). */
+    kv: 0,
+    kw: 0,
   };
   private smT = new THREE.Vector3();
   private smT2 = new THREE.Vector3();
@@ -277,6 +281,7 @@ export class CameraRig {
       S.tw.set(0, 0, 0);
       S.rv.set(0, 0, 0);
       S.rw.set(0, 0, 0);
+      S.kv = S.kw = 0;
       return;
     }
     const W = 14;
@@ -294,16 +299,17 @@ export class CameraRig {
     // lens trailed the composed shot by v·2/W — 1.2 m at 9 m/s — for the rest of the run.)
     const jumpV = tv.distanceTo(S.rv) > 30 * dt + 0.5 || tv.length() > 40;
     S.rv.copy(tv);
-    // (Eased back in, never switched: a feed-forward that came back at once was itself a kick.)
-    if (jumpV) tv.copy(S.tv).multiplyScalar(Math.exp(-dt * 6));
-    else tv.copy(S.tv.lerp(tv, 1 - Math.exp(-dt * FF_K)));
+    // (Taken up again gradually after a jump — trust climbs back from 0 — never switched back on at
+    // once, which was itself a kick; once trusted, the target's velocity is fed as it is.)
+    S.kv = jumpV ? 0 : Math.min(1, S.kv + dt / FF_T);
+    tv.lerpVectors(S.tv.multiplyScalar(Math.exp(-dt * FF_DROP)), tv, ease(S.kv));
     S.tv.copy(tv);
     S.tp.copy(c.position);
     const tw = this.rotVec(c.quaternion, S.tq, this.smT).divideScalar(dt);
     const jumpW = tw.distanceTo(S.rw) > 20 * dt + 0.15 || tw.length() > 5;
     S.rw.copy(tw);
-    if (jumpW) tw.copy(S.tw).multiplyScalar(Math.exp(-dt * 6));
-    else tw.copy(S.tw.lerp(tw, 1 - Math.exp(-dt * FF_K)));
+    S.kw = jumpW ? 0 : Math.min(1, S.kw + dt / FF_T);
+    tw.lerpVectors(S.tw.multiplyScalar(Math.exp(-dt * FF_DROP)), tw, ease(S.kw));
     S.tw.copy(tw);
     S.tq.copy(c.quaternion);
     const n = Math.max(1, Math.ceil(dt / (1 / 240)));
@@ -593,7 +599,7 @@ export class CameraRig {
         // Round 9: on a narrow (portrait) frame the shoulder offset pushed his far arm off the left
         // edge; there it comes in toward the axis (keepInFrame below enforces the margin).
         const narrow = Math.min(1, Math.max(0, (1 - this.camera.aspect) / 0.5));
-        const lat = lerp(0.72, 0.36, narrow);
+        const lat = lerp(0.72, 0.24, narrow);
         // Round 13: tier 0 already a run for his life — a hand lower (the floor streams past the lens)
         // and 4° wider from the go; the top of the climb is where it was.
         // World round 23 (coordinator): phone portrait run framing — on a portrait screen the look point
@@ -629,10 +635,10 @@ export class CameraRig {
               // (Not for the knee slide: it carries him metres across to his right, out of that frame;
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
               lerp(-dist, lerp(-2.0, -1.6, this.escapeWide), k),
-              lerp(lat + drift, lerp(0.62, 1.6, this.escapeWide), k),
+              lerp(lat + drift, lerp(0.62, lerp(1.6, 1.25, narrow), this.escapeWide), k),
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.25 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
-              lerp(lerp(0.6, 0.3, narrow) + drift * 0.4, 0.2, k) + 0.4 * wx * life + bend,
+              lerp(lerp(0.6, 0.18, narrow) + drift * 0.4, lerp(0.2, -0.35, narrow * this.escapeWide), k) + 0.4 * wx * life + bend,
               lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift,
               lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
             ),
