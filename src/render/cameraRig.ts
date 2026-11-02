@@ -634,7 +634,7 @@ export class CameraRig {
               // half a second whipped the frame and lost him.)
               // (Not for the knee slide: it carries him metres across to his right, out of that frame;
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
-              lerp(-dist, lerp(-2.0, -1.6, this.escapeWide), k),
+              lerp(-dist, lerp(-2.0, -1.6, this.escapeWide) * (1 + 0.3 * narrow), k),
               lerp(lat + drift, lerp(0.62, lerp(1.6, 1.25, narrow), this.escapeWide), k),
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.25 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
@@ -1232,7 +1232,10 @@ export class CameraRig {
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
-    const mx = 1 - 0.09 - (this.mode === 'cashout' ? (this.camera.aspect < 1 ? 0.1 : 0.06) : 0); // side margin in NDC (16 pt of a 390 pt phone)
+    // (FX round 21: the escape's run-on — still the run shot, closing in on his shoulder — keeps the
+    // escape's wider margin as it comes in: his swinging hand and boot reach past the arm points.)
+    const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? this.escapeIn : 0;
+    const mx = 1 - 0.09 - esc * (this.camera.aspect < 1 ? 0.1 : 0.06); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
     const measure = () => {
