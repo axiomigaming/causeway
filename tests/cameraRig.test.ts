@@ -71,6 +71,24 @@ describe('camera output spring', () => {
     expect(m.omega).toBeLessThan(LIMITS.omega);
     expect(m.angAcc).toBeLessThan(LIMITS.angAcc);
   });
+  // FX round 21: a jump of the target (here the snap at full speed) once turned the feed-forward off
+  // for good, and the lens trailed the composed chase by v·2/W (1.2 m at 9 m/s) for the rest of the run.
+  it('takes the feed-forward up again after a jump', () => {
+    const gap = (speed: number) => {
+      const a = new CameraRig(16 / 9);
+      a.shakeEnabled = false;
+      a.wallClock = false;
+      const r = new THREE.Vector3();
+      a.setMode('run');
+      a.snap(r, 0);
+      for (let f = 0; f < 150; f++) {
+        r.z += speed / 30;
+        a.update(1 / 30, r, Math.PI, 0.3);
+      }
+      return a.camera.position.distanceTo(r);
+    };
+    expect(Math.abs(gap(9) - gap(0.5))).toBeLessThan(0.25);
+  });
   it('adds no lag to a steady chase', () => {
     const a = new CameraRig(16 / 9);
     a.shakeEnabled = false;
