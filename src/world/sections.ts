@@ -826,7 +826,12 @@ function edgePillar(b: Builder, side: number, z: number) {
 function lowerTerrace(b: Builder, side: number, z0: number, n: number) {
   for (let i = 0; i < n; i++) {
     const z = z0 - TILE * i;
-    b.place(b.rng.pick(FLOORS.slice(0, 4)), side * (PATH_HALF + 2.6), -1.6, z, b.rng.chance(0.5) ? 0 : Math.PI, [1.15, 1, 1]);
+    // (World round 24: a slab's origin is its front edge — it runs 4 m on toward -z — so turned end for
+    // end it moves back a tile, as floorRun's do. Turned in place it covered the tile before: two slabs
+    // on one tile and a 4 m hole on the next.)
+    const piece = b.rng.pick(FLOORS.slice(0, 4));
+    const flip = b.rng.chance(0.5);
+    b.place(piece, side * (PATH_HALF + 2.6), -1.6, flip ? z - TILE : z, flip ? Math.PI : 0, [1.15, 1, 1]);
     // (World round 24: at y 0, as along every edge — the footing spans -0.26 down to -2.6. At -1.6 it lay
     // wholly under the terrace, and the paving's edge hung over the drop with nothing below it.)
     b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), 0, z, 0);
@@ -920,7 +925,9 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       const hi = -low;
       for (let i = 0; i < n; i++) {
         const z = -TILE * i;
-        b.place(b.rng.pick(FLOORS.slice(0, 4)), hi * (PATH_HALF + 2.0), -0.02, z, b.rng.chance(0.5) ? 0 : Math.PI, [1, 1, 1]);
+        const piece = b.rng.pick(FLOORS.slice(0, 4));
+        const flip = b.rng.chance(0.5); // (turned end for end, back a tile: see lowerTerrace)
+        b.place(piece, hi * (PATH_HALF + 2.0), -0.02, flip ? z - TILE : z, flip ? Math.PI : 0, [1, 1, 1]);
         b.pathRubble(z, 0, 1.4);
       }
       for (let z = -2; z > -len; z -= b.rng.range(5, 8)) {
