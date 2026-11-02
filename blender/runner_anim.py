@@ -306,7 +306,7 @@ RUN = dict(
     v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=96,
     knee=(0.42, 0.92, 0.42),
     af=[(0.0, 0.06), (0.15, 0.0), (0.4, -0.06), (0.7, -0.36), (1.0, -0.82)],
-    swing=[(0.13, -0.3, 1.3, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
+    swing=[(0.13, -0.3, 1.1, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
            (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
     hp=0.16, hp_a=0.03, hyaw=0.12, hroll=0.075, lean=0.14, chest=1.15, head_down=0.12,
     arm_f=0.6, arm_b=-1.05, el_f=1.85, el_b=1.1, arm_out=0.16, curl=0.9, sway=0.012,
@@ -315,7 +315,7 @@ SPRINT = dict(
     v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
     knee=(0.4, 0.84, 0.45),
     af=[(0.0, -0.2), (0.3, -0.09), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
-    swing=[(0.13, -0.3, 1.6, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
+    swing=[(0.13, -0.3, 1.3, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
            (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
     hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
     arm_f=1.0, arm_b=-1.25, el_f=2.0, el_b=0.85, arm_out=0.15, curl=1.0, sway=0.01,
@@ -325,7 +325,7 @@ DASH = dict(
     v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=96,
     knee=(0.38, 0.8, 0.45),
     af=[(0.0, -0.26), (0.3, -0.12), (0.5, -0.26), (0.75, -0.55), (1.0, -0.86)],
-    swing=[(0.13, -0.28, 1.75, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
+    swing=[(0.13, -0.28, 1.35, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
            (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
     hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
     arm_f=1.15, arm_b=-1.35, el_f=2.05, el_b=0.75, arm_out=0.15, curl=1.1, sway=0.009,
@@ -532,7 +532,7 @@ def _reach(knee):
     return math.sqrt(LT * LT + LS * LS + 2 * LT * LS * math.cos(knee))
 
 
-PAW_GIVE = 0.25
+PAW_GIVE = 0.5
 R_PAW = None  # the longest the pawing leg gets: the hip-to-ankle reach at ~12° of knee (set by configure)
 
 
@@ -675,7 +675,7 @@ def _gait(ph, G, k=1.0):
 CYCLE_N = 240
 SIG_SWING = 3.0  # samples (1.25 % of the cycle)
 SIG_BODY = 2.0
-SIG_TOE = 9.0
+SIG_TOE = 18.0
 EDGE = 0.04  # share of the cycle over which the swing's filter fades in after toe-off and out before the strike
 
 _CYC = {}
