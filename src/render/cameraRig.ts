@@ -6,6 +6,8 @@ export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 
 /** Round 20: an impact knock is a push over ~1/JOLT_K s (80 ms), not an instant change of velocity. */
 const JOLT_K = 12;
+/** FX round 21: how fast (1/s) the output spring's feed-forward takes up the target's velocity. */
+const FF_K = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
@@ -222,6 +224,9 @@ export class CameraRig {
     tv: new THREE.Vector3(),
     tq: new THREE.Quaternion(),
     tw: new THREE.Vector3(),
+    /** The target's raw velocities last frame (a jump is judged against these, not the fed-forward ones). */
+    rv: new THREE.Vector3(),
+    rw: new THREE.Vector3(),
   };
   private smT = new THREE.Vector3();
   private smT2 = new THREE.Vector3();
@@ -259,6 +264,8 @@ export class CameraRig {
       S.aw.set(0, 0, 0);
       S.tv.set(0, 0, 0);
       S.tw.set(0, 0, 0);
+      S.rv.set(0, 0, 0);
+      S.rw.set(0, 0, 0);
       return;
     }
     const W = 14;
@@ -270,11 +277,22 @@ export class CameraRig {
     const JW_MAX = 1600; // rad/s³
     // The target's velocity, fed forward unless it jumped (a swap: more than ~3 g of change).
     const tv = this.smT2.copy(c.position).sub(S.tp).divideScalar(dt);
-    if (tv.distanceTo(S.tv) > 30 * dt + 0.5 || tv.length() > 40) tv.copy(S.tv).multiplyScalar(Math.exp(-dt * 6));
+    // (FX round 21: a jump is a one-frame outlier against the target's own velocity the frame before.
+    // Judged against the fed-forward velocity, one swap in motion decayed that to rest and every
+    // later frame of a steady chase then read as a jump: the feed-forward never came back, and the
+    // lens trailed the composed shot by v·2/W — 1.2 m at 9 m/s — for the rest of the run.)
+    const jumpV = tv.distanceTo(S.rv) > 30 * dt + 0.5 || tv.length() > 40;
+    S.rv.copy(tv);
+    // (Eased back in, never switched: a feed-forward that came back at once was itself a kick.)
+    if (jumpV) tv.copy(S.tv).multiplyScalar(Math.exp(-dt * 6));
+    else tv.copy(S.tv.lerp(tv, 1 - Math.exp(-dt * FF_K)));
     S.tv.copy(tv);
     S.tp.copy(c.position);
     const tw = this.rotVec(c.quaternion, S.tq, this.smT).divideScalar(dt);
-    if (tw.distanceTo(S.tw) > 20 * dt + 0.15 || tw.length() > 5) tw.copy(S.tw).multiplyScalar(Math.exp(-dt * 6));
+    const jumpW = tw.distanceTo(S.rw) > 20 * dt + 0.15 || tw.length() > 5;
+    S.rw.copy(tw);
+    if (jumpW) tw.copy(S.tw).multiplyScalar(Math.exp(-dt * 6));
+    else tw.copy(S.tw.lerp(tw, 1 - Math.exp(-dt * FF_K)));
     S.tw.copy(tw);
     S.tq.copy(c.quaternion);
     const n = Math.max(1, Math.ceil(dt / (1 / 240)));
@@ -1312,18 +1330,34 @@ export class CameraRig {
     const tanHF = Math.tan((lens * Math.PI) / 360);
     const H = 1.8; // boots to crown, metres
     const U = f.up;
-    let D = Math.max(0.5, -f.along);
-    const reach = f.lAlong + D;
+    const D0 = Math.max(0.5, -f.along);
+    const reach = f.lAlong + D0;
     const theta0 = Math.atan2(U - f.lUp, reach);
-    let theta = theta0;
-    for (let i = 0; i < 10; i++) {
-      const tMin = Math.atan2(U, D) + Math.atan(lo * tanHF);
-      const tMax = Math.atan(hi * tanHF) - Math.atan2(H - U, D);
-      theta = Math.max(theta0, tMin);
-      if (theta <= tMax) break;
-      D *= 1.1;
+    // The aim that puts the boots on the dock line from D (never above the shot's own aim), or null
+    // where the head would then leave the top of the band.
+    const aim = (d: number): number | null => {
+      const t = Math.max(theta0, Math.atan2(U, d) + Math.atan(lo * tanHF));
+      return t <= Math.atan(hi * tanHF) - Math.atan2(H - U, d) ? t : null;
+    };
+    let D = D0;
+    let theta = aim(D);
+    if (theta === null) {
+      // FX round 21: the nearest distance he fits from, solved (it stepped out 10 % at a time, so
+      // the chase stood up to a tenth further back than the band needs, and he was that much smaller).
+      let far = D0;
+      for (let i = 0; i < 10 && aim(far) === null; i++) far *= 1.1;
+      let near = far / 1.1;
+      if (aim(far) !== null) {
+        for (let i = 0; i < 12; i++) {
+          const mid = (near + far) / 2;
+          if (aim(mid) === null) near = mid;
+          else far = mid;
+        }
+      }
+      D = far;
+      theta = aim(D) ?? Math.max(theta0, Math.atan2(U, D) + Math.atan(lo * tanHF));
     }
-    if (theta === theta0 && D === -f.along) return f;
+    if (theta === theta0 && D === D0) return f;
     const k = D / Math.max(0.5, -f.along);
     return { ...f, along: -D, lat: f.lat * k, lUp: U - Math.tan(theta) * (f.lAlong + D) };
   }
