@@ -827,7 +827,9 @@ function lowerTerrace(b: Builder, side: number, z0: number, n: number) {
   for (let i = 0; i < n; i++) {
     const z = z0 - TILE * i;
     b.place(b.rng.pick(FLOORS.slice(0, 4)), side * (PATH_HALF + 2.6), -1.6, z, b.rng.chance(0.5) ? 0 : Math.PI, [1.15, 1, 1]);
-    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), -1.6, z, 0);
+    // (World round 24: at y 0, as along every edge — the footing spans -0.26 down to -2.6. At -1.6 it lay
+    // wholly under the terrace, and the paving's edge hung over the drop with nothing below it.)
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), 0, z, 0);
     if (b.foliage(0.5)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF + b.rng.range(1.6, 3.6)), -1.6, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 1.1);
   }
   b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 3.2), -1.6, z0 - TILE * n * 0.5, b.rng.range(0, 6.28));

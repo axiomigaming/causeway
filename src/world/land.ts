@@ -49,8 +49,12 @@ export function groundY(kind: GroundKind, x: number, z: number, len: number, low
   return y + (TERRACE_BED - y) * pit;
 }
 
-/** The ground under a lower terrace (just under its slabs' tops at -1.6). */
-export const TERRACE_BED = -1.7;
+/**
+ * The ground under a lower terrace: under its slabs' undersides (tops at -1.6, ~0.3 m thick). At -1.7 the
+ * ruined slabs (their stones sunk a few centimetres, some missing) lay level with the ground, which
+ * z-fought through them; here they stand proud of a damp bed, 0.25 m over the water.
+ */
+export const TERRACE_BED = -1.95;
 
 function groundY0(kind: GroundKind, x: number, z: number, len: number): number {
   const ax = Math.abs(x);

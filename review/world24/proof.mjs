@@ -51,7 +51,9 @@ export default async function (page, out) {
       g.debugStep(1 / 30);
       place();
       g.post.render(0);
-      return { side, sec: g.track.sectionAt(s + ahead)?.type };
+      const pts = qs.get('pts') ? qs.get('pts').split(';').map((p) => p.split(',').map(Number)) : [];
+      const sec = g.track.sectionAt(s + ahead);
+      return { side, sec: sec?.type, mirror: sec?.mirror, lower: sec?.layout.features?.lower, picks: pts.length ? g.debugPick(pts).map((p) => `${p.name}:${p.mat}@${p.dist}`) : undefined };
     });
     await page.screenshot({ path: `${out}-side.png`, timeout: 900000 });
     console.log('SIDE', JSON.stringify(r2));
