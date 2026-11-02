@@ -6,10 +6,8 @@ export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 
 /** Round 20: an impact knock is a push over ~1/JOLT_K s (80 ms), not an instant change of velocity. */
 const JOLT_K = 12;
-/** FX round 21: how fast (1/s) the output spring's feed-forward takes up the target's velocity. */
+/** FX round 21: how fast (1/s) the output spring's feed-forward follows the target's own velocity. */
 const FF_K = 3;
-/** …and lets it go (as fast as a jump decays it: a target that stops is not fed on). */
-const FF_DOWN = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
@@ -298,14 +296,14 @@ export class CameraRig {
     S.rv.copy(tv);
     // (Eased back in, never switched: a feed-forward that came back at once was itself a kick.)
     if (jumpV) tv.copy(S.tv).multiplyScalar(Math.exp(-dt * 6));
-    else tv.copy(S.tv.lerp(tv, 1 - Math.exp(-dt * (tv.lengthSq() < S.tv.lengthSq() ? FF_DOWN : FF_K))));
+    else tv.copy(S.tv.lerp(tv, 1 - Math.exp(-dt * FF_K)));
     S.tv.copy(tv);
     S.tp.copy(c.position);
     const tw = this.rotVec(c.quaternion, S.tq, this.smT).divideScalar(dt);
     const jumpW = tw.distanceTo(S.rw) > 20 * dt + 0.15 || tw.length() > 5;
     S.rw.copy(tw);
     if (jumpW) tw.copy(S.tw).multiplyScalar(Math.exp(-dt * 6));
-    else tw.copy(S.tw.lerp(tw, 1 - Math.exp(-dt * (tw.lengthSq() < S.tw.lengthSq() ? FF_DOWN : FF_K))));
+    else tw.copy(S.tw.lerp(tw, 1 - Math.exp(-dt * FF_K)));
     S.tw.copy(tw);
     S.tq.copy(c.quaternion);
     const n = Math.max(1, Math.ceil(dt / (1 / 240)));
@@ -607,8 +605,9 @@ export class CameraRig {
         // grows from a small figure under the multiplier to a fifth of the frame and more.
         const k = this.escapeIn;
         // FX round 21 (camera life): an operator, not a rail. The aim wanders slowly over the way
-        // (two incommensurate sines each, periods ~9-15 s: never a visible loop) — a couple of degrees
-        // of pan, under one of tilt — and the lens drifts a hand across the way with it. With it the
+        // (two incommensurate sines each, periods ~7-15 s: never a visible loop) — a couple of degrees
+        // of pan, under one of tilt. (The aim only: a drifting position added to every swap out of
+        // the run, the escape's above all, and the swap's jerk limit has no room for it.) With it the
         // look point leans toward where the way goes a second ahead (aheadLat, from the route), so a
         // bend opens in the frame before he takes it, and the chase rises and dips with a share of a
         // jump or a slide (lift) instead of watching him leave the frame's level. Faded out through

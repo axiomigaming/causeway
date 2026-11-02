@@ -1289,10 +1289,10 @@ export class Game {
     return best;
   }
 
-  /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
   private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
+  /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
   debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
   private corridor(p: THREE.Vector3): void {
