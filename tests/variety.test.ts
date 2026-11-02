@@ -1,5 +1,7 @@
+import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { isLand } from '../src/world/sections';
+import { groundY } from '../src/world/land';
+import { buildLayout, isLand, LAND_TYPES } from '../src/world/sections';
 import { GEN_SPEED, genIntensity, Track, WALLED as WALLED_TYPES } from '../src/world/track';
 import { boundsKit } from './kitBounds';
 
@@ -78,3 +80,78 @@ it('mixes land, walls and water, with no long open-water stretch', async () => {
   expect((count.turnL ?? 0) + (count.turnR ?? 0), out).toBeGreaterThanOrEqual(12);
   expect((count.approach ?? 0) / Object.values(count).reduce((a, b) => a + b, 0), out).toBeLessThan(0.15);
 }, 600000);
+
+/**
+ * World round 24: what a land section lays down is seen. The overgrown plaza's lower terrace (slabs a
+ * flight down, -1.6) lay 1.3 m under the forest floor, which ran on at -0.3 over it: the court and its
+ * footing were buried, and the frame showed a bare plane. Every paving slab placed as a prop on land
+ * stands on or above the ground the section builds (slabs are seated a few centimetres into it).
+ */
+it('lays no paving under the ground of a land section', () => {
+  const p = new THREE.Vector3();
+  const bad: string[] = [];
+  let checked = 0;
+  for (const type of LAND_TYPES) {
+    for (let k = 0; k < 24; k++) {
+      const L = buildLayout(type, `bury-${k}`, { foliage: 1, scenery: 1 });
+      if (!L.ground) continue;
+      for (const pl of L.props) {
+        if (!/^floor_/.test(pl.piece)) continue;
+        p.setFromMatrixPosition(pl.m);
+        if (Math.abs(p.x) < 2.9) continue; // (the causeway's own course: the ground stays under its footing)
+        // The slab's top at its centre and toward its corners.
+        for (const [dx, dz] of [[0, 0], [1.6, 1.6], [-1.6, 1.6], [1.6, -1.6], [-1.6, -1.6]] as const) {
+          const z = p.z + dz;
+          if (z > -2.5 || z < -L.len + 2.5) continue; // (the ends come back to grade under the next section's ground)
+          const g = groundY(L.ground, p.x + dx, z, L.len, L.features?.lower ?? 0);
+          checked++;
+          if (g > p.y + 0.12) bad.push(`${type}/${k} ${pl.piece} at (${p.x.toFixed(1)}, ${p.y.toFixed(2)}, ${z.toFixed(1)}): ground ${g.toFixed(2)}`);
+        }
+      }
+    }
+  }
+  expect(checked).toBeGreaterThan(100);
+  expect(bad.slice(0, 12)).toEqual([]);
+});
+
+/**
+ * World round 24: the paving tiles' aHalf (their half-width, for the parapet strip's grime and moss) is
+ * set on the kit's shared geometry; a slab placed as a prop carried it into the section's merged mesh,
+ * where the position is the section's (|x| of metres): the strip's moss and litter covered the whole
+ * slab (camouflage), and merged with a piece without it, the merge failed and the mesh was dropped.
+ */
+it("merges props without the tiles' edge attribute, and drops none", async () => {
+  const track = new Track(boundsKit());
+  await track.prepare({ foliage: 1, scenery: 1 });
+  track.viewDistance = 165;
+  track.reset('7-0.5');
+  let meshes = 0, paving = 0;
+  const seen = new Set<unknown>();
+  for (let s = 0; s < 900; s += 20) {
+    track.update(s, 0);
+    for (const sec of track.sections) {
+      if (seen.has(sec)) continue;
+      seen.add(sec);
+      let n = 0;
+      const names = new Set<string>();
+      sec.root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || m.name === 'ground' || m.name === 'falls') return;
+        n++;
+        names.add(m.name);
+        expect(m.geometry.getAttribute('aHalf'), `${sec.type} ${m.name}`).toBeUndefined();
+      });
+      // (boundsKit gives every piece one material: paving beside the path shares the near mesh with the
+      // walls and rubble there, the merge that failed on the mixed attribute.)
+      const p = new THREE.Vector3();
+      const paved = sec.layout.props.some((pl) => pl.piece.startsWith('floor_') && Math.abs(p.setFromMatrixPosition(pl.m).x) <= 7.5);
+      if (paved) {
+        expect(names.has('stone|near'), `${sec.type}: paving laid out beside the path, no near mesh built (${[...names].join(', ')})`).toBe(true);
+        paving++;
+      }
+      meshes += n;
+    }
+  }
+  expect(meshes).toBeGreaterThan(50);
+  expect(paving, 'no section with paving props was checked').toBeGreaterThan(0);
+}, 300000);
