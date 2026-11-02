@@ -229,8 +229,12 @@ TEXEL = {
     # rock: the boulders on the banks beside the way; the rock islands out over the water.
     "rock": [(("rock_mid_",), 3.0), (("rock_big_",), 0.8)],
     # bark: roots at the path's edge and the log he jumps; the trees on the cliff tops.
-    "bark": [(("roots_", "root_giant_", "log_fallen_"), 2.0), (("cliff_wall_",), 0.6)],
+    "bark": [(("log_fallen_",), 3.0), (("roots_", "root_giant_"), 2.0), (("cliff_wall_",), 0.6)],
 }
+# (World round 24: the jump log keeps a little moss in its furrows, not a green back; see MS.bark.)
+for o in groups["bark"]:
+    if o.name.startswith("log_fallen_"):
+        o["moss_cut"] = 0.75
 for gkey, rules in TEXEL.items():
     for o in groups[gkey]:
         for prefixes, k in rules:
@@ -241,12 +245,13 @@ for i, o in enumerate(all_objs):
     o.location = Vector(((i % 8) * 40.0, (i // 8) * 40.0, 0))
 
 mats = {
-    "stoneA": (M.stone("stoneA", moss=0.7), 4096),
+    "stoneA": (MS.stone_ragged("stoneA", 0.7), 4096),
     "stoneB": (M.stone("stoneB", moss=0.45, glyphs=False), 4096),
     "floor": (M.floor("floor"), 4096),
     "rock": (MS.rock("rock"), 2048),
     "wood": (M.wood("wood"), 1024),
-    "bark": (MS.bark("bark"), 1024),
+    # (Round 24: 2048 — the roots and the jump log stand a metre or two from the lens.)
+    "bark": (MS.bark("bark"), 2048),
     "statue": (M.stone("statue", moss=0.5, glyphs=False), 2048),
     "flora": (MS.flora("flora"), 1024),
     "cliff": (MS.cliff("cliff"), 2048),
@@ -296,7 +301,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-r24", "stoneA": "tall-undersides-r11", "stoneB": "vault-undersides-r11|texel-r24"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:
