@@ -93,11 +93,21 @@ for nm, G, v in CASES:
             wl = [math.degrees(qlp[i - 1].rotation_difference(qlp[i]).angle) for i in range(1, len(qlp))]
             for i in range(min(len(w), int(2 / dph) + 1)):
                 print(f"   ph {(0.013 + (i + 1) * dph) % 1.0:.3f}  step {w[i]:5.1f}  lowpassed {wl[i]:5.1f}")
+    # The critic's pop rule (a step over 25°/frame and over 3x both neighbours') on the legs: exempt in the
+    # plain run, but every move and fall joins the stride on a strike, and its first frames are the stride's.
+    pops = []
+    for j in JOINTS:
+        if j.split(".")[0] not in ("thigh", "shin", "foot", "toe"):
+            continue
+        w = [min(a, 360 - a) for a in (math.degrees(Q[j][i - 1].rotation_difference(Q[j][i]).angle) for i in range(1, len(Q[j])))]
+        for i in range(1, len(w) - 1):
+            if w[i] > 25 and w[i] > 3 * max(w[i - 1], w[i + 1], 2):
+                pops.append((j, round(w[i]), round((0.013 + (i + 1) * dph) % 1.0, 2)))
     legs = [j for j in JOINTS if j.split(".")[0] in ("thigh", "shin", "foot", "toe")]
     rest = [j for j in JOINTS if j not in legs]
     wr = max(rest, key=lambda j: res[j][0] - res[j][1])
     worst = max(res[j][0] - res[j][1] for j in JOINTS)
     worst_all = max(worst_all, worst)
     print(f"{nm} at {v} m/s ({cad:.2f} cycles/s): " + ", ".join(f"{j} {res[j][0]:.2f}/{res[j][1]:.2f}/{res[j][0] - res[j][1]:+.2f}" for j in legs)
-          + f"; worst other {wr} {res[wr][0] - res[wr][1]:+.2f}", flush=True)
+          + f"; worst other {wr} {res[wr][0] - res[wr][1]:+.2f}; leg pops {len(pops)} {pops[:4]}", flush=True)
 print(f"worst excess {worst_all:+.2f} (critic limit +0.10)")

@@ -283,8 +283,9 @@ def configure(rig):
         BALL_JH = jz - BALL[1]
         TOE_PTS = [(0.0, -BALL_JH), (SOLE[3][0] - BALL[0], -BALL_JH + 0.012)]
     global R_PAW
-    R_PAW = _reach(math.radians(12))
+    R_PAW = _reach(math.radians(5))
     _HCACHE.clear()
+    _VCACHE.clear()
     _CYC.clear()
     print(f"  anim rig rest angles: thigh {math.degrees(THIGH0):+.1f}° knee {math.degrees(K0):+.1f}° shin {math.degrees(A0):+.1f}°", flush=True)
     print(f"  anim rig: thigh {LT:.3f} shin {LS:.3f} hip {HIP_Z:.3f} ±{HIP_W:.3f}  sole {[(round(a, 3), round(b, 3)) for a, b in SOLE]}", flush=True)
@@ -304,7 +305,7 @@ G_ACC = 9.81
 #   arm_f/arm_b  upper arm forward / back of the trunk at the peaks; el_f/el_b the elbow there
 RUN = dict(
     v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=96,
-    knee=(0.42, 0.92, 0.42),
+    knee=(0.5, 0.92, 0.42),
     af=[(0.0, 0.06), (0.15, 0.0), (0.4, -0.06), (0.7, -0.36), (1.0, -0.82)],
     swing=[(0.13, -0.3, 1.1, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
            (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
@@ -313,8 +314,8 @@ RUN = dict(
 )
 SPRINT = dict(
     v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
-    knee=(0.4, 0.84, 0.45),
-    af=[(0.0, -0.2), (0.3, -0.09), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
+    knee=(0.48, 0.84, 0.45),
+    af=[(0.0, -0.15), (0.3, -0.08), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
     swing=[(0.13, -0.3, 1.3, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
            (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
     hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
@@ -323,8 +324,8 @@ SPRINT = dict(
 # The desperate all-out run of the top tiers: a longer reach, higher knees, a harder pump, more lean.
 DASH = dict(
     v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=96,
-    knee=(0.38, 0.8, 0.45),
-    af=[(0.0, -0.26), (0.3, -0.12), (0.5, -0.26), (0.75, -0.55), (1.0, -0.86)],
+    knee=(0.46, 0.8, 0.45),
+    af=[(0.0, -0.2), (0.3, -0.11), (0.5, -0.26), (0.75, -0.55), (1.0, -0.86)],
     swing=[(0.13, -0.28, 1.35, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
            (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
     hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
@@ -465,31 +466,39 @@ def _cycle_time(G):
     return 1.0 / min(2.8, max(1.2, cad))
 
 
+_VCACHE = {}
+
+
+def _stance_knee(G, u):
+    """The stance knee through the contact (u = 0 strike … 1 toe-off): a smooth spring — it gives through the
+    first half to its deepest at MID_U and straightens to the push-off. The hips' height follows from it."""
+    ktd, kmid, kto = G["knee"]
+    keys = [(0.0, ktd), (0.2, ktd + 0.55 * (kmid - ktd)), (MID_U, kmid), (0.72, kto + 0.55 * (kmid - kto)), (1.0, kto)]
+    return _pw(keys, u)
+
+
 def _vertical(G, loc):
     """Hip-joint height at step phase loc ∈ [0, 0.5): a bounce. Flight is ballistic from toe-off to the
-    strike; the stance dips to the mid-stance low and back, meeting the flight's speeds at both ends."""
+    strike. Through the stance the hips sit at the height that bends the planted leg's knee to the stance
+    spring's curve (_stance_knee): solved from the knee, so the give spreads over the first half of the
+    contact. (Following a dip in height, most of the knee's give fell in the first fifth of the contact —
+    the foot sweeping in under the hips — a ~27°/frame knee step at every strike, a pop in any move that
+    joins the stride there.)"""
     htd, hmid, hto = _heights(G)
     T = _cycle_time(G)
     ts = G["ts"]
-    tc, tf = ts * T, (0.5 - ts) * T
+    tf = (0.5 - ts) * T
     # Out of a full run the flight shrinks with the stride (a jog's feet barely leave the floor).
     g = G_ACC * min(1.0, G["v"] / 6.0) ** 2
     vto = (htd - hto) / tf + g * tf / 2
-    vtd = vto - g * tf
     if loc >= ts:
         tau = (loc - ts) * T
         return hto + vto * tau - g * tau * tau / 2
-    tau = loc * T
-    tm = MID_U * tc
-
-    def herm(t, t0, t1, p0, p1, m0, m1):
-        h = t1 - t0
-        s = (t - t0) / h
-        return ((2 * s ** 3 - 3 * s ** 2 + 1) * p0 + (s ** 3 - 2 * s ** 2 + s) * h * m0
-                + (-2 * s ** 3 + 3 * s ** 2) * p1 + (s ** 3 - s ** 2) * h * m1)
-    if tau < tm:
-        return herm(tau, 0.0, tm, htd, hmid, vtd, 0.0)
-    return herm(tau, tm, tc, hmid, hto, 0.0, vto)
+    u = loc / ts
+    ck = (G["D"], G["xtd"], G["knee"], tuple(G["af"]), round(u, 5))
+    if ck not in _VCACHE:
+        _VCACHE[ck] = _height_for(G, u, _stance_knee(G, u))
+    return _VCACHE[ck]
 
 
 def _pelvis(ph, G):
@@ -532,8 +541,8 @@ def _reach(knee):
     return math.sqrt(LT * LT + LS * LS + 2 * LT * LS * math.cos(knee))
 
 
-PAW_GIVE = 0.5
-R_PAW = None  # the longest the pawing leg gets: the hip-to-ankle reach at ~12° of knee (set by configure)
+PAW_GIVE = 0.6
+R_PAW = None  # the longest the pawing leg gets: the hip-to-ankle reach at 5° of knee, a safety stop (set by configure): the curve itself turns before it
 
 
 def _swing_leg(s, ph, t, G):
@@ -555,7 +564,7 @@ def _swing_leg(s, ph, t, G):
     # at toe-off, the hips hauled the leg on and the lifting toe dragged forward over the floor).
     m0[1] = m0[1] if m0[1] > 0 else 0.6 * m0[1]
     m0[0] *= 0.8  # the hip extends on a moment after toe-off, then turns forward (cut harder, the lifting toe dragged forward over the floor)
-    m1[2] = 0.0  # the ankle settles into the strike rather than flicking at the stance's rate
+    m1[2] *= 0.5  # the ankle comes into the strike already turning, at half the stance's rate (at none, it turned all at once on the stone)
     m0[2] *= 0.3  # the push-off's plantarflexion eases off as the foot leaves the stone (in full it flicked on ~38° in a frame)
     m1[1] *= 0.3
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
