@@ -737,6 +737,29 @@ function gy(b: Builder, x: number, z: number, kind: GroundKind = 'land'): number
   return groundY(kind, x, z, b.len, b.lower) - 0.12 - 0.05 * b.rng.range(0, 1);
 }
 
+/**
+ * World round 24: ground cover in a band beside the way on `side`, |x| from x0 to x1: grass, ferns, a
+ * bush, a few stones, every `step` m or so. From the close-ups (the lens at the path's edge looking out)
+ * the cutting's and ravine's floor within 5 m of the path was bare soil with a pebble or two. Drawn from
+ * a generator of its own (the layout's stream, its far trees and so the route stay as they were); the
+ * foliage density thins it on phones like everything else.
+ */
+function groundCover(b: Builder, side: number, len: number, x0: number, x1: number, step = 2.2, kind: GroundKind = 'land', tag = '') {
+  const r = new Rng(`${b.seed}/cover${side}${tag}`);
+  const on = (p: number) => r.chance(p * b.density.foliage);
+  for (let z = -r.range(0.3, 1.5); z > -len + 0.5; z -= r.range(0.7, 1.3) * step) {
+    const x = side * r.range(x0, x1);
+    const y = groundY(kind, x, z, b.len, b.lower) - 0.12;
+    const k = r.range(0, 1);
+    const ry = r.range(0, 6.28);
+    if (k < 0.38) { if (on(0.9)) b.place(`grass_${r.int(0, 1)}`, x, y, z, ry, r.range(0.9, 1.4)); }
+    else if (k < 0.68) { if (on(0.85)) b.place(`fern_${r.int(0, 1)}`, x, y - 0.05, z, ry, r.range(0.8, 1.3)); }
+    // (Bushes, up to 1.7 m round, from 3.7 m out: nothing but grass and ferns brushes the running line.)
+    else if (k < 0.82) { if (Math.abs(x) >= 3.7 && on(0.7)) b.place(`bush_${r.int(0, 3)}`, x, y + 0.2, z, ry, r.range(0.7, 1.05)); }
+    else b.place(`scatter_edge_${r.int(0, 2)}`, x, y + 0.06, z, side > 0 ? 0 : Math.PI);
+  }
+}
+
 /** A tree on the forest floor: trunk and crown together (never a bare trunk on a phone). */
 function landTree(b: Builder, x: number, z: number, s: number, kind: GroundKind = 'land', p = 1) {
   if (!b.foliage(p)) return;
@@ -878,6 +901,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         }
         for (let z = -4; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(14, 22), z, b.rng.range(1.0, 1.3), 'land', 0.9);
       }
+      for (const side of [-1, 1]) groundCover(b, side, len, 2.9, 6.4, 2.0);
       return { hazards: ['rockfall', 'gate'], walls: 'cliff', ground: 'land', features: { rockfall: true } };
     },
   },
@@ -908,15 +932,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       forestSide(b, hi, len, 0.9);
       // (World round 24: the ground now drops to the terrace — land.groundY — and rises again behind it
       // in an earth bank, 7.4–10.5 m out: undergrowth at its foot and up its face, roots over its lip.)
-      for (let z = -b.rng.range(2, 3); z > -len + 2; z -= b.rng.range(1.8, 3)) {
-        const x = low * b.rng.range(7.3, 10.2);
-        const y = gy(b, x, z);
-        const r = b.rng.range(0, 1);
-        if (r < 0.35 && b.foliage(0.9)) b.place(`fern_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.5));
-        else if (r < 0.6 && b.foliage(0.85)) b.place(`bush_${b.rng.int(0, 3)}`, x + low * 0.4, y + 0.25, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.3));
-        else if (r < 0.8 && b.foliage(0.8)) b.place(`grass_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.4));
-        else if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, low * 9.6, gy(b, low * 9.6, z) + 0.15, z, low > 0 ? Math.PI : 0, [0.9, 0.35, 0.8], [Math.PI / 2, 0]);
-      }
+      groundCover(b, low, len, 7.3, 10.2, 2.4, 'land', 'bank');
       // Beyond the lower terrace the forest goes on at its level.
       for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
       for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9);
@@ -953,6 +969,8 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 1), b.rng.range(0.55, 0.75));
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
       }
+      // (The dry bed: drift caught between the boulders, sparser than a forest floor.)
+      for (const side of [-1, 1]) groundCover(b, side, len, 3.4, 7.0, 2.8, 'ravine');
       return { hazards: ['chasm', 'rockfall'], walls: 'cliff', ground: 'ravine', features: { rockfall: true } };
     },
   },

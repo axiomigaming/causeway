@@ -225,7 +225,8 @@ all_objs = [o for g in groups.values() for o in g]
 # with KIT_REUSE must keep its packing, so it carries no weights).
 TEXEL = {
     # stoneB: what stands within a few metres of the lens, and the far skyline that never does.
-    "stoneB": [(("rubble_", "debris_", "drum_", "pillar_", "beam_lintel_", "stairs_"), 2.5), (("tower_", "facade_"), 0.45)],
+    # (Not the facades: ruinFront stands them 8.5-10.5 m from the path. At 0.45 they fell to 5 texels/m.)
+    "stoneB": [(("rubble_", "debris_", "drum_", "pillar_", "beam_lintel_", "stairs_"), 2.5), (("tower_",), 0.7)],
     # rock: the boulders on the banks beside the way; the rock islands out over the water.
     "rock": [(("rock_mid_",), 3.0), (("rock_big_",), 0.8)],
     # bark: roots at the path's edge and the log he jumps; the trees on the cliff tops.
@@ -301,7 +302,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:
