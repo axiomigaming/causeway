@@ -282,6 +282,8 @@ def configure(rig):
         BALL_J = (BALL[0], jz)
         BALL_JH = jz - BALL[1]
         TOE_PTS = [(0.0, -BALL_JH), (SOLE[3][0] - BALL[0], -BALL_JH + 0.012)]
+    global R_PAW
+    R_PAW = _reach(math.radians(12))
     _HCACHE.clear()
     _CYC.clear()
     print(f"  anim rig rest angles: thigh {math.degrees(THIGH0):+.1f}° knee {math.degrees(K0):+.1f}° shin {math.degrees(A0):+.1f}°", flush=True)
@@ -302,8 +304,8 @@ G_ACC = 9.81
 #   arm_f/arm_b  upper arm forward / back of the trunk at the peaks; el_f/el_b the elbow there
 RUN = dict(
     v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=96,
-    knee=(0.32, 0.86, 0.42),
-    af=[(0.0, 0.06), (0.15, 0.0), (0.45, -0.04), (0.72, -0.36), (1.0, -0.92)],
+    knee=(0.42, 0.86, 0.42),
+    af=[(0.0, 0.06), (0.15, 0.0), (0.4, -0.06), (0.7, -0.36), (1.0, -0.82)],
     swing=[(0.13, -0.3, 1.3, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
            (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
     hp=0.16, hp_a=0.03, hyaw=0.12, hroll=0.075, lean=0.14, chest=1.15, head_down=0.12,
@@ -311,8 +313,8 @@ RUN = dict(
 )
 SPRINT = dict(
     v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
-    knee=(0.3, 0.78, 0.45),
-    af=[(0.0, -0.2), (0.3, -0.08), (0.5, -0.18), (0.75, -0.5), (1.0, -0.98)],
+    knee=(0.4, 0.8, 0.45),
+    af=[(0.0, -0.2), (0.3, -0.09), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
     swing=[(0.13, -0.3, 1.6, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
            (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
     hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
@@ -321,8 +323,8 @@ SPRINT = dict(
 # The desperate all-out run of the top tiers: a longer reach, higher knees, a harder pump, more lean.
 DASH = dict(
     v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=96,
-    knee=(0.28, 0.75, 0.45),
-    af=[(0.0, -0.26), (0.3, -0.11), (0.5, -0.22), (0.75, -0.55), (1.0, -1.0)],
+    knee=(0.38, 0.77, 0.45),
+    af=[(0.0, -0.26), (0.3, -0.12), (0.5, -0.26), (0.75, -0.55), (1.0, -0.86)],
     swing=[(0.13, -0.28, 1.75, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
            (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
     hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
@@ -517,10 +519,16 @@ def _stance_leg(s, ph, t, G):
 
 
 ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung sideways
-STRIKE_U0 = 0.62  # share of the swing from which the ankle is steered onto its strike in floor space ...
+STRIKE_U0 = 0.62  # share of the swing from which the leg is steered onto its strike about the hip ...
 STRIKE_W = 0.22  # ... taking over fully this much later
-LAND_VX = 0.5  # m/s: still carried a little forward over the floor as it lands (in the air the frame before)
-LAND_VZ = -1.6  # m/s: the foot comes down onto the stone at the strike (it keeps its height until late, then drops onto it)
+
+
+def _reach(knee):
+    return math.sqrt(LT * LT + LS * LS + 2 * LT * LS * math.cos(knee))
+
+
+PAW_GIVE = 0.25
+R_PAW = None  # the longest the pawing leg gets: the hip-to-ankle reach at ~12° of knee (set by configure)
 
 
 def _swing_leg(s, ph, t, G):
@@ -543,45 +551,45 @@ def _swing_leg(s, ph, t, G):
     m0[1] = m0[1] if m0[1] > 0 else 0.6 * m0[1]
     m0[0] *= 0.8  # the hip extends on a moment after toe-off, then turns forward (cut harder, the lifting toe dragged forward over the floor)
     m1[2] = 0.0  # the ankle settles into the strike rather than flicking at the stance's rate
+    m0[2] *= 0.3  # the push-off's plantarflexion eases off as the foot leaves the stone (in full it flicked on ~38° in a frame)
     m1[1] *= 0.3
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
     u = (t - ts) / sw
     at, knee, ankle = _hermite(pts, u)
     if u > STRIKE_U0:
-        # The strike, in floor space: from where the swing has the ankle at STRIKE_U0 (and how it is moving)
-        # the ankle comes down onto its contact from above, arriving still over the floor (pawing back at
-        # the floor's own speed) and settling at ~LAND_VZ. Joint space alone let the run's foot skim the
-        # floor forward for a frame or two before the strike (18 cm of "skate" against the moving floor).
-        S = G["D"] / ts
-        T = _cycle_time(G)
+        # The strike: the leg paws back onto the stone as a sprinter's does, steered as a length and an angle
+        # about the hip. From where the swing has the ankle at STRIKE_U0 (and how fast it is moving) both run
+        # on Hermite curves into the strike's own length and angle at the stance's own rates: the foot lands
+        # exactly where the stance plants it, moving as the stance moves it (still over the floor: no skid),
+        # the knee's extension slowing to nothing just before it lands and turning into the stance's give.
+        # (In joint space the run's foot skimmed forward over the floor for a frame or two before the strike;
+        # steered in floor space it reached past its contact and the knee locked straight, 0.1 of a cycle,
+        # then snapped ~35° at the strike.)
         t0 = ts + STRIKE_U0 * sw
 
-        def floor_of(tt, at_, kn_):
-            ph_ = (tt - off) % 1.0
-            hy_, roll_, _, H_ = _pelvis(ph_, G)
-            hx_, hz_ = _hip_of(s, hy_, roll_)
+        def polar(at_, kn_):
             ax_ = LT * math.sin(at_) + LS * math.sin(at_ - kn_)
             az_ = -LT * math.cos(at_) - LS * math.cos(at_ - kn_)
-            return ax_ + hx_ + S * tt, az_ + H_ + hz_
+            return math.hypot(ax_, az_), math.atan2(ax_, -az_)
         q0 = _hermite(pts, STRIKE_U0)
         q0p = _hermite(pts, STRIKE_U0 + e)
-        X0, Z0 = floor_of(t0, q0[0], q0[1])
-        Xp, Zp = floor_of(t0 + e * sw, q0p[0], q0p[1])
-        V0 = ((Xp - X0) / (e * sw), (Zp - Z0) / (e * sw))
-        X1, Z1 = floor_of(1.0, a1[0], a1[1])
-        X1p, Z1p = floor_of(1.0 + e, a1p[0], a1p[1])
-        V1 = ((X1p - X1) / e + LAND_VX * T, (Z1p - Z1) / e + LAND_VZ * T)
+        r0, th0 = polar(q0[0], q0[1])
+        r0p, th0p = polar(q0p[0], q0p[1])
+        r1, th1 = polar(a1[0], a1[1])
+        r1p, th1p = polar(a1p[0], a1p[1])
         h = 1.0 - t0
-        # Forward, the foot only slows into its contact: it never reaches past it and claws back (a
-        # monotone Hermite: entry speed at most 1.4x the mean over the stretch).
-        V0 = (max(0.0, min(V0[0], 1.4 * (X1 - X0) / h)), V0[1])
+        V0 = ((r0p - r0) / (e * sw), (th0p - th0) / (e * sw))
+        # (The leg comes into the strike already shortening, at PAW_GIVE of the stance's own rate: met at the
+        # full rate, the curve overshot to the longest the leg reaches and held it there for a tenth of a cycle.)
+        V1 = (PAW_GIVE * (r1p - r1) / e, (th1p - th1) / e)
+        # The leg lengthens only into its strike: it never overreaches its length there and shortens back.
+        V0 = (max(0.0, min(V0[0], 2.0 * (r1 - r0) / h)), V0[1])
         sN = (t - t0) / h
         b = (2 * sN ** 3 - 3 * sN ** 2 + 1, sN ** 3 - 2 * sN ** 2 + sN, -2 * sN ** 3 + 3 * sN ** 2, sN ** 3 - sN ** 2)
-        Xf = b[0] * X0 + b[1] * h * V0[0] + b[2] * X1 + b[3] * h * V1[0]
-        Zf = b[0] * Z0 + b[1] * h * V0[1] + b[2] * Z1 + b[3] * h * V1[1]
-        hy, roll, _, H = _pelvis(ph, G)
-        hx, hz = _hip_of(s, hy, roll)
-        at_i, kn_i = _ik(Xf - hx - S * t, Zf - (H + hz))
+        rr = b[0] * r0 + b[1] * h * V0[0] + b[2] * r1 + b[3] * h * V1[0]
+        tt = b[0] * th0 + b[1] * h * V0[1] + b[2] * th1 + b[3] * h * V1[1]
+        rr = min(rr, R_PAW)
+        at_i, kn_i = _ik(rr * math.sin(tt), -rr * math.cos(tt))
         w = ease((u - STRIKE_U0) / STRIKE_W)
         at += (at_i - at) * w
         knee += (kn_i - knee) * w
@@ -662,7 +670,7 @@ def _gait(ph, G, k=1.0):
 CYCLE_N = 240
 SIG_SWING = 3.0  # samples (1.25 % of the cycle)
 SIG_BODY = 2.0
-SIG_TOE = 7.0
+SIG_TOE = 9.0
 EDGE = 0.04  # share of the cycle over which the swing's filter fades in after toe-off and out before the strike
 
 _CYC = {}
