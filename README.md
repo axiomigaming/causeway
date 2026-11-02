@@ -197,6 +197,18 @@ the ground rumbles (from 10×) and he glances back (from 5×). A cash-out or a
 fall before the landing cancels the punch; reduced motion keeps it, gentler;
 Low keeps it with smaller particle budgets.
 
+**The chase** (`src/render/cameraRig.ts`). The distances above are the shot's own; the
+lens stands back as far as it must to keep him whole between the multiplier block
+and the dock (the band the interface reports), and a wider lens brings it in again.
+It is an operator, not a rail: the aim wanders a couple of degrees over the way on
+slow, never-repeating sines, leans toward where the route goes a second ahead (a
+bend opens before he takes it, on top of the yaw lead into it), banks at most ~4°
+through a turn, and rises and dips with a share of a jump or a slide. Every move
+goes through the jerk-limited output spring. `tools/run-film.mjs` films a stretch
+of run on a fixed world (`--w`, `--at` multiplier, `--from` metres, `--sheet` for
+a contact sheet only) and reports the camera's jerk and turn rates and where he
+stands in the frame.
+
 **Set pieces** (`src/render/obstacles.ts`, presentation only — he always clears them;
 which, when and how many come from the current tier and the cosmetic RNG). Calm
 straight stretches alternate with bursts of 1–3 pieces; the calm shortens
