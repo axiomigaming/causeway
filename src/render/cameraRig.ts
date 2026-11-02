@@ -8,6 +8,7 @@ export type EscapeShot = 'lookback' | 'cheer' | 'salute' | 'leap';
 const JOLT_K = 12;
 /** FX round 21: seconds over which the output spring's feed-forward is trusted again after a jump. */
 const FF_T = 1;
+/** …and how fast (1/s) a jump's velocity stops being fed (the lens coasts out of a stop, it is not braked). */
 const FF_DROP = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
@@ -264,6 +265,31 @@ export class CameraRig {
     out.set(qe.x, qe.y, qe.z);
     return sn > 1e-8 ? out.multiplyScalar((2 * Math.atan2(sn, qe.w)) / sn) : out.set(0, 0, 0);
   }
+  /**
+   * The velocity fed forward (`fed`, updated in place) from the target's own (`raw`, overwritten with
+   * what is fed). A jump is not fed (it decays); a velocity that agrees with what is fed is fed as it
+   * is; one that does not — after a jump in motion, the target running on at speed while the fed
+   * velocity had decayed — is taken up over FF_T in the chase (FX round 21: it never was, and the
+   * lens trailed the run by v·2/W).
+   */
+  private feed(fed: THREE.Vector3, raw: THREE.Vector3, jump: boolean, thr: number, dt: number, k: 'kv' | 'kw'): void {
+    const S = this.sm;
+    if (jump) {
+      S[k] = 0;
+      fed.multiplyScalar(Math.exp(-dt * FF_DROP));
+    } else if (raw.distanceTo(fed) <= thr) {
+      S[k] = 1;
+      fed.copy(raw);
+    } else if (this.mode === 'run' || this.mode === 'lead') {
+      S[k] = Math.min(1, S[k] + dt / FF_T);
+      fed.multiplyScalar(Math.exp(-dt * FF_DROP)).lerp(raw, ease(S[k]));
+    } else {
+      // (The settled shots keep waiting for the target to agree, as they were composed: the
+      // recovery is the chase's.)
+      fed.multiplyScalar(Math.exp(-dt * FF_DROP));
+    }
+    raw.copy(fed);
+  }
   private smoothOut(dt: number): void {
     const c = this.camera;
     const S = this.sm;
@@ -297,20 +323,16 @@ export class CameraRig {
     // Judged against the fed-forward velocity, one swap in motion decayed that to rest and every
     // later frame of a steady chase then read as a jump: the feed-forward never came back, and the
     // lens trailed the composed shot by v·2/W — 1.2 m at 9 m/s — for the rest of the run.)
-    const jumpV = tv.distanceTo(S.rv) > 30 * dt + 0.5 || tv.length() > 40;
+    const thrV = 30 * dt + 0.5;
+    const jumpV = tv.distanceTo(S.rv) > thrV || tv.length() > 40;
     S.rv.copy(tv);
-    // (Taken up again gradually after a jump — trust climbs back from 0 — never switched back on at
-    // once, which was itself a kick; once trusted, the target's velocity is fed as it is.)
-    S.kv = jumpV ? 0 : Math.min(1, S.kv + dt / FF_T);
-    tv.lerpVectors(S.tv.multiplyScalar(Math.exp(-dt * FF_DROP)), tv, ease(S.kv));
-    S.tv.copy(tv);
+    this.feed(S.tv, tv, jumpV, thrV, dt, 'kv');
     S.tp.copy(c.position);
     const tw = this.rotVec(c.quaternion, S.tq, this.smT).divideScalar(dt);
-    const jumpW = tw.distanceTo(S.rw) > 20 * dt + 0.15 || tw.length() > 5;
+    const thrW = 20 * dt + 0.15;
+    const jumpW = tw.distanceTo(S.rw) > thrW || tw.length() > 5;
     S.rw.copy(tw);
-    S.kw = jumpW ? 0 : Math.min(1, S.kw + dt / FF_T);
-    tw.lerpVectors(S.tw.multiplyScalar(Math.exp(-dt * FF_DROP)), tw, ease(S.kw));
-    S.tw.copy(tw);
+    this.feed(S.tw, tw, jumpW, thrW, dt, 'kw');
     S.tq.copy(c.quaternion);
     const n = Math.max(1, Math.ceil(dt / (1 / 240)));
     const h = dt / n;
@@ -950,10 +972,13 @@ export class CameraRig {
         // close-in brings it down into the trough beside him (game sets closeIn).
         return track(
           [
-            [0, F(-2.35, 0.65 * s, 1.3, 2.2, 0, 0.9, 60, 0)],
-            [0.3, F(-2.3, 0.75 * s, 1.35, 1.1, 0, -0.3, 58, 0)],
-            [0.75, F(-2.1, 0.9 * s, 1.3, 0.5, 0, -1.95, 56, 0)],
-            [1.2, F(-2.0, 1.0 * s, 1.25, 0.3, 0, -2.35, 55, 0)],
+            // (FX round 21: from a little further back through the drop. The chase now arrives where
+            // it is composed, no longer trailing a metre behind, and from 2.3 m his boots went out
+            // of the bottom of the frame as he dropped.)
+            [0, F(-3.0, 0.7 * s, 1.4, 2.2, 0, 0.1, 60, 0)],
+            [0.3, F(-2.95, 0.8 * s, 1.45, 1.1, 0, -1.45, 58, 0)],
+            [0.75, F(-2.5, 0.95 * s, 1.35, 0.5, 0, -2.2, 56, 0)],
+            [1.2, F(-2.1, 1.0 * s, 1.25, 0.3, 0, -2.35, 55, 0)],
             [6.5, F(-1.9, 1.0 * s, 1.2, 0.3, 0, -2.2, 54, 0)],
           ],
           T,
@@ -1242,7 +1267,12 @@ export class CameraRig {
       c.updateMatrixWorld();
       const inv = this.tmpInv.copy(c.matrixWorld).invert();
       pts[0]!.copy(runnerPos);
-      pts[1]!.copy(runnerPos).setY(runnerPos.y + 1.85);
+      // (FX round 21: through the ledge's fall the clip takes him 2.75 m under the root, and a crown
+      // measured over the root stood where he no longer was, holding the lens up while his boots left
+      // the bottom of the frame: there the crown is his posed head's.)
+      let crown = runnerPos.y + 1.85;
+      if (this.mode === 'crash' && this.crashShot === 'ledge' && this.bodyPts?.length) crown = Math.max(...this.bodyPts.map((b) => b.y)) + 0.25;
+      pts[1]!.copy(runnerPos).setY(crown);
       pts[2]!.copy(runnerPos).setY(runnerPos.y + 1.2).addScaledVector(this.right, -0.45);
       pts[3]!.copy(runnerPos).setY(runnerPos.y + 1.2).addScaledVector(this.right, 0.45);
       const m = this.frameM;
@@ -1329,7 +1359,12 @@ export class CameraRig {
     let tilt = 0;
     if (m.feet < loT) tilt = -(Math.atan(loT) - Math.atan(m.feet));
     else if (settled && m.head > hiT) tilt = Math.atan(m.head) - Math.atan(hiT);
-    if (tilt < 0) tilt = -Math.min(-tilt, Math.max(0, Math.atan(hiT) - Math.atan(m.head)));
+    // (FX round 21: in a fall, while he is still too tall for the band — the stand-back eases in over
+    // half a second — the boots come first and the crown may rise to the frame's own edge: the chase
+    // now hands over from where it is composed, a metre nearer than when it trailed, and a fall that
+    // carries him down (the rock's crouch, the ledge's drop) took his boots out of the bottom.)
+    const headCap = this.mode === 'crash' ? Math.max(hiT, 0.92 * tanV) : hiT;
+    if (tilt < 0) tilt = -Math.min(-tilt, Math.max(0, Math.atan(headCap) - Math.atan(m.head)));
     else if (tilt > 0) tilt = Math.min(tilt, Math.max(0, Math.atan(m.feet) - Math.atan(loT)));
     if (Math.abs(tilt) > 1e-4) c.rotateX(tilt);
     // Horizontal: both arms inside the side margins.
