@@ -31,9 +31,9 @@ stride per cycle, and so the turnover, is the real one:
 
 | clip | D (m) | ts | S (m/cycle) | steps/s | contact / flight | hip bob | was |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| run | 0.80 | 0.223 | 3.59 | 3.6 at 6.5 m/s | 121 / 151 ms | 5.6 cm | S 2.79: 4.7 steps/s at 6.5 m/s (a scurry) |
-| sprint | 0.80 | 0.193 | 4.15 | 4.4 at 9 m/s | 89 / 141 ms | 4.5 cm | S 3.91 |
-| dash | 0.80 | 0.165 | 4.85 | 5.2 at 12.6 m/s | 67 / 135 ms | 4.3 cm | S 4.84 (the cadence cap at 12.6 m/s) |
+| run | 0.80 | 0.223 | 3.59 | 3.6 at 6.5 m/s | 121 / 151 ms | 4.7 cm | S 2.79: 4.7 steps/s at 6.5 m/s (a scurry) |
+| sprint | 0.80 | 0.193 | 4.15 | 4.4 at 9 m/s | 89 / 141 ms | 5.3 cm | S 3.91 |
+| dash | 0.80 | 0.165 | 4.85 | 5.2 at 12.6 m/s | 67 / 135 ms | 5.2 cm | S 4.84 (the cadence cap at 12.6 m/s) |
 
 (Contact and flight at each clip's design speed, 6.6 / 9 / 12 m/s.) The strike lands the ball
 0.37–0.43 m ahead of the hip joint (the heel 0.2 m in the run, a midfoot strike), close to under the
@@ -78,3 +78,20 @@ body.
 
 * Steady: pitch within a few degrees, gaze level ahead, no yaw with the shoulders; the neck takes out
   the trunk's rotation and the bob. From the chase camera the head should be the stillest thing on him.
+
+## How the cycles use them (runner_anim.py)
+
+* Stance: solved by two-bone IK against the moving floor (the foot never skates), knee 24° at the
+  strike (run; 23° sprint, 22° dash), 53° / 48° / 46° at mid-stance — a little deeper than the
+  literature's 40–45°: this rig's contact is short, and a stiffer spring left the hips almost without
+  the stance dip that gives the bounce its weight — and ~25° at toe-off on a 47–50° plantarflexed foot.
+* Vertical: ballistic flight (g) from toe-off to strike, a C1 dip through the stance.
+* Swing: front-side keys (knee level with the stance knee at the other foot's strike, thigh peak 48° /
+  64° / 72° at the other foot's toe-off, heel recovery to 112° / 134° / 140° of knee); the last part of
+  the swing is steered as the leg's length and angle about the hip into the strike, so the foot paws
+  back onto the stone at the stance's own speed, the knee giving a little before it lands.
+* A lateral plant lock measures each planted ball on the posed rig and swings the thigh to hold it.
+* Pelvis ±7–9° rotation and ±4° drop, shoulders counter-rotating; arms from −0.5 m behind the hip to
+  chest (run) or chin (sprint, dash) height, elbows 60–105° (run) to 45–120° (dash); head pitch steady to
+  ~1.5°.
+

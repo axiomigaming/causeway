@@ -93,10 +93,6 @@ def aim(loc, target, lens):
     cd.lens = lens
 
 
-def label(img, text_rows):
-    return img
-
-
 rows = []
 tmp = os.path.splitext(out)[0] + "_tmp.png"
 for spec in clips:
