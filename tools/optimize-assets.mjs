@@ -10,7 +10,7 @@
 //   public/assets/manifest.json                     per set: file, bytes, content hash (→ ?v= cache busting)
 //
 // Sets: "high" caps textures at 2048 px (4K atlases in the source were ~85 MB of VRAM each);
-// "mobile" caps at 1024 (512 for the small wood/bark/flora atlases) for phones, the Low tier and Save-Data.
+// "mobile" caps at 1024 (512 for the small flora atlas, and every normal and ORM) for phones, the Low tier and Save-Data.
 // The runner's own maps are exempt (RUNNER below): full resolution on both sets.
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -35,14 +35,17 @@ const SETS = {
     // World round 23: a light, error-bounded simplification on desktop too (0.1 % of a piece's radius, ≈5 mm on
     // a 5 m wall; the baked normal maps keep the shading): late-run frames stood at 1.1-1.35M triangles.
     simplify: { ratio: 0.7, error: 0.001 },
-    cap: (name) => (/^(flora|bark)_(orm|normal)$/.test(name) || /^(rock|statue)_orm$/.test(name) ? 512 : /_(orm|normal)$/.test(name) ? 1024 : 2048),
+    // (World round 24: the bark normal at 1024 — the roots and the jump log, a metre from the lens, bake at 2048.)
+    cap: (name) => (/^flora_(orm|normal)$/.test(name) || /^(rock|statue|bark)_orm$/.test(name) ? 512 : /_(orm|normal)$/.test(name) ? 1024 : 2048),
     quality: { color: 74, normal: 62, orm: 60 },
   },
   // Phones also get lighter geometry: at most 0.2 % of a piece's radius of deviation (≈1 cm on a 5 m wall).
   // Round 11: the far temple atlas (pyramids, face gate) at 512 and colour q68 keep phones in budget
   // with the near detail map (≈0.28 MB, fetched on Medium) on top.
   // (Round 23: 0.5/0.002 -> 0.4/0.003: real phone frames stood at 320-380k triangles.)
-  mobile: { simplify: { ratio: 0.4, error: 0.003, heavy: { re: /^(vault|tunnel_mouth|tower|arch|wall_tall|wall_mid|wall_low|foundation|facade|face_gate|temple|lintel_gate)_/, ratio: 0.25, error: 0.007 } }, cap: (name) => (/^(wood|bark|flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
+  // (World round 24: the wood and bark colour at 1024, not 512: the boardwalk's and bridges' planks and the
+  // jump log fill the bottom of a portrait frame, and at 512 they were blank, washed-out boards.)
+  mobile: { simplify: { ratio: 0.4, error: 0.003, heavy: { re: /^(vault|tunnel_mouth|tower|arch|wall_tall|wall_mid|wall_low|foundation|facade|face_gate|temple|lintel_gate)_/, ratio: 0.25, error: 0.007 } }, cap: (name) => (/^(flora|temple)_/.test(name) || /_(orm|normal)$/.test(name) ? 512 : 1024), quality: { color: 68, normal: 62, orm: 60 } },
 };
 /**
  * The runner is the one thing always in the middle of the frame, a metre or two from the lens: its
