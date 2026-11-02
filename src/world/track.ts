@@ -137,6 +137,8 @@ function stripBelow(g: THREE.BufferGeometry, y: number): void {
   if (keep.length !== a.length) g.setIndex(keep);
 }
 
+/** World round 24: how far a variant's ruin may be from the run's target and still count as a match (see spawn). */
+const RUIN_TOL = 0.4;
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
   corridor: 6,
@@ -795,7 +797,10 @@ export class Track {
     // (intact and lush early, broken and dramatic late; presentation only), then the least-used one,
     // with a random tiebreak, so repeats are spread out.
     const ruinTarget = Number.isFinite(QA_RUIN) ? QA_RUIN : Math.min(1, intensity * 1.25);
-    const score = (v: Variant) => Math.abs(v.layout.ruin - ruinTarget) * 3 + this.recent.filter((k) => k === v.key).length;
+    // (World round 24: within RUIN_TOL of the target every variant matches. Variants are built once, the
+    // same for every world, and at the start of a run the target is 0: every world opened on the very
+    // same variant #0 of each type — the same dressing, the same arch at the end of the first corridor.)
+    const score = (v: Variant) => Math.max(0, Math.abs(v.layout.ruin - ruinTarget) - RUIN_TOL) * 3 + this.recent.filter((k) => k === v.key).length;
     const min = Math.min(...list.map(score));
     const candidates = list.filter((v) => score(v) <= min + 0.35);
     const variant = this.rng.pick(candidates);
