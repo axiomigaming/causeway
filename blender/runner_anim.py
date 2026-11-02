@@ -301,18 +301,18 @@ G_ACC = 9.81
 #   lean    trunk lean over the pelvis; chest: shoulder counter-rotation (× the pelvis's); head_down: gaze
 #   arm_f/arm_b  upper arm forward / back of the trunk at the peaks; el_f/el_b the elbow there
 RUN = dict(
-    v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=48,
+    v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=96,
     knee=(0.32, 0.78, 0.42),
-    af=[(0.0, 0.06), (0.15, 0.0), (0.5, 0.0), (0.74, -0.32), (1.0, -1.0)],
+    af=[(0.0, 0.06), (0.15, 0.0), (0.45, -0.04), (0.72, -0.36), (1.0, -0.92)],
     swing=[(0.13, -0.3, 1.3, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
            (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
     hp=0.16, hp_a=0.03, hyaw=0.12, hroll=0.075, lean=0.14, chest=1.15, head_down=0.12,
     arm_f=0.6, arm_b=-1.05, el_f=1.85, el_b=1.1, arm_out=0.16, curl=0.9, sway=0.012,
 )
 SPRINT = dict(
-    v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=48,
+    v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
     knee=(0.3, 0.72, 0.45),
-    af=[(0.0, -0.2), (0.3, -0.07), (0.55, -0.12), (0.78, -0.45), (1.0, -1.1)],
+    af=[(0.0, -0.2), (0.3, -0.08), (0.5, -0.18), (0.75, -0.5), (1.0, -0.98)],
     swing=[(0.13, -0.3, 1.6, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
            (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
     hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
@@ -320,9 +320,9 @@ SPRINT = dict(
 )
 # The desperate all-out run of the top tiers: a longer reach, higher knees, a harder pump, more lean.
 DASH = dict(
-    v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=48,
+    v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=96,
     knee=(0.28, 0.7, 0.45),
-    af=[(0.0, -0.26), (0.3, -0.1), (0.55, -0.15), (0.78, -0.48), (1.0, -1.12)],
+    af=[(0.0, -0.26), (0.3, -0.11), (0.5, -0.22), (0.75, -0.55), (1.0, -1.0)],
     swing=[(0.13, -0.28, 1.75, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
            (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
     hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
@@ -517,8 +517,9 @@ def _stance_leg(s, ph, t, G):
 
 
 ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung sideways
-STRIKE_U0 = 0.76  # share of the swing from which the ankle is steered onto its strike in floor space ...
-STRIKE_W = 0.12  # ... taking over fully this much later
+STRIKE_U0 = 0.62  # share of the swing from which the ankle is steered onto its strike in floor space ...
+STRIKE_W = 0.22  # ... taking over fully this much later
+LAND_VX = 0.5  # m/s: still carried a little forward over the floor as it lands (in the air the frame before)
 LAND_VZ = -1.6  # m/s: the foot comes down onto the stone at the strike (it keeps its height until late, then drops onto it)
 
 
@@ -537,8 +538,10 @@ def _swing_leg(s, ph, t, G):
     # the stance's own speed (the foot paws back at the floor's pace: no skid, no stop at the strike).
     m0 = [(x - y) / (e / sw) for x, y in zip(a0, a0m)]
     m1 = [(y - x) / (e / sw) for x, y in zip(a1, a1p)]
-    m0[1] = max(0.0, m0[1])  # the knee folds straight after toe-off, never locks back
-    m0[0] *= 0.3  # the hip is already flexing at toe-off: the thigh turns forward at once, it does not trail on back
+    # The knee is still extending through the push-off: it carries on a moment before it folds (stopped dead
+    # at toe-off, the hips hauled the leg on and the lifting toe dragged forward over the floor).
+    m0[1] = m0[1] if m0[1] > 0 else 0.6 * m0[1]
+    m0[0] *= 0.8  # the hip extends on a moment after toe-off, then turns forward (cut harder, the lifting toe dragged forward over the floor)
     m1[2] = 0.0  # the ankle settles into the strike rather than flicking at the stance's rate
     m1[1] *= 0.3
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
@@ -567,7 +570,7 @@ def _swing_leg(s, ph, t, G):
         V0 = ((Xp - X0) / (e * sw), (Zp - Z0) / (e * sw))
         X1, Z1 = floor_of(1.0, a1[0], a1[1])
         X1p, Z1p = floor_of(1.0 + e, a1p[0], a1p[1])
-        V1 = ((X1p - X1) / e, (Z1p - Z1) / e + LAND_VZ * T)
+        V1 = ((X1p - X1) / e + LAND_VX * T, (Z1p - Z1) / e + LAND_VZ * T)
         h = 1.0 - t0
         # Forward, the foot only slows into its contact: it never reaches past it and claws back (a
         # monotone Hermite: entry speed at most 1.4x the mean over the stretch).
@@ -659,6 +662,7 @@ def _gait(ph, G, k=1.0):
 CYCLE_N = 240
 SIG_SWING = 3.0  # samples (1.25 % of the cycle)
 SIG_BODY = 2.0
+SIG_TOE = 7.0
 EDGE = 0.04  # share of the cycle over which the swing's filter fades in after toe-off and out before the strike
 
 _CYC = {}
@@ -685,8 +689,13 @@ def _cycle(G, k):
         legb = nm.split(".")[0] in ("thigh", "shin", "foot", "toe")
         for a in range(3):
             vals = [R[0][nm][a] for R in raw]
-            sm = _wrap_smooth(vals, SIG_SWING if legb else SIG_BODY)
-            if legb:
+            if nm.startswith("toe."):
+                # The toes hinge at the ball, which bears the load through the push-off: smoothing them moves
+                # no planted point, and unfiltered they flicked straight from the toe-off bend in a frame.
+                sm = _wrap_smooth(vals, SIG_TOE)
+            else:
+                sm = _wrap_smooth(vals, SIG_SWING if legb else SIG_BODY)
+            if legb and not nm.startswith("toe."):
                 off = 0.0 if side == "L" else 0.5
                 for i in range(CYCLE_N):
                     t = (i / CYCLE_N + off) % 1.0
@@ -703,6 +712,24 @@ def _cycle(G, k):
     return res
 
 
+# Lateral plant lock (per gait, filled by gait_clip from the rig's real forward kinematics): the thigh's
+# side swing (rad) per stride phase that holds each planted ball still across the floor. The stance IK is
+# sagittal; the pelvis's twist and drop and the leg's counter-twist moved the planted ball 2-3 cm sideways
+# through each contact (2 cm a game frame late in the run's).
+_LAT = {}
+
+
+def _lat(G, s, ph):
+    tab = _LAT.get(id(G))
+    if not tab:
+        return 0.0
+    c = tab[s]
+    n = len(c) - 1
+    f = (ph % 1.0) * n
+    i = int(f)
+    return c[i] + (c[min(n, i + 1)] - c[i]) * (f - i)
+
+
 def _gait_smooth(ph, G, k=1.0):
     c = _cycle(G, k)
     f = (ph % 1.0) * CYCLE_N
@@ -710,6 +737,10 @@ def _gait_smooth(ph, G, k=1.0):
     j = (i + 1) % CYCLE_N
     u = f - int(f)
     P = {nm: tuple(a + (b - a) * u for a, b in zip(c[i][0][nm], c[j][0][nm])) for nm in c[i][0]}
+    if id(G) in _LAT:
+        for s_ in "LR":
+            x_, y_, z_ = P[f"thigh.{s_}"]
+            P[f"thigh.{s_}"] = (x_, y_, z_ + k * _lat(G, s_, ph))
     return P, c[i][1] + (c[j][1] - c[i][1]) * u, c[i][2] + (c[j][2] - c[i][2]) * u
 
 
@@ -722,13 +753,55 @@ def gait_root(ph, G, k=1.0):
     return _gait_smooth(ph, G, k)[2]
 
 
+def _ball_x(s, fr):
+    bpy.context.scene.frame_set(fr)
+    return (RIG.matrix_world @ RIG.pose.bones[f"toe.{s}"].head).x
+
+
+LAT_TAPER = 0.08  # share of the cycle over which the plant lock's correction eases out into the swing
+
+
 def gait_clip(name, G):
     new_action(name)
     n = G["frames"]
-    for f in range(n + 1):
-        ph = f / n
-        P, x, z = _gait_smooth(ph, G)
-        key(f + 1, P, z=z, x=x)
+    _LAT.pop(id(G), None)
+
+    def key_all():
+        for f in range(n + 1):
+            P, x, z = _gait_smooth(f / n, G)
+            key(f + 1, P, z=z, x=x)
+    key_all()
+    # Lateral plant lock: measure each planted ball across the floor on the posed rig, swing the thigh to
+    # hold it where it landed (mean of the contact), ease the correction out into the swing. Three passes.
+    ts = G["ts"]
+    tab = {"L": [0.0] * (n + 1), "R": [0.0] * (n + 1)}
+    for _ in range(3):
+        for s in "LR":
+            off = 0.0 if s == "L" else 0.5
+            st = [f for f in range(n + 1) if (f / n + off) % 1.0 < ts]
+            xs = {f: _ball_x(s, f + 1) for f in st}
+            target = sum(xs.values()) / len(xs)
+            # Gain: the ball's sideways travel per radian of thigh side swing (hip-to-ball drop, signed).
+            f0 = st[len(st) // 2]
+            fc = RIG.animation_data.action.fcurves.find(f'pose.bones["thigh.{s}"].rotation_euler', index=2)
+            kp = next(k for k in fc.keyframe_points if abs(k.co[0] - (f0 + 1)) < 1e-3)
+            kp.co[1] += 0.02
+            fc.update()
+            gain = (_ball_x(s, f0 + 1) - xs[f0]) / 0.02
+            kp.co[1] -= 0.02
+            fc.update()
+            corr = {f: (target - xs[f]) / gain for f in st}
+            for f in range(n + 1):
+                t = (f / n + off) % 1.0
+                if f in corr:
+                    tab[s][f] += corr[f]
+                    continue
+                # Swing: ease from the nearest contact edge's correction to none.
+                d_to, d_td = t - ts, 1.0 - t
+                edge = max(st, key=lambda g: (g / n + off) % 1.0) if d_to < d_td else min(st, key=lambda g: (g / n + off) % 1.0)
+                tab[s][f] += corr[edge] * (1.0 - ease(min(d_to, d_td) / LAT_TAPER))
+        _LAT[id(G)] = {s: list(v) for s, v in tab.items()}
+        key_all()
     hs = _heights(G)
     T = _cycle_time(G)
     print(f"  gait {name}: S = {G['D'] / G['ts']:.3f} m/cycle; hip heights strike/mid/toe-off {['%.3f' % h for h in hs]}; "

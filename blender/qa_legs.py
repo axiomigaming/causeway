@@ -57,8 +57,9 @@ only = [a for a in sys.argv[1:] if not a.startswith("-")]
 LIM = dict(hinge=10.0, yaw=25.0, roll=20.0, cross=2.0, hands=2.0, slide=1.0, pop=60.0, still=3.0,
            spine=100.0, neck=100.0, wrist=100.0, shrug=100.0, armtw=100.0, thightw=100.0, thighsw=100.0, judder=0.35, jerk=999.0)
 # In-game playback: clip frames advanced per 30 fps game frame (the gaits at their usual cadence, cycles/s
-# x 48 keys / 30), everything else in real time.
-PLAY = {"run": 1.95 * 48 / 30, "sprint": 2.3 * 48 / 30, "dash": 2.55 * 48 / 30}
+# x the clip's keys per cycle / 30), everything else in real time.
+CAD = {"run": 1.85, "sprint": 2.2, "dash": 2.55}  # cycles/s at the tier's usual speed (6.5, 9, 12.6 m/s)
+PLAY = {nm: c * (bpy.data.actions[nm].frame_range[1] - bpy.data.actions[nm].frame_range[0]) / 30 for nm, c in CAD.items() if nm in bpy.data.actions}
 JOINTS = ["hips", "spine", "chest", "neck", "head"] + [f"{b}.{s}" for s in "LR" for b in ("thigh", "shin", "foot", "toe", "upper_arm", "forearm", "hand")]
 
 
