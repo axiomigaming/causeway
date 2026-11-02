@@ -978,8 +978,8 @@ def build(rig):
     key(19, P)
     P19, z19 = P, solve_root(P)
     # Into the run: keyed every frame on the gait itself (phase 0 = this left strike at frame 19, the next a
-    # stride cycle later at the game's pace by then, ~6 m/s: START_CYC frames), the stride lengthening. Keyed every 3-4 frames, the in-betweens dropped the swinging foot to the
-    # floor early and it touched down still travelling (the "planted" foot slid ~9 cm/frame in game). The
+    # stride cycle later at the game's pace by then, ~6 m/s: START_CYC frames), the stride lengthening.
+    # Keyed every 3-4 frames, the in-betweens dropped the swinging foot to the floor early and it touched down still travelling (the "planted" foot slid ~9 cm/frame in game). The
     # legs take the gait over 2 frames, the trunk and arms over 6 (cut in at once, the arms swung 70°+ in
     # a frame).
     for fr in range(20, 20 + START_CYC):
