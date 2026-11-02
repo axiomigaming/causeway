@@ -304,7 +304,7 @@ G_ACC = 9.81
 #   arm_f/arm_b  upper arm forward / back of the trunk at the peaks; el_f/el_b the elbow there
 RUN = dict(
     v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=96,
-    knee=(0.42, 0.86, 0.42),
+    knee=(0.42, 0.92, 0.42),
     af=[(0.0, 0.06), (0.15, 0.0), (0.4, -0.06), (0.7, -0.36), (1.0, -0.82)],
     swing=[(0.13, -0.3, 1.3, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
            (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
@@ -313,7 +313,7 @@ RUN = dict(
 )
 SPRINT = dict(
     v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
-    knee=(0.4, 0.8, 0.45),
+    knee=(0.4, 0.84, 0.45),
     af=[(0.0, -0.2), (0.3, -0.09), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
     swing=[(0.13, -0.3, 1.6, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
            (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
@@ -323,7 +323,7 @@ SPRINT = dict(
 # The desperate all-out run of the top tiers: a longer reach, higher knees, a harder pump, more lean.
 DASH = dict(
     v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=96,
-    knee=(0.38, 0.77, 0.45),
+    knee=(0.38, 0.8, 0.45),
     af=[(0.0, -0.26), (0.3, -0.12), (0.5, -0.26), (0.75, -0.55), (1.0, -0.86)],
     swing=[(0.13, -0.28, 1.75, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
            (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
@@ -331,6 +331,11 @@ DASH = dict(
     arm_f=1.15, arm_b=-1.35, el_f=2.05, el_b=0.75, arm_out=0.15, curl=1.1, sway=0.009,
 )
 
+
+# leap_gap's landing stride: the run's contact, stride and strike, the knees much deeper through the
+# stance (it soaks the drop); the clip eases from it into the run (both solved, so the plant holds).
+RUN_LAND = dict(RUN, knee=(0.55, 1.35, 0.6), frames=96)
+LEAP_END = 37  # leap_gap's last frame: its run-out hands back at the phase it reaches (runner.ts OBSTACLES)
 
 # The start clip's run-in: one stride cycle in this many frames (the game's speed is ~6 m/s by then;
 # runner.ts EVENTS.start has its footfalls).
@@ -848,6 +853,9 @@ def build(rig):
     gait_clip("run", RUN)
     gait_clip("sprint", SPRINT)
     gait_clip("dash", DASH)
+    # (leap_gap's landing stride: solved here for its plant lock, not exported.)
+    gait_clip("run_land", RUN_LAND)
+    bpy.data.actions.remove(bpy.data.actions["run_land"])
 
     # ---------------------------------------------------------- idle: a ready stance — knees soft, weight rocking
     # from foot to foot, hands loose in front of the hips, a breathing cycle, glances back down the
@@ -2572,29 +2580,40 @@ def obstacle_clips():
     leg(R2, "R", hip=-0.25, knee=1.55, ankle=0.4)
     arm(R2, "L", fwd=1.9, elbow=0.55, out=0.45, curl=0.4)
     arm(R2, "R", fwd=2.35, elbow=0.45, out=0.4, curl=0.4)
-    D = {}
-    torso(D, lean=0.45, look=0.4, hp=0.18)
-    # (The landing knee already soft: near straight, the foot lock had no knee plane to work in and the
-    # thigh flipped at the fast tiers.)
-    leg(D, "L", hip=1.05, knee=0.6, ankle=-0.2)
-    leg(D, "R", hip=0.7, knee=0.8, ankle=0.1)
+    # Landing on the run's left strike, the knee already soft, the arms out ahead for balance.
+    D, _ = loco(0.0, RUN_LAND)
+    torso(D, lean=0.45, look=0.42, hp=0.2)
     arm(D, "L", fwd=1.2, elbow=0.5, out=0.35, curl=0.6)
     arm(D, "R", fwd=1.3, elbow=0.5, out=0.35, curl=0.6)
-    zl = solve_root(D)
+    zl = gait_root(0.0, RUN_LAND)
     air(7, 22, [(0.0, T), (0.35, R1), (0.7, R2), (1.0, D)], zt, zl, 0.31)
-    # Heavy landing: both knees fold to soak it, hands forward toward the ground, then drive out of it.
-    for fr, k in ((24, 0.6), (27, 1.0)):
-        A = {}
-        torso(A, lean=0.55 + 0.25 * k, look=0.55 + 0.2 * k, hp=0.22 + 0.1 * k)
-        leg(A, "L", hip=0.95 + 0.3 * k, knee=0.6 + 0.9 * k, ankle=-0.2 - 0.3 * k)
-        leg(A, "R", hip=0.35 + 0.2 * k, knee=1.0 + 0.6 * k, ankle=0.2, toe=0.4)
-        arm(A, "L", fwd=1.0 + 0.2 * k, elbow=0.4, out=0.35, wrist=-0.4, curl=0.6)
-        arm(A, "R", fwd=0.9 + 0.2 * k, elbow=0.5, out=0.35, wrist=-0.4, curl=0.6)
-        key(fr, A)
-    # Out of the absorb over a few more frames (the first step drives up out of the crouch), keyed every
-    # frame on the run's phase so the run takes over a stride already in step with the floor.
-    # (The legs over 6 frames: out of the deep crouch in 3, the L shin swung ~30° in a frame, ~40° at speed.)
-    hand_back(22, A, 0.5, 37, f_pose=27, k0=0.8, leg_n=6.0)
+    # Heavy landing, on the stride: the first stance soaks the drop deep (the hips sink, the knee folds,
+    # the trunk and both arms go forward over it), the next steps come up out of it, keyed every frame on
+    # the run's phase from this strike. (Held as a crouch on both feet for 5 frames, the planted foot
+    # slid with the body over a floor running back ~23 cm a clip frame: the runtime's pins hid it to
+    # 26/30, then it skated 14-23 cm/frame into the run.) The deep stance is its own solved gait
+    # (RUN_LAND: the run's contact and stride, deeper knees), so the planted foot stays planted as the
+    # stride eases from it into the run.
+    up = ("spine", "chest", "neck", "head", "upper_arm", "forearm", "hand", "fingers", "shoulder")
+    for fr in range(23, LEAP_END + 1):
+        ph = ((fr - 22) * OBST_CADENCE / FPS) % 1.0
+        u = (fr - 22) / float(LEAP_END - 22)
+        wl = 1.0 - ease(u / 0.75)  # the deep stride, eased out over three quarters of the run-out
+        P1, x1 = loco(ph, RUN_LAND)
+        P0, x0 = loco(ph, RUN)
+        P = lerp_pose(P0, P1, wl)
+        z = gait_root(ph, RUN) + (gait_root(ph, RUN_LAND) - gait_root(ph, RUN)) * wl
+        x = x0 + (x1 - x0) * wl
+        # The trunk and arms come up out of the landing over the first steps (the pelvis keeps the
+        # stride's own swing and tilt under them: the legs are solved from it).
+        wb = 1.0 - ease(u / 0.6)
+        if wb > 0:
+            Q = dict(P)
+            torso(Q, lean=0.45 + 0.25 * wb, look=0.42 + 0.2 * wb, hp=0.2 + 0.08 * wb)
+            arm(Q, "L", fwd=1.2, elbow=0.5, out=0.35, curl=0.6)
+            arm(Q, "R", fwd=1.3, elbow=0.5, out=0.35, curl=0.6)
+            P = {nm: (lerp_pose({nm: P[nm]}, {nm: Q[nm]}, wb)[nm] if nm.split(".")[0] in up else P[nm]) for nm in P}
+        key(fr, P, z=z, x=x)
 
     # ---------------------------------------------------------- slide: under a low beam (head ≤ ~1.0 m), up running
     new_action("slide")

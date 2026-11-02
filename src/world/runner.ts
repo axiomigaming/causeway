@@ -49,7 +49,7 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
  */
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
   jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
-  leap_gap: { from: 0, to: 0.5, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
+  leap_gap: { from: 0, to: 0.9725, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
   slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
   vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
@@ -152,7 +152,7 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_pump: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.767, 'R', 0.2], [1.967, 'L', 0.2], [2.167, 'R', 0.2], [2.367, 'L', 0.2]],
   win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.967, 'R', 0.2], [2.167, 'L', 0.2], [2.367, 'R', 0.2], [2.567, 'L', 0.2], [3.5, 'L', 0.7], [3.51, 'R', 0.7], [4.07, 'L', 0.7], [4.08, 'R', 0.7]],
   jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
-  leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
+  leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.96, 'R', 0.9]],
   slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
   vault: [[0.167, 'L', 0.6], [0.4, 'R', 0.3], [0.7, 'L', 0.9]],
   turn_cut_L: [[0.267, 'R', 0.85]],
@@ -1388,7 +1388,7 @@ export class Runner {
       // fade-out at the hand-back dragged the leg into the swing).
       const O = this.obst && this.current === this.obst.name ? OBSTACLES[this.obst.name] : null;
       const keyedOn = this.current === 'jump_log' || this.current === 'vault';
-      // (leap_gap holds its landing crouch on the pins, then runs out keyed on the gait from 26/30: near the
+      // (leap_gap lands on the stride and holds its deep first stance on the pins, then runs out keyed on the gait from 26/30: near the
       // clip's own pace only; much faster, the clip's feet cannot keep up with the floor and the pin holds.)
       const runningOut = this.current === 'leap_gap' && t >= 26 / 30 && this.speed < 7.5;
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
