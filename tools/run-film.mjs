@@ -8,7 +8,7 @@
 //
 //   URL=http://localhost:5188 node tools/run-film.mjs --w 7 --view desktop --q medium --at 1.3 \
 //       --secs 9 --out review/fx21/before --name w7-desktop [--sections corridor,turnL,bridge] [--fps 30]
-//       [--size 960x540] [--every 1] [--keep]
+//       [--size 960x540] [--every 1] [--keep] [--sheet] [--pre 3] [--from 0]
 //
 // --at: the multiplier when filming starts (3 s of run are stepped first, undrawn, so the chase has
 // settled). --every n draws every nth frame (the measurements are taken every frame). Frames are
@@ -37,6 +37,8 @@ const KEEP = process.argv.includes('--keep');
 // --sheet: draw only the 12 frames of the contact sheet (measurements every frame, no film): cheap iteration.
 const SHEET_ONLY = process.argv.includes('--sheet');
 const PRE = +arg('pre', '3');
+// --from <m>: the run starts this far along the route (the runner is moved there in the setup).
+const FROM = +arg('from', '0');
 const [VW, VH] = (arg('size', VIEW === 'phone' ? '390x844' : '1280x720')).split('x').map(Number);
 const FR = `${OUT}/frames-${NAME}`;
 mkdirSync(FR, { recursive: true });
@@ -54,7 +56,7 @@ await page.goto(`${URL}/?qa&q=${Q}&w=${W}`, { waitUntil: 'load' });
 await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
 
 await page.evaluate(
-  async ({ name, sections, at, pre }) => {
+  async ({ name, sections, at, pre, from }) => {
     const g = window.__game;
     const ctl = window.__ctl;
     const st = window.__store;
@@ -75,6 +77,11 @@ await page.evaluate(
     if (sections) g.track.forceNext = [...sections];
     g.newWorld('setup');
     await g.toSetup();
+    if (from > 0) {
+      g.debugAdvance(from);
+      g.debugStep(0.5);
+      g.rig.snap(g.runner.root.position, g.runner.root.rotation.y);
+    }
     g.debugStep(1);
     // The live interface (the HUD's multiplier, the cash-out dock) on the game's clock.
     const E0 = Math.log(at) / 0.000063;
@@ -90,7 +97,7 @@ await page.evaluate(
     g.debugStep(1.1 + pre);
     await new Promise((r) => setTimeout(r, 300));
   },
-  { name: NAME, sections: SECTIONS ? SECTIONS.split(',') : null, at: AT, pre: PRE },
+  { name: NAME, sections: SECTIONS ? SECTIONS.split(',') : null, at: AT, pre: PRE, from: FROM },
 );
 
 console.log(`ready in ${((Date.now() - T0) / 1000).toFixed(0)} s`);

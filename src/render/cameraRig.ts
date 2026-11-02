@@ -617,7 +617,7 @@ export class CameraRig {
         const t = this.t;
         const wx = Math.sin(t * 0.43 + 0.3) * 0.6 + Math.sin(t * 0.69 + 2.1) * 0.4;
         const wy = Math.sin(t * 0.51 + 1.7) * 0.6 + Math.sin(t * 0.83 + 0.4) * 0.4;
-        this.liftK = damp(this.liftK, THREE.MathUtils.clamp(this.lift, -0.6, 1.2), 6, dt);
+        this.liftK = damp(this.liftK, THREE.MathUtils.clamp(this.lift, -0.6, 1.2), 10, dt);
         const lift = this.liftK * (1 - k);
         const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k);
         fov = this.shot(
@@ -631,7 +631,7 @@ export class CameraRig {
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
               lerp(-dist, lerp(-2.0, -1.6, this.escapeWide), k),
               lerp(lat + drift, lerp(0.62, 1.6, this.escapeWide), k),
-              lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.4 * lift,
+              lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.25 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
               lerp(lerp(0.6, 0.3, narrow) + drift * 0.4, 0.2, k) + 0.4 * wx * life + bend,
               lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift,
@@ -1050,7 +1050,9 @@ export class CameraRig {
     const yawRate = dt > 0 ? angleDelta(this.lastYaw, runnerYaw) / dt : 0;
     this.lastYaw = runnerYaw;
     const bank = 0.08 * (1 + 0.25 * this.drive);
-    this.dutch = damp(this.dutch, running ? THREE.MathUtils.clamp(yawRate * bank, -0.12, 0.12) * this.motionScale : 0, 3, dt);
+    // (FX round 21: at most ~4° — at the old 7° a bend's bank on a phone's tall frame tipped the
+    // whole way over; the same limit the settled shots keep.)
+    this.dutch = damp(this.dutch, running ? THREE.MathUtils.clamp(yawRate * bank, -0.07, 0.07) * this.motionScale : 0, 3, dt);
 
     this.trauma = Math.max(0, this.trauma - dt * 0.9);
     const m = this.shakeEnabled ? this.motionScale : 0;
