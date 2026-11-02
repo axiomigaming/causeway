@@ -111,7 +111,7 @@ const KNEE_REACH_RATE = 2.6;
  * cadence to speed / S keeps the planted foot still on the floor. Keep in step with the clip builder
  * (it prints S for each gait).
  */
-export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.786, sprint: 3.911, dash: 4.842 };
+export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 3.587, sprint: 4.145, dash: 4.848 };
 
 /** Blend weights of the gait clips for a (continuous) run tier. */
 export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
@@ -139,7 +139,7 @@ const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
 const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'fall_pillar', 'fall_pillar_b', 'fall_trip', 'fall_side_hit', 'fall_drop', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
-  start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.83, 'R', 0.65], [0.95, 'L', 0.6]],
+  start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.9, 'R', 0.65], [1.12, 'L', 0.6]],
   win: [[0.2, 'R', 0.5], [0.4, 'L', 0.35], [0.6, 'R', 0.25]],
   fall_chasm: [[0.12, 'L', 1], [0.28, 'R', 0.9]],
   fall_gate: [[0.13, 'L', 0.9], [0.5, 'R', 0.55], [0.7, 'L', 0.5], [0.9, 'R', 0.4]],

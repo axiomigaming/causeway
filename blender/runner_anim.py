@@ -223,30 +223,33 @@ def ease(t):
 
 
 # ------------------------------------------------------------------ gaits
-# Locomotion is solved, not keyed. Each gait is a set of biomechanical targets for one stride
-# cycle (t = 0 is this foot's strike), from sprint and distance-running kinematics:
+# Round 31: the run, sprint and dash rebuilt from sprint biomechanics (the numbers are in
+# blender/RUN_NOTES.md). One stride cycle, t = 0 the left foot's strike, 0.5 the right's.
 #
-#   stance (0 … ts): the foot is fixed to the ground. A ground anchor slides back under the hip at
-#     exactly one contact length D per stance, the foot rolls heel → flat → ball (a run) or stays on
-#     the forefoot (sprint, dash), and the leg is solved by two-bone IK in the sagittal plane, so the
-#     sole never skates. The hip sinks through mid-stance (the leg loads like a spring) and pushes
-#     back up to toe-off.
-#   flight (ts … 0.5): ballistic — the pelvis follows a parabola whose height comes from the flight
-#     time at the gait's design speed (g·T²/8).
-#   swing: heel recovery (the knee folds, the heel comes up under the seat — higher at speed), knee
-#     drive (the thigh up to ~40° running, ~65–75° sprinting), then the shin swings out and the foot
-#     paws back into the next strike. Swing keys are Hermite-joined to the IK solutions at toe-off
-#     and strike, so there is no pop at either end.
-#   upper body: the pelvis rotates with the swing leg and drops on the swing side after each strike;
-#     the chest counter-rotates; the arms pump from the shoulder opposite the legs at ~90° elbows
-#     (closing in front, opening behind), hands loose; the head holds a steady gaze against the bob,
-#     the pitch and the roll. A little left/right asymmetry keeps it from reading as a mirror.
+#   stance (0 … ts): the foot is fixed to the floor. Its anchor slides back under the hip by exactly the
+#     contact length D, the foot rolls (midfoot strike → flat → toe-off on the ball in the run; ball →
+#     heel down near the floor → ball in the sprint and dash), and the leg is solved by two-bone IK, so
+#     the sole never skates. The knee is a stiff spring: ~20° at the strike, 35–40° at mid-stance, near
+#     straight at toe-off — not the deep sit of the old cycles.
+#   vertical: the hips follow the physics of a bounce. Flight is a ballistic arc (g) from toe-off to the
+#     next strike; stance is a smooth dip to the mid-stance low and back up, meeting the flight's
+#     velocities at both ends (C1), so the body lands with weight and leaves with push.
+#   swing: front-side mechanics. The knee folds straight after toe-off, the heel comes up under the seat
+#     as the thigh passes vertical — by the other foot's strike the swing knee is already level with
+#     the stance knee — the thigh peaks at the other foot's toe-off (knee drive), then the shin swings
+#     out and the foot paws back into the strike at the floor's own speed. Hermite through the keys,
+#     joined to the stance solutions at both ends with matching velocities.
+#   pelvis: rotation with the reaching leg, the swing side dropping after each strike, an anterior tilt
+#     that peaks at each toe-off; a small sway over the stance foot.
+#   trunk: a steady forward lean with a little flex as each stance loads; the shoulders counter-rotate
+#     against the pelvis.
+#   arms: counter-phase with the legs, from the shoulder: driven well back past the hip with the elbow
+#     opening, brought through to chest (run) or chin (sprint) height with the elbow closing; the
+#     hands toward the midline but not across it, the elbows flaring a little behind.
+#   head: level gaze, no yaw: the neck takes out the trunk's rotation, roll and pitch.
 #
 # S = D / ts is the ground covered per cycle when the stance foot is still: the runtime sets its
-# cadence to speed / S (see STRIDE in src/world/runner.ts), so the planted foot moves with the floor.
-# S is sized so the cadence that keeps the foot planted stays under the runtime's turnover cap at every
-# tier (run 2.80, sprint 3.91, dash 4.84 m/cycle: ≤ 2.6 cycles/s, ~5.2 steps/s, even at 12.6 m/s); the
-# contact lengths D are as long as these legs reach (the solver lowers the hips to keep the knee targets).
+# cadence to speed / S (STRIDE in src/world/runner.ts), so the planted foot moves with the floor.
 HEEL = SOLE[0]
 BALL = SOLE[2]
 BALL_OFF = BALL[0] - HEEL[0]
@@ -280,32 +283,56 @@ def configure(rig):
         BALL_JH = jz - BALL[1]
         TOE_PTS = [(0.0, -BALL_JH), (SOLE[3][0] - BALL[0], -BALL_JH + 0.012)]
     _HCACHE.clear()
+    _CYC.clear()
     print(f"  anim rig rest angles: thigh {math.degrees(THIGH0):+.1f}° knee {math.degrees(K0):+.1f}° shin {math.degrees(A0):+.1f}°", flush=True)
     print(f"  anim rig: thigh {LT:.3f} shin {LS:.3f} hip {HIP_Z:.3f} ±{HIP_W:.3f}  sole {[(round(a, 3), round(b, 3)) for a, b in SOLE]}", flush=True)
+
+
 G_ACC = 9.81
 
-# Arms (round 28): the hands pump to the chest, the chin only in the dash, and stay in front of their own
-# shoulder (out_fwd opens the arm as it comes forward). Swung across to the chin, they crossed the body.
+# Per gait (RUN_NOTES.md):
+#   v       design speed (m/s): sets the flight time, hence the ballistic rise
+#   ts, D   stance share of the cycle and contact length (m); S = D / ts
+#   xtd     the heel's anchor ahead of the hip joint at the strike (m; the ball lands BALL_OFF further on)
+#   knee    stance knee flexion at the strike, mid-stance and toe-off (rad): sets the hip heights
+#   af      stance foot pitch through the contact (toes up +), by stance fraction
+#   swing   (swing fraction, thigh from vertical forward +, knee flexion, ankle) keys between toe-off and strike
+#   hp/hp_a pelvis anterior tilt and its wobble; hyaw/hroll pelvis rotation and drop amplitudes
+#   lean    trunk lean over the pelvis; chest: shoulder counter-rotation (× the pelvis's); head_down: gaze
+#   arm_f/arm_b  upper arm forward / back of the trunk at the peaks; el_f/el_b the elbow there
 RUN = dict(
-    ts=0.28, D=0.78, xtd=0.24, knee=(0.38, 0.97, 0.45), v=6.0,
-    af=[(0.0, 0.14), (0.14, 0.0), (0.32, 0.0), (1.0, -0.88)],
-    swing=[(0.18, -0.34, 1.05, 0.45), (0.42, 0.12, 1.85, 0.12), (0.68, 0.72, 1.42, -0.12), (0.86, 0.66, 0.66, -0.16)],
-    hp=0.17, lean=0.25, hyaw=0.12, hroll=0.05, chest=0.85, head_down=0.14,
-    arm_c=0.14, arm_a=0.88, elbow=1.45, elbow_a=0.25, out=0.25, out_fwd=-0.3, curl=0.95, peak=0.76, frames=48,
+    v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=48,
+    knee=(0.32, 0.78, 0.42),
+    af=[(0.0, 0.06), (0.15, 0.0), (0.5, 0.0), (0.74, -0.32), (1.0, -1.0)],
+    swing=[(0.13, -0.3, 1.3, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
+           (0.7, 0.84, 1.15, -0.18), (0.86, 0.62, 0.58, -0.14)],
+    hp=0.16, hp_a=0.03, hyaw=0.12, hroll=0.075, lean=0.14, chest=1.15, head_down=0.12,
+    arm_f=0.6, arm_b=-1.05, el_f=1.85, el_b=1.1, arm_out=0.16, curl=0.9, sway=0.012,
 )
 SPRINT = dict(
-    ts=0.225, D=0.88, xtd=0.18, knee=(0.42, 0.9, 0.4), v=9.0,
-    af=[(0.0, -0.2), (0.3, -0.06), (0.6, -0.3), (1.0, -0.95)],  # (the push-off rolls through the second half: held flat to 0.5, it flicked the foot ~50° in a frame)
-    swing=[(0.15, -0.4, 1.28, 0.55), (0.38, 0.2, 2.3, 0.1), (0.64, 1.12, 1.75, -0.2), (0.84, 0.92, 0.78, -0.12)],
-    hp=0.23, lean=0.32, hyaw=0.16, hroll=0.06, chest=0.9, head_down=0.1,
-    arm_c=0.2, arm_a=1.0, elbow=1.45, elbow_a=0.3, out=0.22, out_fwd=-0.3, curl=1.1, peak=0.74, frames=48,
+    v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=48,
+    knee=(0.3, 0.72, 0.45),
+    af=[(0.0, -0.2), (0.3, -0.07), (0.55, -0.12), (0.78, -0.45), (1.0, -1.1)],
+    swing=[(0.13, -0.3, 1.6, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
+           (0.67, 1.12, 1.42, -0.2), (0.85, 0.9, 0.68, -0.15)],
+    hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
+    arm_f=1.0, arm_b=-1.25, el_f=2.0, el_b=0.85, arm_out=0.15, curl=1.0, sway=0.01,
 )
-# The desperate all-out run of the top tiers: longer reach, higher knees, a harder pump, a deeper lean.
-DASH = dict(SPRINT, ts=0.19, D=0.92, xtd=0.21, knee=(0.44, 0.88, 0.38), v=12.6,
-            af=[(0.0, -0.26), (0.3, -0.08), (0.6, -0.32), (1.0, -1.0)],
-            swing=[(0.15, -0.42, 1.38, 0.55), (0.37, 0.24, 2.42, 0.1), (0.63, 1.26, 1.85, -0.22), (0.83, 1.02, 0.84, -0.12)],
-            hp=0.27, lean=0.42, hyaw=0.19, hroll=0.07, chest=0.95, head_down=0.18,
-            arm_c=0.27, arm_a=1.25, elbow=1.5, elbow_a=0.35, out=0.24, curl=1.25, peak=0.73)
+# The desperate all-out run of the top tiers: a longer reach, higher knees, a harder pump, more lean.
+DASH = dict(
+    v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=48,
+    knee=(0.28, 0.7, 0.45),
+    af=[(0.0, -0.26), (0.3, -0.1), (0.55, -0.15), (0.78, -0.48), (1.0, -1.12)],
+    swing=[(0.13, -0.28, 1.75, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
+           (0.66, 1.25, 1.5, -0.22), (0.85, 1.0, 0.72, -0.15)],
+    hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
+    arm_f=1.15, arm_b=-1.35, el_f=2.05, el_b=0.75, arm_out=0.15, curl=1.1, sway=0.009,
+)
+
+
+# The start clip's run-in: one stride cycle in this many frames (the game's speed is ~6 m/s by then;
+# runner.ts EVENTS.start has its footfalls).
+START_CYC = round(FPS * (RUN["D"] / RUN["ts"]) / 6.0)
 
 
 def _rot(y, z, a):
@@ -335,8 +362,7 @@ def _ik(ax, az):
 
 
 def _pw(keys, u):
-    """Smooth monotone (PCHIP) interpolation through (u, value) keys: no stop at each key (an eased
-    segment halts dead at every key, and the joint's speed dips and surges between them)."""
+    """Smooth monotone (PCHIP) interpolation through (u, value) keys."""
     if u <= keys[0][0]:
         return keys[0][1]
     if u >= keys[-1][0]:
@@ -385,16 +411,20 @@ def _hermite(pts, t):
 
 
 def _scaled(G, k):
-    """Amplitude k < 1 (easing down out of a run): shorter contacts, lower knees, a smaller pump."""
+    """Amplitude k < 1 (easing down out of a run, or into one): shorter contacts, lower knees, a smaller
+    pump. (decel() and the escapes' slowing steps rely on D scaling by 0.35 + 0.65 k.)"""
     if k >= 0.999:
         return G
     g = dict(G)
     g["D"] = G["D"] * (0.35 + 0.65 * k)
-    g["xtd"] = G["xtd"] * (0.45 + 0.55 * k)
+    g["xtd"] = G["xtd"] * (0.45 + 0.55 * k) + 0.06 * (1 - k)
     g["swing"] = [(s, at * (0.35 + 0.65 * k), kn * (0.45 + 0.55 * k), an * k) for s, at, kn, an in G["swing"]]
     g["v"] = G["v"] * k
-    for n_ in ("hyaw", "hroll", "arm_a", "elbow_a"):
+    for n_ in ("hyaw", "hroll", "hp_a", "sway"):
         g[n_] = G[n_] * k
+    g["arm_f"] = 0.1 + (G["arm_f"] - 0.1) * k
+    g["arm_b"] = -0.1 + (G["arm_b"] + 0.1) * k
+    g["el_b"] = G["el_f"] + (G["el_b"] - G["el_f"]) * k
     g["knee"] = tuple(0.3 + (x - 0.3) * k for x in G["knee"])
     return g
 
@@ -410,45 +440,62 @@ def _height_for(G, u, knee):
 
 
 _HCACHE = {}
+MID_U = 0.45  # the stance's low point (the knee's deepest bend), as a share of the contact
 
 
 def _heights(G):
-    """(strike, mid-stance, toe-off) hip heights from the knee targets: the leg lands nearly straight,
-    loads to ~40° at mid-stance and pushes off almost straight."""
+    """Hip heights at the strike, mid-stance and toe-off, from the stance knee targets."""
     key_ = (G["D"], G["xtd"], G["knee"], tuple(G["af"]))
     if key_ not in _HCACHE:
         ktd, kmid, kto = G["knee"]
-        _HCACHE[key_] = (_height_for(G, 0.0, ktd), _height_for(G, 0.45, kmid), _height_for(G, 1.0, kto))
+        _HCACHE[key_] = (_height_for(G, 0.0, ktd), _height_for(G, MID_U, kmid), _height_for(G, 1.0, kto))
     return _HCACHE[key_]
 
 
-def _sink(G):
+def _cycle_time(G):
+    """Seconds per stride cycle at the gait's design speed (kept to a runner's turnover)."""
+    cad = G["v"] / (G["D"] / G["ts"]) if G["v"] > 0.1 else 1.0
+    return 1.0 / min(2.8, max(1.2, cad))
+
+
+def _vertical(G, loc):
+    """Hip-joint height at step phase loc ∈ [0, 0.5): a bounce. Flight is ballistic from toe-off to the
+    strike; the stance dips to the mid-stance low and back, meeting the flight's speeds at both ends."""
     htd, hmid, hto = _heights(G)
-    return 0.5 * (htd + hto) - hmid
+    T = _cycle_time(G)
+    ts = G["ts"]
+    tc, tf = ts * T, (0.5 - ts) * T
+    # Out of a full run the flight shrinks with the stride (a jog's feet barely leave the floor).
+    g = G_ACC * min(1.0, G["v"] / 6.0) ** 2
+    vto = (htd - hto) / tf + g * tf / 2
+    vtd = vto - g * tf
+    if loc >= ts:
+        tau = (loc - ts) * T
+        return hto + vto * tau - g * tau * tau / 2
+    tau = loc * T
+    tm = MID_U * tc
+
+    def herm(t, t0, t1, p0, p1, m0, m1):
+        h = t1 - t0
+        s = (t - t0) / h
+        return ((2 * s ** 3 - 3 * s ** 2 + 1) * p0 + (s ** 3 - 2 * s ** 2 + s) * h * m0
+                + (-2 * s ** 3 + 3 * s ** 2) * p1 + (s ** 3 - s ** 2) * h * m1)
+    if tau < tm:
+        return herm(tau, 0.0, tm, htd, hmid, vtd, 0.0)
+    return herm(tau, tm, tc, hmid, hto, 0.0, vto)
 
 
 def _pelvis(ph, G):
-    """Pelvis yaw (left side forward +), roll (left side up +) and hip height at cycle phase ph."""
+    """Pelvis yaw (left side forward +), roll (left side up +), forward tilt and hip height at phase ph."""
     tw = 2 * math.pi
     ts = G["ts"]
-    hy = G["hyaw"] * math.cos(tw * (ph - 0.96))
-    # Obliquity: the swing side drops sharply after each strike as the stance hip takes the load.
-    loc = ph % 0.5
-    drop = math.exp(-((loc - 0.3 * ts - 0.02) / (0.45 * ts + 0.04)) ** 2) * (1 if ph % 1.0 < 0.5 else -1)
-    roll = G["hroll"] * drop
-    # Height: spring-loaded stance, ballistic flight.
-    htd, hmid, hto = _heights(G)
-    if loc < ts:
-        u = loc / ts
-        base = htd + (hto - htd) * u
-        bump = (hmid - (htd + (hto - htd) * 0.45)) / math.sin(0.45 * math.pi) ** 1.2
-        H = base + bump * math.sin(math.pi * u) ** 1.2
-    else:
-        u = (loc - ts) / (0.5 - ts)
-        cad = G["v"] / (G["D"] / ts) if G["v"] > 0.1 else 1.0
-        tf = (0.5 - ts) / min(2.6, max(0.6, cad))
-        H = hto + (htd - hto) * u + 4 * u * (1 - u) * G_ACC * tf * tf / 8
-    return hy, roll, H
+    # The hip of the reaching leg comes forward into its strike.
+    hy = G["hyaw"] * math.cos(tw * (ph - 0.97))
+    # The swing side drops through each stance (the stance side up), most just before mid-stance.
+    roll = G["hroll"] * math.sin(tw * (ph - (0.42 * ts + 0.02) + 0.25))
+    # Tilted forward most as each hip extends behind at toe-off.
+    hp = G["hp"] + G["hp_a"] * math.cos(2 * tw * (ph - ts))
+    return hy, roll, hp, _vertical(G, ph % 0.5)
 
 
 def _hip_of(s, hy, roll):
@@ -458,7 +505,7 @@ def _hip_of(s, hy, roll):
 
 def _stance_leg(s, ph, t, G):
     """(world thigh angle, knee, ankle joint, toe) of leg s in stance at its own phase t."""
-    hy, roll, H = _pelvis(ph, G)
+    hy, roll, _, H = _pelvis(ph, G)
     hx, hz = _hip_of(s, hy, roll)
     u = t / G["ts"]
     af = _pw(G["af"], u)
@@ -469,108 +516,121 @@ def _stance_leg(s, ph, t, G):
     return at, knee, ankle, toe
 
 
-STRIKE_M = 1.0
-STRIKE_ANKLE_M = 0.0  # the ankle meets the stance's speed at the strike only in part: in full it overshot ~15° and snapped back
-ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung 2-4 cm sideways in each contact
-
-
-def _leg_state(s, ph, G):
-    off = 0.0 if s == "L" else 0.5
-    t = (ph + off) % 1.0
-    ts = G["ts"]
-    if t < ts:
-        return _stance_leg(s, ph, t, G)
-    return _swing_leg(s, ph, t, G)
+ROLL_COMP = -1.0  # the thighs take out the pelvis roll: tilted with it, the planted foot swung sideways
 
 
 def _swing_leg(s, ph, t, G):
     off = 0.0 if s == "L" else 0.5
     ts = G["ts"]
-    # Swing: Hermite from the toe-off solution through the keys to the next strike's solution.
-    e = 0.004
+    sw = 1.0 - ts
+    e = 0.003
     ph_to = (ts - off) % 1.0
     ph_td = (1.0 - off) % 1.0
     a0 = _stance_leg(s, ph_to, ts - 1e-6, G)[:3]
     a0m = _stance_leg(s, (ph_to - e) % 1.0, ts - e, G)[:3]
     a1 = _stance_leg(s, ph_td, 0.0, G)[:3]
     a1p = _stance_leg(s, (ph_td + e) % 1.0, e, G)[:3]
-    sw = 1.0 - ts
-    m0 = [(x - y) / (e / sw) * 0.6 for x, y in zip(a0, a0m)]   # the push-off's momentum carries into swing (C1: no corner)
-    # ... and the paw-back meets the stance at its own speed (C1 into the strike: at 0.6 of it the foot
-    # still drifted forward over the floor at ~40% of the run's pace through the strike frame).
-    m1 = [(y - x) / (e / sw) * STRIKE_M for x, y in zip(a1, a1p)]
+    # Leaving the floor the leg carries the push-off's speed into the swing; it meets the next stance at
+    # the stance's own speed (the foot paws back at the floor's pace: no skid, no stop at the strike).
+    m0 = [(x - y) / (e / sw) for x, y in zip(a0, a0m)]
+    m1 = [(y - x) / (e / sw) for x, y in zip(a1, a1p)]
     m0[1] = max(0.0, m0[1])  # the knee folds straight after toe-off, never locks back
-    m1[2] *= STRIKE_ANKLE_M
+    m0[0] *= 0.3  # the hip is already flexing at toe-off: the thigh turns forward at once, it does not trail on back
+    m1[2] = 0.0  # the ankle settles into the strike rather than flicking at the stance's rate
+    # The knee comes into the strike nearly at rest (~20° flexed, giving as it lands): carried in at the
+    # stance's loading rate, the Hermite overshot to a locked knee just before the strike (a straight-leg reach).
+    m1[1] *= 0.3
     pts = [(0.0, list(a0), m0)] + [(k[0], list(k[1:]), None) for k in G["swing"]] + [(1.0, list(a1), m1)]
-    at, knee, ankle = _hermite(pts, (t - ts) / sw)
+    u = (t - ts) / sw
+    at, knee, ankle = _hermite(pts, u)
     knee = max(0.04, knee)
-    # The toes leave the ground bent (as they were at toe-off), then straighten in the swing.
-    # (Over the first third of the swing: snapped straight in a frame or two it read as a flick.)
-    toe = min(1.2, max(0.0, -G["af"][-1][1])) * math.exp(-(((t - ts) / sw) / 0.22) ** 2)
-    # ... and a forefoot strike's toes come round to meet the stone (they bent flat the moment it landed).
-    toe += min(1.2, max(0.0, -G["af"][0][1])) * ease(((t - ts) / sw - 0.75) / 0.25)
+    # The toes leave the ground bent and straighten over the first part of the swing; a forefoot strike's
+    # toes come round to meet the stone.
+    toe = min(1.2, max(0.0, -G["af"][-1][1])) * math.exp(-(u / 0.22) ** 2)
+    toe += min(1.2, max(0.0, -G["af"][0][1])) * ease((u - 0.75) / 0.25)
     return at, knee, ankle, toe
 
 
+def _leg_state(s, ph, G):
+    t = (ph + (0.0 if s == "L" else 0.5)) % 1.0
+    if t < G["ts"]:
+        return _stance_leg(s, ph, t, G)
+    return _swing_leg(s, ph, t, G)
+
+
+def _arm_pose(P, m, t, G, k):
+    """Arm m pumping in counter-phase with the opposite leg, whose own phase is t."""
+    tw = 2 * math.pi
+    # Forward peak with the opposite thigh's (its knee drive, at the other foot's toe-off); the drive back
+    # is a little quicker than the swing through (a 2nd harmonic skews it).
+    peak = G["ts"] + 0.5
+    a = math.cos(tw * (t - peak)) + 0.12 * math.sin(2 * tw * (t - peak))
+    a = max(-1.0, min(1.0, a / 1.03))
+    mid = 0.5 * (G["arm_f"] + G["arm_b"])
+    amp = 0.5 * (G["arm_f"] - G["arm_b"])
+    asym = 1.0 if m == "R" else 0.95  # the right arm pumps a touch bigger: not a mirror
+    fwd = mid + amp * a * asym
+    # The elbow closes coming forward and opens as the arm drives back past the hip (lagging the swing).
+    e = math.cos(tw * (t - peak - 0.04))
+    elbow = 0.5 * (G["el_f"] + G["el_b"]) + 0.5 * (G["el_f"] - G["el_b"]) * e
+    # In front the hand comes toward the midline (not across it); behind, the elbow flares out a little.
+    out = G["arm_out"] + 0.15 * max(0.0, -a) - 0.04 * max(0.0, a) + (0.0 if m == "R" else 0.015)
+    flop = math.sin(tw * (t - peak - 0.1))
+    arm(P, m, fwd=fwd, elbow=elbow, out=out, wrist=0.06 + 0.1 * flop * k, twist=0.12 * a * k,
+        curl=G["curl"] + 0.08 * e * k, prot=0.16 * a * k, shrug=(0.02 + 0.05 * max(0.0, a)) * k)
+
+
 def _gait(ph, G, k=1.0):
-    """Pose, lateral root offset and root height for gait G at cycle phase ph (0 = left strike)."""
+    """Pose, lateral root offset and hip-joint height for gait G at cycle phase ph (0 = left strike)."""
     G = _scaled(G, k)
     tw = 2 * math.pi
     P = {}
-    hy, roll, H = _pelvis(ph, G)
+    hy, roll, hp, H = _pelvis(ph, G)
+    hp = hp * (0.4 + 0.6 * k)
     ts = G["ts"]
-    # Pelvis pitch: tipped forward, most at each push-off (the hip extending behind).
-    hp = G["hp"] * (0.4 + 0.6 * k) + 0.025 * k * math.cos(2 * tw * (ph - ts))
     for s in "LR":
         at, knee, ankle, toe = _leg_state(s, ph, G)
         t = (ph + (0.0 if s == "L" else 0.5)) % 1.0
-        stance = t < ts
-        # The stance foot lands under the body's line (a narrow track); the swing knee tracks straight.
-        # (Eased in and out of the stance's: stepped at the strike, the planted foot slid ~2.5 cm sideways
-        # as the cycle's smoothing spread that step over the contact.)
-        out = -0.035 if stance else -0.035 + G.get("swing_out", 0.05) * math.sin(math.pi * (t - ts) / (1 - ts)) ** 2
-        # Solved angles are world (sagittal); the rig's rest leg is not quite straight: take its rest
-        # angles out so the joints land where the solver put them (else the soles sink and slide).
+        # A narrow track: the stance foot lands near the body's line; the swing knee tracks straight
+        # (eased out and back in, so the planted foot does not step sideways at the strike).
+        out = -0.03 if t < ts else -0.03 + 0.05 * math.sin(math.pi * (t - ts) / (1 - ts)) ** 2
+        # Solved angles are world (sagittal); take the rig's rest angles out so the joints land where the
+        # solver put them.
         P[f"thigh.{s}"] = (-(at + hp - THIGH0), hy * 0.8, out * sgn(s) + ROLL_COMP * roll)
         P[f"shin.{s}"] = (knee - K0, 0, 0)
         P[f"foot.{s}"] = (-(ankle - A0), 0, 0)
         P[f"toe.{s}"] = (toe, 0, 0)
-        # Arms: the opposite arm swings with this leg's thigh; the forearm lags, the hand stays loose.
-        m = mirror(s)
-        a = math.cos(tw * (t - G["peak"]))
-        lag = math.cos(tw * (t - G["peak"] - 0.05))
-        flop = math.sin(tw * (t - G["peak"] - 0.12))
-        asym = 1.0 if m == "R" else 0.93            # the right arm pumps a touch bigger …
-        wide = 0.0 if m == "R" else 0.02            # … the left rides a touch wider
-        fwd = (G["arm_c"] + G["arm_a"] * a * asym) * k + 0.05 * (1 - k)
-        arm(P, m, fwd=fwd, elbow=(G["elbow"] + G["elbow_a"] * lag) * (0.55 + 0.45 * k),
-            out=G["out"] + wide - 0.06 * k + (0.03 * a + G.get("out_fwd", 0.0) * max(0.0, a)) * k, wrist=0.08 + 0.12 * flop * k, twist=0.08 * a * k,
-            curl=G["curl"] + 0.1 * lag * k, prot=0.15 * a * k, shrug=(0.03 + 0.05 * max(0.0, a)) * k)
-    # Trunk: a steady forward lean with a small flex as each stance loads, the chest counter-rotating
-    # against the pelvis; the head keeps its gaze level through all of it.
-    load = math.exp(-(((ph % 0.5) - 0.45 * ts) / (0.5 * ts + 0.03)) ** 2)
-    lean = G["lean"] * (0.4 + 0.6 * k) + 0.025 * k * load
-    look = hp + lean - G["head_down"] - 0.03 * k * load
-    torso(P, lean=lean, look=look, yaw=-G["chest"] * hy, roll=-roll * 0.8, hp=hp, hyaw=hy, hroll=roll,
-          head_yaw=0.0, head_roll=-roll * 0.1)
-    # The body's line shifts a little over each stance foot.
-    x = 0.01 * k * math.cos(tw * (ph - ts * 0.5))
+        _arm_pose(P, mirror(s), t, G, k)
+    # Trunk: a steady lean with a little flex as each stance loads; the shoulders counter-rotate; the
+    # head keeps a level gaze through the bob, the tilt and the twist.
+    load = math.exp(-(((ph % 0.5) - MID_U * ts) / (0.5 * ts + 0.03)) ** 2)
+    lean = G["lean"] * (0.4 + 0.6 * k) + 0.02 * k * load
+    look = hp + lean - G["head_down"] - 0.02 * k * load
+    torso(P, lean=lean, look=look, yaw=-G["chest"] * hy, roll=-roll * 0.7, hp=hp, hyaw=hy, hroll=roll,
+          head_yaw=0.0, head_roll=-roll * 0.15)
+    # The body sways a little over each stance foot.
+    x = G["sway"] * math.cos(tw * (ph - ts * 0.5))
     return P, x, H - HIP_Z
 
 
-# The solved cycle has corners in its velocities: the stance/swing hand-offs (damped tangents), the
-# eased ankle-pitch segments (each stops dead at its key) and the toe's snap straight after toe-off.
-# Played at ~3x in the game (a cycle in ~15 frames) those corners zig-zag frame to frame (judder). So the
-# cycle is sampled densely and every channel (joint angles, root) filtered with a narrow periodic Gaussian
-# (sigma ~1.6 % of a cycle): positions move by millimetres, the velocity corners round off.
-CYCLE_N = 192
-CYCLE_SIGMA = 6.0  # samples
-STRIKE_SIG = 0.3  # the legs' filter width over each strike (a share of the cycle's) ...
-STRIKE_W = 0.05  # ... easing back to full width over this much of the cycle either side
-FEET_SIG = 1.5  # the feet and toes filtered wider (their push-off is the fastest motion in the stride)
-
+# The cycle is sampled densely and the swing legs and upper body lightly filtered (a periodic Gaussian):
+# played at 2-2.6 cycles a second, any corner left in a velocity zig-zags frame to frame. The stance legs
+# are not filtered — the IK keeps the planted foot exact — and the filter on a swing leg fades out
+# over the last and first few samples either side of the contact, so the joins stay where they are.
+CYCLE_N = 240
+SIG_SWING = 3.0  # samples (1.25 % of the cycle)
+SIG_BODY = 2.0
+EDGE = 0.04  # share of the cycle over which the swing's filter fades in after toe-off and out before the strike
 
 _CYC = {}
+
+
+def _wrap_smooth(vals, sig):
+    n = len(vals)
+    r = int(math.ceil(3 * sig))
+    w = [math.exp(-0.5 * (j / sig) ** 2) for j in range(-r, r + 1)]
+    sw = sum(w)
+    return [sum(w[j + r] * vals[(i + j) % n] for j in range(-r, r + 1)) / sw for i in range(n)]
 
 
 def _cycle(G, k):
@@ -578,44 +638,30 @@ def _cycle(G, k):
     if key_ in _CYC:
         return _CYC[key_]
     raw = [_gait(i / CYCLE_N, G, k) for i in range(CYCLE_N)]
+    ts = _scaled(G, k)["ts"]
     names = list(raw[0][0].keys())
-    def smooth(vals, sig=CYCLE_SIGMA, strike=None):
-        n = len(vals)
-        out_ = []
-        for i in range(n):
-            si = sig
-            if strike is not None:
-                # Narrow over the leg's strike: there the foot comes to rest on the stone, and a filter as
-                # wide as the swing's carried the swing's sweep into the stance (the planted foot slid
-                # 3-6 cm in the strike frame at every tier; unfiltered it is still to within ~1 cm).
-                d = min((i - strike) % n, (strike - i) % n) / n
-                si = sig * (1.0 - (1.0 - STRIKE_SIG) * math.exp(-((d / STRIKE_W) ** 2)))
-            r = int(math.ceil(3 * si))
-            w = [math.exp(-0.5 * (j / si) ** 2) for j in range(-r, r + 1)]
-            out_.append(sum(w[j + r] * vals[(i + j) % n] for j in range(-r, r + 1)) / sum(w))
-        return out_
-    chans = {}
+    out = [dict() for _ in range(CYCLE_N)]
     for nm in names:
-        # The feet and toes swing fastest (the whole push-off in ~2 game frames): filtered wider.
-        sig = CYCLE_SIGMA * (FEET_SIG if nm.split(".")[0] in ("foot", "toe") else 1.0)
-        leg_ = nm.split(".")[0] in ("thigh", "shin", "foot", "toe")
-        strike = (0 if nm.endswith(".L") else CYCLE_N // 2) if leg_ else None
+        side = nm[-1] if nm[-2:] in (".L", ".R") else None
+        legb = nm.split(".")[0] in ("thigh", "shin", "foot", "toe")
         for a in range(3):
-            chans[(nm, a)] = smooth([R[0][nm][a] for R in raw], sig, strike)
-    xs = smooth([R[1] for R in raw])
-    zs = smooth([R[2] for R in raw])
-    out = []
-    for i in range(CYCLE_N):
-        P = {nm: tuple(chans[(nm, a)][i] for a in range(3)) for nm in names}
-        out.append((P, xs[i], zs[i]))
-    # The filtered legs reach a little lower or higher than the solved ones: shift the root by the
-    # difference of the lowest contact (sagittal, so the pelvis roll the solver applied is kept), so
-    # each sole lands where the solver put it; that correction is filtered narrowly too.
-    d = [raw[i][2] - out[i][2] + contact_z(raw[i][0]) - contact_z(out[i][0]) for i in range(CYCLE_N)]
-    d = smooth(d, 2.0)
-    out = [(P, x, z + dd) for (P, x, z), dd in zip(out, d)]
-    _CYC[key_] = out
-    return out
+            vals = [R[0][nm][a] for R in raw]
+            sm = _wrap_smooth(vals, SIG_SWING if legb else SIG_BODY)
+            if legb:
+                off = 0.0 if side == "L" else 0.5
+                for i in range(CYCLE_N):
+                    t = (i / CYCLE_N + off) % 1.0
+                    # 0 through the stance, easing to 1 within EDGE of its ends.
+                    d = min(t - ts, 1.0 - t) if t >= ts else 0.0
+                    w = ease(d / EDGE)
+                    sm[i] = vals[i] + (sm[i] - vals[i]) * w
+            for i in range(CYCLE_N):
+                out[i].setdefault(nm, [0.0, 0.0, 0.0])[a] = sm[i]
+    xs = _wrap_smooth([R[1] for R in raw], SIG_BODY)
+    zs = [R[2] for R in raw]  # the vertical is analytic and C1 already
+    res = [({nm: tuple(v) for nm, v in out[i].items()}, xs[i], zs[i]) for i in range(CYCLE_N)]
+    _CYC[key_] = res
+    return res
 
 
 def _gait_smooth(ph, G, k=1.0):
@@ -644,7 +690,10 @@ def gait_clip(name, G):
         ph = f / n
         P, x, z = _gait_smooth(ph, G)
         key(f + 1, P, z=z, x=x)
-    print(f"  gait {name}: S = {G['D'] / G['ts']:.3f} m/cycle, hip heights {['%.3f' % h for h in _heights(G)]}", flush=True)
+    hs = _heights(G)
+    T = _cycle_time(G)
+    print(f"  gait {name}: S = {G['D'] / G['ts']:.3f} m/cycle; hip heights strike/mid/toe-off {['%.3f' % h for h in hs]}; "
+          f"contact {G['ts'] * T * 1000:.0f} ms, flight {(0.5 - G['ts']) * T * 1000:.0f} ms at {G['v']} m/s", flush=True)
 
 
 # ------------------------------------------------------------------ poses
@@ -816,13 +865,13 @@ def build(rig):
     arm(P, "L", fwd=-0.85, elbow=1.05, out=0.22, curl=1.0)
     key(19, P)
     P19, z19 = P, solve_root(P)
-    # Into the run: keyed every frame on the gait itself (phase 0 = this left strike at frame 19, the next at
-    # 32), the stride lengthening. Keyed every 3-4 frames, the in-betweens dropped the swinging foot to the
+    # Into the run: keyed every frame on the gait itself (phase 0 = this left strike at frame 19, the next a
+    # stride cycle later at the game's pace by then, ~6 m/s: START_CYC frames), the stride lengthening. Keyed every 3-4 frames, the in-betweens dropped the swinging foot to the
     # floor early and it touched down still travelling (the "planted" foot slid ~9 cm/frame in game). The
     # legs take the gait over 2 frames, the trunk and arms over 6 (cut in at once, the arms swung 70°+ in
     # a frame).
-    for fr in range(20, 33):
-        ph = (fr - 19) / 13
+    for fr in range(20, 20 + START_CYC):
+        ph = (fr - 19) / START_CYC
         k = 0.85 + 0.15 * min(1.0, (fr - 19) / 10)
         G, x = loco(ph % 1.0, RUN, k)
         z = gait_root(ph % 1.0, RUN, k)
@@ -2639,7 +2688,7 @@ RAD = {"hips": 0.12, "spine": 0.11, "chest": 0.12, "neck": 0.06, "head": 0.1, "s
        "upper_arm": 0.085, "forearm": 0.065, "hand": 0.035, "fingers": 0.02,
        "thigh": 0.085, "shin": 0.06, "toe": 0.05}
 V_RUN = 0.2  # m per frame at the crash (6 m/s)
-CADENCE_F = 0.072  # stride phase per frame at that pace
+CADENCE_F = V_RUN / (RUN["D"] / RUN["ts"])  # stride phase per frame at that pace (the planted foot keeps pace with the floor)
 
 
 def floor_z(P, x=0.0, y=0.0):
