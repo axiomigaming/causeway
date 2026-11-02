@@ -104,6 +104,8 @@ class Builder {
   len = 0;
   /** World round 24: the side (-1/1) of a lower terrace the ground drops to (0: none; see land.groundY). */
   lower = 0;
+  /** World round 24: the layout's seed (for choices drawn apart from `rng`, which leave its stream as it was). */
+  seed = '';
   constructor(
     readonly rng: Rng,
     readonly density: { foliage: number; scenery: number },
@@ -407,7 +409,26 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
   const side = b.rng.chance(0.5) ? -1 : 1;
   switch (kind) {
     case 'arch': {
-      b.place('arch_1', 0, 0, z, b.rng.chance(0.5) ? 0 : Math.PI);
+      // (World round 24: four gates, not one. The brick arch stood at the vanishing point of about half
+      // the frames of a 16-world contact sheet — the same piece, the same place in the frame.)
+      // (Drawn from a generator of its own: the layout's own stream, and so every other placement and
+      // the route built around it, stay as they were.)
+      const vr = new Rng(`${b.seed}/gate`);
+      const form = vr.int(0, 3);
+      const flip = b.rng.chance(0.5) ? 0 : Math.PI;
+      if (form === 0) b.place('arch_1', 0, 0, z, flip);
+      else if (form === 1) b.place('lintel_gate_0', 0, 0, z, flip);
+      else if (form === 2) {
+        // A trilithon: two piers and the lintel across them.
+        for (const sd of [-1, 1]) b.place('pillar_0', sd * 3.4, 0, z, vr.range(0, 6.28));
+        b.place('beam_lintel_0', 0, 4.95, z, flip, [1.05, 1, 1]);
+      } else {
+        // Its lintel fallen: one pier standing, the other broken off, the lintel tipped into the shallows.
+        const sd = vr.chance(0.5) ? -1 : 1;
+        b.place('pillar_0', sd * 3.4, 0, z, vr.range(0, 6.28));
+        b.place('pillar_2', -sd * 3.4, 0, z, vr.range(0, 6.28));
+        b.place('beam_lintel_0', -sd * 5.6, WL + 0.1, z + 1.2, Math.PI / 2 + vr.range(-0.3, 0.3), 1, [0, vr.range(0.15, 0.3)]);
+      }
       // Its piers stand out past the causeway's edge: boulders heaped under them.
       for (const sd of [-1, 1]) {
         b.place(`rock_mid_${b.rng.int(0, 2)}`, sd * 3.7, WL + 0.9, z, b.rng.range(0, 6.28), [0.6, 0.8, 0.55]);
@@ -1763,6 +1784,7 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   const L = len ?? rng.pick(def.lengths);
   const b = new Builder(rng, density, Number(seed.split('#')[1] ?? 0) || 0, ruin);
   b.len = L;
+  b.seed = seed;
   const r = def.build(b, L);
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin);
