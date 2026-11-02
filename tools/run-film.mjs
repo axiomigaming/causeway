@@ -8,7 +8,7 @@
 //
 //   URL=http://localhost:5188 node tools/run-film.mjs --w 7 --view desktop --q medium --at 1.3 \
 //       --secs 9 --out review/fx21/before --name w7-desktop [--sections corridor,turnL,bridge] [--fps 30]
-//       [--size 960x540] [--every 1] [--keep] [--sheet] [--pre 3] [--from 0]
+//       [--size 960x540] [--every 1] [--keep] [--sheet] [--pre 3] [--from 0] [--event crash:pillar:0@3 | cashout@3]
 //
 // --at: the multiplier when filming starts (3 s of run are stepped first, undrawn, so the chase has
 // settled). --every n draws every nth frame (the measurements are taken every frame). Frames are
@@ -39,6 +39,10 @@ const SHEET_ONLY = process.argv.includes('--sheet');
 const PRE = +arg('pre', '3');
 // --from <m>: the run starts this far along the route (the runner is moved there in the setup).
 const FROM = +arg('from', '0');
+// --event crash:<kind>:<variant>@<s> or cashout@<s>: the round ends that far into the film (as the
+// controller would: the settled multiplier, then the fall or the escape), and filming goes on through
+// it. The interface is hidden for these (the scene is what is judged; no live round settles it).
+const EVENT = arg('event', '');
 const [VW, VH] = (arg('size', VIEW === 'phone' ? '390x844' : '1280x720')).split('x').map(Number);
 const FR = `${OUT}/frames-${NAME}`;
 mkdirSync(FR, { recursive: true });
@@ -103,6 +107,9 @@ await page.evaluate(
 console.log(`ready in ${((Date.now() - T0) / 1000).toFixed(0)} s`);
 const T1 = Date.now();
 const N = Math.round(SECS * FPS);
+const [EV, EV_AT] = EVENT ? EVENT.split('@') : ['', '0'];
+const evFrame = EVENT ? Math.round(+EV_AT * FPS) : -1;
+if (EVENT) await page.evaluate(() => document.getElementById('app')?.style.setProperty('visibility', 'hidden'));
 const rows = [];
 let shot = 0;
 const sheetAt = new Map();
@@ -110,6 +117,18 @@ for (let i = 0; i < 12; i++) sheetAt.set(Math.round((i * (N - 1)) / 11), i);
 const drawnF = [];
 for (let f = 0; f < N; f++) {
   const draw = SHEET_ONLY ? sheetAt.has(f) : f % EVERY === 0;
+  if (f === evFrame) {
+    await page.evaluate((ev) => {
+      const g = window.__game;
+      g.live.mult = Math.floor(g.live.mult * 100) / 100;
+      g.elapsed = () => null;
+      if (ev === 'cashout') g.cashout('film-cash');
+      else {
+        const [, kind, v] = ev.split(':');
+        g.crash(Math.round(g.live.mult * 100), 'film-crash', kind, Number(v));
+      }
+    }, EV);
+  }
   const r = await page.evaluate(
     ({ fps, draw }) => {
       const g = window.__game;
