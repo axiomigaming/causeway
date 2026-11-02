@@ -298,6 +298,21 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
   return WL - 0.5 + 1.4 * s * 1.1 - 0.12;
 }
 
+/** World round 24: half the widest horizontal extent of the shrub masses (kit bounds), and of a rock_mid at scale 1. */
+const SHRUB_R = [2.0, 2.95];
+const ISLET_R = 1.85;
+
+/**
+ * World round 24: a shrub mass on an islet of scale `rockS` (see islet), its scale `s` (as rolled) held
+ * down so the crown overhangs the rock by at most a quarter. A 5 m shrub on a 2.5 m boulder hung out
+ * over the water on every side, and the water (opaque: what lies under it is stripped) cut its underside
+ * flat: from beside the way, boxy clumps of leaves floating on the lagoon.
+ */
+function isletShrub(b: Builder, i: number, x: number, y: number, z: number, ry: number, s: number, rockS: number) {
+  const fit = (1.25 * ISLET_R * rockS) / SHRUB_R[i]!;
+  b.place(`shrub_mass_${i}`, x, y, z, ry, Math.min(s, fit));
+}
+
 /**
  * World round 23: the open-water side of a bridge or boardwalk is never bare: islets within 7.2 m
  * carrying a palm, a shrub mass or a broken column (inside 7.5 m they never block a corner), and
@@ -306,14 +321,15 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
 function openSide(b: Builder, side: number, len: number) {
   for (let z = -b.rng.range(1.5, 4); z > -len; z -= b.rng.range(6, 9)) {
     const x = side * b.rng.range(5.4, 7.2);
-    const top = islet(b, x, z, b.rng.range(0.55, 0.8));
+    const rs = b.rng.range(0.55, 0.8);
+    const top = islet(b, x, z, rs);
     const r = b.rng.range(0, 1);
     if (r < 0.4 && b.foliage(0.9)) {
       const j = b.rng.int(0, 2);
       const ry = b.rng.range(0, 6.28);
       b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
       b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
-    } else if (r < 0.8 && b.foliage(0.9)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.75, 1.05));
+    } else if (r < 0.8 && b.foliage(0.9)) isletShrub(b, b.rng.int(0, 1), x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.75, 1.05), rs);
     else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
   }
 }
@@ -1011,14 +1027,15 @@ const BUILDERS = {
           // clearance probe found the far islets in the new leg every time — the corner never came and the
           // run-up was staged again and again, 40 % of the route open water.)
           const x = side * (z < -len + 9 ? b.rng.range(5.5, 7.2) : b.rng.range(5.5, 11));
-          const top = islet(b, x, z, b.rng.range(0.6, 0.9));
+          const rs = b.rng.range(0.6, 0.9);
+          const top = islet(b, x, z, rs);
           const r = b.rng.range(0, 1);
           if (r < 0.4) {
             const j = b.rng.int(0, 2);
             const ry = b.rng.range(0, 6.28);
             b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
             b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
-          } else if (r < 0.75) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
+          } else if (r < 0.75) isletShrub(b, b.rng.int(0, 1), x, top - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0), rs);
           else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
         }
         // (Round 22: a near layer and a far shore — w23/31/77 still read as open water to the horizon.)
@@ -1032,13 +1049,14 @@ const BUILDERS = {
         // Instead a second islet within 7 m carries a palm or a shrub mass, filling the near water.)
         for (let z = -b.rng.range(2, 5); z > -len; z -= b.rng.range(7, 10)) {
           const x = side * b.rng.range(5.4, 7.0);
-          const top = islet(b, x, z, b.rng.range(0.55, 0.75));
+          const rs = b.rng.range(0.55, 0.75);
+          const top = islet(b, x, z, rs);
           if (b.rng.chance(0.5) && b.foliage(0.9)) {
             const j = b.rng.int(0, 2);
             const ry = b.rng.range(0, 6.28);
             b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.85, 1.1));
             b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.85, 1.1));
-          } else b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1));
+          } else isletShrub(b, b.rng.int(0, 1), x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1), rs);
         }
         if (b.rng.chance(0.6)) {
           const cx = side * b.rng.range(13, 20);
@@ -1322,7 +1340,7 @@ const BUILDERS = {
       for (let z = -2; z > -len; z -= 5) {
         if (!b.foliage(0.7)) continue;
         const sx = side * b.rng.range(5.5, 7);
-        b.place(`shrub_mass_${b.rng.int(0, 1)}`, sx, islet(b, sx, z, 0.7) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+        isletShrub(b, b.rng.int(0, 1), sx, islet(b, sx, z, 0.7) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2), 0.7);
       }
       canopy(b, side, -len * b.rng.range(0.15, 0.4), 0, 0.6);
       jungleBank(b, -side, b.rng.range(7.5, 9), -len / 2, 0, 0.5);
@@ -1432,7 +1450,7 @@ const BUILDERS = {
         for (let zz = -2; zz > -len; zz -= b.rng.range(4, 7)) {
           if (b.foliage(0.7)) {
             const sx = side * b.rng.range(5, 7);
-            b.place(`shrub_mass_${b.rng.int(0, 1)}`, sx, islet(b, sx, zz, 0.7) - 0.3, zz, b.rng.range(0, 6.28), b.rng.range(0.8, 1.3));
+            isletShrub(b, b.rng.int(0, 1), sx, islet(b, sx, zz, 0.7) - 0.3, zz, b.rng.range(0, 6.28), b.rng.range(0.8, 1.3), 0.7);
           }
           b.lilies(side * b.rng.range(4.5, 6.5), zz - 2, b.rng.range(0.8, 1.2));
         }
@@ -1631,7 +1649,7 @@ const BUILDERS = {
           b.place(`tree_big_${t}_trunk`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
           b.place(`tree_big_${t}_crown`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
         }
-        if (b.foliage(0.8)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * 8.5, islet(b, side * 8.5, -len + 1, 0.8) - 0.3, -len + 1, b.rng.range(0, 6.28), 1.2); // (round 20: on a boulder, not the water)
+        if (b.foliage(0.8)) isletShrub(b, b.rng.int(0, 1), side * 8.5, islet(b, side * 8.5, -len + 1, 0.8) - 0.3, -len + 1, b.rng.range(0, 6.28), 1.2, 0.8); // (round 20: on a boulder, not the water)
       }
       jungleBank(b, -fs, 5.4, -len / 2 + 2, 0, 0.5);
       canopy(b, -fs, -len * b.rng.range(0.25, 0.5), 0, 0.4);

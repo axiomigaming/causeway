@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { groundY } from '../src/world/land';
-import { buildLayout, isLand, LAND_TYPES } from '../src/world/sections';
+import { buildLayout, isLand, LAND_TYPES, SECTION_TYPES } from '../src/world/sections';
 import { GEN_SPEED, genIntensity, Track, WALLED as WALLED_TYPES } from '../src/world/track';
 import { boundsKit } from './kitBounds';
 
@@ -111,6 +111,40 @@ it('lays no paving under the ground of a land section', () => {
     }
   }
   expect(checked).toBeGreaterThan(100);
+  expect(bad.slice(0, 12)).toEqual([]);
+});
+
+/**
+ * World round 24: a shrub mass on an islet stays on its rock. A 5 m shrub on a 2.5 m boulder hung out
+ * over the water on every side, and the opaque water cut its underside flat: boxy clumps of leaves
+ * floating on the lagoon beside the way. Its crown overhangs the rock by at most a quarter.
+ */
+it('keeps the shrubs on islets on their rocks', () => {
+  const SHRUB_R = [2.0, 2.95], ROCK_R = 1.85;
+  const p = new THREE.Vector3(), q = new THREE.Vector3(), sc = new THREE.Vector3();
+  const bad: string[] = [];
+  let checked = 0;
+  for (const type of SECTION_TYPES) {
+    for (let k = 0; k < 6; k++) {
+      const L = buildLayout(type, `islet-${k}`, { foliage: 1, scenery: 1 });
+      const rocks = L.props.filter((pl) => pl.piece.startsWith('rock_mid_'));
+      for (const pl of L.props) {
+        const m = /^shrub_mass_(\d)$/.exec(pl.piece);
+        if (!m) continue;
+        p.setFromMatrixPosition(pl.m);
+        if (p.y > -1.2) continue; // (only what stands at the water: islets sit at its surface, -2.2)
+        // Its islet: a boulder right under it (islet() puts the shrub on the rock's centre).
+        const rock = rocks.find((r) => q.setFromMatrixPosition(r.m).setY(p.y).distanceTo(p) < 0.6);
+        if (!rock) continue;
+        checked++;
+        const rs = sc.setFromMatrixScale(rock.m).x;
+        const ss = sc.setFromMatrixScale(pl.m).x;
+        const over = (SHRUB_R[+m[1]!]! * ss) / (ROCK_R * rs);
+        if (over > 1.26) bad.push(`${type}/${k} ${pl.piece} x${ss.toFixed(2)} on rock x${rs.toFixed(2)}: ${over.toFixed(2)}`);
+      }
+    }
+  }
+  expect(checked).toBeGreaterThan(20);
   expect(bad.slice(0, 12)).toEqual([]);
 });
 
