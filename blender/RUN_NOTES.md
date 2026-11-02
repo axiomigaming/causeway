@@ -24,14 +24,20 @@ compromise it is said below.
 
 In the game (6.5 m/s at tier 0, ~9 m/s sprint, up to 12.6 m/s): the stride per cycle S = D / ts
 (D the contact length, ts the stance share of the cycle) sets the turnover (cadence = speed / S).
-This rig's legs (hip joint 0.89 m, hip to ankle 0.81 m) reach ~0.87–0.92 m of contact before the
-toe-off has to come off a straight leg, so the run lands a little short of the real step length:
+This rig's legs (hip joint 0.89 m, hip to ankle 0.81 m) reach ~0.8 m of contact before the toe-off
+has to come off a locked leg with the hips sunk (the solver showed the hips dropping 13-16 cm at a 0.9 m
+contact), so the contact is a little shorter than a real sprinter's and the stance share smaller; the
+stride per cycle, and so the turnover, is the real one:
 
-| clip | D (m) | ts | S (m/cycle) | steps/s at its speed | contact | was |
-| --- | --- | --- | --- | --- | --- | --- |
-| run | 0.86 | 0.24 | 3.58 | 3.6 at 6.5 m/s | 0.13 s | S 2.79: 4.7 steps/s at 6.5 m/s (a scurry) |
-| sprint | 0.89 | 0.215 | 4.14 | 4.4 at 9 m/s | 0.10 s | S 3.91 |
-| dash | 0.92 | 0.19 | 4.84 | 5.2 at 12.6 m/s | 0.07 s | S 4.84 (the cadence cap at 12.6 m/s) |
+| clip | D (m) | ts | S (m/cycle) | steps/s | contact / flight | hip bob | was |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| run | 0.80 | 0.223 | 3.59 | 3.6 at 6.5 m/s | 121 / 151 ms | 5.6 cm | S 2.79: 4.7 steps/s at 6.5 m/s (a scurry) |
+| sprint | 0.80 | 0.193 | 4.15 | 4.4 at 9 m/s | 89 / 141 ms | 4.5 cm | S 3.91 |
+| dash | 0.80 | 0.165 | 4.85 | 5.2 at 12.6 m/s | 67 / 135 ms | 4.3 cm | S 4.84 (the cadence cap at 12.6 m/s) |
+
+(Contact and flight at each clip's design speed, 6.6 / 9 / 12 m/s.) The strike lands the ball
+0.37–0.43 m ahead of the hip joint (the heel 0.2 m in the run, a midfoot strike), close to under the
+body.
 
 ## Legs
 

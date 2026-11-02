@@ -1282,6 +1282,11 @@ def build(rig):
             # (the drop: not σ 4 through its impact, which slowed the fall before the stone into a soft landing)
         elif act.name == "slide":
             ease_hips(act, upto=13)  # the drop only: the rise stays as keyed (head room under the bough)
+        elif act.name == "win_slide":
+            # The hop down onto the seat, the landing, the knee coming down and the drive up onto his feet
+            # each turned the hips in a frame (11-12 cm/frame², the critic's 60x hips jump); not the stand
+            # over the planted feet from 38 on.
+            ease_hips(act, sigma=1.5, upto=38)
         if act.name == "fall_side_hit":
             smooth_world_travel(act, 0, 40, sigma=3.0)
     for act in bpy.data.actions:
