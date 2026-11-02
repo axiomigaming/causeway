@@ -35,7 +35,24 @@ const smooth = (a: number, b: number, x: number) => {
  * Ground height (path-relative metres) at section-local (x, z), z running 0 .. −len. The noise fades
  * out over the last 5 m at each end, so every section of a run meets its neighbours on the same profile.
  */
-export function groundY(kind: GroundKind, x: number, z: number, len: number): number {
+export function groundY(kind: GroundKind, x: number, z: number, len: number, lower = 0): number {
+  const y = groundY0(kind, x, z, len);
+  if (!lower || kind !== 'land' || Math.sign(x) !== Math.sign(lower)) return y;
+  // World round 24: a lower terrace beside the way on side `lower` (the overgrown plaza's court a flight
+  // down, its slabs at -1.6). The forest floor lay at -0.3 over it: the terrace and its footing were
+  // buried, and the frame showed a flat dark plane. Now the ground drops under the slabs, rises again in
+  // an earth bank behind them, and comes back to grade over the section's last metres (no step where
+  // the next section's ground meets it).
+  const ax = Math.abs(x);
+  const ends = smooth(0.5, 2.5, -z) * smooth(0.5, 2.5, z + len);
+  const pit = (1 - smooth(7.4, 10.5, ax)) * ends;
+  return y + (TERRACE_BED - y) * pit;
+}
+
+/** The ground under a lower terrace (just under its slabs' tops at -1.6). */
+export const TERRACE_BED = -1.7;
+
+function groundY0(kind: GroundKind, x: number, z: number, len: number): number {
   const ax = Math.abs(x);
   const taper = smooth(0, 5, -z) * smooth(0, 5, z + len);
   const n = (vnoise(x * 0.18 + 3.1, z * 0.18) - 0.5) * taper;
@@ -59,7 +76,7 @@ export const groundWater = (toWater: number) => WL + toWater;
  * The ground mesh for a section of `len` m. At an end with no land beyond it (`rampIn` at z = 0,
  * `rampOut` at z = −len) the ground shelves down into the water over ~7 m, its shoreline ragged.
  */
-export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolean, rampOut: boolean, toWater = 0, seed = 0): THREE.BufferGeometry {
+export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolean, rampOut: boolean, toWater = 0, seed = 0, lower = 0): THREE.BufferGeometry {
   const xs: number[] = [];
   for (let x = -60; x <= 60.001; x += x < -14 || x >= 14 ? 3 : 1) xs.push(x);
   const zs: number[] = [];
@@ -70,7 +87,7 @@ export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolea
   const pos: number[] = [];
   for (const z of zs) {
     for (const x of xs) {
-      let y = groundY(kind, x, z, len);
+      let y = groundY(kind, x, z, len, lower);
       // Under the causeway itself the ground stays below the footing.
       if (Math.abs(x) < 2.9) y = Math.min(y, -0.45);
       const ragged = 2 + 4 * vnoise(x * 0.21 + 9.0, seed * 0.37);

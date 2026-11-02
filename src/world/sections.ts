@@ -102,6 +102,8 @@ class Builder {
   falls: Waterfall[] = [];
   /** The section's length (set before it is built; land seats things on the ground by it). */
   len = 0;
+  /** World round 24: the side (-1/1) of a lower terrace the ground drops to (0: none; see land.groundY). */
+  lower = 0;
   constructor(
     readonly rng: Rng,
     readonly density: { foliage: number; scenery: number },
@@ -695,7 +697,7 @@ export const isLand = (t: SectionType | string | undefined): boolean => !!t && (
 
 /** Height of the ground at (x, z) in a land section (see land.ts), less a little so nothing hovers on a bump. */
 function gy(b: Builder, x: number, z: number, kind: GroundKind = 'land'): number {
-  return groundY(kind, x, z, b.len) - 0.12 - 0.05 * b.rng.range(0, 1);
+  return groundY(kind, x, z, b.len, b.lower) - 0.12 - 0.05 * b.rng.range(0, 1);
 }
 
 /** A tree on the forest floor: trunk and crown together (never a bare trunk on a phone). */
@@ -850,6 +852,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       const n = len / TILE;
       floorRun(b, 0, n, 0, 0.45, 0.12);
       const low = b.rng.pick([-1, 1]);
+      b.lower = low;
       lowerTerrace(b, low, 0, n);
       const hi = -low;
       for (let i = 0; i < n; i++) {
@@ -866,6 +869,17 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       // running line, and the runner stepped over it.)
       b.place(`column_fallen_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 2.2), 0.05, -len * b.rng.range(0.3, 0.7), -hi * b.rng.range(0, 0.35));
       forestSide(b, hi, len, 0.9);
+      // (World round 24: the ground now drops to the terrace — land.groundY — and rises again behind it
+      // in an earth bank, 7.4–10.5 m out: undergrowth at its foot and up its face, roots over its lip.)
+      for (let z = -b.rng.range(2, 3); z > -len + 2; z -= b.rng.range(1.8, 3)) {
+        const x = low * b.rng.range(7.3, 10.2);
+        const y = gy(b, x, z);
+        const r = b.rng.range(0, 1);
+        if (r < 0.35 && b.foliage(0.9)) b.place(`fern_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.5));
+        else if (r < 0.6 && b.foliage(0.85)) b.place(`bush_${b.rng.int(0, 3)}`, x + low * 0.4, y + 0.25, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.3));
+        else if (r < 0.8 && b.foliage(0.8)) b.place(`grass_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.4));
+        else if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, low * 9.6, gy(b, low * 9.6, z) + 0.15, z, low > 0 ? Math.PI : 0, [0.9, 0.35, 0.8], [Math.PI / 2, 0]);
+      }
       // Beyond the lower terrace the forest goes on at its level.
       for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
       for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9);

@@ -469,6 +469,12 @@ export class Track {
               : 'near';
       const key = `${this.kit.matOf.get(pl.piece)!}|${zone}`;
       const c = g.clone().applyMatrix4(pl.m);
+      // World round 24: the paving tiles' `aHalf` (TileSystem sets it on the kit's shared geometry) is
+      // meaningful only in a tile's own frame. On a slab placed as a prop (the overgrown plaza's court,
+      // the lower terrace) the position is the section's, |x| ≥ 4 m, so the parapet strip's grime, moss
+      // and litter covered the whole slab: green and ochre camouflage. And a floor piece without it
+      // merged with one that has it fails the merge (the whole floor mesh dropped). Props carry none.
+      if (c.getAttribute('aHalf')) c.deleteAttribute('aHalf');
       // World round 22: the water is opaque, so what lies under it is never seen: drop the triangles
       // wholly below the surface (rocks, islands, towers and footings sunk into it — a fifth to a third
       // of their triangles). Far scenery is placed relative to the water; near pieces relative to the
@@ -850,7 +856,7 @@ export class Track {
     if (layout.ground) {
       const rampIn = !isLand(this.lastType);
       const rampOut = !isLand(this.landRun[0] ?? this.forceNext[0] ?? this.staged[0]);
-      const gg = makeGroundGeometry(layout.ground, layout.len, rampIn, rampOut, toWater, Math.floor(seg.s0));
+      const gg = makeGroundGeometry(layout.ground, layout.len, rampIn, rampOut, toWater, Math.floor(seg.s0), layout.features?.lower ?? 0);
       ground = new THREE.Mesh(gg, this.groundMat);
       ground.name = 'ground';
       ground.receiveShadow = true;

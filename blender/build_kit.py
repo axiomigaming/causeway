@@ -45,6 +45,12 @@ HASH_ONLY = os.environ.get("KIT_HASH_ONLY") == "1"
 # Leaves are rendered first, while the scene is still empty.
 if HASH_ONLY:
     leaf_img = bpy.data.images.new("foliage_atlas", 4, 4, alpha=True)
+elif os.environ.get("KIT_REUSE") and "leaf" in os.environ.get("KIT_REUSE_GROUPS", "").split(","):
+    # (World round 24: KIT_REUSE_GROUPS may name `leaf`: the foliage atlas from the earlier export.)
+    log("reusing foliage atlas")
+    leaf_img = bpy.data.images.load(os.path.join(os.environ["KIT_REUSE"], "foliage_color.png"))
+    leaf_img.name = "foliage_atlas"
+    leaf_img.alpha_mode = "STRAIGHT"
 else:
     log("rendering foliage atlas")
     leaf_img = F.render_atlas(2048 // (2 if FAST else 1))
@@ -212,6 +218,25 @@ groups["floor"].append(G.floor_medallion("floor_medallion_0", 960))
 
 # Spread pieces out so baked AO only sees each piece itself.
 all_objs = [o for g in groups.values() for o in g]
+# World round 24: texel weights (linear, see common.ensure_uvs_packed_weighted). Measured on the shipped
+# kit (review/world24/texel.mjs) every stoneB, rock and bark piece had one density, ~23 texels/m:
+# the rubble, drums, pillars and lintel beside and over the runner as blurred as towers 40 m out.
+# Per group: a weight moves texels between that group's pieces only (a group reused from an earlier bake
+# with KIT_REUSE must keep its packing, so it carries no weights).
+TEXEL = {
+    # stoneB: what stands within a few metres of the lens, and the far skyline that never does.
+    "stoneB": [(("rubble_", "debris_", "drum_", "pillar_", "beam_lintel_", "stairs_"), 2.5), (("tower_", "facade_"), 0.45)],
+    # rock: the boulders on the banks beside the way; the rock islands out over the water.
+    "rock": [(("rock_mid_",), 3.0), (("rock_big_",), 0.8)],
+    # bark: roots at the path's edge and the log he jumps; the trees on the cliff tops.
+    "bark": [(("roots_", "root_giant_", "log_fallen_"), 2.0), (("cliff_wall_",), 0.6)],
+}
+for gkey, rules in TEXEL.items():
+    for o in groups[gkey]:
+        for prefixes, k in rules:
+            if o.name.startswith(prefixes):
+                o["texel"] = k
+                break
 for i, o in enumerate(all_objs):
     o.location = Vector(((i % 8) * 40.0, (i // 8) * 40.0, 0))
 
@@ -271,7 +296,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11", "cliff": "scan-r11", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23", "stoneA": "tall-undersides-r11", "stoneB": "vault-undersides-r11"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-r24", "stoneA": "tall-undersides-r11", "stoneB": "vault-undersides-r11|texel-r24"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:
