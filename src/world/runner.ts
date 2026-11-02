@@ -730,9 +730,12 @@ export class Runner {
       // key, a move ran up to a frame ahead of the stride, and the shin snapped ~25° back into step at
       // the start of a leap.) The offset is at most a frame before the key; the mixer's step brings it to
       // or past it before anything reads the clip's time.
-      const ahead = this.current === 'run' ? dt - Math.min(dt, Math.max(0, this.t - p.until)) : 0;
-      const rate = this.obst && this.obst.name === p.name ? this.obst.rate : 1;
-      this.start(p.name, p.fade, p.offset - ahead * rate);
+      // (The obstacle moves only: their first frames are keyed on the stride itself. A reaction's or an
+      // escape's frames before its joining key are its own run-in, not the stride: joined a fraction of a
+      // frame early, win_slide played part of a 49 cm foot step.)
+      const obst = this.obst !== null && this.obst.name === p.name;
+      const ahead = obst && this.current === 'run' ? dt - Math.min(dt, Math.max(0, this.t - p.until)) : 0;
+      this.start(p.name, p.fade, p.offset - ahead * (obst ? this.obst!.rate : 1));
     }
     // Obstacle moves: keep step with the run; leap_gap's flight stretches to the gap and its arc with
     // it; each hands back to the gait on the phase it ends on.
