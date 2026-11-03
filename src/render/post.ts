@@ -165,6 +165,7 @@ class SunShaftsEffect extends Effect {
       uniform float analytic;
       uniform float glowCore;
       uniform float glowHalo;
+      uniform float glowHaloK;
       void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
         if (strength < 0.001) { outputColor = inputColor; return; }
         vec2 delta = sunPos - uv;
@@ -213,7 +214,7 @@ class SunShaftsEffect extends Effect {
           // islands stay dark): occluders still cut it into beams, the texture no longer shapes it.
           // ('analytic' 0 restores the old source for an A/B.)
           float rp = length(vec2((p.x - sunPos.x) * aspectRatio, p.y - sunPos.y)) * span;
-          vec3 src = analytic > 0.5 ? vec3((glowCore * exp(-rp * 30.0) + glowHalo * exp(-rp * 12.0)) * smoothstep(0.25, 0.7, l)) : min(c, vec3(srcMax)) * smoothstep(0.35, 1.6, l);
+          vec3 src = analytic > 0.5 ? vec3((glowCore * exp(-rp * 30.0) + glowHalo * exp(-rp * glowHaloK)) * smoothstep(0.25, 0.7, l)) : min(c, vec3(srcMax)) * smoothstep(0.35, 1.6, l);
           acc += sky * src * (0.35 + 0.65 * t);
           open += sky;
         }
@@ -248,6 +249,7 @@ class SunShaftsEffect extends Effect {
           ['analytic', new THREE.Uniform(1)],
           ['glowCore', new THREE.Uniform(2)],
           ['glowHalo', new THREE.Uniform(0.05)],
+          ['glowHaloK', new THREE.Uniform(12)],
         ]),
       },
     );
