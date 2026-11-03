@@ -79,41 +79,203 @@
 .hud.held.won::before { height: 140%; }
 @keyframes hud-settle { from { opacity: 0.4; } }
 
-/* ------------------------------------------------------------------ the result card */
+/* ------------------------------------------------------------------ the result card
+ * One surface, one reading order: what happened (head) → what you have (the Return, the hero) →
+ * what it meant (profit, stake) → proof. The escape scales with the multiplier it left at (ui/win.ts):
+ *   < 2×   quiet: "Escaped", cream figure, a short rule
+ *   2–10×  the rule lengthens and warms; from 5× a glow under the figure and a faint bloom behind
+ *   10×+   an event: the Return at 72 (where it fits), the profit at 28, the multiplier struck in the
+ *          CASH OUT plate colour, a fan of rays opening behind the card; 25×+ adds one slow sheen
+ * The fall keeps the same structure in muted tones: no accent, no count, no glow.
+ * Footprint (Dock's report() reads it for the cameras' band):
+ *   desktop  440 wide (the dock's width: one column), at 16vh; the runner stands beside the column
+ *   phone    a compact strip under the top bar, ~1/3 of the height; the runner stands under it
+ *   landscape the left column, as before */
 .result {
+  --tx: -50%;
+  --rise: cubic-bezier(0.16, 1, 0.3, 1);
   position: fixed;
   left: 50%;
   top: calc(16vh + var(--safe-t));
-  width: min(360px, calc(100vw - 32px));
-  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 32px));
+  transform: translateX(var(--tx));
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 24px 24px 16px;
+  padding: 18px 24px 8px;
   pointer-events: none;
-  animation: cardIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: cardFade 0.2s ease-out both;
 }
-@keyframes cardIn { from { opacity: 0; transform: translate(-50%, 12px); } }
-@keyframes cardInSide { from { opacity: 0; transform: translateY(12px); } }
-.result .r-head { display: flex; align-items: center; gap: 8px; height: 16px; }
+@keyframes cardFade { from { opacity: 0; } }
+/* full motion: the card rises and settles, then its lines follow; the profit lands with the count */
+.result.anim { animation: cardRise 0.52s var(--rise) both; }
+@keyframes cardRise { from { opacity: 0; transform: translate(var(--tx), 16px) scale(0.98); } }
+@keyframes lineIn { from { opacity: 0; transform: translateY(6px); } }
+.result.anim .r-head { animation: lineIn 0.4s var(--rise) 0.08s both; }
+.result.anim .r-label, .result.anim .big { animation: lineIn 0.44s var(--rise) 0.14s both; }
+.result.anim .r-facts > * { animation: lineIn 0.44s var(--rise) 0.24s both; }
+.result.anim .r-facts > .verify { animation-delay: 0.3s; }
+.result.won.anim .r-facts > * { animation-delay: calc(var(--land) - 80ms); }
+.result.won.anim .r-facts > .verify { animation-delay: var(--land); }
+
+/* the escape draws its own surface (so the bloom and the rays can stand behind it) */
+.result.won { background: none; border-color: transparent; box-shadow: none; }
+.result .r-panel { display: none; }
+.result.won .r-panel {
+  display: block;
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: var(--surface-solid);
+  border: 1px solid var(--hair);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  z-index: -1;
+  pointer-events: none;
+}
+:root[data-quality='high'] .result.won .r-panel,
+:root[data-quality='ultra'] .result.won .r-panel { background: var(--surface); }
+.result.won.grand .r-panel { border-color: var(--hair-2); }
+
+/* behind the card: a warm bloom (5x+) and, for an event (10x+), a fan of rays fading out from it */
+.result .r-aura {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 170%;
+  height: 280%;
+  transform: translate(-50%, -50%);
+  z-index: -2;
+  pointer-events: none;
+}
+.result .r-aura::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(closest-side, var(--win-bloom), rgba(0, 0, 0, 0));
+}
+.result.grand .r-aura::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* an SVG fan, already faded in from the card's edge and out toward the rim (ui/win.ts raysImage):
+     a plain image layer, no mask */
+  background: var(--win-rays-img, none) center / 100% 100% no-repeat;
+}
+.result.anim .r-aura { animation: auraIn 1.4s var(--rise) calc(var(--land) - 240ms) both; }
+.result.anim .r-aura::after { animation: raysIn 2.2s var(--rise) calc(var(--land) - 240ms) both; }
+@keyframes auraIn { from { opacity: 0; scale: 0.7; } }
+@keyframes raysIn { from { opacity: 0; rotate: -14deg; } }
+
+/* the head: what happened (in the tier's words), and the multiplier it happened at */
+.result .r-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; min-height: 24px; }
 .result .r-head svg { color: var(--amber); }
 .result .r-k { font-size: var(--t12); line-height: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber-hi); }
 .result .r-note { font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); padding-left: 8px; border-left: 1px solid var(--hair-2); }
+.result .r-mult {
+  display: inline-flex;
+  align-items: baseline;
+  height: 24px;
+  padding: 3px 10px 0;
+  border-radius: 999px;
+  border: 1px solid var(--win-accent, var(--hair-2));
+  font-size: var(--t14);
+  line-height: 18px;
+  font-weight: 800;
+  font-stretch: 112%;
+  color: var(--amber-hi);
+}
+.result .r-mult .x { top: 0; font-size: 1em; font-weight: 700; margin-left: 1px; color: inherit; opacity: 0.7; }
+/* from 10x the multiplier is struck in the plate colour: dark ink on cream → orange, always > 7:1 */
+.result .r-mult.struck { background: var(--win-accent); border-color: transparent; color: var(--on-amber); }
+.result .r-mult.struck .x { opacity: 0.6; }
+.result.won.anim .r-mult.struck { animation: strike 0.56s var(--spring) var(--land); }
+@keyframes strike { 40% { scale: 1.08; } }
+
 /* the small label right above the figure (same style as the dock labels) */
-.result .r-label { margin-top: 16px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
-.result .r-label + .big { margin-top: 0; }
-.result .big { margin-top: 12px; font-size: var(--t44); line-height: 48px; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; color: var(--text); }
-.result .line { margin-top: 8px; display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0 8px; font-size: var(--t14); line-height: 20px; color: var(--text-2); }
-.result .line b { font-size: var(--t14); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-.result .line b.gain { color: var(--amber-hi); }
-.result .line .dot { font-style: normal; color: var(--faint); }
+.result .r-label { margin-top: 12px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
+.result .big { position: relative; isolation: isolate; font-size: var(--t44); line-height: 48px; font-weight: 800; font-stretch: 112%; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; color: var(--text); }
+.result .big .unit { font-size: var(--t16); font-weight: 600; font-stretch: 100%; letter-spacing: 0.1em; margin-left: 6px; color: var(--label); }
+.result.won .big { color: var(--win-ink, var(--text)); }
+/* an event, where the amount fits: the Return at the top of the scale */
+.result .big.xl { font-size: var(--t72); line-height: 72px; letter-spacing: -0.03em; }
+.result .big.xl .unit { font-size: var(--t20); }
+/* the glow under the figure (transparent below 5x): it gathers as the count lands */
+.result.won .big::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140%;
+  height: 200%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, var(--win-glow, transparent), rgba(0, 0, 0, 0));
+  z-index: -1;
+  pointer-events: none;
+}
+.result.won.anim .big::before { animation: glowIn 1s ease-out var(--land) both; }
+@keyframes glowIn { from { opacity: 0; scale: 0.7; } 45% { opacity: 1; scale: 1.06; } }
+
+/* the rule: a hairline; on an escape a warm segment at its middle, longer and warmer with the multiplier */
+.result .r-rule { position: relative; align-self: stretch; height: 1px; margin-top: 12px; background: var(--hair); }
+.result .r-rule i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(var(--win-rule, 0) * 100%);
+  height: 1px;
+  margin-left: calc(var(--win-rule, 0) * -50%);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), var(--win-accent) 30%, var(--win-accent) 70%, rgba(0, 0, 0, 0));
+}
+.result.won.grand .r-rule i { top: -0.5px; height: 2px; }
+.result.won.anim .r-rule i { animation: ruleIn 0.7s var(--rise) calc(var(--land) - 60ms) both; }
+@keyframes ruleIn { from { opacity: 0; transform: scaleX(0); } }
+
+/* what it meant: profit (the only signed figure, amber) · stake, then the proof */
+.result .r-facts { margin-top: 8px; display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0 12px; }
+.result .r-facts span { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); white-space: nowrap; }
+.result .r-facts b { font-size: var(--t14); line-height: 24px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
+.result .r-facts .r-profit b { font-size: var(--t20); font-weight: 800; font-stretch: 112%; }
+.result.won.grand .r-facts .r-profit b { font-size: var(--t28); line-height: 32px; letter-spacing: -0.01em; }
+.result .r-facts b.gain { color: var(--amber-hi); }
+.result .r-facts .dot { font-style: normal; color: var(--faint); }
+
+/* top edge accent for an event */
+.result.won.grand::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), var(--win-accent), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+.result.won.anim.grand::after { animation: ruleIn 0.9s var(--rise) var(--land) both; }
+/* 25x and beyond: one slow sheen across the card as the count lands (full motion only) */
+.result .r-sheen { display: none; }
+.result.anim .r-sheen { display: block; position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.result.anim .r-sheen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 40%;
+  background: linear-gradient(100deg, rgba(255, 236, 210, 0), rgba(255, 236, 210, 0.09) 50%, rgba(255, 236, 210, 0));
+  animation: sheen 1.4s cubic-bezier(0.4, 0, 0.2, 1) calc(var(--land) + 100ms) both;
+}
+@keyframes sheen { from { transform: translateX(0) skewX(-14deg); } to { transform: translateX(400%) skewX(-14deg); } }
+
+/* the proof: its own line under the facts (a small inline link on phones, below) */
 .result .verify {
   position: relative;
-  margin-top: 16px;
+  flex-basis: 100%;
+  margin-top: 4px;
   min-height: 48px;
   padding: 0 16px;
   border: 0;
+  border-radius: 12px;
   background: none;
   pointer-events: auto;
   font-size: var(--t12);
@@ -127,38 +289,54 @@
   text-underline-offset: 6px;
   transition: color 0.15s, text-decoration-color 0.15s;
 }
-.result .verify:hover { color: var(--text); text-decoration-color: var(--amber); }
+.result .verify:hover, .result .verify:focus-visible { color: var(--text); text-decoration-color: var(--amber); }
+.result .verify:focus-visible { outline-offset: -6px; }
+
 /* the fall, told quietly: muted, desaturated, never an alarm */
 .result.lost .r-head svg { color: var(--muted-2); }
 .result.lost .r-k { color: var(--muted); }
 .result.lost .big { color: var(--muted); }
 .result.lost .big .x { color: var(--muted-2); }
+.result.lost .r-facts b { color: var(--text-2); }
 
 /* ------------------------------------------------------------------ small screens */
 @media (max-width: 760px) {
   .hud { --hud-top: 132px; }
-  .result { top: calc(120px + var(--safe-t)); }
 }
 /* phones: 72 up to "999.99", 44 to "9,999.99"/"99,999.99", 28 beyond (on the scale) */
 @media (max-width: 760px) {
   .hud .mult:is([data-len='8'], [data-len='9']) { font-size: var(--t44); }
   .hud .mult:is([data-len='10'], [data-len='11'], [data-len='12'], [data-len='13'], [data-len='14']) { font-size: var(--t28); }
 }
+/* Phones (portrait): a compact strip right under the top bar (~1/3 of the height), so the camera frames
+   the runner whole in the band between it and the dock. The Return stays the hero at 44; the proof is
+   a small link on the facts line's right, with a 48 px hit area that spills past its box. */
+@media (max-width: 760px) {
+  .result { top: calc(104px + var(--safe-t)); padding: 12px 16px 8px; }
+  .result .r-label { margin-top: 4px; }
+  .result .big.xl { font-size: var(--t44); line-height: 48px; letter-spacing: -0.02em; }
+  .result .big.xl .unit { font-size: var(--t16); }
+  .result .r-rule { margin-top: 6px; }
+  .result .r-facts { margin-top: 6px; gap: 0 10px; }
+  .result.won.grand .r-facts .r-profit b { font-size: var(--t20); line-height: 24px; }
+  .result .verify { flex-basis: auto; margin: 0; min-height: 16px; padding: 0; border-radius: 4px; text-underline-offset: 4px; color: var(--label); }
+  .result .verify::before { content: ''; position: absolute; inset: -16px -8px; }
+  .result .verify:focus-visible { outline-offset: 4px; }
+  .result.won .r-facts > .verify { flex-basis: 100%; margin-top: 2px; }
+  .result.won .r-facts > .verify::before { inset: -16px 25%; }
+  .result .r-aura { width: 140%; height: 220%; }
+}
 @media (max-width: 360px) {
   .hud .mult { font-size: var(--t44); }
-  .result .big { font-size: var(--t28); line-height: 32px; }
-  .result .big .unit { font-size: var(--t12); }
+  .result .big, .result .big.xl { font-size: var(--t28); line-height: 32px; }
+  .result .big .unit, .result .big.xl .unit { font-size: var(--t12); }
 }
-/* short phones: a compact card that stays clear of the dock */
+/* short phones: smaller still, so the band under the card keeps its height */
 @media (max-width: 760px) and (max-height: 700px) {
   .hud { --hud-top: 104px; }
-  .result { top: calc(96px + var(--safe-t)); padding: 16px 16px 4px; }
-  .result .big { margin-top: 8px; font-size: var(--t28); line-height: 32px; }
-  .result .r-label { margin-top: 8px; }
-  .result .big .unit { font-size: var(--t12); }
-  .result .line { margin-top: 4px; gap: 0 4px; font-size: var(--t12); line-height: 16px; }
-  .result .line b { font-size: var(--t12); }
-  .result .verify { margin-top: 4px; }
+  .result { top: calc(96px + var(--safe-t)); padding: 8px 16px 6px; }
+  .result .big, .result .big.xl { font-size: var(--t28); line-height: 32px; }
+  .result .big .unit, .result .big.xl .unit { font-size: var(--t12); }
 }
 /* landscape phones: little height; the figure sits just under the top bar */
 @media (max-height: 520px) and (orientation: landscape) {
@@ -168,11 +346,23 @@
   /* The card stands at the left under the top bar, not over the middle: the only free band between the
      top bar and the slim dock is ~250 px tall, and a centred card left the runner a sliver under it.
      (The dock then leaves it out of the top inset: see Dock's report().) */
-  .result { top: calc(64px + var(--safe-t)); left: calc(16px + var(--safe-l)); width: min(260px, 30vw); transform: none; padding: 16px 16px 8px; animation-name: cardInSide; }
-  .result .big { font-size: var(--t28); line-height: 32px; margin-top: 8px; }
-  .result .big .unit { font-size: var(--t12); }
+  .result { --tx: 0px; top: calc(64px + var(--safe-t)); left: calc(16px + var(--safe-l)); width: min(260px, 30vw); padding: 16px 16px 4px; }
+  .result .big, .result .big.xl { font-size: var(--t28); line-height: 32px; margin-top: 4px; letter-spacing: -0.02em; }
+  .result .big .unit, .result .big.xl .unit { font-size: var(--t12); }
   .result .r-label { margin-top: 8px; }
-  .result .verify { margin-top: 4px; }
+  .result .r-rule, .result .r-facts { margin-top: 8px; }
+  /* the tier's words and the multiplier on one line in the narrow column */
+  .result .r-head { gap: 4px 6px; }
+  .result.won .r-head svg { display: none; }
+  .result.won .r-k { letter-spacing: 0.05em; }
+  .result .r-mult { padding: 3px 7px 0; font-size: var(--t12); }
+  /* a narrow column: profit over stake, never a figure orphaned on a wrapped line */
+  .result .r-facts { flex-direction: column; align-items: center; gap: 0; }
+  .result .r-facts .dot { display: none; }
+  .result .r-facts b { line-height: 20px; }
+  .result.won.grand .r-facts .r-profit b { font-size: var(--t20); line-height: 24px; }
+  .result .verify, .result.won .r-facts > .verify { flex-basis: auto; margin-top: 0; }
+  .result .r-aura { width: 160%; height: 200%; }
 }
 /* (Phones: the top bar's one line has no room in its middle; the settled number sits just under it.) */
 @media (max-width: 760px) {

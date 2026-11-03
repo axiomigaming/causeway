@@ -35,7 +35,29 @@ const smooth = (a: number, b: number, x: number) => {
  * Ground height (path-relative metres) at section-local (x, z), z running 0 .. −len. The noise fades
  * out over the last 5 m at each end, so every section of a run meets its neighbours on the same profile.
  */
-export function groundY(kind: GroundKind, x: number, z: number, len: number): number {
+export function groundY(kind: GroundKind, x: number, z: number, len: number, lower = 0): number {
+  const y = groundY0(kind, x, z, len);
+  if (!lower || kind !== 'land' || Math.sign(x) !== Math.sign(lower)) return y;
+  // World round 24: a lower terrace beside the way on side `lower` (the overgrown plaza's court a flight
+  // down, its slabs at -1.6). The forest floor lay at -0.3 over it: the terrace and its footing were
+  // buried, and the frame showed a flat dark plane. Now the ground drops under the slabs, rises again
+  // behind their retaining wall (sections.lowerTerrace), and comes back to grade over the section's last metres (no step where
+  // the next section's ground meets it).
+  const ax = Math.abs(x);
+  const ends = smooth(0.5, 2.5, -z) * smooth(0.5, 2.5, z + len);
+  // (Behind the court's retaining wall, 7.2-8.2 m out, the ground climbs back within a metre.)
+  const pit = (1 - smooth(7.5, 8.6, ax)) * ends;
+  return y + (TERRACE_BED - y) * pit;
+}
+
+/**
+ * The ground under a lower terrace: under its slabs' undersides (tops at -1.6, ~0.3 m thick). At -1.7 the
+ * ruined slabs (their stones sunk a few centimetres, some missing) lay level with the ground, which
+ * z-fought through them; here they stand proud of a damp bed, 0.25 m over the water.
+ */
+export const TERRACE_BED = -1.95;
+
+function groundY0(kind: GroundKind, x: number, z: number, len: number): number {
   const ax = Math.abs(x);
   const taper = smooth(0, 5, -z) * smooth(0, 5, z + len);
   const n = (vnoise(x * 0.18 + 3.1, z * 0.18) - 0.5) * taper;
@@ -44,7 +66,11 @@ export function groundY(kind: GroundKind, x: number, z: number, len: number): nu
     // A dry riverbed 1.75 m down either side of the causeway's footing, rising steeply to banks ~6 m up.
     const bed = -1.75 + n * 0.25; // (round 22: above the water — at -2.6 the "dry" bed was flooded)
     const bank = 6.5 + n2 * 2.5;
-    return bed + (bank - bed) * smooth(7.5, 13, ax);
+    const t = smooth(7.5, 13, ax);
+    // (World round 24: relief on the bank's face, strongest mid-slope — it read as one flat, pale plane
+    // rising beside the way; lumps and hollows of ±0.8 m catch the light and the strata differently.)
+    const lump = ((vnoise(x * 0.45 + 2.0, z * 0.45 - 4.0) - 0.5) * 1.3 + (vnoise(x * 1.1 - 6.0, z * 1.1 + 3.0) - 0.5) * 0.5) * 4 * t * (1 - t) * taper;
+    return bed + (bank - bed) * t + lump;
   }
   // Forest floor: just below the paving by the footing, rolling, and rising into wooded hills at the sides.
   const near = -0.32 + n * 0.12 * smooth(3.2, 5, ax);
@@ -59,7 +85,7 @@ export const groundWater = (toWater: number) => WL + toWater;
  * The ground mesh for a section of `len` m. At an end with no land beyond it (`rampIn` at z = 0,
  * `rampOut` at z = −len) the ground shelves down into the water over ~7 m, its shoreline ragged.
  */
-export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolean, rampOut: boolean, toWater = 0, seed = 0): THREE.BufferGeometry {
+export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolean, rampOut: boolean, toWater = 0, seed = 0, lower = 0): THREE.BufferGeometry {
   const xs: number[] = [];
   for (let x = -60; x <= 60.001; x += x < -14 || x >= 14 ? 3 : 1) xs.push(x);
   const zs: number[] = [];
@@ -70,7 +96,7 @@ export function makeGroundGeometry(kind: GroundKind, len: number, rampIn: boolea
   const pos: number[] = [];
   for (const z of zs) {
     for (const x of xs) {
-      let y = groundY(kind, x, z, len);
+      let y = groundY(kind, x, z, len, lower);
       // Under the causeway itself the ground stays below the footing.
       if (Math.abs(x) < 2.9) y = Math.min(y, -0.45);
       const ragged = 2 + 4 * vnoise(x * 0.21 + 9.0, seed * 0.37);

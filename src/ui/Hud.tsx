@@ -7,6 +7,7 @@ import { useCtl } from './context';
 import { useHold } from './hold';
 import { css, heroInk } from './heat';
 import { Stair } from './icons';
+import { heroStep, raysImage, winLook, winTiming } from './win';
 import './hud.css';
 
 const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
@@ -195,100 +196,144 @@ export function ResultPlate() {
   const phase = useStore((s) => s.phase);
   const result = useStore((s) => s.result);
   const set = useStore((s) => s.set);
+  const motion = useStore((s) => s.settings.motion);
   // Held back until the world has played the fall or the escape (money is already settled).
   const hold = useHold();
   if (phase !== 'result' || !result || hold) return null;
   const r = result.round;
+  const full = motion === 'full';
   const verify = (
     <button className="verify" onClick={() => set({ modal: 'fair', fairFocus: r.id })}>
       Verify this run
     </button>
   );
-  if (result.won) return <WonPlate key={r.id} stake={r.stake} payout={r.payout} mult={r.cashoutMult ?? 100} auto={r.auto} verify={verify} />;
+  if (result.won) return <WonPlate key={r.id} stake={r.stake} payout={r.payout} mult={r.cashoutMult ?? 100} auto={r.auto} full={full} verify={verify} />;
   const m = formatMult(r.crash);
-  // The fall, told quietly: muted tones, the fall point, what it cost. Never an alarm.
+  // The fall, told quietly: the escape card's structure in muted tones. No accent, no count, no glow.
   return (
-    <div className="result lost" role="status" key={r.id} data-grade={tierOf(r.crash)}>
-      <div className="r-head">
+    <div className={`result lost${full ? ' anim' : ''}`} role="status" key={r.id} data-grade={tierOf(r.crash)}>
+      <span className="sr">
+        The way fell at {m}×. Stake lost {formatCredits(r.stake)}.
+      </span>
+      <div className="r-head" aria-hidden="true">
         <Stair />
         <span className="r-k">The way fell</span>
       </div>
-      <div className="big num" aria-label={`${m}×`} style={{ '--chars': m.length + 1 } as CSSProperties}>
+      <div className="r-label" aria-hidden="true">
+        Fell at
+      </div>
+      <div className="big num" aria-hidden="true">
         {m}
         <span className="x">×</span>
       </div>
-      <div className="line">
-        Stake lost<i className="dot">·</i>
-        <b className="num">{formatCredits(r.stake)}</b>
+      <div className="r-rule" aria-hidden="true" />
+      <div className="r-facts">
+        <span aria-hidden="true">
+          Stake lost<b className="num">{formatCredits(r.stake)}</b>
+        </span>
+        {verify}
       </div>
-      {verify}
     </div>
   );
 }
 
-function WonPlate({ stake, payout, mult, auto, verify }: { stake: number; payout: number; mult: number; auto: boolean; verify: ReactNode }) {
+function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; payout: number; mult: number; auto: boolean; full: boolean; verify: ReactNode }) {
   const ctl = useCtl();
-  const motion = useStore((s) => s.settings.motion);
   const bigRef = useRef<HTMLSpanElement>(null);
   const profit = payout - stake;
-  // Scaled by the multiplier the player left at: a 1.2x escape is modest, a 50x one is grand.
-  const grade = tierOf(mult);
+  // Scaled by the multiplier the player left at: a 1.2x escape is quiet, a 50x one is an event.
+  const look = winLook(mult);
+  const { grade } = look;
+  const { count0, count, land } = winTiming(grade);
+  const shown = formatCredits(payout);
 
   useEffect(() => {
     const el = bigRef.current;
-    const stampT = setTimeout(() => ctl?.audio.ui('stamp'), motion === 'full' ? 520 : 0);
-    if (!el || motion !== 'full') return () => clearTimeout(stampT);
-    // Count from the stake up to the payout; lands exactly on the settled amount.
-    const t0 = performance.now();
-    const dur = 600 + grade * 260;
+    const stampT = setTimeout(() => ctl?.audio.ui('stamp'), full ? land : 0);
+    if (!el || !full) return () => clearTimeout(stampT);
+    // Count from the stake up to the payout once the card has settled; lands exactly on the settled
+    // amount. Timed on the document timeline (the clock the card's CSS entrance runs on), so the
+    // figure, the rule and the profit stay in step.
+    const now = () => Number(document.timeline.currentTime ?? performance.now());
+    const t0 = now() + count0;
+    const k = () => (now() - t0) / count;
     let raf = 0;
+    let guard = 0;
     const step = () => {
-      const k = (performance.now() - t0) / dur;
-      el.textContent = formatCredits(countUp(stake, payout, k));
-      if (k < 1) raf = requestAnimationFrame(step);
+      const p = k();
+      el.textContent = formatCredits(countUp(stake, payout, Math.max(0, p)));
+      if (p < 1) raf = requestAnimationFrame(step);
     };
     step();
     // Frames can stall (a hidden tab, a starved device): the settled amount lands on time regardless,
     // never a figure frozen part-way (seen: "Return 11.13" on a 17.60 payout), as the top bar does.
-    const guard = window.setTimeout(() => {
-      cancelAnimationFrame(raf);
-      el.textContent = formatCredits(payout);
-    }, dur + 50);
+    const arm = (ms: number) => {
+      guard = window.setTimeout(() => {
+        if (k() < 1) return arm(Math.max(50, (1 - k()) * count + 50));
+        cancelAnimationFrame(raf);
+        el.textContent = formatCredits(payout);
+      }, ms);
+    };
+    arm(count0 + count + 50);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(stampT);
       clearTimeout(guard);
     };
-  }, [ctl, motion, payout, stake, grade]);
+  }, [ctl, full, payout, stake, count0, count, land]);
 
+  const style = {
+    '--win-ink': look.ink,
+    '--win-accent': look.accent,
+    '--win-glow': look.glow,
+    '--win-bloom': look.bloom,
+    '--win-rays-img': raysImage(mult),
+    '--win-rule': look.rule,
+    '--land': `${land}ms`,
+  } as CSSProperties;
   return (
-    <div className="result won" role="status" data-grade={grade}>
+    <div className={`result won${full ? ' anim' : ''}${look.grand ? ' grand' : ''}`} role="status" data-grade={grade} style={style}>
       <span className="sr">
-        Escaped at {formatMult(mult)}×. Paid {formatCredits(payout)}, profit {formatCredits(profit)}.
+        Escaped at {formatMult(mult)}×. Paid {shown}, profit {formatCredits(profit)}.
       </span>
+      {/* behind the card: a warm bloom from 5x, a fan of rays from 10x; the card's own surface over them */}
+      {grade >= 2 && <span className="r-aura" aria-hidden="true" />}
+      <span className="r-panel" aria-hidden="true" />
+      {grade === 4 && <span className="r-sheen" aria-hidden="true" />}
       <div className="r-head" aria-hidden="true">
         <Stair />
-        <span className="r-k">Escaped</span>
-        {auto && <span className="r-note">Auto cash-out</span>}
+        <span className="r-k">{look.title}</span>
+        <span className={`r-mult num${look.struck ? ' struck' : ''}`}>
+          {formatMult(mult)}
+          <span className="x">×</span>
+        </span>
+        {auto && <span className="r-note">Auto</span>}
       </div>
       {/* the return, unsigned: profit (below) is the only signed figure */}
       <div className="r-label" aria-hidden="true">
         Return
       </div>
-      <div className="big num" aria-hidden="true" style={{ '--chars': formatCredits(payout).length + 3 } as CSSProperties}>
+      <div className={`big num${heroStep(look.grand, shown) === 72 ? ' xl' : ''}`} aria-hidden="true">
         <span className="payout-fig" ref={bigRef}>
-          {formatCredits(payout)}
+          {formatCredits(full ? stake : payout)}
         </span>
         <span className="unit">CR</span>
       </div>
-      <div className="line" aria-hidden="true">
-        At <b className="num">{formatMult(mult)}×</b>
-        <i className="dot">·</i>
-        Stake <b className="num">{formatCredits(stake)}</b>
-        <i className="dot">·</i>
-        Profit <b className={`num${profit > 0 ? ' gain' : ''}`}>{formatCredits(profit, { sign: true })}</b>
+      <div className="r-rule" aria-hidden="true">
+        <i />
       </div>
-      {verify}
+      <div className="r-facts">
+        <span className="r-profit" aria-hidden="true">
+          Profit<b className={`num${profit > 0 ? ' gain' : ''}`}>{formatCredits(profit, { sign: true })}</b>
+        </span>
+        <i className="dot" aria-hidden="true">
+          ·
+        </i>
+        <span aria-hidden="true">
+          Stake<b className="num">{formatCredits(stake)}</b>
+        </span>
+        {verify}
+      </div>
     </div>
   );
 }

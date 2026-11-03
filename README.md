@@ -133,7 +133,7 @@ It writes, into `public/assets/`:
 | File | What |
 | --- | --- |
 | `kit.high.glb`, `runner.high.glb` | meshopt geometry (`EXT_meshopt_compression` + `KHR_mesh_quantization`), WebP textures ≤ 2048 px (roughness atlases 1024 px, stored grey) |
-| `kit.mobile.glb`, `runner.mobile.glb` | the same, textures ≤ 1024 px (roughness and the small wood/bark/flora atlases 512 px), solid pieces simplified by ≤ 0.2 % of their size |
+| `kit.mobile.glb`, `runner.mobile.glb` | the same, textures ≤ 1024 px (normal and ORM maps and the small flora atlas 512 px), solid pieces simplified by ≤ 0.2 % of their size |
 | `env.half.hdr` | the IBL map at 512×256 (it only lights rough surfaces through PMREM) |
 | `manifest.json` | per file: bytes and content hash; bundled into the JS, so every asset URL carries `?v=<hash>` and `/assets/*` is served immutable (`public/_headers`) |
 
