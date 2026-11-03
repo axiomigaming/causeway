@@ -334,6 +334,8 @@ interface FootLock {
   spent?: boolean;
   /** Last frame's hip-to-target distance while pinned (m), for the knee's rate of straightening. */
   reach?: number;
+  /** The knee drawn up out of the floor while a fall blends in (0-1). */
+  bend?: number;
 }
 
 /**
@@ -406,8 +408,6 @@ export class Runner {
   lean = 0;
   roll = 0;
   slope = 0;
-  /** The body raised over a foot a fall's cross-fade sweeps through the floor (m). */
-  private floorLift = 0;
   /** The blended gait's contact time, as a fraction of the stride cycle. */
   private contact = CONTACT.run;
   /** 0 fresh … 1 spent: builds while running, recovers at rest; drives breathing. */
@@ -1275,7 +1275,7 @@ export class Runner {
       this.plankY += this.plankV * (Math.min(dt, 0.1) / n);
     }
     this.plankY = THREE.MathUtils.clamp(this.plankY, -0.03, 0.015);
-    lift += this.plankY + this.obstLift + this.liftCarry + this.floorLift;
+    lift += this.plankY + this.obstLift + this.liftCarry;
     this.rotate(b.chest, this.plankY * 2.5, 0, 0);
     this.body.position.y = lift;
   }
@@ -1469,7 +1469,6 @@ export class Runner {
   private plantFeet(dt: number): void {
     // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
     const blendIn = this.current.startsWith('fall_') && !DROPS.has(this.current) && (this.weights.get(this.current) ?? 1) < 0.999;
-    let lowest = Infinity;
     const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current);
     const ground = this.root.position.y;
     // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
@@ -1499,7 +1498,17 @@ export class Runner {
       f.foot.updateWorldMatrix(true, false);
       const ankle = f.foot.getWorldPosition(this.v1);
       const h = ankle.y - ground;
-      if (blendIn) lowest = Math.min(lowest, h - this.floorLift);
+      // Blending into a fall that stays on the floor from a pose far from its first frame (the slide's, lying
+      // back on the stone, the lead leg straight out), the straight leg swung down through the floor (6 cm)
+      // as the hips rose: the knee draws up through it instead, eased in and out.
+      // (Below a planted ankle's height only: a foot standing on the floor is left alone.)
+      const bendTo = blendIn && f.w < 0.01 ? THREE.MathUtils.clamp((FOOT_FLOOR + 0.02 - h) / 0.08, 0, 1) : 0;
+      f.bend = (f.bend ?? 0) + (bendTo - (f.bend ?? 0)) * (1 - Math.exp(-dt * 12));
+      if (f.bend > 0.002) {
+        this.rotate(f.shin, 0.9 * f.bend, 0, 0);
+        this.rotate(f.foot, -0.3 * f.bend, 0, 0);
+        f.shin.updateMatrixWorld(true);
+      }
       // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
       // except where the feet are meant to move on the ground or leave it: the falls' skids, the
       // slides, and any drop below the floor (the chasm, the ledge).
@@ -1582,11 +1591,6 @@ export class Runner {
       f.reach = H.distanceTo(target);
       if (!this.solveLeg(f, target)) f.locked = false;
     }
-    // Blending into a fall that stays on the floor from a pose far from its first frame (the slide's, lying
-    // back on the stone), the cross-fade swept a foot through the floor (6 cm): the body rises over it,
-    // eased (the overlays apply it next frame).
-    const want = lowest < FOOT_FLOOR ? FOOT_FLOOR - lowest : 0;
-    this.floorLift += (want - this.floorLift) * (1 - Math.exp(-dt * 14));
   }
 
   /**
