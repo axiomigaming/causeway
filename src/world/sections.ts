@@ -908,7 +908,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         }
         for (let z = -4; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(14, 22), z, b.rng.range(1.0, 1.3), 'land', 0.9);
       }
-      for (const side of [-1, 1]) groundCover(b, side, len, 2.9, 6.4, 2.0);
+      for (const side of [-1, 1]) groundCover(b, side, len, 2.9, 6.4, 1.4);
       return { hazards: ['rockfall', 'gate'], walls: 'cliff', ground: 'land', features: { rockfall: true } };
     },
   },
@@ -979,7 +979,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
       }
       // (The dry bed: drift caught between the boulders, sparser than a forest floor.)
-      for (const side of [-1, 1]) groundCover(b, side, len, 3.4, 7.0, 2.8, 'ravine');
+      for (const side of [-1, 1]) groundCover(b, side, len, 3.4, 7.0, 2.0, 'ravine');
       return { hazards: ['chasm', 'rockfall'], walls: 'cliff', ground: 'ravine', features: { rockfall: true } };
     },
   },
