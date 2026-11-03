@@ -275,6 +275,10 @@ export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30,
  * at the last push and let go with a 27° shin snap). */
 // (And the chasm skid to its knees: a pin caught a foot as the skid slowed under 4.5 m/s and snapped the shin 26°.)
 const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start', 'fall_chasm_b']);
+/** The falls that go down below the floor (a foot there is meant to be). */
+const DROPS = new Set(['fall_ledge', 'fall_chasm', 'fall_chasm_b', 'fall_drop']);
+/** The lowest an ankle may sweep while a fall on the floor blends in (m above it). */
+const FOOT_FLOOR = 0.05;
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -1456,6 +1460,7 @@ export class Runner {
    */
   private plantFeet(dt: number): void {
     // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
+    const blendIn = this.current.startsWith('fall_') && !DROPS.has(this.current) && (this.weights.get(this.current) ?? 1) < 0.999;
     const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current);
     const ground = this.root.position.y;
     // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
@@ -1485,6 +1490,12 @@ export class Runner {
       f.foot.updateWorldMatrix(true, false);
       const ankle = f.foot.getWorldPosition(this.v1);
       const h = ankle.y - ground;
+      // Blending into a fall that stays on the floor, from a pose far from its first frame (the slide's,
+      // lying back on the stone): the cross-fade swept a foot through the floor (6 cm). Lift it out.
+      if (blendIn && h < FOOT_FLOOR && f.w < 0.01) {
+        this.solveLeg(f, this.v2.copy(ankle).setY(ground + FOOT_FLOOR));
+        continue;
+      }
       // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
       // except where the feet are meant to move on the ground or leave it: the falls' skids, the
       // slides, and any drop below the floor (the chasm, the ledge).
