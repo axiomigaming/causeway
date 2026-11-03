@@ -1292,6 +1292,7 @@ export class Game {
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
   private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
+  private gapBodyPos = new THREE.Vector3();
   /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
   debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
@@ -3125,6 +3126,16 @@ export class Game {
       this.subjOff.set(0, 0, 0);
       this.rig.bodyAt = null;
       this.rig.bodyPts = null;
+    }
+    // FX round 21: in the fall into the water the clip carries him off the root (which stays at the
+    // lip): the rig frames his body there once the card is up.
+    this.rig.gapBody = null;
+    if (this.stage === 'crash' && this.crashKind === 'chasm') {
+      const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
+      if (hips) {
+        this.runner.body.updateWorldMatrix(true, true);
+        this.rig.gapBody = this.gapBodyPos.setFromMatrixPosition(hips.matrixWorld);
+      }
     }
     this.rig.realDt = rawDt;
     // Round 20 (coordinator): the escape's orbit ends in front of his face (the clip turns him).

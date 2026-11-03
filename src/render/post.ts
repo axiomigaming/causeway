@@ -170,6 +170,17 @@ class SunShaftsEffect extends Effect {
         const float jitter = 0.5;
         vec3 acc = vec3(0.0);
         float open = 0.0;
+        // FX round 21: the despeckle's reach follows the march's own step. A source narrower than the
+        // step between two taps cannot make a beam, only one scaled copy of itself per tap — the
+        // blocky pale squares strung out from the sun (a sky hole of a few pixels in the palm
+        // fronds, a cluster of motes). The fixed 2 px diagonal pair passed anything wider than 2 px
+        // or lying along the other diagonal. Each tap now takes the darkest of four neighbours half a
+        // step out on both axes (2 px at least, 24 at most), so only openings as wide as the step
+        // feed the beams.
+        float stepPx = length(delta / texelSize) * 0.96 / float(${samples});
+        float reach = clamp(0.5 * stepPx, 2.0, 24.0);
+        vec2 ox = vec2(texelSize.x * reach, 0.0);
+        vec2 oy = vec2(0.0, texelSize.y * reach);
         for (int i = 0; i < ${samples}; i++) {
           float t = (float(i) + jitter) / float(${samples});
           vec2 p = uv + delta * t * 0.96;
@@ -181,13 +192,11 @@ class SunShaftsEffect extends Effect {
           // nearest, so with hard edges): a trail of growing pale rectangles. The tap takes the
           // darker of itself and its two diagonal neighbours 2 px out, and counts as sky only as far
           // as they see sky; real openings and the sun's halo are wider and pass unchanged.
-          vec2 o = texelSize * 2.0;
           vec3 c = texture2D(inputBuffer, p).rgb;
           float sky = 1.0;
           if (clean > 0.5) {
-            vec3 cn = 0.5 * (texture2D(inputBuffer, p + o).rgb + texture2D(inputBuffer, p - o).rgb);
-            c = min(c, cn);
-            sky = 0.5 * (step(0.99995, readDepth(p + o)) + step(0.99995, readDepth(p - o)));
+            c = min(c, min(min(texture2D(inputBuffer, p + ox).rgb, texture2D(inputBuffer, p - ox).rgb), min(texture2D(inputBuffer, p + oy).rgb, texture2D(inputBuffer, p - oy).rgb)));
+            sky = step(0.99995, min(min(readDepth(p + ox), readDepth(p - ox)), min(readDepth(p + oy), readDepth(p - oy))));
           }
           float l = max(max(c.r, c.g), c.b);
           acc += sky * min(c, vec3(8.0)) * smoothstep(0.35, 1.6, l) * (0.35 + 0.65 * t);

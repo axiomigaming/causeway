@@ -1214,12 +1214,15 @@ export class CameraRig {
   bodyAt: THREE.Vector3 | null = null;
   /** Round 18: world positions of the posed limbs (head, hands, feet) to keep in frame, or null. */
   bodyPts: THREE.Vector3[] | null = null;
+  /** FX round 21: his body (hips) in a fall into the water, where the root stays at the lip; or null. */
+  gapBody: THREE.Vector3 | null = null;
   private tmp4 = new THREE.Vector3();
 
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60, rdt = dt): void {
     // (Looking down into the gap after him; once the lens has closed in on him lying on the ledge's
     // stone, he is framed again.)
-    if (this.mode === 'crash' && this.gap > 0.3 && this.closeK < 0.5) return;
+    const inGap = this.mode === 'crash' && this.gap > 0.3 && this.closeK < 0.5;
+    if (inGap && (this.crashShot !== 'chasm' || !this.gapBody)) return;
     const c = this.camera;
     const s = this.shift;
     // (Round 20: from just before the card lands, too — set by the game half a second ahead — so he
@@ -1257,6 +1260,22 @@ export class CameraRig {
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
+    if (inGap) {
+      // FX round 21 (coordinator): the slabs gave and he went down into the water. While the lens
+      // looks down after him he is not framed; once the result card is up he is set in the free
+      // band — a third of the way up from the dock line (on landscape beside the card's column, on
+      // the third the result shot uses), never left under the dock. Only his body is measured
+      // (gapBody, the game's: the root stays at the lip).
+      const k = Math.min(1, this.revealK * 1.5);
+      if (k < 0.001) return;
+      c.updateMatrixWorld();
+      const p = this.tmp4.copy(this.gapBody!).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
+      if (p.z > -0.3) return;
+      const y = p.y / -p.z;
+      c.rotateX((Math.atan(y) - Math.atan(THREE.MathUtils.lerp(lo, hi, 0.35) * tanV)) * k);
+      if (this.sideK > 0.001) c.rotateOnWorldAxis(WORLD_UP, (Math.atan(this.sideX * tanH) - Math.atan(p.x / -p.z)) * Math.min(this.sideK, k));
+      return;
+    }
     // (FX round 21: the escape's run-on — still the run shot, closing in on his shoulder — keeps the
     // escape's wider margin as it comes in: his swinging hand and boot reach past the arm points.)
     const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? this.escapeIn : 0;
