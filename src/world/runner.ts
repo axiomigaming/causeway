@@ -116,6 +116,24 @@ const KNEE_REACH_RATE = 2.6;
  * (it prints S for each gait).
  */
 export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 3.587, sprint: 4.145, dash: 4.848 };
+/** Each gait's contact time, as a fraction of its stride cycle (blender/runner_anim.py: ts). */
+export const CONTACT: Record<(typeof GAITS)[number], number> = { run: 0.223, sprint: 0.193, dash: 0.165 };
+
+/**
+ * Where in the stride the floor may run ahead of (or behind) the gait: 0 while a foot is on it, rising to 1
+ * through each flight, scaled so it averages 1 over the cycle. `contact` is the blend's contact fraction.
+ */
+export function flightGate(phase: number, contact: number): number {
+  const m = 0.02;
+  const h = (((phase % 0.5) + 0.5) % 0.5) - contact - m;
+  const len = 0.5 - contact - 2 * m;
+  if (len <= 0.05) return 1;
+  const u = h / len;
+  if (u <= 0 || u >= 1) return 0;
+  const g = smoothstep(0, 0.25, u) * (1 - smoothstep(0.75, 1, u));
+  // Mean of the gate over the cycle: the flight's share, times its plateau and two half-ramps (0.75).
+  return g / ((0.75 * len) / 0.5);
+}
 
 /** Blend weights of the gait clips for a (continuous) run tier. */
 export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
@@ -381,6 +399,8 @@ export class Runner {
   lean = 0;
   roll = 0;
   slope = 0;
+  /** The blended gait's contact time, as a fraction of the stride cycle. */
+  private contact = CONTACT.run;
   /** 0 fresh … 1 spent: builds while running, recovers at rest; drives breathing. */
   exertion = 0;
   private breathPh = 0;
@@ -632,10 +652,10 @@ export class Runner {
     this.travelPrev = fwd;
     this.travelAcc += d;
     // The root (the game's speed and this take together) changes speed by at most TRAVEL_ACCEL, and the
-    // body is held back by only what the root has taken, so the body moves exactly as the clip has him. The travel of a blended pose
-    // surges as the weights cross (a fall starting a frame after a slide's hand-back, a body slammed to a
-    // stop on a pillar): taken as it came, the root (the lens's and the shadow's anchor) jumped 11-16
-    // cm/frame². What is left over drains in a few frames.
+    // body stays held over it. The travel of a blended pose surges as the weights cross (a fall starting a
+    // frame after a slide's hand-back, a body slammed to a stop on a pillar): taken as it came, the root and
+    // the whole body with it jumped 11-16 cm/frame². What is left over drains in a few frames (the body
+    // trails the clip's travel by that much; the pins keep a planted foot where it is).
     this.travelPool += d;
     if (dt > 0) {
       const want = d / dt + (this.travelPool - d) * 6;
@@ -645,7 +665,7 @@ export class Runner {
       this.travelPool -= take;
       this.travelOut += take;
     }
-    this.body.position.z = this.travelAcc - this.travelPool;
+    this.body.position.z = this.travelAcc;
   }
 
   private start(name: RunnerAnim, fade: number, offset: number) {
@@ -856,6 +876,7 @@ export class Runner {
     if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
     const d = this.driveS;
     const mix: Record<string, number> = gaitMix(this.actions.has('dash') ? d : Math.min(d, 2.2));
+    this.contact = GAITS.reduce((a, g) => a + (mix[g] ?? 0) * CONTACT[g], 0);
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
     this.cadence = cadence;
     const prevPhase = this.phase;
@@ -975,6 +996,20 @@ export class Runner {
    * to it. stumble_land replaces a jump's or leap's landing: call it at the landing (it starts at once).
    * Timings: OBSTACLES / obstacleTiming(name, runner.cadence, speed, distance).
    */
+  /**
+   * How much of the obstacle director's nudge to the floor's speed this frame may carry (mean 1 over a
+   * stride): in the plain run, mostly while both feet are off the floor. Carried evenly, the floor ran up to
+   * 12-20% ahead of or behind the stride, and every planted foot slid by it (~3 cm/frame); in the air it is
+   * a longer or a shorter bound. A move, a fall or an escape takes it as it comes.
+   */
+  groundNudgeGate(): number {
+    const gaitW = Math.max(...GAITS.map((g) => this.weights.get(g) ?? 0));
+    if (this.current !== 'run' || gaitW < 0.99) return 1;
+    // Half of it evenly, half in the flights: all of it in the air made the floor surge a third faster
+    // mid-flight (8-14 cm/frame² at the hand-overs); half leaves a planted foot ≤ ~1.5 cm/frame.
+    return 0.5 + 0.5 * flightGate(this.phase, this.contact);
+  }
+
   /**
    * Hook for the obstacle director (cinematics, round 13): the gait phase and cadence, so a set piece
    * can be placed where his start foot will land (read-only).

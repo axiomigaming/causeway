@@ -2923,7 +2923,8 @@ export class Game {
       const dv = target - this.speed;
       this.speed += Math.sign(dv) * Math.min(Math.abs(dv), 6 * dt * (this.stage === 'run' && this.stageT < 1 ? 1.4 : 1));
       // sRate: the few percent the obstacle director borrows so a move's takeoff meets its set piece.
-      this.s += (this.speed + (this.stage === 'run' ? this.obstacles.sRate : 0)) * dt;
+      // (On the run's flights only: a planted foot slid by the nudge. See Runner.groundNudgeGate.)
+      this.s += (this.speed + (this.stage === 'run' ? this.obstacles.sRate * this.runner.groundNudgeGate() : 0)) * dt;
     }
     this.live.speed = this.speed;
     this.live.distance = this.s;

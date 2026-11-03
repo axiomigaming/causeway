@@ -2661,10 +2661,13 @@ def obstacle_clips():
         # (The lean back is mostly the pelvis rolling back; the spine itself arches no more than ~25°.)
         torso(P, lean=-0.56 + 0.04 * wob, look=0.4 + 0.04 * math.sin(fr * 0.6), hp=-0.36, roll=0.05 + 0.04 * wob,
               head_yaw=0.08 * math.sin(fr * 0.5))
-        leg(P, "L", hip=1.24 + 0.04 * math.sin(fr * 1.1), knee=0.1 + 0.08 * max(0.0, math.sin(fr * 1.1)), ankle=-0.3 + 0.06 * math.sin(fr * 0.9))
-        leg(P, "R", hip=0.86, knee=2.4, ankle=0.3, out=0.9 + 0.04 * wob)
-        arm(P, "R", fwd=-0.5 + 0.06 * math.sin(fr * 0.9), elbow=0.2 + 0.06 * max(0.0, math.sin(fr * 0.9)), out=0.5, wrist=-0.6, curl=0.3)
-        arm(P, "L", fwd=0.3 + 0.08 * wob, elbow=0.45 + 0.06 * math.sin(fr * 0.6), out=0.45, curl=1.0)
+        # (The limbs' chatter at 1.8x: played at the slower rate of the longer stride, the slide lay still as
+        # a held pose, under a degree a frame.)
+        c = 1.8
+        leg(P, "L", hip=1.24 + c * 0.04 * math.sin(fr * 1.1), knee=0.1 + c * 0.08 * max(0.0, math.sin(fr * 1.1)), ankle=-0.3 + c * 0.06 * math.sin(fr * 0.9))
+        leg(P, "R", hip=0.86 + c * 0.03 * math.sin(fr * 0.8 + 1.0), knee=2.4, ankle=0.3, out=0.9 + c * 0.04 * wob)
+        arm(P, "R", fwd=-0.5 + c * 0.06 * math.sin(fr * 0.9), elbow=0.2 + c * 0.06 * max(0.0, math.sin(fr * 0.9)), out=0.5, wrist=-0.6, curl=0.3)
+        arm(P, "L", fwd=0.3 + c * 0.08 * wob, elbow=0.45 + c * 0.06 * math.sin(fr * 0.6), out=0.45, curl=1.0)
         key(fr, P, z=SLIDE_Z)
     P_lie = P
     # Up: the folded right knee and the planted left heel lever him back over his feet. (Over 4 frames
