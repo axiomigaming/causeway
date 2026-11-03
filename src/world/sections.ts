@@ -102,6 +102,10 @@ class Builder {
   falls: Waterfall[] = [];
   /** The section's length (set before it is built; land seats things on the ground by it). */
   len = 0;
+  /** World round 24: the side (-1/1) of a lower terrace the ground drops to (0: none; see land.groundY). */
+  lower = 0;
+  /** World round 24: the layout's seed (for choices drawn apart from `rng`, which leave its stream as it was). */
+  seed = '';
   constructor(
     readonly rng: Rng,
     readonly density: { foliage: number; scenery: number },
@@ -294,6 +298,21 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
   return WL - 0.5 + 1.4 * s * 1.1 - 0.12;
 }
 
+/** World round 24: half the widest horizontal extent of the shrub masses (kit bounds), and of a rock_mid at scale 1. */
+const SHRUB_R = [2.0, 2.95];
+const ISLET_R = 1.85;
+
+/**
+ * World round 24: a shrub mass on an islet of scale `rockS` (see islet), its scale `s` (as rolled) held
+ * down so the crown overhangs the rock by at most a quarter. A 5 m shrub on a 2.5 m boulder hung out
+ * over the water on every side, and the water (opaque: what lies under it is stripped) cut its underside
+ * flat: from beside the way, boxy clumps of leaves floating on the lagoon.
+ */
+function isletShrub(b: Builder, i: number, x: number, y: number, z: number, ry: number, s: number, rockS: number) {
+  const fit = (1.25 * ISLET_R * rockS) / SHRUB_R[i]!;
+  b.place(`shrub_mass_${i}`, x, y, z, ry, Math.min(s, fit));
+}
+
 /**
  * World round 23: the open-water side of a bridge or boardwalk is never bare: islets within 7.2 m
  * carrying a palm, a shrub mass or a broken column (inside 7.5 m they never block a corner), and
@@ -302,14 +321,15 @@ function islet(b: Builder, x: number, z: number, s = 0.45): number {
 function openSide(b: Builder, side: number, len: number) {
   for (let z = -b.rng.range(1.5, 4); z > -len; z -= b.rng.range(6, 9)) {
     const x = side * b.rng.range(5.4, 7.2);
-    const top = islet(b, x, z, b.rng.range(0.55, 0.8));
+    const rs = b.rng.range(0.55, 0.8);
+    const top = islet(b, x, z, rs);
     const r = b.rng.range(0, 1);
     if (r < 0.4 && b.foliage(0.9)) {
       const j = b.rng.int(0, 2);
       const ry = b.rng.range(0, 6.28);
       b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
       b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
-    } else if (r < 0.8 && b.foliage(0.9)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.75, 1.05));
+    } else if (r < 0.8 && b.foliage(0.9)) isletShrub(b, b.rng.int(0, 1), x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.75, 1.05), rs);
     else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
   }
 }
@@ -405,7 +425,26 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
   const side = b.rng.chance(0.5) ? -1 : 1;
   switch (kind) {
     case 'arch': {
-      b.place('arch_1', 0, 0, z, b.rng.chance(0.5) ? 0 : Math.PI);
+      // (World round 24: four gates, not one. The brick arch stood at the vanishing point of about half
+      // the frames of a 16-world contact sheet — the same piece, the same place in the frame.)
+      // (Drawn from a generator of its own: the layout's own stream, and so every other placement and
+      // the route built around it, stay as they were.)
+      const vr = new Rng(`${b.seed}/gate`);
+      const form = vr.int(0, 3);
+      const flip = b.rng.chance(0.5) ? 0 : Math.PI;
+      if (form === 0) b.place('arch_1', 0, 0, z, flip);
+      else if (form === 1) b.place('lintel_gate_0', 0, 0, z, flip);
+      else if (form === 2) {
+        // A trilithon: two piers and the lintel across them.
+        for (const sd of [-1, 1]) b.place('pillar_0', sd * 3.4, 0, z, vr.range(0, 6.28));
+        b.place('beam_lintel_0', 0, 4.95, z, flip, [1.05, 1, 1]);
+      } else {
+        // Its lintel fallen: one pier standing, the other broken off, the lintel tipped into the shallows.
+        const sd = vr.chance(0.5) ? -1 : 1;
+        b.place('pillar_0', sd * 3.4, 0, z, vr.range(0, 6.28));
+        b.place('pillar_2', -sd * 3.4, 0, z, vr.range(0, 6.28));
+        b.place('beam_lintel_0', -sd * 5.6, WL + 0.1, z + 1.2, Math.PI / 2 + vr.range(-0.3, 0.3), 1, [0, vr.range(0.15, 0.3)]);
+      }
       // Its piers stand out past the causeway's edge: boulders heaped under them.
       for (const sd of [-1, 1]) {
         b.place(`rock_mid_${b.rng.int(0, 2)}`, sd * 3.7, WL + 0.9, z, b.rng.range(0, 6.28), [0.6, 0.8, 0.55]);
@@ -695,7 +734,30 @@ export const isLand = (t: SectionType | string | undefined): boolean => !!t && (
 
 /** Height of the ground at (x, z) in a land section (see land.ts), less a little so nothing hovers on a bump. */
 function gy(b: Builder, x: number, z: number, kind: GroundKind = 'land'): number {
-  return groundY(kind, x, z, b.len) - 0.12 - 0.05 * b.rng.range(0, 1);
+  return groundY(kind, x, z, b.len, b.lower) - 0.12 - 0.05 * b.rng.range(0, 1);
+}
+
+/**
+ * World round 24: ground cover in a band beside the way on `side`, |x| from x0 to x1: grass, ferns, a
+ * bush, a few stones, every `step` m or so. From the close-ups (the lens at the path's edge looking out)
+ * the cutting's and ravine's floor within 5 m of the path was bare soil with a pebble or two. Drawn from
+ * a generator of its own (the layout's stream, its far trees and so the route stay as they were); the
+ * foliage density thins it on phones like everything else.
+ */
+function groundCover(b: Builder, side: number, len: number, x0: number, x1: number, step = 2.2, kind: GroundKind = 'land', tag = '') {
+  const r = new Rng(`${b.seed}/cover${side}${tag}`);
+  const on = (p: number) => r.chance(p * b.density.foliage);
+  for (let z = -r.range(0.3, 1.5); z > -len + 0.5; z -= r.range(0.7, 1.3) * step) {
+    const x = side * r.range(x0, x1);
+    const y = groundY(kind, x, z, b.len, b.lower) - 0.12;
+    const k = r.range(0, 1);
+    const ry = r.range(0, 6.28);
+    if (k < 0.38) { if (on(0.9)) b.place(`grass_${r.int(0, 1)}`, x, y, z, ry, r.range(0.9, 1.4)); }
+    else if (k < 0.68) { if (on(0.85)) b.place(`fern_${r.int(0, 1)}`, x, y - 0.05, z, ry, r.range(0.8, 1.3)); }
+    // (Bushes, up to 1.7 m round, from 3.7 m out: nothing but grass and ferns brushes the running line.)
+    else if (k < 0.82) { if (Math.abs(x) >= 3.7 && on(0.7)) b.place(`bush_${r.int(0, 3)}`, x, y + 0.2, z, ry, r.range(0.7, 1.05)); }
+    else b.place(`scatter_edge_${r.int(0, 2)}`, x, y + 0.06, z, side > 0 ? 0 : Math.PI);
+  }
 }
 
 /** A tree on the forest floor: trunk and crown together (never a bare trunk on a phone). */
@@ -764,11 +826,27 @@ function edgePillar(b: Builder, side: number, z: number) {
 function lowerTerrace(b: Builder, side: number, z0: number, n: number) {
   for (let i = 0; i < n; i++) {
     const z = z0 - TILE * i;
-    b.place(b.rng.pick(FLOORS.slice(0, 4)), side * (PATH_HALF + 2.6), -1.6, z, b.rng.chance(0.5) ? 0 : Math.PI, [1.15, 1, 1]);
-    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), -1.6, z, 0);
+    // (World round 24: a slab's origin is its front edge — it runs 4 m on toward -z — so turned end for
+    // end it moves back a tile, as floorRun's do. Turned in place it covered the tile before: two slabs
+    // on one tile and a 4 m hole on the next.)
+    const piece = b.rng.pick(FLOORS.slice(0, 4));
+    const flip = b.rng.chance(0.5);
+    b.place(piece, side * (PATH_HALF + 2.6), -1.6, flip ? z - TILE : z, flip ? Math.PI : 0, [1.15, 1, 1]);
+    // (World round 24: at y 0, as along every edge — the footing spans -0.26 down to -2.6. At -1.6 it lay
+    // wholly under the terrace, and the paving's edge hung over the drop with nothing below it.)
+    b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), 0, z, 0);
     if (b.foliage(0.5)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF + b.rng.range(1.6, 3.6)), -1.6, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 1.1);
   }
   b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 3.2), -1.6, z0 - TILE * n * 0.5, b.rng.range(0, 6.28));
+  // World round 24: a retaining wall along the court's back edge, its crest about the forest floor's
+  // level (the ground rises behind it: land.groundY). Without it, past the slabs the sunken bed read
+  // as a murky pond under a bare earth cut. (Its own generator: the layout's stream stays as it was.)
+  const r = new Rng(`${b.seed}/terrace`);
+  for (let i = 0; i < n; i++) {
+    const flip = r.chance(0.5);
+    const z = z0 - TILE * i;
+    b.place(`wall_low_${r.pick([0, 1, 3])}`, side * (PATH_HALF + 5.45), -1.65, flip ? z - TILE : z, flip ? Math.PI : 0);
+  }
 }
 
 const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Build }>> = {
@@ -839,6 +917,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         }
         for (let z = -4; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(14, 22), z, b.rng.range(1.0, 1.3), 'land', 0.9);
       }
+      for (const side of [-1, 1]) groundCover(b, side, len, 2.9, 6.4, 1.4);
       return { hazards: ['rockfall', 'gate'], walls: 'cliff', ground: 'land', features: { rockfall: true } };
     },
   },
@@ -850,11 +929,14 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       const n = len / TILE;
       floorRun(b, 0, n, 0, 0.45, 0.12);
       const low = b.rng.pick([-1, 1]);
+      b.lower = low;
       lowerTerrace(b, low, 0, n);
       const hi = -low;
       for (let i = 0; i < n; i++) {
         const z = -TILE * i;
-        b.place(b.rng.pick(FLOORS.slice(0, 4)), hi * (PATH_HALF + 2.0), -0.02, z, b.rng.chance(0.5) ? 0 : Math.PI, [1, 1, 1]);
+        const piece = b.rng.pick(FLOORS.slice(0, 4));
+        const flip = b.rng.chance(0.5); // (turned end for end, back a tile: see lowerTerrace)
+        b.place(piece, hi * (PATH_HALF + 2.0), -0.02, flip ? z - TILE : z, flip ? Math.PI : 0, [1, 1, 1]);
         b.pathRubble(z, 0, 1.4);
       }
       for (let z = -2; z > -len; z -= b.rng.range(5, 8)) {
@@ -866,6 +948,9 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       // running line, and the runner stepped over it.)
       b.place(`column_fallen_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 2.2), 0.05, -len * b.rng.range(0.3, 0.7), -hi * b.rng.range(0, 0.35));
       forestSide(b, hi, len, 0.9);
+      // (World round 24: the ground now drops to the terrace — land.groundY — and rises again behind its
+      // retaining wall: undergrowth along the wall's crest.)
+      groundCover(b, low, len, 8.6, 11.5, 2.0, 'land', 'bank');
       // Beyond the lower terrace the forest goes on at its level.
       for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
       for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9);
@@ -902,6 +987,8 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 1), b.rng.range(0.55, 0.75));
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
       }
+      // (The dry bed: drift caught between the boulders, sparser than a forest floor.)
+      for (const side of [-1, 1]) groundCover(b, side, len, 3.4, 7.0, 2.0, 'ravine');
       return { hazards: ['chasm', 'rockfall'], walls: 'cliff', ground: 'ravine', features: { rockfall: true } };
     },
   },
@@ -976,14 +1063,15 @@ const BUILDERS = {
           // clearance probe found the far islets in the new leg every time — the corner never came and the
           // run-up was staged again and again, 40 % of the route open water.)
           const x = side * (z < -len + 9 ? b.rng.range(5.5, 7.2) : b.rng.range(5.5, 11));
-          const top = islet(b, x, z, b.rng.range(0.6, 0.9));
+          const rs = b.rng.range(0.6, 0.9);
+          const top = islet(b, x, z, rs);
           const r = b.rng.range(0, 1);
           if (r < 0.4) {
             const j = b.rng.int(0, 2);
             const ry = b.rng.range(0, 6.28);
             b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
             b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.8, 1.05));
-          } else if (r < 0.75) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
+          } else if (r < 0.75) isletShrub(b, b.rng.int(0, 1), x, top - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0), rs);
           else b.place(b.rng.pick(['pillar_1', 'pillar_2', 'stele_0']), x, top - 0.2, z, b.rng.range(0, 6.28), 0.9);
         }
         // (Round 22: a near layer and a far shore — w23/31/77 still read as open water to the horizon.)
@@ -997,13 +1085,14 @@ const BUILDERS = {
         // Instead a second islet within 7 m carries a palm or a shrub mass, filling the near water.)
         for (let z = -b.rng.range(2, 5); z > -len; z -= b.rng.range(7, 10)) {
           const x = side * b.rng.range(5.4, 7.0);
-          const top = islet(b, x, z, b.rng.range(0.55, 0.75));
+          const rs = b.rng.range(0.55, 0.75);
+          const top = islet(b, x, z, rs);
           if (b.rng.chance(0.5) && b.foliage(0.9)) {
             const j = b.rng.int(0, 2);
             const ry = b.rng.range(0, 6.28);
             b.place(`palm_${j}_trunk`, x, top - 0.3, z, ry, b.rng.range(0.85, 1.1));
             b.place(`palm_${j}_crown`, x, top - 0.3, z, ry, b.rng.range(0.85, 1.1));
-          } else b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1));
+          } else isletShrub(b, b.rng.int(0, 1), x, top - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1), rs);
         }
         if (b.rng.chance(0.6)) {
           const cx = side * b.rng.range(13, 20);
@@ -1287,7 +1376,7 @@ const BUILDERS = {
       for (let z = -2; z > -len; z -= 5) {
         if (!b.foliage(0.7)) continue;
         const sx = side * b.rng.range(5.5, 7);
-        b.place(`shrub_mass_${b.rng.int(0, 1)}`, sx, islet(b, sx, z, 0.7) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+        isletShrub(b, b.rng.int(0, 1), sx, islet(b, sx, z, 0.7) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2), 0.7);
       }
       canopy(b, side, -len * b.rng.range(0.15, 0.4), 0, 0.6);
       jungleBank(b, -side, b.rng.range(7.5, 9), -len / 2, 0, 0.5);
@@ -1397,7 +1486,7 @@ const BUILDERS = {
         for (let zz = -2; zz > -len; zz -= b.rng.range(4, 7)) {
           if (b.foliage(0.7)) {
             const sx = side * b.rng.range(5, 7);
-            b.place(`shrub_mass_${b.rng.int(0, 1)}`, sx, islet(b, sx, zz, 0.7) - 0.3, zz, b.rng.range(0, 6.28), b.rng.range(0.8, 1.3));
+            isletShrub(b, b.rng.int(0, 1), sx, islet(b, sx, zz, 0.7) - 0.3, zz, b.rng.range(0, 6.28), b.rng.range(0.8, 1.3), 0.7);
           }
           b.lilies(side * b.rng.range(4.5, 6.5), zz - 2, b.rng.range(0.8, 1.2));
         }
@@ -1596,7 +1685,7 @@ const BUILDERS = {
           b.place(`tree_big_${t}_trunk`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
           b.place(`tree_big_${t}_crown`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
         }
-        if (b.foliage(0.8)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * 8.5, islet(b, side * 8.5, -len + 1, 0.8) - 0.3, -len + 1, b.rng.range(0, 6.28), 1.2); // (round 20: on a boulder, not the water)
+        if (b.foliage(0.8)) isletShrub(b, b.rng.int(0, 1), side * 8.5, islet(b, side * 8.5, -len + 1, 0.8) - 0.3, -len + 1, b.rng.range(0, 6.28), 1.2, 0.8); // (round 20: on a boulder, not the water)
       }
       jungleBank(b, -fs, 5.4, -len / 2 + 2, 0, 0.5);
       canopy(b, -fs, -len * b.rng.range(0.25, 0.5), 0, 0.4);
@@ -1749,6 +1838,7 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   const L = len ?? rng.pick(def.lengths);
   const b = new Builder(rng, density, Number(seed.split('#')[1] ?? 0) || 0, ruin);
   b.len = L;
+  b.seed = seed;
   const r = def.build(b, L);
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin);

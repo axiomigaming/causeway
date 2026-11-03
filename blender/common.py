@@ -562,6 +562,17 @@ def ensure_uvs_packed_weighted(objs, size, margin_px=5, angle=60):
                     l[uvl].uv = (cx + (u.x - cx) * k, cy + (u.y - cy) * k)
         bm.to_mesh(me)
         bm.free()
+    # World round 24: a per-piece texel weight (object property `texel`, linear): small props seen
+    # within a few metres of the lens (rubble, drums, boulders, roots, the jump log) share an atlas with
+    # towers and rock islands 40 m out, and at one density for all they shipped at ~23 texels/m. The
+    # packer places islands by size, so scaling a piece's islands here moves texels between pieces.
+    for o in objs:
+        k = float(o.get("texel", 1.0))
+        if abs(k - 1.0) < 1e-6:
+            continue
+        uv = np.zeros(len(o.data.loops) * 2, np.float32)
+        o.data.uv_layers.active.data.foreach_get("uv", uv)
+        o.data.uv_layers.active.data.foreach_set("uv", uv * k)
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.select_all(action="SELECT")

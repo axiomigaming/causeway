@@ -101,6 +101,11 @@ def bark(name="bark"):
     # (Round 23: 0.45 -> 0.2 — at the atlas's texel size the crest moss baked as soft green blotches
     # and the roots read as green tubes; the moss now sits in the furrows' patches, the bark shows.)
     moss = math_node(nt, "MINIMUM", 1.0, math_node(nt, "ADD", moss, math_node(nt, "MULTIPLY", up, math_node(nt, "MULTIPLY", gw.outputs["Fac"], 0.2))))
+    # Round 24: a piece's `moss_cut` (object property, 0 when unset) takes moss off it: the fallen log,
+    # the jump across the way a metre from the lens, baked with its whole back a carpet of green.
+    cut = N(nt, "ShaderNodeAttribute", _attribute_name="moss_cut")
+    cut.attribute_type = "OBJECT"
+    moss = math_node(nt, "MULTIPLY", moss, math_node(nt, "SUBTRACT", 1.0, cut.outputs["Fac"]))
     tufts = M._noise(nt, vec, 60, 4, 0.6)
     mc = ramp(nt, tufts.outputs[0], [(0.3, (0.07, 0.11, 0.03, 1)), (0.7, (0.2, 0.27, 0.07, 1))])
     base_in = bsdf.inputs["Base Color"]
@@ -153,3 +158,28 @@ def _grey(nt, v):
     for i in range(3):
         L(nt, v, c.inputs[i])
     return c.outputs[0]
+
+
+def stone_ragged(name, moss):
+    """Round 24: materials.stone without its moss, and a different moss injected (kept out of
+    materials.py so its hash, which keys every group's bake cache, stays put). The stoneA parapets and
+    walls beside the lens baked their moss as big, soft-edged yellow-green blotches over half of every
+    top and down the faces: camouflage. Here it sits on the true tops, its edge broken by a fine noise,
+    less of it in the joints, in dark olive."""
+    m = M.stone(name, moss=0)
+    nt = m.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    vec, _ = M._coords(nt)
+    dirt = maprange(nt, M._ao(nt, 0.35), 0.35, 0.95, 0.75, 0.0)
+    up = M._up_mask(nt, 0.6, 0.92)
+    mn = M._noise(nt, vec, 3.2, 6, 0.65, 0.6)
+    rg = maprange(nt, M._noise(nt, vec, 24, 4, 0.7).outputs[0], 0.34, 0.58)
+    mm = math_node(nt, "MULTIPLY", maprange(nt, mn.outputs[0], 0.5 - 0.2 * moss, 0.62 - 0.2 * moss), rg)
+    mfac = math_node(nt, "MULTIPLY", up, mm)
+    mfac = math_node(nt, "MAXIMUM", mfac, math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.52, 0.68, 0, 0.45 * moss)))
+    moss_col = ramp(nt, M._noise(nt, vec, 9, 4).outputs[0], [(0.3, hexcol("#2e3818")), (0.7, hexcol("#4f5a28"))])
+    base_in = bsdf.inputs["Base Color"]
+    L(nt, mix(nt, mfac, base_in.links[0].from_socket, moss_col, "MIX"), base_in)
+    rin = bsdf.inputs["Roughness"]
+    L(nt, mix(nt, mfac, rin.links[0].from_socket, (1, 1, 1, 1), "MIX"), rin)
+    return m

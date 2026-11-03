@@ -137,6 +137,8 @@ function stripBelow(g: THREE.BufferGeometry, y: number): void {
   if (keep.length !== a.length) g.setIndex(keep);
 }
 
+/** World round 24: how far a variant's ruin may be from the run's target and still count as a match (see spawn). */
+const RUIN_TOL = 0.4;
 const VARIANTS: Record<SectionType, number> = {
   start: 1,
   corridor: 6,
@@ -469,6 +471,12 @@ export class Track {
               : 'near';
       const key = `${this.kit.matOf.get(pl.piece)!}|${zone}`;
       const c = g.clone().applyMatrix4(pl.m);
+      // World round 24: the paving tiles' `aHalf` (TileSystem sets it on the kit's shared geometry) is
+      // meaningful only in a tile's own frame. On a slab placed as a prop (the overgrown plaza's court,
+      // the lower terrace) the position is the section's, |x| ≥ 4 m, so the parapet strip's grime, moss
+      // and litter covered the whole slab: green and ochre camouflage. And a floor piece without it
+      // merged with one that has it fails the merge (the whole floor mesh dropped). Props carry none.
+      if (c.getAttribute('aHalf')) c.deleteAttribute('aHalf');
       // World round 22: the water is opaque, so what lies under it is never seen: drop the triangles
       // wholly below the surface (rocks, islands, towers and footings sunk into it — a fifth to a third
       // of their triangles). Far scenery is placed relative to the water; near pieces relative to the
@@ -789,7 +797,10 @@ export class Track {
     // (intact and lush early, broken and dramatic late; presentation only), then the least-used one,
     // with a random tiebreak, so repeats are spread out.
     const ruinTarget = Number.isFinite(QA_RUIN) ? QA_RUIN : Math.min(1, intensity * 1.25);
-    const score = (v: Variant) => Math.abs(v.layout.ruin - ruinTarget) * 3 + this.recent.filter((k) => k === v.key).length;
+    // (World round 24: within RUIN_TOL of the target every variant matches. Variants are built once, the
+    // same for every world, and at the start of a run the target is 0: every world opened on the very
+    // same variant #0 of each type — the same dressing, the same arch at the end of the first corridor.)
+    const score = (v: Variant) => Math.max(0, Math.abs(v.layout.ruin - ruinTarget) - RUIN_TOL) * 3 + this.recent.filter((k) => k === v.key).length;
     const min = Math.min(...list.map(score));
     const candidates = list.filter((v) => score(v) <= min + 0.35);
     const variant = this.rng.pick(candidates);
@@ -850,7 +861,7 @@ export class Track {
     if (layout.ground) {
       const rampIn = !isLand(this.lastType);
       const rampOut = !isLand(this.landRun[0] ?? this.forceNext[0] ?? this.staged[0]);
-      const gg = makeGroundGeometry(layout.ground, layout.len, rampIn, rampOut, toWater, Math.floor(seg.s0));
+      const gg = makeGroundGeometry(layout.ground, layout.len, rampIn, rampOut, toWater, Math.floor(seg.s0), layout.features?.lower ?? 0);
       ground = new THREE.Mesh(gg, this.groundMat);
       ground.name = 'ground';
       ground.receiveShadow = true;

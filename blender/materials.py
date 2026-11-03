@@ -276,7 +276,8 @@ def rock(name="rock"):
     L(nt, bsdf.outputs[0], out.inputs[0])
     vec, _ = _coords(nt, 0.6)
     big = _noise(nt, vec, 1.0, 8, 0.6, 0.4)
-    col = ramp(nt, big.outputs[0], [(0.25, hexcol("#6e3f2c")), (0.5, hexcol("#a8603a")), (0.75, hexcol("#c98a58"))])
+    # (Round 24: less saturated — beside the tan paving the boulders read as bright orange plastic.)
+    col = ramp(nt, big.outputs[0], [(0.25, hexcol("#66412e")), (0.5, hexcol("#a0653f")), (0.75, hexcol("#bf9264"))])
     wave = N(nt, "ShaderNodeTexWave", Scale=1.2, Distortion=9, Detail=5)
     wave.bands_direction = "Z"
     L(nt, vec, wave.inputs["Vector"])
@@ -284,10 +285,18 @@ def rock(name="rock"):
     ao = _ao(nt, 1.2)
     dirt = maprange(nt, ao, 0.3, 0.95, 0.8, 0.0)
     col = mix(nt, dirt, col, hexcol("#2c2018"), "MIX")
-    up = _up_mask(nt, 0.25, 0.7)
+    # Round 24: moss only on the true tops and caught in the hollows, its edge broken up by a fine
+    # noise (it baked as smooth-edged yellow-green blobs over half of every upward face: camouflage),
+    # in dark, low-saturation olive that sits with the stone; a grey-green lichen film around it.
+    up = _up_mask(nt, 0.4, 0.85)
     mn = _noise(nt, vec, 2.5, 6, 0.6, 0.8)
-    moss = math_node(nt, "MULTIPLY", up, maprange(nt, mn.outputs[0], 0.34, 0.5))
-    mc = ramp(nt, _noise(nt, vec, 12, 3).outputs[0], [(0.3, hexcol("#2c4a16")), (0.7, hexcol("#5a7a24"))])
+    ragged = maprange(nt, _noise(nt, vec, 26, 4, 0.7).outputs[0], 0.3, 0.55)
+    cover = math_node(nt, "MULTIPLY", maprange(nt, mn.outputs[0], 0.42, 0.58), ragged)
+    moss = math_node(nt, "MULTIPLY", up, cover)
+    moss = math_node(nt, "MAXIMUM", moss, math_node(nt, "MULTIPLY", dirt, maprange(nt, mn.outputs[0], 0.45, 0.62, 0.0, 0.55)))
+    lichen = math_node(nt, "MULTIPLY", up, maprange(nt, mn.outputs[0], 0.4, 0.55, 0.0, 0.35))
+    col = mix(nt, lichen, col, hexcol("#6f6a4c"), "MIX")
+    mc = ramp(nt, _noise(nt, vec, 12, 3).outputs[0], [(0.3, hexcol("#283117")), (0.7, hexcol("#4a5328"))])
     col = mix(nt, moss, col, mc, "MIX")
     L(nt, col, bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.92
@@ -410,12 +419,15 @@ def cliff(name="cliff"):
     streak = _noise(nt, mp.outputs[0], 2.5, 6, 0.6)
     sm = maprange(nt, streak.outputs[0], 0.5, 0.68, 0.0, 0.6)
     col = mix(nt, sm, col, hexcol("#3d3a22"), "MULTIPLY")
-    up = _up_mask(nt, 0.3, 0.7)
+    # Round 24: the shelves' moss as a ragged band (not smooth blobs over the whole face), the streaks
+    # thinner, and darker olive greens (the yellow-green ramp read as painted camouflage stripes).
+    up = _up_mask(nt, 0.45, 0.85)
     mn = _noise(nt, vec, 2.2, 6, 0.65, 0.7)
-    moss = math_node(nt, "MULTIPLY", up, maprange(nt, mn.outputs[0], 0.34, 0.5))
-    moss = math_node(nt, "MAXIMUM", moss, math_node(nt, "MULTIPLY", maprange(nt, streak.outputs[0], 0.6, 0.72, 0.0, 0.75), maprange(nt, mn.outputs[0], 0.45, 0.6)))
-    moss = math_node(nt, "MAXIMUM", moss, math_node(nt, "MULTIPLY", dirt, 0.5))
-    mc = ramp(nt, _noise(nt, vec, 14, 4).outputs[0], [(0.3, hexcol("#2c4a16")), (0.6, hexcol("#4f7222")), (0.85, hexcol("#7d8f2e"))])
+    ragged = maprange(nt, _noise(nt, vec, 22, 4, 0.7).outputs[0], 0.36, 0.6)
+    moss = math_node(nt, "MULTIPLY", up, math_node(nt, "MULTIPLY", maprange(nt, mn.outputs[0], 0.44, 0.6), ragged))
+    moss = math_node(nt, "MAXIMUM", moss, math_node(nt, "MULTIPLY", maprange(nt, streak.outputs[0], 0.62, 0.74, 0.0, 0.5), maprange(nt, mn.outputs[0], 0.48, 0.62)))
+    moss = math_node(nt, "MAXIMUM", moss, math_node(nt, "MULTIPLY", dirt, 0.35))
+    mc = ramp(nt, _noise(nt, vec, 14, 4).outputs[0], [(0.3, hexcol("#26321a")), (0.6, hexcol("#3d4b23")), (0.85, hexcol("#57602f"))])
     col = mix(nt, moss, col, mc, "MIX")
     zs = N(nt, "ShaderNodeSeparateXYZ")
     tco = N(nt, "ShaderNodeTexCoord")
