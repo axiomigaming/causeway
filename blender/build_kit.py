@@ -266,7 +266,8 @@ glyph_objs = [o for o in groups["stoneB"] if o.name.startswith(("gate_", "stele_
 groups["stoneB"] = [o for o in groups["stoneB"] if o not in glyph_objs]
 groups["glyph"] = glyph_objs + groups.pop("relief")
 # Round 10: no procedural glyph strokes (they read as smeared letters): the carving is geometry now.
-mats["glyph"] = (M.stone("glyph", moss=0.35, glyphs=False), 2048)
+# (Round 24: the ragged moss, as stoneA — the steles and pillar caps stand 2 m from the lens at the start.)
+mats["glyph"] = (MS.stone_ragged("glyph", 0.35), 2048)
 
 # KIT_REUSE=<dir> (with KIT_REUSE_GROUPS=a,b,…): for groups whose pieces and materials did not change,
 # lay out the UVs exactly as a full bake does (packing is deterministic) and take the atlases from a
@@ -302,7 +303,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10|ragged-moss-r24", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:
