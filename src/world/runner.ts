@@ -331,6 +331,8 @@ interface FootLock {
   spent?: boolean;
   /** Last frame's hip-to-target distance while pinned (m), for the knee's rate of straightening. */
   reach?: number;
+  /** How far the floor guard (a fall blending in) has the leg (0-1). */
+  lift?: number;
 }
 
 /**
@@ -663,7 +665,10 @@ export class Runner {
     this.travelPool += d;
     if (dt > 0) {
       const want = d / dt + (this.travelPool - d) * 6;
-      this.travelV = THREE.MathUtils.clamp(want, this.rootV - TRAVEL_ACCEL * dt - this.speed, this.rootV + TRAVEL_ACCEL * dt - this.speed);
+      // (Not the escapes: their steps are keyed on the braking the game drives the root by, and the
+      // planted feet hold only if the root takes the clip's travel frame for frame.)
+      const lim = this.current.startsWith('fall_') ? TRAVEL_ACCEL * dt : Infinity;
+      this.travelV = THREE.MathUtils.clamp(want, this.rootV - lim - this.speed, this.rootV + lim - this.speed);
       this.rootV = this.speed + this.travelV;
       const take = this.travelV * dt;
       this.travelPool -= take;
@@ -1492,8 +1497,13 @@ export class Runner {
       const h = ankle.y - ground;
       // Blending into a fall that stays on the floor, from a pose far from its first frame (the slide's,
       // lying back on the stone): the cross-fade swept a foot through the floor (6 cm). Lift it out.
-      if (blendIn && h < FOOT_FLOOR && f.w < 0.01) {
-        this.solveLeg(f, this.v2.copy(ankle).setY(ground + FOOT_FLOOR));
+      // (Eased on and off over a few frames: switched, the leg's re-solve snapped the shin ~40°.)
+      f.lift = (f.lift ?? 0) + ((blendIn && h < FOOT_FLOOR + 0.06 ? 1 : 0) - (f.lift ?? 0)) * (1 - Math.exp(-dt * 18));
+      if (f.lift > 0.01 && f.w < 0.01) {
+        const q0 = [f.thigh.quaternion.clone(), f.shin.quaternion.clone(), f.foot.quaternion.clone()];
+        this.solveLeg(f, this.v2.copy(ankle).setY(ground + Math.max(h, FOOT_FLOOR)));
+        [f.thigh, f.shin, f.foot].forEach((b, i) => b.quaternion.slerpQuaternions(q0[i]!, b.quaternion.clone(), f.lift!));
+        f.thigh.updateMatrixWorld(true);
         continue;
       }
       // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
