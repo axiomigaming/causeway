@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { tierOf } from '../src/audio/feedback';
-import { PLATE_COOL, PLATE_HOT, type RGB } from '../src/ui/heat';
-import { winLook, winTiming } from '../src/ui/win';
+import { heatOf, tierOf } from '../src/audio/feedback';
+import { PLATE_COOL, PLATE_HOT, plateFill, type RGB } from '../src/ui/heat';
+import { heroStep, raysImage, winLook, winTiming } from '../src/ui/win';
 
 const rgb = (s: string): number[] => (s.match(/\d+(\.\d+)?/g) ?? []).map(Number);
 const within = (c: number[], a: RGB, b: RGB) => [0, 1, 2].every((i) => c[i]! >= Math.min(a[i]!, b[i]!) && c[i]! <= Math.max(a[i]!, b[i]!));
@@ -34,6 +34,33 @@ describe('escape card look (ui/win.ts)', () => {
       expect(l.glow).toMatch(/^rgba\(\d+, \d+, \d+, [\d.]+\)$/);
       prev = l;
     }
+  });
+
+  it('names the escape by tier and makes 10x+ an event (rays, larger figures), never 1.3x', () => {
+    expect(winLook(130).title).toBe('Escaped');
+    expect(winLook(1000).title).toBe('Daring escape');
+    expect(winLook(6000).title).toBe('Legendary escape');
+    expect(winLook(130).grand).toBe(false);
+    expect(rgb(winLook(130).bloom)[3]).toBe(0);
+    expect(rgb(winLook(130).rays)[3]).toBe(0);
+    expect(winLook(1000).grand).toBe(true);
+    expect(rgb(winLook(6000).rays)[3]).toBeGreaterThan(rgb(winLook(1000).rays)[3]!);
+    expect(rgb(winLook(6000).bloom)[3]).toBeGreaterThan(rgb(winLook(1000).bloom)[3]!);
+  });
+
+  it('draws the rays only for an event, as an SVG image in the plate colour', () => {
+    expect(raysImage(130)).toBe('none');
+    expect(raysImage(900)).toBe('none');
+    const img = decodeURIComponent(raysImage(6000));
+    expect(img.startsWith('url("data:image/svg+xml,<svg')).toBe(true);
+    const [r, g, b] = plateFill(heatOf(6000));
+    expect(img).toContain(`rgb(${r},${g},${b})`);
+  });
+
+  it('steps the Return up to 72 only for an event whose amount fits', () => {
+    expect(heroStep(true, '600.00')).toBe(72);
+    expect(heroStep(true, '6,000.00')).toBe(44);
+    expect(heroStep(false, '13.00')).toBe(44);
   });
 
   it('lands the count later for a bigger escape, within a short beat', () => {

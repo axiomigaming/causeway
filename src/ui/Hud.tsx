@@ -7,7 +7,7 @@ import { useCtl } from './context';
 import { useHold } from './hold';
 import { css, heroInk } from './heat';
 import { Stair } from './icons';
-import { winLook, winTiming } from './win';
+import { heroStep, raysImage, winLook, winTiming } from './win';
 import './hud.css';
 
 const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
@@ -227,12 +227,12 @@ export function ResultPlate() {
         <span className="x">×</span>
       </div>
       <div className="r-rule" aria-hidden="true" />
-      <div className="r-facts" aria-hidden="true">
-        <span>
+      <div className="r-facts">
+        <span aria-hidden="true">
           Stake lost<b className="num">{formatCredits(r.stake)}</b>
         </span>
+        {verify}
       </div>
-      {verify}
     </div>
   );
 }
@@ -241,10 +241,11 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
   const ctl = useCtl();
   const bigRef = useRef<HTMLSpanElement>(null);
   const profit = payout - stake;
-  // Scaled by the multiplier the player left at: a 1.2x escape is quiet, a 50x one is grand.
+  // Scaled by the multiplier the player left at: a 1.2x escape is quiet, a 50x one is an event.
   const look = winLook(mult);
   const { grade } = look;
   const { count0, count, land } = winTiming(grade);
+  const shown = formatCredits(payout);
 
   useEffect(() => {
     const el = bigRef.current;
@@ -285,18 +286,23 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
     '--win-ink': look.ink,
     '--win-accent': look.accent,
     '--win-glow': look.glow,
+    '--win-bloom': look.bloom,
+    '--win-rays-img': raysImage(mult),
     '--win-rule': look.rule,
     '--land': `${land}ms`,
   } as CSSProperties;
   return (
-    <div className={`result won${full ? ' anim' : ''}`} role="status" data-grade={grade} style={style}>
+    <div className={`result won${full ? ' anim' : ''}${look.grand ? ' grand' : ''}`} role="status" data-grade={grade} style={style}>
       <span className="sr">
-        Escaped at {formatMult(mult)}×. Paid {formatCredits(payout)}, profit {formatCredits(profit)}.
+        Escaped at {formatMult(mult)}×. Paid {shown}, profit {formatCredits(profit)}.
       </span>
+      {/* behind the card: a warm bloom from 5x, a fan of rays from 10x; the card's own surface over them */}
+      {grade >= 2 && <span className="r-aura" aria-hidden="true" />}
+      <span className="r-panel" aria-hidden="true" />
       {grade === 4 && <span className="r-sheen" aria-hidden="true" />}
       <div className="r-head" aria-hidden="true">
         <Stair />
-        <span className="r-k">Escaped</span>
+        <span className="r-k">{look.title}</span>
         <span className={`r-mult num${look.struck ? ' struck' : ''}`}>
           {formatMult(mult)}
           <span className="x">×</span>
@@ -307,7 +313,7 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
       <div className="r-label" aria-hidden="true">
         Return
       </div>
-      <div className="big num" aria-hidden="true">
+      <div className={`big num${heroStep(look.grand, shown) === 72 ? ' xl' : ''}`} aria-hidden="true">
         <span className="payout-fig" ref={bigRef}>
           {formatCredits(full ? stake : payout)}
         </span>
@@ -316,16 +322,18 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
       <div className="r-rule" aria-hidden="true">
         <i />
       </div>
-      <div className="r-facts" aria-hidden="true">
-        <span className="r-profit">
+      <div className="r-facts">
+        <span className="r-profit" aria-hidden="true">
           Profit<b className={`num${profit > 0 ? ' gain' : ''}`}>{formatCredits(profit, { sign: true })}</b>
         </span>
-        <i className="dot">·</i>
-        <span>
+        <i className="dot" aria-hidden="true">
+          ·
+        </i>
+        <span aria-hidden="true">
           Stake<b className="num">{formatCredits(stake)}</b>
         </span>
+        {verify}
       </div>
-      {verify}
     </div>
   );
 }
