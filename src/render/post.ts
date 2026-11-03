@@ -161,6 +161,10 @@ class SunShaftsEffect extends Effect {
       uniform float span;
       uniform float calm;
       uniform float clean;
+      uniform float srcMax;
+      uniform float analytic;
+      uniform float glowCore;
+      uniform float glowHalo;
       void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
         if (strength < 0.001) { outputColor = inputColor; return; }
         vec2 delta = sunPos - uv;
@@ -199,7 +203,18 @@ class SunShaftsEffect extends Effect {
             sky = step(0.99995, min(min(readDepth(p + ox), readDepth(p - ox)), min(readDepth(p + oy), readDepth(p - oy))));
           }
           float l = max(max(c.r, c.g), c.b);
-          acc += sky * min(c, vec3(8.0)) * smoothstep(0.35, 1.6, l) * (0.35 + 0.65 * t);
+          // FX round 21 (world agent: blocky squares in the sky near the sun). The source was the
+          // frame's own colour over the threshold, and near the sun that is the backdrop's 8-bit WebP
+          // glow — clipped flat, its gradient stepped into compression blocks — plus the sun disc's
+          // tiny 14x core. The march multiplied both into one scaled copy per tap: concentric
+          // stepped squares round the sun, ending in a hard edge where the last tap stopped reaching
+          // the core (~0.06 of the way back). The light now comes from the sun's own glow, analytic
+          // in the tap's distance from the sun, only gated by the sky being bright (dark backdrop
+          // islands stay dark): occluders still cut it into beams, the texture no longer shapes it.
+          // ('analytic' 0 restores the old source for an A/B.)
+          float rp = length(vec2((p.x - sunPos.x) * aspectRatio, p.y - sunPos.y)) * span;
+          vec3 src = analytic > 0.5 ? vec3((glowCore * exp(-rp * 30.0) + glowHalo * exp(-rp * 12.0)) * smoothstep(0.25, 0.7, l)) : min(c, vec3(srcMax)) * smoothstep(0.35, 1.6, l);
+          acc += sky * src * (0.35 + 0.65 * t);
           open += sky;
         }
         acc /= float(${samples});
@@ -208,7 +223,7 @@ class SunShaftsEffect extends Effect {
         // screen the beams used to reach as far down as on a wide one, i.e. across the whole width
         // and down a third of the height, and veiled the top of the frame.
         float r = length(vec2((uv.x - sunPos.x) * aspectRatio, uv.y - sunPos.y)) * span;
-        float fall = exp(-r * (2.4 + 1.2 * calm));
+        float fall = exp(-r * (mix(2.4, 4.0, analytic) + 1.2 * calm));
         // In-scatter: warm haze in the light's path, gated by how much sky the pixel can see.
         vec3 veil = tint * open * exp(-r * 4.0) * 0.02 * (1.0 - 0.6 * calm);
         // Light in the air does not lift what is dark behind it (foliage, shade) as much as the sky:
@@ -228,6 +243,11 @@ class SunShaftsEffect extends Effect {
           ['calm', new THREE.Uniform(0)],
           // QA: 0 restores the raw source (no despeckle) for an A/B of the same frame.
           ['clean', new THREE.Uniform(1)],
+          // (the frame-colour source: its clamp; and the analytic source, the default: see above)
+          ['srcMax', new THREE.Uniform(8)],
+          ['analytic', new THREE.Uniform(1)],
+          ['glowCore', new THREE.Uniform(2)],
+          ['glowHalo', new THREE.Uniform(0.05)],
         ]),
       },
     );
