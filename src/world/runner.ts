@@ -1427,9 +1427,11 @@ export class Runner {
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
       if (h > 0.16) f.spent = false;
-      // Gone below the floor (the drop), or sliding along it: let go at once.
-      if (h < -0.05 || sliding || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : 10)));
+      // Gone below the floor (the drop): let go at once.
+      // (Sliding along it, quickly but not at once: a slide escape straight out of a turn cut at the top
+      // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
+      if (h < -0.05 || kneeling) f.w = 0;
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : sliding ? 22 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
         continue;
