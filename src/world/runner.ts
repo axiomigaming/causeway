@@ -49,7 +49,7 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
  */
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
   jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
-  leap_gap: { from: 0, to: 0.5, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
+  leap_gap: { from: 0, to: 0.9725, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
   slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
   vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
@@ -58,6 +58,10 @@ export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: n
 };
 /** The stride cadence the moves were authored at (one stride cycle per ~0.51 s of clip time). */
 const OBST_CADENCE = 1.945;
+/** The upper arm's twist about its length, at most (rad): the critic's range is 110°. */
+const ARM_TWIST_MAX = (100 * Math.PI) / 180;
+/** How fast the root's take of a clip's travel may change (m/s²): 4 cm/frame² at 30 fps. */
+const TRAVEL_ACCEL = 36;
 
 /** Clip seconds per real second for a move started at this cadence: it keeps step with the run. */
 export function obstacleRate(cadence: number): number {
@@ -111,7 +115,25 @@ const KNEE_REACH_RATE = 2.6;
  * cadence to speed / S keeps the planted foot still on the floor. Keep in step with the clip builder
  * (it prints S for each gait).
  */
-export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 2.786, sprint: 3.911, dash: 4.842 };
+export const STRIDE: Record<(typeof GAITS)[number], number> = { run: 3.587, sprint: 4.145, dash: 4.848 };
+/** Each gait's contact time, as a fraction of its stride cycle (blender/runner_anim.py: ts). */
+export const CONTACT: Record<(typeof GAITS)[number], number> = { run: 0.223, sprint: 0.193, dash: 0.165 };
+
+/**
+ * Where in the stride the floor may run ahead of (or behind) the gait: 0 while a foot is on it, rising to 1
+ * through each flight, scaled so it averages 1 over the cycle. `contact` is the blend's contact fraction.
+ */
+export function flightGate(phase: number, contact: number): number {
+  const m = 0.02;
+  const h = (((phase % 0.5) + 0.5) % 0.5) - contact - m;
+  const len = 0.5 - contact - 2 * m;
+  if (len <= 0.05) return 1;
+  const u = h / len;
+  if (u <= 0 || u >= 1) return 0;
+  const g = smoothstep(0, 0.25, u) * (1 - smoothstep(0.75, 1, u));
+  // Mean of the gate over the cycle: the flight's share, times its plateau and two half-ramps (0.75).
+  return g / ((0.75 * len) / 0.5);
+}
 
 /** Blend weights of the gait clips for a (continuous) run tier. */
 export function gaitMix(drive: number): Record<(typeof GAITS)[number], number> {
@@ -139,7 +161,7 @@ const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
 const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'fall_pillar', 'fall_pillar_b', 'fall_trip', 'fall_side_hit', 'fall_drop', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
 const EVENTS: Record<string, [number, Foot, number][]> = {
-  start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.83, 'R', 0.65], [0.95, 'L', 0.6]],
+  start: [[0.21, 'L', 0.45], [0.37, 'R', 0.8], [0.6, 'L', 0.7], [0.9, 'R', 0.65], [1.12, 'L', 0.6]],
   win: [[0.2, 'R', 0.5], [0.4, 'L', 0.35], [0.6, 'R', 0.25]],
   fall_chasm: [[0.12, 'L', 1], [0.28, 'R', 0.9]],
   fall_gate: [[0.13, 'L', 0.9], [0.5, 'R', 0.55], [0.7, 'L', 0.5], [0.9, 'R', 0.4]],
@@ -152,7 +174,7 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_pump: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.767, 'R', 0.2], [1.967, 'L', 0.2], [2.167, 'R', 0.2], [2.367, 'L', 0.2]],
   win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.967, 'R', 0.2], [2.167, 'L', 0.2], [2.367, 'R', 0.2], [2.567, 'L', 0.2], [3.5, 'L', 0.7], [3.51, 'R', 0.7], [4.07, 'L', 0.7], [4.08, 'R', 0.7]],
   jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
-  leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.77, 'R', 0.9]],
+  leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.96, 'R', 0.9]],
   slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
   vault: [[0.167, 'L', 0.6], [0.4, 'R', 0.3], [0.7, 'L', 0.9]],
   turn_cut_L: [[0.267, 'R', 0.85]],
@@ -245,7 +267,10 @@ export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number
  * times: a cash-out pressed mid-stride joins the clip at whichever strike comes first, so the feet carry on
  * in step instead of cross-fading out of a stride into another (a foot snap).
  */
-export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30, win_cheer: 4 / 30, win_cheer_big: 4 / 30, win_leap: 4 / 30, win_salute: 7 / 30, win_slide: 3 / 30 };
+// (Measured on the clips as rebuilt on the longer stride: the right foot lands at 8/30 in the cheers and
+// the salute and at 4/30 in the plain win. Joined 4/30 early, the cheer's right foot was still coming down
+// in the clip while it stood planted in the game, and it slid 4-7 cm a frame.)
+export const WIN_HALF: Record<string, number> = { win: 4 / 30, win_pump: 8 / 30, win_cheer: 8 / 30, win_cheer_big: 8 / 30, win_leap: 4 / 30, win_salute: 8 / 30, win_slide: 3 / 30 };
 
 /** Reactions the feet are never pinned in: the drop to the stone below (the feet leave the floor the root
  * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
@@ -253,6 +278,10 @@ export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30,
  * at the last push and let go with a 27° shin snap). */
 // (And the chasm skid to its knees: a pin caught a foot as the skid slowed under 4.5 m/s and snapped the shin 26°.)
 const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start', 'fall_chasm_b']);
+/** The falls that go down below the floor (a foot there is meant to be). */
+const DROPS = new Set(['fall_ledge', 'fall_chasm', 'fall_chasm_b', 'fall_drop']);
+/** The lowest an ankle may sweep while a fall on the floor blends in (m above it). */
+const FOOT_FLOOR = 0.05;
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -305,6 +334,8 @@ interface FootLock {
   spent?: boolean;
   /** Last frame's hip-to-target distance while pinned (m), for the knee's rate of straightening. */
   reach?: number;
+  /** How far the floor guard has the leg while a fall blends in (0-1). */
+  bend?: number;
 }
 
 /**
@@ -330,6 +361,13 @@ export class Runner {
   /** The obstacle move in play: its clip rate, and leap_gap's flight time (s). */
   private obst: { name: Obstacle; rate: number; flight: number } | null = null;
   private obstLift = 0;
+  private obstLiftV = 0;
+  /**
+   * A stretched leap's extra lift when the move is cut short in the air (a crash or an escape mid-leap):
+   * it keeps falling on its arc (m, m/s). Dropped with the move, the hips fell 17-19 cm in one frame.
+   */
+  private liftCarry = 0;
+  private liftCarryV = 0;
   /** Which idle clip is playing (they alternate), and for how long. */
   private idleClip: string = 'idle';
   private idleT = 0;
@@ -370,6 +408,8 @@ export class Runner {
   lean = 0;
   roll = 0;
   slope = 0;
+  /** The blended gait's contact time, as a fraction of the stride cycle. */
+  private contact = CONTACT.run;
   /** 0 fresh … 1 spent: builds while running, recovers at rest; drives breathing. */
   exertion = 0;
   private breathPh = 0;
@@ -383,6 +423,8 @@ export class Runner {
   /** Bind rotations of the spring-driven bones: the clips carry no tracks for them (the exporter drops constant
    * channels), so each frame starts from rest instead of accumulating. */
   private rest = new Map<THREE.Bone, THREE.Quaternion>();
+  /** The upper arms' bind rotations, for the twist limit. */
+  private armBind = new Map<THREE.Bone, THREE.Quaternion>();
   /** Every bone's rotation as the clips alone left it last frame (see update()). */
   private clipPose = new Map<THREE.Bone, THREE.Quaternion>();
   /**
@@ -395,6 +437,11 @@ export class Runner {
   private travelPrev: number | null = null;
   private travelAcc = 0;
   private travelOut = 0;
+  /** Travel the clip has made that the root has yet to take (m), and the root's take per second (m/s). */
+  private travelPool = 0;
+  private travelV = 0;
+  /** The root's speed last frame, the game's and the travel's (m/s). */
+  private rootV = 0;
   private chestPrev = new THREE.Vector3();
   private chestVel = new THREE.Vector3();
   private hipPrev = new THREE.Vector3();
@@ -496,6 +543,10 @@ export class Runner {
     this.body.traverse((o) => {
       if ((o as THREE.Bone).isBone) this.clipPose.set(o as THREE.Bone, o.quaternion.clone());
     });
+    for (const n of ['upper_armL', 'upper_armR']) {
+      const b = this.bones[n];
+      if (b) this.armBind.set(b, b.quaternion.clone());
+    }
     for (const n of ['pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH]) {
       const b = this.bones[n];
       if (b) this.rest.set(b, b.quaternion.clone());
@@ -537,6 +588,16 @@ export class Runner {
     }
     this.pending = null;
     if (name === this.current) return;
+    // Out of the slide, lying back on the stone with the lead leg out straight, a fall rises over a longer
+    // blend: over 0.2 s the straight leg swung down through the floor in two frames as the hips came up.
+    if (this.current === 'slide' && name.startsWith('fall_') && !DROPS.has(name)) fade = Math.max(fade, 0.45);
+    // An escape called mid obstacle waits for the move to hand back to the run, then for the strike as
+    // from the run. (Started at once, win_slide's own run-in played over the move's pose: a 49 cm foot
+    // step and a snapped foot as a turn_cut handed straight into the slide.)
+    if (name.startsWith('win') && this.obst !== null && this.current === this.obst.name && offset === 0 && fade > 0) {
+      this.pending = { name, fade, offset, until: Infinity };
+      return;
+    }
     if (this.current === 'run' && ONE_SHOT.has(name) && name !== 'start' && offset === 0 && fade > 0) {
       let wait = ((1 - this.phase) % 1) / Math.max(0.5, this.cadence);
       const half = WIN_HALF[name];
@@ -580,14 +641,17 @@ export class Runner {
     return t;
   }
 
-  private extractTravel(): void {
+  private extractTravel(dt: number): void {
     const hips = this.bones.hips;
     // (Not win_slide: it turns as it travels, and its slide keeps the game's own braking with the pose's carry.)
     const on = this.rootMotion && hips !== undefined && this.current !== 'win_slide' && (this.current.startsWith('fall_') || this.current.startsWith('win'));
     if (!on || !hips) {
+      this.rootV = this.speed;
       if (this.travelPrev !== null || this.travelAcc !== 0) {
         this.travelPrev = null;
         this.travelAcc = 0;
+        this.travelOut += this.travelPool;
+        this.travelPool = this.travelV = 0;
         this.body.position.z = 0;
       }
       return;
@@ -599,8 +663,23 @@ export class Runner {
     const d = fwd - this.travelPrev;
     this.travelPrev = fwd;
     this.travelAcc += d;
-    this.travelOut += d;
-    // Held over the root: the body steps back by what the clip carried him on.
+    // The root (the game's speed and this take together) changes speed by at most TRAVEL_ACCEL, and the
+    // body stays held over it. The travel of a blended pose surges as the weights cross (a fall starting a
+    // frame after a slide's hand-back, a body slammed to a stop on a pillar): taken as it came, the root and
+    // the whole body with it jumped 11-16 cm/frame². What is left over drains in a few frames (the body
+    // trails the clip's travel by that much; the pins keep a planted foot where it is).
+    this.travelPool += d;
+    if (dt > 0) {
+      const want = d / dt + (this.travelPool - d) * 6;
+      // (Not the escapes: their steps are keyed on the braking the game drives the root by, and the
+      // planted feet hold only if the root takes the clip's travel frame for frame.)
+      const lim = this.current.startsWith('fall_') ? TRAVEL_ACCEL * dt : Infinity;
+      this.travelV = THREE.MathUtils.clamp(want, this.rootV - lim - this.speed, this.rootV + lim - this.speed);
+      this.rootV = this.speed + this.travelV;
+      const take = this.travelV * dt;
+      this.travelPool -= take;
+      this.travelOut += take;
+    }
     this.body.position.z = this.travelAcc;
   }
 
@@ -608,7 +687,11 @@ export class Runner {
     // (A new clip measures its travel from its own first frame.)
     this.travelPrev = null;
     if (this.obst && this.obst.name !== name) this.obst = null;
-    this.obstLift = 0;
+    if (this.obstLift > 0.001) {
+      this.liftCarry = this.obstLift;
+      this.liftCarryV = this.obstLiftV;
+    }
+    this.obstLift = this.obstLiftV = 0;
     this.current = name;
     this.fade = Math.max(0.001, fade);
     this.eventT = offset;
@@ -711,14 +794,30 @@ export class Runner {
   update(dt: number, speed: number, rawDt = dt): void {
     this.t += dt;
     this.speed = speed;
-    if (this.pending && (this.t >= this.pending.until || this.current !== 'run')) {
+    if (this.pending && (this.t >= this.pending.until || (this.current !== 'run' && this.pending.until !== Infinity))) {
       const p = this.pending;
       this.pending = null;
-      this.start(p.name, p.fade, p.offset);
+      // Join the clip where the stride will be at the end of this frame: the strike it waited for fell
+      // inside the frame, and the mixer is about to advance the clip by all of it. (Started on its first
+      // key, a move ran up to a frame ahead of the stride, and the shin snapped ~25° back into step at
+      // the start of a leap.) The offset is at most a frame before the key; the mixer's step brings it to
+      // or past it before anything reads the clip's time.
+      // (The obstacle moves only: their first frames are keyed on the stride itself. A reaction's or an
+      // escape's frames before its joining key are its own run-in, not the stride: joined a fraction of a
+      // frame early, win_slide played part of a 49 cm foot step.)
+      const obst = this.obst !== null && this.obst.name === p.name;
+      const ahead = obst && this.current === 'run' ? dt - Math.min(dt, Math.max(0, this.t - p.until)) : 0;
+      this.start(p.name, p.fade, p.offset - ahead * (obst ? this.obst!.rate : 1));
     }
     // Obstacle moves: keep step with the run; leap_gap's flight stretches to the gap and its arc with
     // it; each hands back to the gait on the phase it ends on.
-    this.obstLift = 0;
+    const lift0 = this.obstLift;
+    this.obstLift = this.obstLiftV = 0;
+    if (this.liftCarry > 0) {
+      this.liftCarryV -= 9.81 * dt;
+      this.liftCarry = Math.max(0, this.liftCarry + this.liftCarryV * dt);
+      if (this.liftCarry === 0) this.liftCarryV = 0;
+    }
     if (this.obst && this.current === this.obst.name) {
       const O = OBSTACLES[this.obst.name];
       const a = this.actions.get(this.obst.name)!;
@@ -729,17 +828,32 @@ export class Runner {
         a.timeScale = nominal / this.obst.flight;
         const u = (a.time - O.takeoff) / nominal;
         // The clip carries a 0.5 s arc; add the rest of a ballistic one for the actual flight.
-        this.obstLift = 4 * u * (1 - u) * (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+        // (A shorter flight than the clip's lowers the arc, but on a bell that is flat at the ends: on the
+        // plain parabola the lowering went on to the last frame, and the landing foot, already down in
+        // the clip, sank 3 cm through the floor at the top tier.)
+        const bell = 4 * u * (1 - u);
+        const extra = (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+        this.obstLift = (extra < 0 ? bell * bell : bell) * extra;
+        this.obstLiftV = dt > 0 ? (this.obstLift - lift0) / dt : 0;
       }
       // Hand back a fade's length before the end, so the move is still playing (in step with the floor)
       // through the cross-fade, not held on its last frame while the floor runs on (at speed, the feet
       // skated 14-21 cm/frame out of a leap).
-      if (a.time >= O.duration - 0.1 * a.timeScale - 0.005) {
+      // (leap_gap over two: its run-out is keyed on the run, and at the top tiers the gait it hands to
+      // leans further; over 0.1 s the head swung 4 cm forward in a frame.)
+      const handFade = this.obst.name === 'leap_gap' ? 0.2 : 0.1;
+      if (a.time >= O.duration - handFade * a.timeScale - 0.005) {
         this.obst = null;
-        this.start('run', 0.1, 0);
+        this.start('run', handFade, 0);
         // The run joins at the phase the clip has reached (its last frames step on at OBST_CADENCE to
         // O.to on the final frame), not at O.to a frame or so early: that jump snapped the shins.
         this.phase = (((O.to + (a.time - O.duration) * OBST_CADENCE) % 1) + 1) % 1;
+        // An escape that waited for the move now waits for the stride's strike, as from the run.
+        if (this.pending && this.pending.until === Infinity) {
+          const p = this.pending;
+          this.pending = null;
+          this.play(p.name, p.fade, p.offset);
+        }
       }
     }
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
@@ -777,6 +891,7 @@ export class Runner {
     if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
     const d = this.driveS;
     const mix: Record<string, number> = gaitMix(this.actions.has('dash') ? d : Math.min(d, 2.2));
+    this.contact = GAITS.reduce((a, g) => a + (mix[g] ?? 0) * CONTACT[g], 0);
     const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
     this.cadence = cadence;
     const prevPhase = this.phase;
@@ -839,9 +954,10 @@ export class Runner {
     for (const [b, q] of this.clipPose) b.quaternion.copy(q);
     this.mixer.update(dt);
     for (const [b, q] of this.clipPose) q.copy(b.quaternion);
-    this.extractTravel();
+    this.extractTravel(dt);
     this.overlays(dt);
     this.airLayer(dt, rawDt);
+    this.limitArmTwist();
 
     // Footfalls.
     const k = Math.min(1, speed / 10);
@@ -896,6 +1012,20 @@ export class Runner {
    * Timings: OBSTACLES / obstacleTiming(name, runner.cadence, speed, distance).
    */
   /**
+   * How much of the obstacle director's nudge to the floor's speed this frame may carry (mean 1 over a
+   * stride): in the plain run, mostly while both feet are off the floor. Carried evenly, the floor ran up to
+   * 12-20% ahead of or behind the stride, and every planted foot slid by it (~3 cm/frame); in the air it is
+   * a longer or a shorter bound. A move, a fall or an escape takes it as it comes.
+   */
+  groundNudgeGate(): number {
+    const gaitW = Math.max(...GAITS.map((g) => this.weights.get(g) ?? 0));
+    if (this.current !== 'run' || gaitW < 0.99) return 1;
+    // Half of it evenly, half in the flights: all of it in the air made the floor surge a third faster
+    // mid-flight (8-14 cm/frame² at the hand-overs); half leaves a planted foot ≤ ~1.5 cm/frame.
+    return 0.5 + 0.5 * flightGate(this.phase, this.contact);
+  }
+
+  /**
    * Hook for the obstacle director (cinematics, round 13): the gait phase and cadence, so a set piece
    * can be placed where his start foot will land (read-only).
    */
@@ -910,13 +1040,16 @@ export class Runner {
     const rate = fromAir ? this.obst!.rate : obstacleRate(this.cadence);
     this.obst = { name, rate, flight: name === 'leap_gap' ? leapFlight(opts.distance ?? 2.25, this.speed) : 0 };
     const O = OBSTACLES[name];
+    // (The cuts over 0.15 s: they plant on the stride keyed on the run, and at the top tier the gait's
+    // foot differs by ~15°; over 0.08 s it turned into the cut 28° in a frame.)
+    const fade = fromAir ? 0.06 : name.startsWith('turn_cut') ? 0.15 : 0.08;
     const wait = O.from < 0 ? 0 : ((O.from - this.phase + 1) % 1) / Math.max(0.5, this.cadence);
     if (wait < 0.01 || wait > 0.98 / Math.max(0.5, this.cadence)) {
       this.pending = null;
-      this.start(name, fromAir ? 0.06 : 0.08, 0);
+      this.start(name, fade, 0);
       return 0;
     }
-    this.pending = { name, fade: 0.08, offset: 0, until: this.t + wait };
+    this.pending = { name, fade, offset: 0, until: this.t + wait };
     return wait;
   }
 
@@ -1145,7 +1278,7 @@ export class Runner {
       this.plankY += this.plankV * (Math.min(dt, 0.1) / n);
     }
     this.plankY = THREE.MathUtils.clamp(this.plankY, -0.03, 0.015);
-    lift += this.plankY + this.obstLift;
+    lift += this.plankY + this.obstLift + this.liftCarry;
     this.rotate(b.chest, this.plankY * 2.5, 0, 0);
     this.body.position.y = lift;
   }
@@ -1338,6 +1471,7 @@ export class Runner {
    */
   private plantFeet(dt: number): void {
     // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
+    const blendIn = this.current.startsWith('fall_') && !DROPS.has(this.current) && (this.weights.get(this.current) ?? 1) < 0.999;
     const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current);
     const ground = this.root.position.y;
     // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
@@ -1367,6 +1501,18 @@ export class Runner {
       f.foot.updateWorldMatrix(true, false);
       const ankle = f.foot.getWorldPosition(this.v1);
       const h = ankle.y - ground;
+      // Blending into a fall that stays on the floor from a pose far from its first frame (the slide's, lying
+      // back on the stone, the lead leg straight out), the straight leg swung down through the floor (6-9 cm)
+      // as the hips rose: the leg is solved to keep the ankle out of it, eased on and off (switched, the
+      // re-solve snapped the shin ~40°). Not a foot standing on the floor (a pin has it).
+      f.bend = (f.bend ?? 0) + ((blendIn && f.w < 0.01 && h < FOOT_FLOOR + 0.08 ? 1 : 0) - (f.bend ?? 0)) * (1 - Math.exp(-dt * 12));
+      if (f.bend > 0.01 && f.w < 0.01) {
+        const q0 = [f.thigh.quaternion.clone(), f.shin.quaternion.clone(), f.foot.quaternion.clone()];
+        this.solveLeg(f, this.v2.copy(ankle).setY(ground + Math.max(h, FOOT_FLOOR)));
+        [f.thigh, f.shin, f.foot].forEach((b, i) => b.quaternion.slerpQuaternions(q0[i]!, b.quaternion.clone(), f.bend!));
+        f.thigh.updateMatrixWorld(true);
+        continue;
+      }
       // A planted foot is pinned at any speed (obstacle landings, the slowing steps of an escape),
       // except where the feet are meant to move on the ground or leave it: the falls' skids, the
       // slides, and any drop below the floor (the chasm, the ledge).
@@ -1388,7 +1534,7 @@ export class Runner {
       // fade-out at the hand-back dragged the leg into the swing).
       const O = this.obst && this.current === this.obst.name ? OBSTACLES[this.obst.name] : null;
       const keyedOn = this.current === 'jump_log' || this.current === 'vault';
-      // (leap_gap holds its landing crouch on the pins, then runs out keyed on the gait from 26/30: near the
+      // (leap_gap lands on the stride and holds its deep first stance on the pins, then runs out keyed on the gait from 26/30: near the
       // clip's own pace only; much faster, the clip's feet cannot keep up with the floor and the pin holds.)
       const runningOut = this.current === 'leap_gap' && t >= 26 / 30 && this.speed < 7.5;
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
@@ -1399,9 +1545,11 @@ export class Runner {
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
       if (h > 0.16) f.spent = false;
-      // Gone below the floor (the drop), or sliding along it: let go at once.
-      if (h < -0.05 || sliding || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : 10)));
+      // Gone below the floor (the drop): let go at once.
+      // (Sliding along it, quickly but not at once: a slide escape straight out of a turn cut at the top
+      // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
+      if (h < -0.05 || kneeling) f.w = 0;
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : sliding ? 22 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
         continue;
@@ -1446,6 +1594,24 @@ export class Runner {
       const target = this.v2.copy(ankle).lerp(f.pos, w);
       f.reach = H.distanceTo(target);
       if (!this.solveLeg(f, target)) f.locked = false;
+    }
+  }
+
+  /**
+   * The upper arm's twist about its own length kept within ARM_TWIST_MAX of bind. The clips key it within
+   * 70°, but the air layer's reach and claw on an arm already raised overhead wound it on (fall_chasm:
+   * 111°, past the shoulder's range).
+   */
+  private limitArmTwist(): void {
+    for (const [b, bind] of this.armBind) {
+      const rel = this.qa.copy(bind).invert().multiply(b.quaternion);
+      // Swing-twist about Y: the twist is rel's projection onto the Y axis.
+      let tw = 2 * Math.atan2(rel.y, rel.w);
+      tw = Math.atan2(Math.sin(tw), Math.cos(tw));
+      if (Math.abs(tw) <= ARM_TWIST_MAX) continue;
+      const fix = this.q.setFromAxisAngle(this.v1.set(0, 1, 0), Math.sign(tw) * ARM_TWIST_MAX - tw);
+      // rel = swing · twist; the twist is applied last (about the bone's own Y), so trim it there.
+      b.quaternion.multiply(fix);
     }
   }
 
@@ -1562,6 +1728,7 @@ export class Runner {
     this.beatGain = 1;
     this.pending = null;
     this.body.position.y = 0;
+    this.obstLift = this.obstLiftV = this.liftCarry = this.liftCarryV = 0;
     this.driveS = this.drive = 0;
     this.exertion = 0;
     this.look.want = this.look.w = 0;
