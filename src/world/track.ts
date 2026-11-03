@@ -469,7 +469,12 @@ export class Track {
             : Math.abs(p.x) > 7.5
               ? 'far'
               : 'near';
-      const key = `${this.kit.matOf.get(pl.piece)!}|${zone}`;
+      // World round 25: on the lightest tier (no shadows) a land section's near and far props share a
+      // draw call per material. The split is for shadows (only the near ones cast) and for the far ones to
+      // follow the water when stairs lower a section; land is never lowered (it stands only at the
+      // water's level), and on phones the split cost a call per material in every land section in view.
+      const merged = zone === 'far' && layout.ground !== undefined && this.density.scenery < 0.5 ? 'near' : zone;
+      const key = `${this.kit.matOf.get(pl.piece)!}|${merged}`;
       const c = g.clone().applyMatrix4(pl.m);
       // World round 24: the paving tiles' `aHalf` (TileSystem sets it on the kit's shared geometry) is
       // meaningful only in a tile's own frame. On a slab placed as a prop (the overgrown plaza's court,

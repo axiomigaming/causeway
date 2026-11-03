@@ -183,6 +183,8 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       float strata = smoothstep(0.0, 0.5, abs(fract(bed) - 0.5)) * (0.5 + 0.5 * gN(rp * vec2(0.4, 1.5) + 3.0));
       float b1 = gN(rp * 0.7 + 7.0), b2 = gN(rp * 2.6 + 1.0);
       vec3 rock = mix(vec3(0.34, 0.2, 0.11), vec3(0.44, 0.28, 0.15), strata * 0.7 + b1 * 0.3) * (0.7 + 0.35 * b1 + 0.25 * b2);
+      // (World round 25: the ledge where a bed ends in shadow, and the face a little darker: it read pale.)
+      rock *= mix(0.88, 0.55, smoothstep(0.78, 0.98, fract(bed)));
       float cav = uDetailReady > 0.0 ? texture2D(uDetailMap, rp * 0.45).b : 0.6;
       rock *= 0.55 + 0.75 * cav;
       // Moss and soil caught on the ledges.
@@ -208,9 +210,30 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     vec3 g = mat3(viewMatrix) * vec3(hx - h0, 0.0, hz - h0);
     float k = 1.0 - smoothstep(6.0, 25.0, length(vViewPosition));
     normal = normalize(normal - g * 0.9 * k);
+    // World round 25: relief on the steep banks. The litter bump above is in the ground's plane and
+    // does next to nothing on a slope: the ravine's banks lit as one flat, pale sheet. Here the scanned
+    // stone's normals, projected on the bank's own plane at two scales, and the strata's ledges (the
+    // colour's bedding) tilting the face up where a bed ends.
+    float stN = 1.0 - smoothstep(0.55, 0.8, vGN.y);
+    if (stN > 0.0) {
+      vec2 rp = abs(vGN.x) > abs(vGN.z) ? vGW.zy : vGW.xy;
+      vec3 nW = normalize(vGN);
+      vec3 tU = normalize(cross(vec3(0.0, 1.0, 0.0), nW));
+      vec3 tV = cross(nW, tU);
+      vec2 a = vec2(0.0);
+      if (uDetailReady > 0.0) {
+        vec3 t1 = texture2D(uDetailMap, rp * 0.45).rgb, t2 = texture2D(uDetailMap, rp * 1.6 + 0.37).rgb;
+        a = (t1.rg * 2.0 - 1.0) + (t2.rg * 2.0 - 1.0) * 0.5;
+      }
+      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      float ledge = smoothstep(0.78, 0.98, fract(bed));
+      vec3 dW = tU * a.x * 0.9 + tV * (a.y * 0.9 + ledge * 1.4);
+      float kb = stN * (1.0 - smoothstep(12.0, 70.0, length(vViewPosition)));
+      normal = normalize(normal + (mat3(viewMatrix) * dW) * kb);
+    }
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'ground23';
+  m.customProgramCacheKey = () => 'ground25';
   return m;
 }
