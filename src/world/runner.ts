@@ -267,7 +267,10 @@ export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number
  * times: a cash-out pressed mid-stride joins the clip at whichever strike comes first, so the feet carry on
  * in step instead of cross-fading out of a stride into another (a foot snap).
  */
-export const WIN_HALF: Record<string, number> = { win: 6 / 30, win_pump: 4 / 30, win_cheer: 4 / 30, win_cheer_big: 4 / 30, win_leap: 4 / 30, win_salute: 7 / 30, win_slide: 3 / 30 };
+// (Measured on the clips as rebuilt on the longer stride: the right foot lands at 8/30 in the cheers and
+// the salute and at 4/30 in the plain win. Joined 4/30 early, the cheer's right foot was still coming down
+// in the clip while it stood planted in the game, and it slid 4-7 cm a frame.)
+export const WIN_HALF: Record<string, number> = { win: 4 / 30, win_pump: 8 / 30, win_cheer: 8 / 30, win_cheer_big: 8 / 30, win_leap: 4 / 30, win_salute: 8 / 30, win_slide: 3 / 30 };
 
 /** Reactions the feet are never pinned in: the drop to the stone below (the feet leave the floor the root
  * stands on), the spin of the side hit (a pinned foot fights the spin and flips the leg), and the start (the
