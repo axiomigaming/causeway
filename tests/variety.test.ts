@@ -227,3 +227,40 @@ it("merges props without the tiles' edge attribute, and drops none", async () =>
   expect(meshes).toBeGreaterThan(50);
   expect(paving, 'no section with paving props was checked').toBeGreaterThan(0);
 }, 300000);
+
+/**
+ * World round 25: no two of the QA worlds open on the same view. Variants are built once for every
+ * world, and three pairs of the 16 opened on the very same section (the same variant, the same way
+ * round). A world's first section after the start is now its own layout: any two openings of one type
+ * share at most half of what they lay out (pieces at the same metre, the same way round).
+ */
+it('opens every world on a view of its own', async () => {
+  const track = new Track(boundsKit());
+  await track.prepare({ foliage: 1, scenery: 1 });
+  track.viewDistance = 165;
+  const p = new THREE.Vector3();
+  const open: { w: string; type: string; set: Set<string> }[] = [];
+  for (const w of [3, 7, 11, 19, 23, 31, 42, 58, 64, 77, 83, 97, 105, 118, 126, 141]) {
+    track.reset(`${w}-0.5`);
+    track.update(0, 0);
+    const sec = track.sections[1]!;
+    const set = new Set<string>();
+    for (const pl of sec.layout.props) {
+      p.setFromMatrixPosition(pl.m);
+      if (Math.abs(p.x) > 12) continue;
+      set.add(`${pl.piece}@${Math.round((sec.mirror ? -1 : 1) * p.x)},${Math.round(p.z)}`);
+    }
+    open.push({ w: `w${w}`, type: sec.type, set });
+  }
+  const same: string[] = [];
+  for (let i = 0; i < open.length; i++)
+    for (let j = i + 1; j < open.length; j++) {
+      const a = open[i]!, b = open[j]!;
+      if (a.type !== b.type) continue;
+      let both = 0;
+      for (const k of a.set) if (b.set.has(k)) both++;
+      const share = both / Math.max(1, Math.min(a.set.size, b.set.size));
+      if (share > 0.5) same.push(`${a.w} and ${b.w} (${a.type}): ${(share * 100).toFixed(0)} % shared`);
+    }
+  expect(same).toEqual([]);
+}, 300000);

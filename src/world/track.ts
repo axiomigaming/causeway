@@ -529,8 +529,26 @@ export class Track {
     return seed;
   }
 
+  /** World round 25: the world's own opening section (see spawn); retired with the world. */
+  private openingVariant(type: SectionType): Variant {
+    const r = new Rng(`open/${this.worldSeed}`);
+    const k = r.int(0, 7);
+    const ruin = r.range(0, 0.4);
+    const seed = `${type}#${k}/open/${this.worldSeed}`;
+    const layout = buildLayout(type, seed, this.density, undefined, ruin);
+    const full = this.density.foliage >= 1 && this.density.scenery >= 1;
+    const solidLayout = full ? layout : buildLayout(type, seed, { foliage: 1, scenery: 1 }, undefined, ruin);
+    const group = this.mergeProps(layout);
+    this.retired.push(group);
+    return { layout, solidLayout, key: `${type}#open`, group, inUse: 0 };
+  }
+  private worldSeed = '';
+  private openingDone = false;
+
   reset(seed: string): void {
     for (const s of this.sections) this.despawn(s);
+    this.worldSeed = seed;
+    this.openingDone = false;
     this.sections.length = 0;
     for (const g of this.retired) disposeGroup(g);
     this.retired.length = 0;
@@ -803,7 +821,14 @@ export class Track {
     const score = (v: Variant) => Math.max(0, Math.abs(v.layout.ruin - ruinTarget) - RUIN_TOL) * 3 + this.recent.filter((k) => k === v.key).length;
     const min = Math.min(...list.map(score));
     const candidates = list.filter((v) => score(v) <= min + 0.35);
-    const variant = this.rng.pick(candidates);
+    let variant = this.rng.pick(candidates);
+    // World round 25: a world's first section after the start is its own — a layout built from the
+    // world's seed (dressing, gate, length, how ruined), not one of the shared variants: of 16 worlds,
+    // three pairs opened on the very same section (the same variant, the same way round).
+    if (!this.openingDone && type !== 'start') {
+      this.openingDone = true;
+      variant = this.openingVariant(type);
+    }
     variant.inUse++;
     this.recent.push(variant.key);
     if (this.recent.length > 10) this.recent.shift();

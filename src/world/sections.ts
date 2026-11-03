@@ -106,6 +106,8 @@ class Builder {
   lower = 0;
   /** World round 24: the layout's seed (for choices drawn apart from `rng`, which leave its stream as it was). */
   seed = '';
+  /** World round 25: a world's opening section (the first after the start): what the opening shot looks down. */
+  opening = false;
   constructor(
     readonly rng: Rng,
     readonly density: { foliage: number; scenery: number },
@@ -531,7 +533,9 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       if (b.rng.chance(b.carving)) {
         // A carved parapet; a feathered-serpent post guards the start of each carved run.
         b.wall(`wall_carved_${b.rng.int(0, 1)}`, side, PATH_HALF + 0.36, 0, z);
-        if (!carvedRun) b.place('serpent_0', side * (PATH_HALF + 0.36), 0, z + 0.45, 0);
+        // (World round 25: none in the first 16 m of a world's opening section — 2 m from the lens in the
+        // opening shot, its carving read as a soft, mottled block.)
+        if (!carvedRun && !(b.opening && z > -16)) b.place('serpent_0', side * (PATH_HALF + 0.36), 0, z + 0.45, 0);
         carvedRun = true;
         if (b.foliage(0.3)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.7, z - 2, -side * Math.PI / 2, [0.55, b.rng.range(0.4, 0.6), 1]);
         continue;
@@ -1836,9 +1840,11 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   const rng = new Rng(seed);
   const def = BUILDERS[type];
   const L = len ?? rng.pick(def.lengths);
-  const b = new Builder(rng, density, Number(seed.split('#')[1] ?? 0) || 0, ruin);
+  // (World round 25: `type#k/open/<world>` is a world's own opening section — see Track.spawn — variant k.)
+  const b = new Builder(rng, density, parseInt(seed.split('#')[1] ?? '0', 10) || 0, ruin);
   b.len = L;
   b.seed = seed;
+  b.opening = seed.includes('/open/');
   const r = def.build(b, L);
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin);
