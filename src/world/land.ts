@@ -40,12 +40,13 @@ export function groundY(kind: GroundKind, x: number, z: number, len: number, low
   if (!lower || kind !== 'land' || Math.sign(x) !== Math.sign(lower)) return y;
   // World round 24: a lower terrace beside the way on side `lower` (the overgrown plaza's court a flight
   // down, its slabs at -1.6). The forest floor lay at -0.3 over it: the terrace and its footing were
-  // buried, and the frame showed a flat dark plane. Now the ground drops under the slabs, rises again in
-  // an earth bank behind them, and comes back to grade over the section's last metres (no step where
+  // buried, and the frame showed a flat dark plane. Now the ground drops under the slabs, rises again
+  // behind their retaining wall (sections.lowerTerrace), and comes back to grade over the section's last metres (no step where
   // the next section's ground meets it).
   const ax = Math.abs(x);
   const ends = smooth(0.5, 2.5, -z) * smooth(0.5, 2.5, z + len);
-  const pit = (1 - smooth(7.4, 10.5, ax)) * ends;
+  // (Behind the court's retaining wall, 7.2-8.2 m out, the ground climbs back within a metre.)
+  const pit = (1 - smooth(7.5, 8.6, ax)) * ends;
   return y + (TERRACE_BED - y) * pit;
 }
 

@@ -838,6 +838,15 @@ function lowerTerrace(b: Builder, side: number, z0: number, n: number) {
     if (b.foliage(0.5)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF + b.rng.range(1.6, 3.6)), -1.6, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 1.1);
   }
   b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 3.2), -1.6, z0 - TILE * n * 0.5, b.rng.range(0, 6.28));
+  // World round 24: a retaining wall along the court's back edge, its crest about the forest floor's
+  // level (the ground rises behind it: land.groundY). Without it, past the slabs the sunken bed read
+  // as a murky pond under a bare earth cut. (Its own generator: the layout's stream stays as it was.)
+  const r = new Rng(`${b.seed}/terrace`);
+  for (let i = 0; i < n; i++) {
+    const flip = r.chance(0.5);
+    const z = z0 - TILE * i;
+    b.place(`wall_low_${r.pick([0, 1, 3])}`, side * (PATH_HALF + 5.45), -1.65, flip ? z - TILE : z, flip ? Math.PI : 0);
+  }
 }
 
 const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Build }>> = {
@@ -939,9 +948,9 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       // running line, and the runner stepped over it.)
       b.place(`column_fallen_${b.rng.int(0, 1)}`, hi * (PATH_HALF + 2.2), 0.05, -len * b.rng.range(0.3, 0.7), -hi * b.rng.range(0, 0.35));
       forestSide(b, hi, len, 0.9);
-      // (World round 24: the ground now drops to the terrace — land.groundY — and rises again behind it
-      // in an earth bank, 7.4–10.5 m out: undergrowth at its foot and up its face, roots over its lip.)
-      groundCover(b, low, len, 7.3, 10.2, 2.4, 'land', 'bank');
+      // (World round 24: the ground now drops to the terrace — land.groundY — and rises again behind its
+      // retaining wall: undergrowth along the wall's crest.)
+      groundCover(b, low, len, 8.6, 11.5, 2.0, 'land', 'bank');
       // Beyond the lower terrace the forest goes on at its level.
       for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
       for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9);
