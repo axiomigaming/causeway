@@ -4,7 +4,8 @@
 // tiny hot sprites down-left of it, and measures the light the shafts add because of the sprites:
 //   trail = (sprites - none, shafts on) - (sprites - none, shafts off)
 // Fails if more than --max pixels (default 200; the raw source gives ~1300) gain more than 6 levels
-// (summed over RGB). The same frame is also measured with the raw source (shafts' clean = 0).
+// (summed over RGB). The same frame is also measured with the raw source (shafts' clean = 0, and the
+// frame's colour as the source: analytic = 0).
 //   URL=http://localhost:5180 node tools/shaft-trail-check.mjs [--q "q=high&adv=12&t=8&w=7&look=morning"] [--out prefix]
 import { chromium } from 'playwright-core';
 const arg = (k, d) => {
@@ -100,7 +101,14 @@ const shafts = (on) =>
     };
   }, on);
 const show = (v) => page.evaluate((v) => { window.__probe.forEach((m) => (m.visible = v)); window.__game.post.render(1 / 30); }, v);
-const setClean = (v) => page.evaluate((v) => { window.__game.post.shafts.uniforms.get('clean').value = v; }, v);
+// (FX round 21: the shipped source is the sun's analytic glow, which a mote cannot feed at all; the raw
+// case is the old one — the frame's colour, not despeckled — so the setup is still proved to provoke.)
+const setClean = (v) =>
+  page.evaluate((v) => {
+    const u = window.__game.post.shafts.uniforms;
+    u.get('clean').value = v;
+    u.get('analytic').value = v;
+  }, v);
 const metric = (keys) =>
   page.evaluate(async (b64) => {
     const px = async (s) => {
