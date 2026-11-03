@@ -2990,10 +2990,7 @@ export class Game {
       const k = this.worldT % 13;
       this.runner.lookAt(k > 7 && k < 9.5 ? this.rig.camera.position : null, 0.6);
     } else this.runner.lookAt(null);
-    // (The stride keeps pace with the ground as it actually passes: the obstacle director's nudge (sRate, up
-    // to ±20% while a set piece comes up) moved the floor under a gait cadenced on the bare speed, and the
-    // planted foot slid ~3-4 cm/frame out of a slide into the next set piece's approach.)
-    this.runner.update(dt, this.speed + (this.stage === 'run' ? this.obstacles.sRate : 0), rawDt);
+    this.runner.update(dt, this.speed, rawDt);
     // Round 20 (character agent): the falls' and escapes' forward travel is taken out of the clip
     // and carried by the root, so the root's speed is continuous through the handover at play() and
     // the body never runs ahead of it. The stop mark moves with it.

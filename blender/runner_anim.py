@@ -2478,7 +2478,7 @@ def gkey(fr, ph, G=None, k=1.0, **mods):
     return P
 
 
-SLIDE_FOLD = 1.6
+SLIDE_FOLD = 0.5
 JL_LAND, JL_H = 24, 0.52
 V_LAND, V_H = 22, 0.29
 V_PLANT = (10, 16)  # frames the palm is on the stone
@@ -2638,7 +2638,7 @@ def obstacle_clips():
     run_up(4)
     P = {}
     torso(P, lean=-0.2, look=0.4, hp=-0.08)
-    leg(P, "L", hip=1.05, knee=0.35, ankle=-0.15)
+    leg(P, "L", hip=1.1, knee=0.8, ankle=-0.15)  # (still folding out: straight here, the lead heel swept through the stone from frame 5)
     leg(P, "R", hip=0.15, knee=1.8, ankle=0.3, toe=0.4)
     arm(P, "L", fwd=1.0, elbow=0.9, out=0.3, curl=0.9)
     arm(P, "R", fwd=-0.3, elbow=0.6, out=0.4, curl=0.6)
@@ -2649,8 +2649,7 @@ def obstacle_clips():
     Q = lerp_pose(G5, P, 0.5)
     # (The lead leg swings through folded, as a runner's does: halfway between the stride's and the
     # slide's straight leg, its heel brushed the stone, the ankle down to 0.5 cm, 8 cm into it.)
-    for nm, v in (("thigh.L", (-0.9, 0.0, 0.07)), ("shin.L", (SLIDE_FOLD, 0.0, 0.0)), ("foot.L", (0.1, 0.0, 0.0))):
-        Q[nm] = v
+    Q["shin.L"] = (Q["shin.L"][0] + SLIDE_FOLD,) + tuple(Q["shin.L"][1:])
     z5 = 0.5 * (gait_root(4 * OBST_CADENCE / FPS, RUN) + solve_root(P))
     key(5, Q, z=max(z5, floor_z(Q)) + 0.07, x=0.5 * x5)  # (+5 cm: the hips smoothing pulls this key down toward the drop)
     # (Keyed every frame and never still: the stone chatters under him, the trunk rocks, the trailing hand

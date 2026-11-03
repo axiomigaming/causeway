@@ -315,7 +315,9 @@ export class ObstacleDirector {
         return;
       }
       // The clip is committed: close what is left of the gap between the apex and the piece.
-      if (p.tApex > 0.05) this.sRate = THREE.MathUtils.clamp(((eta - p.tApex) * v) / Math.max(0.25, p.tApex), -0.2 * v, 0.2 * v);
+      // (Past the apex the gap is closed or never will be: the nudge stops. Held to the landing, the floor ran
+      // up to 20% ahead of the stride he lands back on, and his planted foot slid ~3-4 cm/frame.)
+      this.sRate = p.tApex > 0.05 ? THREE.MathUtils.clamp(((eta - p.tApex) * v) / Math.max(0.25, p.tApex), -0.2 * v, 0.2 * v) : 0;
       return;
     }
     if (eta < -0.5) {
