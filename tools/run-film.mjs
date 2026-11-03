@@ -41,8 +41,10 @@ const PRE = +arg('pre', '3');
 const FROM = +arg('from', '0');
 // --event crash:<kind>:<variant>@<s> or cashout@<s>: the round ends that far into the film (as the
 // controller would: the settled multiplier, then the fall or the escape), and filming goes on through
-// it. The interface is hidden for these (the scene is what is judged; no live round settles it).
+// it. The interface is hidden for these unless --ui, which settles the store as the controller does
+// (the result card then comes in on the game's reveal, as in play).
 const EVENT = arg('event', '');
+const UI = process.argv.includes('--ui');
 const [VW, VH] = (arg('size', VIEW === 'phone' ? '390x844' : '1280x720')).split('x').map(Number);
 const FR = `${OUT}/frames-${NAME}`;
 mkdirSync(FR, { recursive: true });
@@ -109,7 +111,7 @@ const T1 = Date.now();
 const N = Math.round(SECS * FPS);
 const [EV, EV_AT] = EVENT ? EVENT.split('@') : ['', '0'];
 const evFrame = EVENT ? Math.round(+EV_AT * FPS) : -1;
-if (EVENT) await page.evaluate(() => document.getElementById('app')?.style.setProperty('visibility', 'hidden'));
+if (EVENT && !UI) await page.evaluate(() => document.getElementById('app')?.style.setProperty('visibility', 'hidden'));
 const rows = [];
 let shot = 0;
 const sheetAt = new Map();
@@ -118,16 +120,22 @@ const drawnF = [];
 for (let f = 0; f < N; f++) {
   const draw = SHEET_ONLY ? sheetAt.has(f) : f % EVERY === 0;
   if (f === evFrame) {
-    await page.evaluate((ev) => {
+    await page.evaluate(({ ev, ui }) => {
       const g = window.__game;
       g.live.mult = Math.floor(g.live.mult * 100) / 100;
       g.elapsed = () => null;
+      if (ui) {
+        const m = Math.round(g.live.mult * 100);
+        const won = ev === 'cashout';
+        const round = { id: won ? 'film-cash' : 'film-crash', nonce: 0, outcome: won ? 'cashout' : 'crash', stake: 1000, cashoutMult: won ? m : null, auto: false, payout: won ? Math.floor((1000 * m) / 100) : 0, crash: won ? m + 50 : m, commitment: '0'.repeat(64), serverSeed: '0'.repeat(64), clientSeed: 'film', settledAt: 0 };
+        window.__store.getState().set({ phase: 'result', live: null, result: { round, won }, revealed: false });
+      }
       if (ev === 'cashout') g.cashout('film-cash');
       else {
         const [, kind, v] = ev.split(':');
         g.crash(Math.round(g.live.mult * 100), 'film-crash', kind, Number(v));
       }
-    }, EV);
+    }, { ev: EV, ui: UI });
   }
   const r = await page.evaluate(
     ({ fps, draw }) => {
