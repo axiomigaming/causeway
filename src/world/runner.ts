@@ -588,6 +588,9 @@ export class Runner {
     }
     this.pending = null;
     if (name === this.current) return;
+    // Out of the slide, lying back on the stone with the lead leg out straight, a fall rises over a longer
+    // blend: over 0.2 s the straight leg swung down through the floor in two frames as the hips came up.
+    if (this.current === 'slide' && name.startsWith('fall_') && !DROPS.has(name)) fade = Math.max(fade, 0.45);
     // An escape called mid obstacle waits for the move to hand back to the run, then for the strike as
     // from the run. (Started at once, win_slide's own run-in played over the move's pose: a 49 cm foot
     // step and a snapped foot as a turn_cut handed straight into the slide.)
