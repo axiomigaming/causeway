@@ -66,7 +66,11 @@ function groundY0(kind: GroundKind, x: number, z: number, len: number): number {
     // A dry riverbed 1.75 m down either side of the causeway's footing, rising steeply to banks ~6 m up.
     const bed = -1.75 + n * 0.25; // (round 22: above the water — at -2.6 the "dry" bed was flooded)
     const bank = 6.5 + n2 * 2.5;
-    return bed + (bank - bed) * smooth(7.5, 13, ax);
+    const t = smooth(7.5, 13, ax);
+    // (World round 24: relief on the bank's face, strongest mid-slope — it read as one flat, pale plane
+    // rising beside the way; lumps and hollows of ±0.8 m catch the light and the strata differently.)
+    const lump = ((vnoise(x * 0.45 + 2.0, z * 0.45 - 4.0) - 0.5) * 1.3 + (vnoise(x * 1.1 - 6.0, z * 1.1 + 3.0) - 0.5) * 0.5) * 4 * t * (1 - t) * taper;
+    return bed + (bank - bed) * t + lump;
   }
   // Forest floor: just below the paving by the footing, rolling, and rising into wooded hills at the sides.
   const near = -0.32 + n * 0.12 * smooth(3.2, 5, ax);
