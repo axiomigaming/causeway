@@ -70,9 +70,19 @@ function groundY0(kind: GroundKind, x: number, z: number, len: number): number {
     // (World round 24: relief on the bank's face, strongest mid-slope — it read as one flat, pale plane
     // rising beside the way; lumps and hollows of ±0.8 m catch the light and the strata differently.)
     const lump = ((vnoise(x * 0.45 + 2.0, z * 0.45 - 4.0) - 0.5) * 1.3 + (vnoise(x * 1.1 - 6.0, z * 1.1 + 3.0) - 0.5) * 0.5) * 4 * t * (1 - t) * taper;
-    return bed + (bank - bed) * t + lump;
+    const ravine = bed + (bank - bed) * t + lump;
+    // World round 25: over its first and last 6 m the ravine comes back to the forest floor's profile.
+    // Its 6.5 m banks rose from the section's first metre, and where it met any other land (at -0.3)
+    // the bank ended in a hard-edged face: a flat, pale wedge standing beside the way. (Two ravines in a
+    // row dip to a saddle at the joint: a side gully.)
+    const ends = smooth(0, 6, -z) * smooth(0, 6, z + len);
+    return forestFloor(ax, n, n2) + (ravine - forestFloor(ax, n, n2)) * ends;
   }
-  // Forest floor: just below the paving by the footing, rolling, and rising into wooded hills at the sides.
+  return forestFloor(ax, n, n2);
+}
+
+/** Forest floor: just below the paving by the footing, rolling, and rising into wooded hills at the sides. */
+function forestFloor(ax: number, n: number, n2: number): number {
   const near = -0.32 + n * 0.12 * smooth(3.2, 5, ax);
   const rise = (1.2 + n2 * 2.4) * smooth(9, 38, ax) + n * 0.6 * smooth(5, 12, ax);
   return near + rise;
@@ -173,6 +183,8 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       float strata = smoothstep(0.0, 0.5, abs(fract(bed) - 0.5)) * (0.5 + 0.5 * gN(rp * vec2(0.4, 1.5) + 3.0));
       float b1 = gN(rp * 0.7 + 7.0), b2 = gN(rp * 2.6 + 1.0);
       vec3 rock = mix(vec3(0.34, 0.2, 0.11), vec3(0.44, 0.28, 0.15), strata * 0.7 + b1 * 0.3) * (0.7 + 0.35 * b1 + 0.25 * b2);
+      // (World round 25: the ledge where a bed ends in shadow, and the face a little darker: it read pale.)
+      rock *= mix(0.88, 0.55, smoothstep(0.78, 0.98, fract(bed)));
       float cav = uDetailReady > 0.0 ? texture2D(uDetailMap, rp * 0.45).b : 0.6;
       rock *= 0.55 + 0.75 * cav;
       // Moss and soil caught on the ledges.
@@ -198,9 +210,30 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     vec3 g = mat3(viewMatrix) * vec3(hx - h0, 0.0, hz - h0);
     float k = 1.0 - smoothstep(6.0, 25.0, length(vViewPosition));
     normal = normalize(normal - g * 0.9 * k);
+    // World round 25: relief on the steep banks. The litter bump above is in the ground's plane and
+    // does next to nothing on a slope: the ravine's banks lit as one flat, pale sheet. Here the scanned
+    // stone's normals, projected on the bank's own plane at two scales, and the strata's ledges (the
+    // colour's bedding) tilting the face up where a bed ends.
+    float stN = 1.0 - smoothstep(0.55, 0.8, vGN.y);
+    if (stN > 0.0) {
+      vec2 rp = abs(vGN.x) > abs(vGN.z) ? vGW.zy : vGW.xy;
+      vec3 nW = normalize(vGN);
+      vec3 tU = normalize(cross(vec3(0.0, 1.0, 0.0), nW));
+      vec3 tV = cross(nW, tU);
+      vec2 a = vec2(0.0);
+      if (uDetailReady > 0.0) {
+        vec3 t1 = texture2D(uDetailMap, rp * 0.45).rgb, t2 = texture2D(uDetailMap, rp * 1.6 + 0.37).rgb;
+        a = (t1.rg * 2.0 - 1.0) + (t2.rg * 2.0 - 1.0) * 0.5;
+      }
+      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      float ledge = smoothstep(0.78, 0.98, fract(bed));
+      vec3 dW = tU * a.x * 0.9 + tV * (a.y * 0.9 + ledge * 1.4);
+      float kb = stN * (1.0 - smoothstep(12.0, 70.0, length(vViewPosition)));
+      normal = normalize(normal + (mat3(viewMatrix) * dW) * kb);
+    }
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'ground23';
+  m.customProgramCacheKey = () => 'ground25';
   return m;
 }

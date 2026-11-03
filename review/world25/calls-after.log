@@ -1,0 +1,6 @@
+after2 CALLS max 94
+after2 FRAME {"t":20,"calls":91,"sec":"corridor","top":"tiles:9 leaf|near:7 stoneA|near:7 stoneB|near:7 leaf|far:7 bark|near:6 rock|far:6 rock|near:5 stoneB|far:5 moss|near:5 bark|far:4 ambient:4 floor|grit:3 ground:2"}
+after2 FRAME {"t":22,"calls":94,"sec":"approach","top":"tiles:9 leaf|near:7 leaf|far:7 stoneA|near:7 stoneB|near:7 debris:7 rock|far:5 rock|near:5 bark|near:5 moss|near:5 stoneB|far:4 ambient:4 bark|far:3 floor|grit:2"}
+after2 FRAME {"t":36,"calls":82,"sec":"forest","top":"tiles:9 bark|near:7 leaf|near:7 stoneA|near:6 stoneB|near:6 rock|far:5 leaf|far:5 debris:5 ambient:4 bark|far:3 glyph|near:3 floor|grit:2 ground:2 cliff|far:2"}
+after2 FRAME {"t":52,"calls":84,"sec":"approach","top":"tiles:9 leaf|near:8 stoneA|near:6 rock|near:6 bark|near:6 stoneB|near:5 leaf|far:5 moss|near:5 debris:5 rock|far:4 stoneB|far:4 ambient:4 ground:3 cliff|near:2"}
+after2 FRAME {"t":58,"calls":81,"sec":"approach","top":"tiles:9 leaf|near:7 debris:7 stoneA|near:5 stoneB|near:5 bark|near:4 ambient:4 rock|near:3 rock|far:3 leaf|far:3 ground:3 moss|near:2 floor|grit:2 statue|near:2"}

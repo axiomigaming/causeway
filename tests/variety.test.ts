@@ -227,3 +227,101 @@ it("merges props without the tiles' edge attribute, and drops none", async () =>
   expect(meshes).toBeGreaterThan(50);
   expect(paving, 'no section with paving props was checked').toBeGreaterThan(0);
 }, 300000);
+
+/**
+ * World round 25: no two of the QA worlds open on the same view. Variants are built once for every
+ * world, and three pairs of the 16 opened on the very same section (the same variant, the same way
+ * round). A world's first section after the start is now its own layout: any two openings of one type
+ * share at most half of what they lay out (pieces at the same metre, the same way round).
+ */
+it('opens every world on a view of its own', async () => {
+  const track = new Track(boundsKit());
+  await track.prepare({ foliage: 1, scenery: 1 });
+  track.viewDistance = 165;
+  const p = new THREE.Vector3();
+  const open: { w: string; type: string; set: Set<string> }[] = [];
+  for (const w of [3, 7, 11, 19, 23, 31, 42, 58, 64, 77, 83, 97, 105, 118, 126, 141]) {
+    track.reset(`${w}-0.5`);
+    track.update(0, 0);
+    const sec = track.sections[1]!;
+    const set = new Set<string>();
+    for (const pl of sec.layout.props) {
+      p.setFromMatrixPosition(pl.m);
+      if (Math.abs(p.x) > 12) continue;
+      set.add(`${pl.piece}@${Math.round((sec.mirror ? -1 : 1) * p.x)},${Math.round(p.z)}`);
+    }
+    open.push({ w: `w${w}`, type: sec.type, set });
+  }
+  const same: string[] = [];
+  for (let i = 0; i < open.length; i++)
+    for (let j = i + 1; j < open.length; j++) {
+      const a = open[i]!, b = open[j]!;
+      if (a.type !== b.type) continue;
+      let both = 0;
+      for (const k of a.set) if (b.set.has(k)) both++;
+      const share = both / Math.max(1, Math.min(a.set.size, b.set.size));
+      if (share > 0.5) same.push(`${a.w} and ${b.w} (${a.type}): ${(share * 100).toFixed(0)} % shared`);
+    }
+  expect(same).toEqual([]);
+}, 300000);
+
+/**
+ * World round 25: land sections meet without a step. The ravine's 6.5 m banks rose from its first metre
+ * and, beside any other land (its floor at -0.3), ended in a hard-edged face: a flat, pale wedge standing
+ * beside the way. At both ends of every land section the ground is the same profile, at every distance
+ * out to the sides.
+ */
+it('meets the next land section on the same ground', () => {
+  const bad: string[] = [];
+  for (const type of LAND_TYPES) {
+    for (let k = 0; k < 6; k++) {
+      const L = buildLayout(type, `seam-${k}`, { foliage: 1, scenery: 1 });
+      const ref = buildLayout('forest', `seam-${k}`, { foliage: 1, scenery: 1 });
+      for (const zEnd of [0, -L.len]) {
+        for (let x = -40; x <= 40; x += 2.5) {
+          const g = groundY(L.ground!, x, zEnd, L.len, L.features?.lower ?? 0);
+          // (The forest floor at an end: its noise faded out, so its length does not matter.)
+          const f = groundY('land', x, zEnd === 0 ? 0 : -ref.len, ref.len);
+          if (Math.abs(g - f) > 0.05) bad.push(`${type}/${k} end ${zEnd} x ${x}: ${g.toFixed(2)} against ${f.toFixed(2)}`);
+        }
+      }
+    }
+  }
+  expect(bad.slice(0, 10)).toEqual([]);
+});
+
+/**
+ * World round 25: on the lightest tier (no shadows) a section at the water's level draws its near and far
+ * props in one call per material (phones peaked at 91-103 draw calls; the split is for shadows and for
+ * far props to follow the water when stairs lower a section). Land is never lowered; a water section a
+ * flight down keeps the split.
+ */
+it('draws sections at the water level without a near/far split on the lightest tier', async () => {
+  const track = new Track(boundsKit());
+  await track.prepare({ foliage: 0.45, scenery: 0.4 });
+  track.viewDistance = 95;
+  track.reset('7-0.5');
+  let level = 0, lowered = 0;
+  for (const w of ['7-0.5', '11-0.5', '23-0.5', '64-0.5']) {
+    track.reset(w);
+    for (let s = 0; s < 900; s += 20) {
+      track.update(s, 0);
+      for (const sec of track.sections) {
+        const names: string[] = [];
+        sec.root.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) names.push(o.name);
+        });
+        const far = names.filter((n) => n.endsWith('|far'));
+        if (Math.abs(sec.seg.p0.y) < 1e-3) {
+          level++;
+          expect(far, `${sec.type} at the water's level`).toEqual([]);
+        } else {
+          lowered++;
+          expect(isLand(sec.type)).toBe(false);
+        }
+      }
+    }
+  }
+  expect(level).toBeGreaterThan(20);
+  void lowered;
+}, 300000);
