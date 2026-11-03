@@ -959,13 +959,16 @@ export class Runner {
     const rate = fromAir ? this.obst!.rate : obstacleRate(this.cadence);
     this.obst = { name, rate, flight: name === 'leap_gap' ? leapFlight(opts.distance ?? 2.25, this.speed) : 0 };
     const O = OBSTACLES[name];
+    // (The cuts over 0.15 s: they plant on the stride keyed on the run, and at the top tier the gait's
+    // foot differs by ~15°; over 0.08 s it turned into the cut 28° in a frame.)
+    const fade = fromAir ? 0.06 : name.startsWith('turn_cut') ? 0.15 : 0.08;
     const wait = O.from < 0 ? 0 : ((O.from - this.phase + 1) % 1) / Math.max(0.5, this.cadence);
     if (wait < 0.01 || wait > 0.98 / Math.max(0.5, this.cadence)) {
       this.pending = null;
-      this.start(name, fromAir ? 0.06 : 0.08, 0);
+      this.start(name, fade, 0);
       return 0;
     }
-    this.pending = { name, fade: 0.08, offset: 0, until: this.t + wait };
+    this.pending = { name, fade, offset: 0, until: this.t + wait };
     return wait;
   }
 
