@@ -180,6 +180,9 @@ for (let f = 0; f < N; f++) {
         horizon: +hz.y.toFixed(4),
         sec: sec?.type ?? '?',
         stage: g.stage,
+        kind: g.debugState?.crashKind ?? null,
+        gap: +(g.rig.gap ?? 0).toFixed(2),
+        reveal: +(g.rig.revealK ?? 0).toFixed(2),
         clip: g.runner.current ?? '',
       };
     },

@@ -1262,18 +1262,20 @@ export class CameraRig {
     const tanH = tanV * c.aspect;
     if (inGap) {
       // FX round 21 (coordinator): the slabs gave and he went down into the water. While the lens
-      // looks down after him he is not framed; once the result card is up he is set in the free
-      // band — a third of the way up from the dock line (on landscape beside the card's column, on
-      // the third the result shot uses), never left under the dock. Only his body is measured
-      // (gapBody, the game's: the root stays at the lip).
+      // looks down after him he is not framed; once the result card is up the place he went in is
+      // set clear of the interface — on landscape on the third beside the card's column, otherwise
+      // in the band between card and dock — never left under the dock. Only his body is measured
+      // (gapBody, the game's: the root stays at the lip). The lens looks steeply down here, so the
+      // moves are about its own axes (about the world's vertical a pan would only roll the image).
       const k = Math.min(1, this.revealK * 1.5);
       if (k < 0.001) return;
       c.updateMatrixWorld();
       const p = this.tmp4.copy(this.gapBody!).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
       if (p.z > -0.3) return;
-      const y = p.y / -p.z;
-      c.rotateX((Math.atan(y) - Math.atan(THREE.MathUtils.lerp(lo, hi, 0.35) * tanV)) * k);
-      if (this.sideK > 0.001) c.rotateOnWorldAxis(WORLD_UP, (Math.atan(this.sideX * tanH) - Math.atan(p.x / -p.z)) * Math.min(this.sideK, k));
+      const beside = Math.min(this.sideK, k);
+      const yWant = lerp(lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, 1 - 2 * s - 2 * this.insetTop - 0.05, 0.5), -2 * s, beside);
+      c.rotateX((Math.atan(p.y / -p.z) - Math.atan(yWant * tanV)) * k);
+      if (beside > 0.001) c.rotateY((Math.atan(this.sideX * tanH) - Math.atan(p.x / -p.z)) * beside);
       return;
     }
     // (FX round 21: the escape's run-on — still the run shot, closing in on his shoulder — keeps the
