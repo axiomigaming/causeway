@@ -544,6 +544,13 @@ export class Runner {
     }
     this.pending = null;
     if (name === this.current) return;
+    // An escape called mid obstacle waits for the move to hand back to the run, then for the strike as
+    // from the run. (Started at once, win_slide's own run-in played over the move's pose: a 49 cm foot
+    // step and a snapped foot as a turn_cut handed straight into the slide.)
+    if (name.startsWith('win') && this.obst !== null && this.current === this.obst.name && offset === 0 && fade > 0) {
+      this.pending = { name, fade, offset, until: Infinity };
+      return;
+    }
     if (this.current === 'run' && ONE_SHOT.has(name) && name !== 'start' && offset === 0 && fade > 0) {
       let wait = ((1 - this.phase) % 1) / Math.max(0.5, this.cadence);
       const half = WIN_HALF[name];
@@ -722,7 +729,7 @@ export class Runner {
   update(dt: number, speed: number, rawDt = dt): void {
     this.t += dt;
     this.speed = speed;
-    if (this.pending && (this.t >= this.pending.until || this.current !== 'run')) {
+    if (this.pending && (this.t >= this.pending.until || (this.current !== 'run' && this.pending.until !== Infinity))) {
       const p = this.pending;
       this.pending = null;
       // Join the clip where the stride will be at the end of this frame: the strike it waited for fell
@@ -756,18 +763,32 @@ export class Runner {
         a.timeScale = nominal / this.obst.flight;
         const u = (a.time - O.takeoff) / nominal;
         // The clip carries a 0.5 s arc; add the rest of a ballistic one for the actual flight.
-        this.obstLift = 4 * u * (1 - u) * (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+        // (A shorter flight than the clip's lowers the arc, but on a bell that is flat at the ends: on the
+        // plain parabola the lowering went on to the last frame, and the landing foot, already down in
+        // the clip, sank 3 cm through the floor at the top tier.)
+        const bell = 4 * u * (1 - u);
+        const extra = (9.81 / 8) * (this.obst.flight ** 2 - nominal ** 2);
+        this.obstLift = (extra < 0 ? bell * bell : bell) * extra;
         this.obstLiftV = dt > 0 ? (this.obstLift - lift0) / dt : 0;
       }
       // Hand back a fade's length before the end, so the move is still playing (in step with the floor)
       // through the cross-fade, not held on its last frame while the floor runs on (at speed, the feet
       // skated 14-21 cm/frame out of a leap).
-      if (a.time >= O.duration - 0.1 * a.timeScale - 0.005) {
+      // (leap_gap over two: its run-out is keyed on the run, and at the top tiers the gait it hands to
+      // leans further; over 0.1 s the head swung 4 cm forward in a frame.)
+      const handFade = this.obst.name === 'leap_gap' ? 0.2 : 0.1;
+      if (a.time >= O.duration - handFade * a.timeScale - 0.005) {
         this.obst = null;
-        this.start('run', 0.1, 0);
+        this.start('run', handFade, 0);
         // The run joins at the phase the clip has reached (its last frames step on at OBST_CADENCE to
         // O.to on the final frame), not at O.to a frame or so early: that jump snapped the shins.
         this.phase = (((O.to + (a.time - O.duration) * OBST_CADENCE) % 1) + 1) % 1;
+        // An escape that waited for the move now waits for the stride's strike, as from the run.
+        if (this.pending && this.pending.until === Infinity) {
+          const p = this.pending;
+          this.pending = null;
+          this.play(p.name, p.fade, p.offset);
+        }
       }
     }
     // Burst clip hands over to the gait on its final plant (it ends on a left strike).
