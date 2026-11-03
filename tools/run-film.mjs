@@ -45,6 +45,9 @@ const FROM = +arg('from', '0');
 // (the result card then comes in on the game's reveal, as in play).
 const EVENT = arg('event', '');
 const UI = process.argv.includes('--ui');
+// --clock <ms>: no ?w; the world is the one framing-check builds for a case (Date.now pinned to <ms>
+// while it is made: 4242 + name.length * 97, e.g. 'crash chasm' = 5309).
+const CLOCK = arg('clock', '');
 const [VW, VH] = (arg('size', VIEW === 'phone' ? '390x844' : '1280x720')).split('x').map(Number);
 const FR = `${OUT}/frames-${NAME}`;
 mkdirSync(FR, { recursive: true });
@@ -58,11 +61,11 @@ const T0 = Date.now();
 const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${URL}/?qa&q=${Q}&w=${W}`, { waitUntil: 'load' });
+await page.goto(CLOCK ? `${URL}/?qa&q=${Q}&seed=framing` : `${URL}/?qa&q=${Q}&w=${W}`, { waitUntil: 'load' });
 await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
 
 await page.evaluate(
-  async ({ name, sections, at, pre, from }) => {
+  async ({ name, sections, at, pre, from, clock }) => {
     const g = window.__game;
     const ctl = window.__ctl;
     const st = window.__store;
@@ -81,7 +84,10 @@ await page.evaluate(
     ctl.enter();
     await new Promise((r) => setTimeout(r, 800));
     if (sections) g.track.forceNext = [...sections];
+    const now = Date.now;
+    if (clock) Date.now = () => +clock;
     g.newWorld('setup');
+    Date.now = now;
     await g.toSetup();
     if (from > 0) {
       g.debugAdvance(from);
@@ -103,7 +109,7 @@ await page.evaluate(
     g.debugStep(1.1 + pre);
     await new Promise((r) => setTimeout(r, 300));
   },
-  { name: NAME, sections: SECTIONS ? SECTIONS.split(',') : null, at: AT, pre: PRE, from: FROM },
+  { name: NAME, sections: SECTIONS ? SECTIONS.split(',') : null, at: AT, pre: PRE, from: FROM, clock: CLOCK },
 );
 
 console.log(`ready in ${((Date.now() - T0) / 1000).toFixed(0)} s`);
