@@ -264,3 +264,28 @@ it('opens every world on a view of its own', async () => {
     }
   expect(same).toEqual([]);
 }, 300000);
+
+/**
+ * World round 25: land sections meet without a step. The ravine's 6.5 m banks rose from its first metre
+ * and, beside any other land (its floor at -0.3), ended in a hard-edged face: a flat, pale wedge standing
+ * beside the way. At both ends of every land section the ground is the same profile, at every distance
+ * out to the sides.
+ */
+it('meets the next land section on the same ground', () => {
+  const bad: string[] = [];
+  for (const type of LAND_TYPES) {
+    for (let k = 0; k < 6; k++) {
+      const L = buildLayout(type, `seam-${k}`, { foliage: 1, scenery: 1 });
+      const ref = buildLayout('forest', `seam-${k}`, { foliage: 1, scenery: 1 });
+      for (const zEnd of [0, -L.len]) {
+        for (let x = -40; x <= 40; x += 2.5) {
+          const g = groundY(L.ground!, x, zEnd, L.len, L.features?.lower ?? 0);
+          // (The forest floor at an end: its noise faded out, so its length does not matter.)
+          const f = groundY('land', x, zEnd === 0 ? 0 : -ref.len, ref.len);
+          if (Math.abs(g - f) > 0.05) bad.push(`${type}/${k} end ${zEnd} x ${x}: ${g.toFixed(2)} against ${f.toFixed(2)}`);
+        }
+      }
+    }
+  }
+  expect(bad.slice(0, 10)).toEqual([]);
+});
