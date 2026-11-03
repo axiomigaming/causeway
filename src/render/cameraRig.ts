@@ -1280,7 +1280,7 @@ export class CameraRig {
     }
     // (FX round 21: the escape's run-on — still the run shot, closing in on his shoulder — keeps the
     // escape's wider margin as it comes in: his swinging hand and boot reach past the arm points.)
-    const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? this.escapeIn : 0;
+    const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? Math.min(1, this.escapeIn * 4) : 0;
     // (And on a phone a fall keeps a little more too: the reworked clips throw a hand out faster than
     // the jerk-limited pan follows — the pillar's recoil reached the edge for three frames.)
     const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.06 : 0;
