@@ -1,0 +1,16 @@
+pa ravine STATE {"s":188,"sec":"ravine","calls":214,"tris":892086}
+pa seam STATE {"s":197.1,"sec":"ravine","calls":238,"tris":927272}
+pa seam SIDE {"side":-1,"sec":"ravine","mirror":false}
+pa open126 STATE {"s":17.1,"sec":"sunken","calls":207,"tris":781985}
+pa open141 STATE {"s":17.1,"sec":"sunken","calls":179,"tris":722108}
+pb ravine STATE {"s":188,"sec":"ravine","calls":229,"tris":973264}
+pb seam STATE {"s":196.9,"sec":"cutting","calls":208,"tris":950493}
+pb seam SIDE {"side":-1,"sec":"overgrown","mirror":false,"lower":-1}
+pb open126 STATE {"s":17.1,"sec":"sunken","calls":215,"tris":788122}
+pb open141 STATE {"s":17.1,"sec":"sunken","calls":182,"tris":719145}
+PROOFSDONE
+review/world25/serve.sh: 13: kill: No such process
+
+review/world25/serve.sh: 13: kill: No such process
+
+SERVEDONE
