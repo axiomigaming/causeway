@@ -28,7 +28,7 @@ A.RIG = rig
 A.configure(rig)
 for p in rig.pose.bones:
     p.rotation_mode = "XYZ"
-CASES = (("run", A.RUN, 6.5), ("sprint", A.SPRINT, 9.0), ("dash", A.DASH, 11.8), ("dash", A.DASH, 12.6))
+CASES = (("run", A.RUN, 6.5), ("run", A.RUN, 9.3), ("sprint", A.SPRINT, 9.0), ("dash", A.DASH, 11.8), ("dash", A.DASH, 12.6))
 built = set()
 sc = bpy.context.scene
 JOINTS = ["spine", "chest", "neck", "head"] + [f"{b}.{s}" for b in ("thigh", "shin", "foot", "toe", "upper_arm", "forearm", "hand") for s in "LR"]
