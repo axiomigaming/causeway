@@ -62,6 +62,13 @@ for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))
   const title = await page.evaluate(() => {
     const g = window.__game;
     g.paused = true;
+    // (FX round 21: after the motion cases the game stands in the last one's end shot — a fall, him
+    // lying across the frame — and every 'title' sample measured that: 21 phone failures, "off the
+    // side", on every build. The title is measured from the title.)
+    if (g.stage !== 'title') {
+      g.elapsed = () => null;
+      g.newWorld('title');
+    }
     const out = [];
     for (let t = 0; t < 46; t += 2.3) {
       g.debugStep(2.3);
