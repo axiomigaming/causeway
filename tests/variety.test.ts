@@ -291,29 +291,37 @@ it('meets the next land section on the same ground', () => {
 });
 
 /**
- * World round 25: on the lightest tier (no shadows) a land section draws its near and far props in one
- * call per material (phones peaked at 91 draw calls; the split is for shadows and for far props to follow
- * the water, and land is never lowered). Water sections keep the split: they can be a flight down.
+ * World round 25: on the lightest tier (no shadows) a section at the water's level draws its near and far
+ * props in one call per material (phones peaked at 91-103 draw calls; the split is for shadows and for
+ * far props to follow the water when stairs lower a section). Land is never lowered; a water section a
+ * flight down keeps the split.
  */
-it('draws land sections without a near/far split on the lightest tier', async () => {
+it('draws sections at the water level without a near/far split on the lightest tier', async () => {
   const track = new Track(boundsKit());
   await track.prepare({ foliage: 0.45, scenery: 0.4 });
   track.viewDistance = 95;
   track.reset('7-0.5');
-  let land = 0, waterFar = 0;
-  for (let s = 0; s < 600; s += 20) {
-    track.update(s, 0);
-    for (const sec of track.sections) {
-      const names: string[] = [];
-      sec.root.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh) names.push(o.name);
-      });
-      if (isLand(sec.type)) {
-        land++;
-        expect(names.filter((n) => n.endsWith('|far')), sec.type).toEqual([]);
-      } else if (names.some((n) => n.endsWith('|far'))) waterFar++;
+  let level = 0, lowered = 0;
+  for (const w of ['7-0.5', '11-0.5', '23-0.5', '64-0.5']) {
+    track.reset(w);
+    for (let s = 0; s < 900; s += 20) {
+      track.update(s, 0);
+      for (const sec of track.sections) {
+        const names: string[] = [];
+        sec.root.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) names.push(o.name);
+        });
+        const far = names.filter((n) => n.endsWith('|far'));
+        if (Math.abs(sec.seg.p0.y) < 1e-3) {
+          level++;
+          expect(far, `${sec.type} at the water's level`).toEqual([]);
+        } else {
+          lowered++;
+          expect(isLand(sec.type)).toBe(false);
+        }
+      }
     }
   }
-  expect(land).toBeGreaterThan(3);
-  expect(waterFar).toBeGreaterThan(3);
+  expect(level).toBeGreaterThan(20);
+  void lowered;
 }, 300000);

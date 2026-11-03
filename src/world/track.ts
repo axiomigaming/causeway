@@ -179,6 +179,8 @@ interface Variant {
   solidLayout: Layout;
   /** `${type}#${i}`: its key in the world's use count. */
   key: string;
+  /** World round 25: on the lightest tier, its props merged without the near/far split (see spawn). */
+  flat?: THREE.Group;
 }
 
 export interface TileSlot {
@@ -429,7 +431,7 @@ export class Track {
       }
       next.set(type, list);
     }
-    for (const vs of this.variants.values()) for (const v of vs) this.retired.push(v.group);
+    for (const vs of this.variants.values()) for (const v of vs) this.retired.push(v.group, ...(v.flat ? [v.flat] : []));
     this.variants = next;
   }
 
@@ -439,7 +441,7 @@ export class Track {
   /** The variants of this world's last ten sections (spreads the repeats; never follows the despawn). */
   private recent: string[] = [];
 
-  private mergeProps(layout: Layout): THREE.Group {
+  private mergeProps(layout: Layout, flat = false): THREE.Group {
     // Near the path (walls, pillars, arches) casts shadows; scenery out over the water does not,
     // and is merged separately so both halves cull on their own tighter bounds. Things that float
     // on the water (lilies, foam) are a third zone: like the far scenery they are placed relative
@@ -473,7 +475,8 @@ export class Track {
       // draw call per material. The split is for shadows (only the near ones cast) and for the far ones to
       // follow the water when stairs lower a section; land is never lowered (it stands only at the
       // water's level), and on phones the split cost a call per material in every land section in view.
-      const merged = zone === 'far' && layout.ground !== undefined && this.density.scenery < 0.5 ? 'near' : zone;
+      // (`flat`: the same for any section, built for instances at the water's level — see spawn.)
+      const merged = zone === 'far' && (flat || (layout.ground !== undefined && this.density.scenery < 0.5)) ? 'near' : zone;
       const key = `${this.kit.matOf.get(pl.piece)!}|${merged}`;
       const c = g.clone().applyMatrix4(pl.m);
       // World round 24: the paving tiles' `aHalf` (TileSystem sets it on the kit's shared geometry) is
@@ -856,7 +859,19 @@ export class Track {
     const toWater = -seg.p0.y;
     let grit: THREE.Mesh[] | undefined;
     let lods: THREE.Mesh[] | undefined;
-    for (const child of variant.group.children) {
+    // World round 25: on the lightest tier (no shadows), a water section at the water's level — far props
+    // exactly where they were laid out — draws near and far props in one call per material (phones
+    // peaked at 99-103 draw calls, a fifth of them the far halves of materials split for shadows and for
+    // lowered sections). Built on first use; a section a flight down keeps the split.
+    let group = variant.group;
+    if (this.density.scenery < 0.5 && !layout.ground && Math.abs(toWater) < 1e-3) {
+      if (!variant.flat) {
+        variant.flat = this.mergeProps(variant.layout, true);
+        if (variant.key.endsWith('#open')) this.retired.push(variant.flat);
+      }
+      group = variant.flat;
+    }
+    for (const child of group.children) {
       const m = child as THREE.Mesh;
       const inst = new THREE.Mesh(m.geometry, m.material);
       inst.castShadow = m.castShadow;
