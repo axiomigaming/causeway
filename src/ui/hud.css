@@ -354,7 +354,8 @@
   /* the tier's words and the multiplier on one line in the narrow column */
   .result .r-head { gap: 4px 6px; }
   .result.won .r-head svg { display: none; }
-  .result.won .r-k { letter-spacing: 0.06em; }
+  .result.won .r-k { letter-spacing: 0.05em; }
+  .result .r-mult { padding: 3px 7px 0; font-size: var(--t12); }
   /* a narrow column: profit over stake, never a figure orphaned on a wrapped line */
   .result .r-facts { flex-direction: column; align-items: center; gap: 0; }
   .result .r-facts .dot { display: none; }
