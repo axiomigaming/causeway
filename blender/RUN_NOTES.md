@@ -89,7 +89,9 @@ body.
   stance dip to give the bounce its weight.)
 * Vertical: ballistic flight (g) from toe-off to strike; through the stance, the knee spring's height.
 * Swing: front-side keys (knee level with the stance knee at the other foot's strike, thigh peak 48° /
-  64° / 72° at the other foot's toe-off, heel recovery to 112° / 134° / 140° of knee); the last part of
+  64° / 72° at the other foot's toe-off, heel recovery to 109° / 129° / 135° of knee, reached at 37–40% of
+  the swing so the fold builds over 3–4 frames: the knee turns at most ~36°/frame at the top tier's
+  2.6 strides/s, about a sprinter's 1000°/s, with no stop-start at the toe-off); the last part of
   the swing is steered as the leg's length and angle about the hip into the strike, so the foot paws
   back onto the stone at the stance's own speed, the knee giving a little before it lands.
 * A lateral plant lock measures each planted ball on the posed rig and swings the thigh to hold it.
