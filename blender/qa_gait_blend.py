@@ -104,7 +104,8 @@ for a, b, v in (("run", "sprint", 7.9), ("sprint", "dash", 10.5)):
             Q = {nm: samp[i][0][nm].slerp(samp[j][0][nm], u) for nm in names}
             frames.append((P, Q))
         slide = step = snap = 0.0
-        snap_at = slide_at = "-"
+        snap_at = slide_at = step_at = "-"
+        step_kf = 0
         om_prev = None
         oms = []
         for kf in range(1, len(frames)):
@@ -119,7 +120,9 @@ for a, b, v in (("run", "sprint", 7.9), ("sprint", "dash", 10.5)):
             om = {nm: math.degrees(Q0[nm].rotation_difference(Q1[nm]).angle) for nm in names}
             om = {nm: min(x, 360 - x) for nm, x in om.items()}
             oms.append(om)
-            step = max(step, max(om.values()))
+            nm_ = max(om, key=om.get)
+            if om[nm_] > step:
+                step, step_at, step_kf = om[nm_], nm_, len(oms) - 1
         if os.environ.get("DBG") == f"{a}{w}":
             for kf, om in enumerate(oms[:int(1 / dph) + 2]):
                 ph_ = (0.013 + (kf + 1) * dph) % 1.0
@@ -134,6 +137,8 @@ for a, b, v in (("run", "sprint", 7.9), ("sprint", "dash", 10.5)):
         worst["step"] = max(worst["step"], step)
         worst["snap"] = max(worst["snap"], snap)
         print(f"{a}→{b} w {w:.2f}: S {Sb:.2f} m/cycle, {cad:.2f} cycles/s at {v} m/s: planted slide {slide:.2f} cm/frame ({slide_at}), "
-              f"largest joint step {step:.0f}°/frame, snaps {snap:.0f}° ({snap_at})", flush=True)
+              f"largest joint step {step:.0f}°/frame ({step_at}: "
+              f"{' '.join(f'{oms[k][step_at]:.0f}' for k in range(max(0, step_kf - 2), min(len(oms), step_kf + 3)) if step_at != '-')}), "
+              f"snaps {snap:.0f}° ({snap_at})", flush=True)
 print(f"worst: slide {worst['slide']:.2f} cm/frame (bar 1.5); snaps {worst['snap']:.0f}° (none over 25°/frame wanted); "
       f"largest smooth joint speed {worst['step']:.0f}°/frame")

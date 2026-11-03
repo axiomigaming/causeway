@@ -307,7 +307,7 @@ RUN = dict(
     v=6.6, ts=0.223, D=0.8, xtd=0.2, frames=96,
     knee=(0.5, 0.92, 0.42),
     af=[(0.0, 0.06), (0.15, 0.0), (0.4, -0.06), (0.7, -0.36), (1.0, -0.82)],
-    swing=[(0.13, -0.3, 1.1, 0.45), (0.34, 0.2, 1.95, 0.2), (0.57, 0.76, 1.6, -0.08),
+    swing=[(0.15, -0.3, 0.9, 0.45), (0.37, 0.2, 1.9, 0.2), (0.57, 0.76, 1.6, -0.08),
            (0.7, 0.84, 1.2, -0.18), (0.86, 0.62, 1.0, -0.14)],
     hp=0.16, hp_a=0.03, hyaw=0.12, hroll=0.075, lean=0.14, chest=1.15, head_down=0.12,
     arm_f=0.6, arm_b=-1.05, el_f=1.85, el_b=1.1, arm_out=0.16, curl=0.9, sway=0.012,
@@ -316,7 +316,7 @@ SPRINT = dict(
     v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
     knee=(0.48, 0.84, 0.45),
     af=[(0.0, -0.15), (0.3, -0.08), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
-    swing=[(0.13, -0.3, 1.3, 0.5), (0.36, 0.3, 2.3, 0.15), (0.56, 1.0, 1.95, -0.12),
+    swing=[(0.15, -0.3, 0.98, 0.5), (0.39, 0.3, 2.25, 0.15), (0.56, 1.0, 1.95, -0.12),
            (0.67, 1.12, 1.45, -0.2), (0.85, 0.82, 1.2, -0.15)],
     hp=0.19, hp_a=0.03, hyaw=0.14, hroll=0.07, lean=0.2, chest=1.25, head_down=0.1,
     arm_f=1.0, arm_b=-1.25, el_f=2.0, el_b=0.85, arm_out=0.15, curl=1.0, sway=0.01,
@@ -326,7 +326,7 @@ DASH = dict(
     v=12.0, ts=0.165, D=0.8, xtd=0.17, frames=96,
     knee=(0.46, 0.8, 0.45),
     af=[(0.0, -0.2), (0.3, -0.11), (0.5, -0.26), (0.75, -0.55), (1.0, -0.86)],
-    swing=[(0.13, -0.28, 1.35, 0.5), (0.37, 0.38, 2.42, 0.15), (0.56, 1.12, 2.05, -0.12),
+    swing=[(0.15, -0.28, 1.0, 0.5), (0.4, 0.38, 2.35, 0.15), (0.56, 1.12, 2.05, -0.12),
            (0.66, 1.25, 1.55, -0.22), (0.85, 0.9, 1.25, -0.15)],
     hp=0.21, hp_a=0.03, hyaw=0.16, hroll=0.065, lean=0.27, chest=1.3, head_down=0.13,
     arm_f=1.15, arm_b=-1.35, el_f=2.05, el_b=0.75, arm_out=0.15, curl=1.1, sway=0.009,
@@ -2478,6 +2478,7 @@ def gkey(fr, ph, G=None, k=1.0, **mods):
     return P
 
 
+SLIDE_FOLD = 1.6
 JL_LAND, JL_H = 24, 0.52
 V_LAND, V_H = 22, 0.29
 V_PLANT = (10, 16)  # frames the palm is on the stone
@@ -2646,6 +2647,10 @@ def obstacle_clips():
     # dipped ~7 cm into it.)
     G5, x5 = loco(4 * OBST_CADENCE / FPS, RUN)
     Q = lerp_pose(G5, P, 0.5)
+    # (The lead leg swings through folded, as a runner's does: halfway between the stride's and the
+    # slide's straight leg, its heel brushed the stone, the ankle down to 0.5 cm, 8 cm into it.)
+    for nm, v in (("thigh.L", (-0.9, 0.0, 0.07)), ("shin.L", (SLIDE_FOLD, 0.0, 0.0)), ("foot.L", (0.1, 0.0, 0.0))):
+        Q[nm] = v
     z5 = 0.5 * (gait_root(4 * OBST_CADENCE / FPS, RUN) + solve_root(P))
     key(5, Q, z=max(z5, floor_z(Q)) + 0.07, x=0.5 * x5)  # (+5 cm: the hips smoothing pulls this key down toward the drop)
     # (Keyed every frame and never still: the stone chatters under him, the trunk rocks, the trailing hand

@@ -88,7 +88,8 @@ for nm, G, v in CASES:
             ang = np.linalg.norm(r)
             qlp.append(ref @ (Quaternion(r / ang, ang) if ang > 1e-9 else Quaternion()))
         res[j] = (J(qs), J(qlp))
-        if os.environ.get("DBG") == f"{nm}{v}:{j}":
+        if f"{nm}{v}:{j}" in os.environ.get("DBG", "").split(","):
+            print(f"  {nm} {v} {j}:")
             w = [math.degrees(qs[i - 1].rotation_difference(qs[i]).angle) for i in range(1, len(qs))]
             wl = [math.degrees(qlp[i - 1].rotation_difference(qlp[i]).angle) for i in range(1, len(qlp))]
             for i in range(min(len(w), int(2 / dph) + 1)):

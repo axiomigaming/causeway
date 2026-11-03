@@ -58,6 +58,10 @@ export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: n
 };
 /** The stride cadence the moves were authored at (one stride cycle per ~0.51 s of clip time). */
 const OBST_CADENCE = 1.945;
+/** The upper arm's twist about its length, at most (rad): the critic's range is 110°. */
+const ARM_TWIST_MAX = (100 * Math.PI) / 180;
+/** How fast the root's take of a clip's travel may change (m/s²): 4 cm/frame² at 30 fps. */
+const TRAVEL_ACCEL = 36;
 
 /** Clip seconds per real second for a move started at this cadence: it keeps step with the run. */
 export function obstacleRate(cadence: number): number {
@@ -390,6 +394,8 @@ export class Runner {
   /** Bind rotations of the spring-driven bones: the clips carry no tracks for them (the exporter drops constant
    * channels), so each frame starts from rest instead of accumulating. */
   private rest = new Map<THREE.Bone, THREE.Quaternion>();
+  /** The upper arms' bind rotations, for the twist limit. */
+  private armBind = new Map<THREE.Bone, THREE.Quaternion>();
   /** Every bone's rotation as the clips alone left it last frame (see update()). */
   private clipPose = new Map<THREE.Bone, THREE.Quaternion>();
   /**
@@ -402,6 +408,11 @@ export class Runner {
   private travelPrev: number | null = null;
   private travelAcc = 0;
   private travelOut = 0;
+  /** Travel the clip has made that the root has yet to take (m), and the root's take per second (m/s). */
+  private travelPool = 0;
+  private travelV = 0;
+  /** The root's speed last frame, the game's and the travel's (m/s). */
+  private rootV = 0;
   private chestPrev = new THREE.Vector3();
   private chestVel = new THREE.Vector3();
   private hipPrev = new THREE.Vector3();
@@ -503,6 +514,10 @@ export class Runner {
     this.body.traverse((o) => {
       if ((o as THREE.Bone).isBone) this.clipPose.set(o as THREE.Bone, o.quaternion.clone());
     });
+    for (const n of ['upper_armL', 'upper_armR']) {
+      const b = this.bones[n];
+      if (b) this.armBind.set(b, b.quaternion.clone());
+    }
     for (const n of ['pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH]) {
       const b = this.bones[n];
       if (b) this.rest.set(b, b.quaternion.clone());
@@ -594,14 +609,17 @@ export class Runner {
     return t;
   }
 
-  private extractTravel(): void {
+  private extractTravel(dt: number): void {
     const hips = this.bones.hips;
     // (Not win_slide: it turns as it travels, and its slide keeps the game's own braking with the pose's carry.)
     const on = this.rootMotion && hips !== undefined && this.current !== 'win_slide' && (this.current.startsWith('fall_') || this.current.startsWith('win'));
     if (!on || !hips) {
+      this.rootV = this.speed;
       if (this.travelPrev !== null || this.travelAcc !== 0) {
         this.travelPrev = null;
         this.travelAcc = 0;
+        this.travelOut += this.travelPool;
+        this.travelPool = this.travelV = 0;
         this.body.position.z = 0;
       }
       return;
@@ -613,9 +631,21 @@ export class Runner {
     const d = fwd - this.travelPrev;
     this.travelPrev = fwd;
     this.travelAcc += d;
-    this.travelOut += d;
-    // Held over the root: the body steps back by what the clip carried him on.
-    this.body.position.z = this.travelAcc;
+    // The root (the game's speed and this take together) changes speed by at most TRAVEL_ACCEL, and the
+    // body is held back by only what the root has taken, so the body moves exactly as the clip has him. The travel of a blended pose
+    // surges as the weights cross (a fall starting a frame after a slide's hand-back, a body slammed to a
+    // stop on a pillar): taken as it came, the root (the lens's and the shadow's anchor) jumped 11-16
+    // cm/frame². What is left over drains in a few frames.
+    this.travelPool += d;
+    if (dt > 0) {
+      const want = d / dt + (this.travelPool - d) * 6;
+      this.travelV = THREE.MathUtils.clamp(want, this.rootV - TRAVEL_ACCEL * dt - this.speed, this.rootV + TRAVEL_ACCEL * dt - this.speed);
+      this.rootV = this.speed + this.travelV;
+      const take = this.travelV * dt;
+      this.travelPool -= take;
+      this.travelOut += take;
+    }
+    this.body.position.z = this.travelAcc - this.travelPool;
   }
 
   private start(name: RunnerAnim, fade: number, offset: number) {
@@ -888,9 +918,10 @@ export class Runner {
     for (const [b, q] of this.clipPose) b.quaternion.copy(q);
     this.mixer.update(dt);
     for (const [b, q] of this.clipPose) q.copy(b.quaternion);
-    this.extractTravel();
+    this.extractTravel(dt);
     this.overlays(dt);
     this.airLayer(dt, rawDt);
+    this.limitArmTwist();
 
     // Footfalls.
     const k = Math.min(1, speed / 10);
@@ -1500,6 +1531,24 @@ export class Runner {
       const target = this.v2.copy(ankle).lerp(f.pos, w);
       f.reach = H.distanceTo(target);
       if (!this.solveLeg(f, target)) f.locked = false;
+    }
+  }
+
+  /**
+   * The upper arm's twist about its own length kept within ARM_TWIST_MAX of bind. The clips key it within
+   * 70°, but the air layer's reach and claw on an arm already raised overhead wound it on (fall_chasm:
+   * 111°, past the shoulder's range).
+   */
+  private limitArmTwist(): void {
+    for (const [b, bind] of this.armBind) {
+      const rel = this.qa.copy(bind).invert().multiply(b.quaternion);
+      // Swing-twist about Y: the twist is rel's projection onto the Y axis.
+      let tw = 2 * Math.atan2(rel.y, rel.w);
+      tw = Math.atan2(Math.sin(tw), Math.cos(tw));
+      if (Math.abs(tw) <= ARM_TWIST_MAX) continue;
+      const fix = this.q.setFromAxisAngle(this.v1.set(0, 1, 0), Math.sign(tw) * ARM_TWIST_MAX - tw);
+      // rel = swing · twist; the twist is applied last (about the bone's own Y), so trim it there.
+      b.quaternion.multiply(fix);
     }
   }
 
