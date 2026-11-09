@@ -62,6 +62,8 @@ export interface Layout {
   len: number;
   turn: number;
   dy: number;
+  /** How the climb `dy` is spread along the section (path.Segment.ramp; stairs only). */
+  ramp?: readonly (readonly [number, number])[];
   props: Placement[];
   tiles: Placement[];
   falls: Waterfall[];
@@ -578,6 +580,30 @@ function floorRun(b: Builder, z0: number, n: number, y = 0, broken = 0.12, medal
   }
 }
 
+/**
+ * The kit's flight (blender/kit_geo.py stairs()): 10 treads over its 4 m, 1.6 m from top to bottom, the
+ * top tread level with the floor it leaves. The route runs through the middle of every tread, at its
+ * top: going down, level over the first half tread, then one riser per tread to the lower floor; going
+ * up (the flight turned round), the first half tread climbs onto the lowest tread's top, then one riser
+ * per tread to the top. (World round 27: the climb was spread over the whole 12 m section, so on the
+ * flight the route ran up to 1.1 m under the treads — his legs sank into the steps — and the upper
+ * landing's floor stood a metre over him.)
+ */
+export const STAIR_RISE = 1.6;
+const STAIR_TREADS = 10;
+const STAIR_RUN = 4;
+const STAIR_HALF = STAIR_RUN / STAIR_TREADS / 2;
+export const STAIR_DOWN: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [STAIR_HALF, 0],
+  [STAIR_RUN + STAIR_HALF, 1],
+];
+export const STAIR_UP: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [STAIR_HALF, 1 / STAIR_TREADS],
+  [STAIR_RUN - STAIR_HALF, 1],
+];
+
 function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], opts: { gaps?: number; foundation?: boolean; y?: number } = {}) {
   // World round 26: `y`, the floor's height they line (the stairs' landings: at 0 the upper landing's
   // slabs stood 1.6 m over their footings, the lower landing's parapets 1.6 m over its floor).
@@ -754,7 +780,7 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
 }
 
 // ------------------------------------------------------------------ section builders
-type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number; ground?: GroundKind; features?: Layout['features'] };
+type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number; ramp?: Layout['ramp']; ground?: GroundKind; features?: Layout['features'] };
 
 /**
  * Round 11: a real 90° corner, Temple Run style. The path is one quarter circle of radius TURN_R (≈ 7 m)
@@ -1519,6 +1545,7 @@ const BUILDERS = {
   },
   stairsDown: {
     lengths: [12],
+    // (World round 27: the route climbs the flight where it stands — see STAIR_DOWN.)
     build: (b) => {
       b.tile('stairs_0', 0, 0, 0, 0);
       floorRun(b, -4, 2, -1.6);
@@ -1530,7 +1557,7 @@ const BUILDERS = {
       jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -0.7, 0.45);
       canopy(b, b.rng.pick([-1, 1]), -6, -1.6, 0.3);
       scenery(b, 12);
-      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: -1.6 };
+      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: -STAIR_RISE, ramp: STAIR_DOWN };
     },
   },
   stairsUp: {
@@ -1546,7 +1573,7 @@ const BUILDERS = {
       jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -0.7, 0.45); // (World round 26: banks follow the water, not the stairs: at 1.6 it hung 2.3 m over it.)
       canopy(b, b.rng.pick([-1, 1]), -6, 1.6, 0.3);
       scenery(b, 12);
-      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: 1.6 };
+      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: STAIR_RISE, ramp: STAIR_UP };
     },
   },
   cliff: {
@@ -2132,7 +2159,7 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin, r.ground);
   // (World round 27: the opening's hero feature; not in a tunnel, nor on a corner or the stairs.)
   const hero = b.opening && !['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown', 'start'].includes(type) ? openingHero(b, L, r.ground) : undefined;
-  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: hero ? { ...r.features, hero } : r.features };
+  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, ramp: r.ramp, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: hero ? { ...r.features, hero } : r.features };
 }
 
 export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];

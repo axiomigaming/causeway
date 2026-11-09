@@ -19,7 +19,7 @@ describe('route generation', () => {
     while (path.length < 8000) {
       const t = nextType(rng, prev, elevation, 0.5);
       const l = layouts.get(t)!;
-      path.push(l.len, (rng.chance(0.5) ? 1 : -1) * l.turn, l.dy);
+      path.push(l.len, (rng.chance(0.5) ? 1 : -1) * l.turn, l.dy, l.ramp);
       elevation += l.dy;
       expect(elevation).toBeGreaterThanOrEqual(-1.6 - 1e-9);
       expect(elevation).toBeLessThanOrEqual(0 + 1e-9);
@@ -187,7 +187,7 @@ describe('route generation', () => {
         // The lane's centre line, sampled in the section's frame.
         const path = new Path();
         path.reset({ pos: new THREE.Vector3(), yaw: 0 });
-        path.push(l.len, l.turn, l.dy);
+        path.push(l.len, l.turn, l.dy, l.ramp);
         const f = { pos: new THREE.Vector3(), yaw: 0 };
         const lane: THREE.Vector3[] = [];
         for (let s = 0; s <= l.len; s += 0.25) lane.push(path.sample(s, f).pos.clone());

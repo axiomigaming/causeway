@@ -854,7 +854,7 @@ export class Track {
     // Corners: turnL is built as a left turn and turnR is its mirror image.
     const mirror = type === 'turnR' ? true : type === 'turnL' || type === 'start' ? false : this.rng.chance(0.5);
     const turn = mirror ? -layout.turn : layout.turn;
-    const seg = this.path.push(layout.len, turn, layout.dy);
+    const seg = this.path.push(layout.len, turn, layout.dy, layout.ramp);
     this.elevation += layout.dy;
 
     const frame: Frame = { pos: seg.p0.clone(), yaw: seg.yaw0 };
