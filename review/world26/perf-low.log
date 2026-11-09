@@ -1,0 +1,2 @@
+{"url":"http://localhost:5195","q":"low","w":390,"h":844,"msMedian":10417,"msP90":13168,"callsMedian":66,"callsMax":80,"trisMedian":232298,"trisMax":283970,"textures":51,"geometries":898,"programs":66,"mult":44.09,"pixelRatio":1.5}
+{"url":"http://localhost:5196","q":"low","w":390,"h":844,"msMedian":12585,"msP90":21318,"callsMedian":63,"callsMax":88,"trisMedian":214146,"trisMax":246019,"textures":51,"geometries":879,"programs":69,"mult":44.09,"pixelRatio":1.5}

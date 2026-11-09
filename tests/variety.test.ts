@@ -4,6 +4,7 @@ import { groundY } from '../src/world/land';
 import { buildLayout, isLand, LAND_TYPES, SECTION_TYPES } from '../src/world/sections';
 import { GEN_SPEED, genIntensity, Track, WALLED as WALLED_TYPES } from '../src/world/track';
 import { boundsKit } from './kitBounds';
+import { collectLayouts, corridorFindings, findingLines, kitPoints } from './worldGeom';
 
 /**
  * World round 23 (owner: "non deve essere sempre acqua ai lati, ma anche tipo foresta"): over twelve
@@ -318,10 +319,26 @@ it('draws sections at the water level without a near/far split on the lightest t
         } else {
           lowered++;
           expect(isLand(sec.type)).toBe(false);
+          // (World round 26: a flight down as well, its far props raised to the water in the merge.)
+          expect(far, `${sec.type} a flight down`).toEqual([]);
         }
       }
     }
   }
   expect(level).toBeGreaterThan(20);
-  void lowered;
+  expect(lowered).toBeGreaterThan(0);
 }, 300000);
+
+/**
+ * World round 26 (owner: the runner passes through things): over 16 worlds' first 1.2 km, at desktop
+ * High's and phone Low's densities, nothing solid stands in a box 0.6 m wide and 2 m tall over the floor
+ * along the running line (the designed obstacles are not in the layouts; grass and ferns may brush his
+ * legs). Checked on the kit's real geometry (worldGeom.ts).
+ */
+it('keeps the running line clear: nothing solid in a 0.6 m by 2 m box along it', async () => {
+  const pts = await kitPoints();
+  const layouts = await collectLayouts();
+  expect(layouts.size).toBeGreaterThan(150);
+  const found = [...layouts].flatMap(([L, name]) => corridorFindings(L, pts, 0.3, 2.0).map((f) => ({ name, ...f })));
+  expect(findingLines(found)).toEqual([]);
+}, 600000);
