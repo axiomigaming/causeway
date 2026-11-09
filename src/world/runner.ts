@@ -201,12 +201,30 @@ function smoothstep(a: number, b: number, x: number): number {
  * warm bounce from below, scaled by the albedo so it shades rather than flattens) and a faint rim along
  * the contour. The world's lights are untouched.
  */
-export const RUNNER_FILL = 0.45;
+export const RUNNER_FILL = 0.3;
 export const RUNNER_RIM = 0.4;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
 export const RUNNER_COOL_RIM = 0.22;
 /** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
 const runnerWet = { value: 0 };
+/**
+ * The light the lift takes after: the world's hemisphere sky and ground colours, the sun's colour (the warm
+ * rim), and k, the lift's strength relative to the reference look (the world's hemi at 0.4). With fixed
+ * colours and strength he kept his glow through the storm, the mood's dimming and the shade, and read as
+ * pasted in. Set every frame by the game (setRunnerLight); the defaults are the reference look.
+ */
+const runnerLight = {
+  sky: { value: new THREE.Color(0.62, 0.68, 0.78) },
+  ground: { value: new THREE.Color(0.46, 0.36, 0.28) },
+  sun: { value: new THREE.Color(1.0, 0.86, 0.68) },
+  k: { value: 1 },
+};
+export function setRunnerLight(sky: THREE.Color, ground: THREE.Color, sun: THREE.Color, k: number): void {
+  runnerLight.sky.value.copy(sky);
+  runnerLight.ground.value.copy(ground);
+  runnerLight.sun.value.copy(sun);
+  runnerLight.k.value = Math.max(0, k);
+}
 function liftRunner(m: THREE.MeshStandardMaterial): void {
   for (const t of [m.map, m.normalMap, m.roughnessMap]) {
     if (!t) continue;
@@ -220,8 +238,12 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     sh.uniforms.uRunnerRim = { value: RUNNER_RIM };
     sh.uniforms.uRunnerCool = { value: RUNNER_COOL_RIM };
     sh.uniforms.uRunnerWet = runnerWet;
+    sh.uniforms.uRunnerSky = runnerLight.sky;
+    sh.uniforms.uRunnerGround = runnerLight.ground;
+    sh.uniforms.uRunnerSun = runnerLight.sun;
+    sh.uniforms.uRunnerK = runnerLight.k;
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;')
+      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
       // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, roughnessFactor * 0.45 + 0.08, uRunnerWet);')
       .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 - 0.2 * uRunnerWet;')
@@ -230,10 +252,10 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
         `#include <lights_fragment_end>
         {
           vec3 nW = inverseTransformDirection(normal, viewMatrix);
-          vec3 hemi = mix(vec3(0.46, 0.36, 0.28), vec3(0.62, 0.68, 0.78), nW.y * 0.5 + 0.5);
+          vec3 hemi = mix(uRunnerGround, uRunnerSky, nW.y * 0.5 + 0.5);
           float rim = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);
-          reflectedLight.indirectDiffuse += diffuseColor.rgb * (hemi * uRunnerFill + vec3(1.0, 0.86, 0.68) * rim * uRunnerRim);
-          reflectedLight.indirectSpecular += vec3(0.62, 0.74, 0.92) * pow(rim, 1.4) * uRunnerCool * (0.6 + 0.4 * saturate(nW.y + 0.5));
+          reflectedLight.indirectDiffuse += uRunnerK * diffuseColor.rgb * (hemi * uRunnerFill + uRunnerSun * rim * uRunnerRim);
+          reflectedLight.indirectSpecular += uRunnerK * uRunnerSky * 1.15 * pow(rim, 1.4) * uRunnerCool * (0.6 + 0.4 * saturate(nW.y + 0.5));
         }`,
       );
   };
@@ -1075,11 +1097,12 @@ export class Runner {
     const ahead = THREE.MathUtils.clamp(this.turnAhead, -1.2, 1.2);
     const omega = 0.5 * this.yawRate + 0.5 * (ahead / 0.45);
     const onFeet = this.current === 'run' || this.obst !== null || this.current === 'start';
-    const bankTo = onFeet ? THREE.MathUtils.clamp(-Math.atan((speed * omega) / 9.81) * 0.5, -0.4, 0.4) : this.roll;
+    // (+ about the body's Z tips him to his left: into a left turn. The old roll had it the other way out.)
+    const bankTo = onFeet ? THREE.MathUtils.clamp(Math.atan((speed * omega) / 9.81) * 0.5, -0.4, 0.4) : this.roll;
     this.bank += (bankTo - this.bank) * (1 - Math.exp(-dt * 7));
     this.body.rotation.z = this.bank;
-    // (A turn cut keys its own lead: the layer adds a little.)
-    const leadTo = onFeet ? THREE.MathUtils.clamp(ahead, -1, 1) * (this.current.startsWith('turn_cut') ? 0.35 : 1) : 0;
+    // (A turn cut keys its own lead.)
+    const leadTo = onFeet && !this.current.startsWith('turn_cut') ? THREE.MathUtils.clamp(ahead, -1, 1) : 0;
     this.turnLead += (leadTo - this.turnLead) * (1 - Math.exp(-dt * 8));
     const l = this.turnLead;
     if (Math.abs(l) < 1e-3) return;
@@ -1574,7 +1597,8 @@ export class Runner {
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
       const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
-      else if (!f.locked && h < 0.125 && !f.spent) {
+      // (A bend's bank lifts the inside foot a few cm off the floor as it plants: it is caught a little higher.)
+      else if (!f.locked && h < (bending || this.current.startsWith('turn_cut') ? 0.15 : 0.125) && !f.spent) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
