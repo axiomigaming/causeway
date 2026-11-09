@@ -122,6 +122,8 @@ export class CameraRig {
    * game sets it, eased). The look point pans toward it, so a bend is seen opening before he turns.
    */
   aheadLat = 0;
+  /** Run: the most the lens may sit out to his right (a wall on that side; set by the game, eased). */
+  latRoom = 3;
   /**
    * FX round 21, run mode: metres his hips stand above (+, a jump or a vault) or below (-, a slide)
    * their running height (the game sets it). The chase rises and dips with a share of it.
@@ -657,7 +659,7 @@ export class CameraRig {
               // (Not for the knee slide: it carries him metres across to his right, out of that frame;
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
               lerp(-dist, lerp(-2.0, -1.6, this.escapeWide) * (1 + 0.3 * narrow), k),
-              lerp(lat + drift, lerp(0.62, lerp(1.6, 1.25, narrow), this.escapeWide), k),
+              lerp(Math.min(lat + drift, Math.max(0.12, this.latRoom)), lerp(0.62, lerp(1.6, 1.25, narrow), this.escapeWide), k),
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.25 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
               lerp(lerp(0.6, 0.18, narrow) + drift * 0.4, lerp(0.2, -0.35, narrow * this.escapeWide), k) + 0.4 * wx * life + bend,

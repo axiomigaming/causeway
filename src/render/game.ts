@@ -471,6 +471,9 @@ export class Game {
   private moodSun = new THREE.Color();
   private moodFog = new THREE.Color();
   private moodLeaves = -1;
+  private gustPrev = 0;
+  private gustAt = -1e9;
+  private gustK = 0;
   /**
    * Round 11 crescendo, every frame: the look's light and air pushed toward a gathering storm (storm
    * look) or a deepening, ominous dusk (the others) by the run's drive (0..1), punctuated by gusts.
@@ -523,9 +526,20 @@ export class Game {
     this.rain.update(this.worldT, rain);
     causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (storm ? 0.15 + 0.85 * ss(0.3, 0.9) : d) + rain * 0.5);
     const bolts = (L.lightning ?? 0) * ss(0.55, 1) + (d > 0.8 ? (3 * (d - 0.8)) / 0.2 : 0);
-    const f = Math.max(this.lightning(this.worldT, bolts), storm ? g * 0.8 * ss(0.3, 0.8) : 0);
+    // Camera round 2: a tier-up's "flicker in the sky" is a flicker (the bolt's own 0.45 s double
+    // flash, from the moment the gust kicks), not the gust itself: the gust decays over ~2 s, and
+    // driving the hemi light ×3 with it washed the whole frame grey (a 25-level luma step at 2×).
+    if (g > this.gustPrev + 0.05) {
+      this.gustAt = this.worldT;
+      this.gustK = g;
+    }
+    this.gustPrev = g;
+    if (this.worldT < this.gustAt) this.gustAt = -1e9; // the world clock restarted
+    const gt = this.worldT - this.gustAt;
+    const flick = gt >= 0 && gt < 0.45 ? Math.max(Math.exp(-gt * 18), gt > 0.16 ? Math.exp(-(gt - 0.16) * 14) * 0.8 : 0) : 0;
+    const f = Math.max(this.lightning(this.worldT, bolts), storm ? flick * this.gustK * 0.8 * ss(0.3, 0.8) : 0);
     this.hemi.intensity = L.hemiI * (1 - 0.25 * d) * (1 + f * 3.5);
-    this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.25 * g);
+    this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.1 * g);
     // Life in the air: more falling leaves as the run builds and on every gust.
     const leaves = Math.min(1, d + g * 0.8);
     if (Math.abs(leaves - this.moodLeaves) > 0.02) {
@@ -3075,6 +3089,18 @@ export class Game {
       const ahead = this.track.path.sample(this.s + Math.max(8, Math.min(16, this.speed * 1.1)), this.cframeAhead);
       const lat = (ahead.pos.x - rp.x) * Math.cos(y0) - (ahead.pos.z - rp.z) * Math.sin(y0);
       this.rig.aheadLat += (lat - this.rig.aheadLat) * (1 - Math.exp(-rawDt * 4));
+      // Camera round 2: room for the shoulder offset. Between walls the lens out at his right
+      // shoulder rode 0.8-1.0 m off the right-hand wall, which filled the frame's edge as a huge soft
+      // slab (and every stele and pier on that side swept past the glass). Keep it ≥ 1.25 m off a
+      // wall on that side: the offset gives way toward the middle of the way, eased (no step at a
+      // section's joint).
+      const here = this.track.path.sample(this.s, this.cframe);
+      const rl = (rp.x - here.pos.x) * Math.cos(here.yaw) - (rp.z - here.pos.z) * Math.sin(here.yaw);
+      const sec = this.track.sectionAt(this.s - 2.5);
+      const w = sec?.layout.walls ?? 'low';
+      const wallR = w === 'low' || w === 'tall' || (w === 'cliff' && !sec?.mirror);
+      const room = wallR && this.stage !== 'cashout' ? Math.max(0, PATH_HALF - 1.25 - rl) : 3;
+      this.rig.latRoom += (room - this.rig.latRoom) * (1 - Math.exp(-rawDt * 2.5));
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips && this.stage === 'run') {
         this.runner.body.updateWorldMatrix(true, true);
