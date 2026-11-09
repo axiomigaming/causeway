@@ -1304,7 +1304,9 @@ export class CameraRig {
     const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? Math.min(1, this.escapeIn * 4) : 0;
     // (And on a phone a fall keeps a little more too: the reworked clips throw a hand out faster than
     // the jerk-limited pan follows — the pillar's recoil reached the edge for three frames.)
-    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.06 : 0;
+    // (Camera round 2: 0.09 — at 0.06 the pillar's recoil still touched the edge on some takes: the
+    // impact roll kick's random sign moves it by a hair.)
+    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.09 : 0;
     const mx = 1 - 0.09 - fall - esc * (this.camera.aspect < 1 ? (this.mode === 'run' ? 0.14 : 0.1) : 0.06); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
