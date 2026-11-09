@@ -91,6 +91,12 @@ sup { font-size: 0.7em; line-height: 0; }
 .scrim-top { position: fixed; inset: 0 0 auto 0; height: 160px; background: linear-gradient(to bottom, rgba(8, 6, 4, 0.62), rgba(8, 6, 4, 0.28) 55%, rgba(8, 6, 4, 0)); pointer-events: none; }
 .scrim-bottom { position: fixed; inset: auto 0 0 0; height: 280px; background: linear-gradient(to top, rgba(8, 6, 4, 0.56), rgba(8, 6, 4, 0)); pointer-events: none; transition: opacity 0.8s; }
 .scrim-left { position: fixed; inset: 0 auto 0 0; width: min(760px, 70vw); background: linear-gradient(to right, rgba(8, 6, 4, 0.78), rgba(8, 6, 4, 0.36) 60%, rgba(8, 6, 4, 0)); pointer-events: none; transition: opacity 1s var(--ease); }
+/* title → setup: a dip through dark over the copy's exit and the lens's first move (App.tsx) */
+.dip { position: fixed; inset: 0; background: #070504; pointer-events: none; opacity: 0; }
+.dip.in { animation: dipIn 0.48s var(--ease) both; }
+@keyframes dipIn { from { opacity: 0; } to { opacity: 0.86; } }
+.dip.out { animation: dipOut 0.85s var(--ease) both; }
+@keyframes dipOut { 0%, 18% { opacity: 0.86; } 100% { opacity: 0; } }
 
 /* ================================================================== surfaces */
 .glass, .sheet, .toast, .result {
