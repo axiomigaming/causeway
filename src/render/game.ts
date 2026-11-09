@@ -1366,8 +1366,9 @@ export class Game {
    * just slid under filled the rockfall's held shot, only his legs under it): in a fall's settled
    * shot, while big broken pieces or a set piece still standing lie across the sight line from his
    * chest or hips to the lens, the lens cranes up over them (eased, up to 1.3 m), or under a lintel
-   * (down 0.7 m). Never swings round them or pulls in past them: given to the occlusion swing, the
-   * orbit swung back and forth through him every three seconds (straight from side to side).
+   * (down 0.7 m). Never swings
+   * round them or pulls in past them: given to the occlusion swing, the orbit swung back and forth
+   * through him every three seconds (straight from side to side).
    */
   private craneK = 0;
   private debrisCrane(dt: number): void {
@@ -3349,7 +3350,7 @@ export class Game {
     if (this.rig.gapLip && this.splashAt && this.worldT >= this.rippleAt) {
       this.rippleAt = this.worldT + 1.4;
       this.water.splash(this.splashAt.x, this.splashAt.z, 0.35);
-      this.splashBubbles(this.splashAt, 0.9, 0.35);
+      this.rippleBubbles(this.splashAt);
     }
     this.rig.gapSplash = this.rig.gapLip ? this.splashAt : null;
     this.debrisCrane(rawDt);
@@ -3826,6 +3827,25 @@ export class Game {
       e.vel.set(0, 0.15, 0);
       e.life = 0.35 + Math.random() * 0.5;
       e.size = 0.035 + Math.random() * 0.06;
+      this.particles.emit(e);
+    }
+  }
+
+  /**
+   * The held chasm shot's bubbles where he went under, on their own seeded sequence: drawn from
+   * Math.random they moved every later random draw of the session (QA's staged falls changed).
+   */
+  private rippleSeed = 1;
+  private rippleBubbles(p: THREE.Vector3): void {
+    const rnd = () => ((this.rippleSeed = (this.rippleSeed * 16807) % 2147483647) - 1) / 2147483646;
+    const n = Math.round(7 * 0.35 * this.particles.budget);
+    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(0, 0.15, 0), life: 1, size: 0.05, grow: 0.6, color: SPRAY, alpha: 0.7, drag: 2, gravity: 0 };
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = Math.sqrt(rnd()) * 0.9;
+      e.pos.set(p.x + Math.cos(a) * r, WATER_Y + 0.03, p.z + Math.sin(a) * r);
+      e.life = 0.35 + rnd() * 0.5;
+      e.size = 0.035 + rnd() * 0.06;
       this.particles.emit(e);
     }
   }
