@@ -450,10 +450,11 @@ def pillar_cap(name, seed, w=1.3):
 
 
 # ------------------------------------------------------------------ round 10: bold glyphs, piers, the door
-# (World round 26: the stone's own warm limestone, the ground a shade deeper — a pale cream relief on
-# near-black read as white emoji tiles pasted on the masonry, the most toy-like thing on screen.)
-GLYPH_RAISED = hexcol("#caa47c")
-GLYPH_GROUND = hexcol("#7c6449")
+# (World round 26: the stone's own warm limestone, the ground only a shade deeper — the carving reads by
+# its relief and the bake's occlusion in the cuts; a pale cream relief on near-black read as white emoji
+# tiles pasted on the masonry, the most toy-like thing on screen.)
+GLYPH_RAISED = hexcol("#c49f78")
+GLYPH_GROUND = hexcol("#9a7f60")
 
 
 def cartouche(bm, rng, x, y, z, s, motif=None):
