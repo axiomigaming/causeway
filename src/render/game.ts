@@ -2654,10 +2654,10 @@ export class Game {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
-        // (Camera round 2: 0.45 m under the beam, and the view leans down further while under it — at
+        // (Camera round 2: 0.45 m under the beam (0.55 on a tall screen, its lens is wider), and the view leans down further while under it — at
         // 0.4 its dark, untextured underside filled the top 40 % of a phone frame for half a second;
         // ducking to 0.6 put the lens among the floor tiles instead.)
-        depth = Math.max(depth, cam.position.y - (y - 0.45));
+        depth = Math.max(depth, cam.position.y - (y - (cam.aspect < 1 ? 0.55 : 0.45)));
       }
     }
     if (near) this.duckDepth = depth;
@@ -2682,7 +2682,7 @@ export class Game {
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
-    look.y -= drop * (0.35 + 0.6 * k);
+    look.y -= drop * (0.35 + 1.0 * k);
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
