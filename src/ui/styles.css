@@ -414,6 +414,7 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 /* get set: not yet live */
 .cash.lead { --fill: rgba(246, 239, 228, 0.22); color: var(--text); cursor: default; }
 .cash.lead .label small { color: var(--label); }
+.cash.lead .label small b { color: var(--text-2); } /* (the live plate's dark ink read as a hole in the lead's glass) */
 .cash.lead .amt { color: var(--text-2); }
 .cash.pressed { --sc: 0.98; }
 /* held at the outcome: secured in amber, or fallen to a muted grey */
