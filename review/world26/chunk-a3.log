@@ -1,0 +1,53 @@
+servers 5195:200 5196:200
+low w3 STATE {"t":3,"s":17.1,"sec":"corridor","calls":52,"tris":201379,"mult":1.21,"look":"afternoon","style":"lagoon"}
+low w3 STATE {"t":25,"s":180.4,"sec":"approach","calls":81,"tris":217047,"mult":4.83,"look":"afternoon","style":"lagoon"}
+low w3 STATE {"t":55,"s":509,"sec":"arcade","calls":71,"tris":185697,"mult":31.98,"look":"afternoon","style":"lagoon"}
+low w7 STATE {"t":3,"s":17.1,"sec":"bridge","calls":63,"tris":216327,"mult":1.21,"look":"morning","style":"rainforest"}
+low w7 STATE {"t":25,"s":178.1,"sec":"gate","calls":69,"tris":246795,"mult":4.83,"look":"morning","style":"rainforest"}
+low w7 STATE {"t":55,"s":506,"sec":"ravine","calls":78,"tris":237149,"mult":31.98,"look":"morning","style":"rainforest"}
+low w11 STATE {"t":3,"s":17.1,"sec":"sunken","calls":67,"tris":261038,"mult":1.21,"look":"storm","style":"lagoon"}
+low w11 STATE {"t":25,"s":182.8,"sec":"overgrown","calls":59,"tris":220374,"mult":4.83,"look":"storm","style":"lagoon"}
+low w11 STATE {"t":55,"s":505.1,"sec":"approach","calls":58,"tris":150962,"mult":31.98,"look":"storm","style":"lagoon"}
+low w19 STATE {"t":3,"s":17.1,"sec":"avenue","calls":57,"tris":238171,"mult":1.21,"look":"golden","style":"dry"}
+low w19 STATE {"t":25,"s":182.1,"sec":"ravine","calls":61,"tris":231836,"mult":4.83,"look":"golden","style":"dry"}
+low w19 STATE {"t":55,"s":510.2,"sec":"plaza","calls":80,"tris":232970,"mult":31.98,"look":"golden","style":"dry"}
+low w23 STATE {"t":3,"s":17.1,"sec":"sunken","calls":71,"tris":238268,"mult":1.21,"look":"afternoon","style":"rainforest"}
+low w23 STATE {"t":25,"s":178.4,"sec":"forestWall","calls":55,"tris":184909,"mult":4.83,"look":"afternoon","style":"rainforest"}
+low w23 STATE {"t":55,"s":502.7,"sec":"bridge","calls":75,"tris":212506,"mult":31.98,"look":"afternoon","style":"rainforest"}
+low w31 STATE {"t":3,"s":17.1,"sec":"bridge","calls":68,"tris":247420,"mult":1.21,"look":"morning","style":"dry"}
+low w31 STATE {"t":25,"s":180.8,"sec":"approach","calls":81,"tris":265130,"mult":4.83,"look":"morning","style":"dry"}
+low w31 STATE {"t":55,"s":504.1,"sec":"gorge","calls":69,"tris":217374,"mult":31.98,"look":"morning","style":"dry"}
+low w42 STATE {"t":3,"s":17.1,"sec":"corridor","calls":54,"tris":202103,"mult":1.21,"look":"morning","style":"jade"}
+low w42 STATE {"t":25,"s":178.6,"sec":"forest","calls":61,"tris":226591,"mult":4.83,"look":"morning","style":"jade"}
+low w42 STATE {"t":55,"s":501.1,"sec":"overgrown","calls":69,"tris":233510,"mult":31.98,"look":"morning","style":"jade"}
+low w58 STATE {"t":3,"s":17.1,"sec":"forest","calls":59,"tris":210530,"mult":1.21,"look":"storm","style":"lagoon"}
+low w58 STATE {"t":25,"s":183.7,"sec":"tall","calls":69,"tris":241936,"mult":4.83,"look":"storm","style":"lagoon"}
+low w58 STATE {"t":55,"s":506.7,"sec":"cutting","calls":61,"tris":225729,"mult":31.98,"look":"storm","style":"lagoon"}
+low w64 STATE {"t":3,"s":17.1,"sec":"ruins","calls":53,"tris":213224,"mult":1.21,"look":"storm","style":"rainforest"}
+low w64 STATE {"t":25,"s":180.3,"sec":"cutting","calls":68,"tris":208977,"mult":4.83,"look":"storm","style":"rainforest"}
+low w64 STATE {"t":55,"s":507.2,"sec":"tall","calls":68,"tris":215297,"mult":31.98,"look":"storm","style":"rainforest"}
+low w77 STATE {"t":3,"s":17.1,"sec":"forest","calls":55,"tris":215295,"mult":1.21,"look":"afternoon","style":"jade"}
+low w77 STATE {"t":25,"s":180.7,"sec":"corridor","calls":71,"tris":242488,"mult":4.83,"look":"afternoon","style":"jade"}
+low w77 STATE {"t":55,"s":505.3,"sec":"cutting","calls":68,"tris":227026,"mult":31.98,"look":"afternoon","style":"jade"}
+low w83 STATE {"t":3,"s":17.1,"sec":"boardwalk","calls":62,"tris":232598,"mult":1.21,"look":"storm","style":"jade"}
+low w83 STATE {"t":25,"s":181.5,"sec":"approach","calls":74,"tris":238110,"mult":4.83,"look":"storm","style":"jade"}
+low w83 STATE {"t":55,"s":502.7,"sec":"gorge","calls":63,"tris":261642,"mult":31.98,"look":"storm","style":"jade"}
+low w97 STATE {"t":3,"s":17.1,"sec":"statues","calls":56,"tris":234613,"mult":1.21,"look":"golden","style":"rainforest"}
+low w97 STATE {"t":25,"s":182.4,"sec":"approach","calls":78,"tris":223006,"mult":4.83,"look":"golden","style":"rainforest"}
+low w97 STATE {"t":55,"s":502.2,"sec":"stepping","calls":66,"tris":221923,"mult":31.98,"look":"golden","style":"rainforest"}
+low w105 STATE {"t":3,"s":17.1,"sec":"gate","calls":61,"tris":195401,"mult":1.21,"look":"morning","style":"dry"}
+low w105 STATE {"t":25,"s":182,"sec":"approach","calls":75,"tris":218221,"mult":4.83,"look":"morning","style":"dry"}
+low w105 STATE {"t":55,"s":499.8,"sec":"forest","calls":66,"tris":189246,"mult":31.98,"look":"morning","style":"dry"}
+low w118 STATE {"t":3,"s":17.1,"sec":"stepping","calls":57,"tris":198377,"mult":1.21,"look":"golden","style":"jade"}
+low w118 STATE {"t":25,"s":181.3,"sec":"approach","calls":60,"tris":168400,"mult":4.83,"look":"golden","style":"jade"}
+low w118 STATE {"t":55,"s":510,"sec":"corridor","calls":85,"tris":249699,"mult":31.98,"look":"golden","style":"jade"}
+low w126 STATE {"t":3,"s":17.1,"sec":"sunken","calls":65,"tris":231323,"mult":1.21,"look":"morning","style":"jade"}
+low w126 STATE {"t":25,"s":184.5,"sec":"ravine","calls":60,"tris":241684,"mult":4.83,"look":"morning","style":"jade"}
+low w126 STATE {"t":55,"s":507.7,"sec":"overgrown","calls":56,"tris":243693,"mult":31.98,"look":"morning","style":"jade"}
+low w141 STATE {"t":3,"s":17.1,"sec":"sunken","calls":63,"tris":228689,"mult":1.21,"look":"storm","style":"dry"}
+low w141 STATE {"t":25,"s":177.6,"sec":"approach","calls":75,"tris":228713,"mult":4.83,"look":"storm","style":"dry"}
+low w141 STATE {"t":55,"s":501,"sec":"forestWall","calls":64,"tris":182718,"mult":31.98,"look":"storm","style":"dry"}
+ALLDONE
+SHEETPART low-a
+SERVEDONE
+CHUNKDONE

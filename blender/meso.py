@@ -450,38 +450,48 @@ def pillar_cap(name, seed, w=1.3):
 
 
 # ------------------------------------------------------------------ round 10: bold glyphs, piers, the door
-GLYPH_RAISED = hexcol("#d6c9a8")
-GLYPH_GROUND = hexcol("#5e5442")
+# World round 26 (the owner: the carvings read as white emoji tiles — a smiley, a plus, faces): carved
+# into the stone, not pasted on it. A block in the stone's own warm limestone, its face cut by channels
+# that draw the sign — the channels sunk 6 cm to a floor a third darker, so the sign reads dark, by the
+# cut and the bake's occlusion in it, never as a pale fill — in abstract Aztec motifs (no faces).
+GLYPH_RAISED = hexcol("#c49f78")
+GLYPH_GROUND = hexcol("#7d6650")
+# 7 x 7 channel patterns (1 = cut), top row first: a stepped fret (xicalcoliuhqui), concentric squares,
+# a quincunx, a stepped pyramid, an interlocking meander, a stepped diamond.
+GLYPH_CUTS = [
+    ("1111111", "1000000", "1011110", "1010010", "1010110", "1010000", "1011111"),
+    ("1111111", "1000001", "1011101", "1010101", "1011101", "1000001", "1111111"),
+    ("1111111", "1000001", "1010101", "1001001", "1010101", "1000001", "1111111"),
+    ("0001000", "0010100", "0100010", "1001001", "0010100", "0100010", "1111111"),
+    ("1110000", "0010000", "0011110", "0000010", "0111110", "0100000", "0111111"),
+    ("1111111", "1001001", "1010101", "1100011", "1010101", "1001001", "1111111"),
+]
 
 
 def cartouche(bm, rng, x, y, z, s, motif=None):
-    """One bold glyph block, s × s, facing −Y with its front at y: a dark sunk ground, a raised rounded
-    frame and a simple, chunky sign (legible at phone size, unlike fine strokes). Motifs: 0 a face
-    (ahau: two eyes and a mouth), 1 a kan cross, 2 a bar-and-dot numeral, 3 a stepped spiral, 4 three bars."""
-    motif = rng.randint(0, 4) if motif is None else motif
-    box(bm, rng, (s, 0.12, s), (x, y + 0.06, z), GLYPH_GROUND, bevel=0.0, chip=0.0)
-    t = s * 0.13
-    for dx, dz, w, h in ((0, s / 2 - t / 2, s, t), (0, -s / 2 + t / 2, s, t), (-s / 2 + t / 2, 0, t, s - 2 * t), (s / 2 - t / 2, 0, t, s - 2 * t)):
-        box(bm, rng, (w, 0.16, h), (x + dx, y - 0.02, z + dz), GLYPH_RAISED, bevel=0.0, chip=0.0)
-    u = s * 0.12
-
-    def R(dx, dz, w, h):
-        box(bm, rng, (w * s, 0.16, h * s), (x + dx * s, y - 0.02, z + dz * s), GLYPH_RAISED, bevel=0.0, chip=0.0)
-
-    if motif == 0:
-        R(-0.17, 0.12, 0.18, 0.18); R(0.17, 0.12, 0.18, 0.18); R(0, -0.18, 0.42, 0.1); R(0, -0.06, 0.1, 0.12)
-    elif motif == 1:
-        R(0, 0, 0.5, 0.14); R(0, 0, 0.14, 0.5)
-    elif motif == 2:
-        R(0, -0.16, 0.56, 0.1); R(0, -0.02, 0.56, 0.1)
-        for k in (-1, 0, 1):
-            R(k * 0.18, 0.18, 0.1, 0.1)
-    elif motif == 3:
-        R(-0.12, 0.14, 0.32, 0.1); R(0.03, 0.0, 0.1, 0.26); R(0.12, -0.14, 0.32, 0.1); R(-0.2, -0.04, 0.1, 0.26)
-    else:
-        for k in (-1, 0, 1):
-            R(k * 0.17, 0, 0.1, 0.5)
-    del u
+    """One carved glyph block, s × s, facing −Y with its front at y − 0.1: the block's face in the stone's
+    tone, rows of it standing proud between channels cut 6 cm deep to a darker floor; the channels draw
+    one of GLYPH_CUTS. (Bold enough to read at phone size.)"""
+    motif = rng.randrange(len(GLYPH_CUTS)) if motif is None else motif
+    stone = jitter_color(GLYPH_RAISED, rng, 0.06, 0.03)
+    floor = (stone[0] * 0.62, stone[1] * 0.6, stone[2] * 0.58, 1.0)
+    # The channels' floor: the whole block, 6 cm behind its face.
+    box(bm, rng, (s, 0.12, s), (x, y + 0.02, z), floor, bevel=0.0, chip=0.0)
+    n = 7
+    c = s / n
+    for r, row in enumerate(GLYPH_CUTS[motif]):
+        zz = z + s / 2 - c * (r + 0.5)
+        k = 0
+        while k < n:
+            if row[k] == "1":
+                k += 1
+                continue
+            k0 = k
+            while k < n and row[k] == "0":
+                k += 1
+            w = (k - k0) * c
+            xx = x - s / 2 + c * k0 + w / 2
+            box(bm, rng, (w, 0.1, c), (xx, y - 0.05, zz), stone, bevel=0.0, chip=0.0)
 
 
 def glyph_grid(bm, rng, cx, y, cz, cols, rows, s, gap=0.08):

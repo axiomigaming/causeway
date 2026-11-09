@@ -267,12 +267,16 @@ def rope_rail(name, seed, length=4.0, width=3.2, h=1.05):
     for sd in (-1, 1):
         x = sd * (width / 2 + 0.12)
         for yp in (0.15, length - 0.15):
-            add_block(bm, (0.16, 0.16, h + 0.4), (x, yp, (h + 0.4) / 2 - 0.35), (rng.uniform(-0.06, 0.06), rng.uniform(-0.05, 0.05), 0),
+            # (World round 26: down past the deck's fascia onto the trestle's cap beam, over its pile —
+            # they stopped 0.35 m under the deck, standing on nothing.)
+            add_block(bm, (0.18, 0.18, h + 0.68), (x, yp, (h + 0.05 - 0.63) / 2), (rng.uniform(-0.03, 0.03), rng.uniform(-0.025, 0.025), 0),
                       bevel=0.02, rng=rng, color=jitter_color(WOOD[1], rng), jit=0.01, segments=1)
         for zr, sag in ((h, 0.2), (h * 0.55, 0.12)):
             n = 10
             pts = [Vector((x, 0.15 + (length - 0.3) * i / n, zr - sag * 4 * (i / n) * (1 - i / n))) for i in range(n + 1)]
-            _merge(bm, _tube(pts, [0.03] * len(pts)), hexcol("#a08458"))
+            # (World round 26: a hand's thickness of pale manila, six-sided: thin and five-sided, its few
+            # texels baked to a near-black cable.)
+            _merge(bm, _tube(pts, [0.036] * len(pts), ring_n=6), hexcol("#b89a68"))
     return finish_obj(name, bm, 60)
 
 
@@ -295,8 +299,14 @@ def roots(name, seed, width=3.0, n=7, length=(1.5, 3.5)):
                 p = p + Vector((rng.uniform(-0.1, 0.1), rng.uniform(-0.03, 0.05), -ln / segs))
             pts.append(p.copy())
             rad.append(r0 * (1 - 0.8 * s) + 0.008)
-        _merge(bm, _tube(pts, rad), (0.3, 0.25, 0.2, 1))
-    return finish_obj(name, bm, 70)
+        # (World round 26: a weathered grey-brown, not near-black — thin tubes bake dark in their own
+        # occlusion, and at 0.3 the hanging roots read as black cables against the stone.)
+        _merge(bm, _tube(pts, rad), (0.62, 0.53, 0.42, 1))
+    ob = finish_obj(name, bm, 70)
+    # (Read by materials_scan.bark: these thin roots take a paler, weathered tint.)
+    at = ob.data.attributes.new("palew", "FLOAT", "POINT")
+    at.data.foreach_set("value", [1.0] * len(ob.data.vertices))
+    return ob
 
 
 def stepping_stones(name, seed, n=6, spread=3.0):

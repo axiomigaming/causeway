@@ -981,6 +981,9 @@ export class Game {
       );
       // (The ledge's undercroft: a fill, the stone's own colour lifted; see LEDGE_FILL.)
       if (fill) shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * ${LEDGE_FILL.toFixed(3)};`);
+      // World round 26: the undercroft is dry stone, though it lies under the waterline the wet-stone
+      // patch reads its wetness from: its slabs shone like glazed plastic.
+      if (fill) shader.fragmentShader = shader.fragmentShader.replace('float wetK = max(wetAt(vWetPos),', 'float wetK = 0.0 * max(wetAt(vWetPos),');
     };
     m.customProgramCacheKey = () => `${base.customProgramCacheKey?.() ?? ''}|pier${fill ? '|fill' : ''}`;
     this.pierMats.set(key, m);
@@ -3542,22 +3545,33 @@ export class Game {
     }
     // Side walls: courses of masonry from the bed up to the way above.
     const wy = (depth + 0.4) / 3.0;
+    // World round 26 (the owner: the pit's walls a grid of identical jutting blocks): each stretch a
+    // different masonry piece — the mid walls, and the tall walls squeezed to the pit's depth (their
+    // courses run thinner) — at its own height, a little off square, so no course lines up with the
+    // next stretch's.
+    const WALLS = ['wall_mid_0', 'wall_mid_1', 'wall_tall_0', 'wall_tall_1'];
     for (const sd of [-1, 1]) {
       const n = Math.ceil(len / 4.5);
       for (let k = 0; k < n; k++) {
-        const piece = rng.pick(['wall_mid_0', 'wall_mid_1']);
+        const piece = rng.pick(WALLS);
         const geo = this.kit.geo.get(piece);
         if (!geo) continue;
         if (!geo.boundingBox) geo.computeBoundingBox();
         const b = geo.boundingBox!;
         const th = b.max.x - b.min.x;
-        put(piece, sd * (W / 2 + th / 2), -0.3 - b.min.y * wy, -len / 2 + ((k + 0.5) * len) / n, sd > 0 ? 0 : Math.PI, 1, wy, len / (n * (b.max.z - b.min.z)), 'stone');
+        const ky = ((depth + 0.4) / (b.max.y - b.min.y)) * rng.range(0.96, 1.12);
+        put(piece, sd * (W / 2 + th / 2), -0.3 - b.min.y * ky, -len / 2 + ((k + 0.5) * len) / n, (sd > 0 ? 0 : Math.PI) + rng.range(-0.035, 0.035), 1, ky, len / (n * (b.max.z - b.min.z)), 'stone');
         // Round 20 (coordinator, ledge0 review): a second course just behind (into the first, inside
         // the dry footprint), staggered half a piece and turned about, so the first one's ruined
         // gaps and broken top show more masonry, not the flat backing.
-        const p2 = piece === 'wall_mid_0' ? 'wall_mid_1' : 'wall_mid_0';
+        const p2 = rng.pick(WALLS.filter((w) => w !== piece));
+        const g2 = this.kit.geo.get(p2);
+        if (!g2) continue;
+        if (!g2.boundingBox) g2.computeBoundingBox();
+        const b2 = g2.boundingBox!;
+        const ky2 = ((depth + 0.4) / (b2.max.y - b2.min.y)) * 1.08;
         const z2 = Math.min(len / 2 - 0.5, -len / 2 + ((k + 1) * len) / n);
-        put(p2, sd * (W / 2 + th / 2 + 0.35), -0.3 - b.min.y * wy * 1.08, z2, sd > 0 ? Math.PI : 0, 1, wy * 1.08, len / (n * (b.max.z - b.min.z)), 'stone');
+        put(p2, sd * (W / 2 + th / 2 + 0.35), -0.3 - b2.min.y * ky2, z2, sd > 0 ? Math.PI : 0, 1, ky2, len / (n * (b2.max.z - b2.min.z)), 'stone');
       }
     }
     // The two ends, across.
@@ -3592,13 +3606,8 @@ export class Game {
       // (No ferns: down here, out of the sun, their fronds rendered as black spiky clumps.)
       put(rng.pick(['debris_0', 'debris_0', 'rubble_0']), sd * (W / 2 - 0.55), 0.05, z + rng.range(-1, 1), rng.range(0, 6.28), 0.5, 0.5, 0.5, 'stone');
     }
-    // Roots and vines hanging in from the top edge of the side walls.
-    for (let k = 0; k < 2; k++) {
-      const sd = k % 2 ? 1 : -1;
-      // (Roots only: the vines' small leaves read as confetti scattered over the masonry. And only
-      // at the far end, short: near the lens they hung across the frame as big black strands.)
-      put('roots_0', sd * (W / 2 - 0.1), depth + 0.05, rng.range(-len / 2 + 0.8, -len / 4), Math.PI / 2, 0.45, rng.range(0.4, 0.6), 0.45);
-    }
+    // (World round 26: no roots hanging in from the top edge — thin and dark down here, out of the
+    // sun, they read as black cables strung over the masonry.)
     const c = h.pos.clone().addScaledVector(h.fwd, len / 2 - 1.2);
     g.position.copy(c).setY(y);
     g.rotation.y = h.yaw;

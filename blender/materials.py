@@ -277,7 +277,9 @@ def rock(name="rock"):
     vec, _ = _coords(nt, 0.6)
     big = _noise(nt, vec, 1.0, 8, 0.6, 0.4)
     # (Round 24: less saturated — beside the tan paving the boulders read as bright orange plastic.)
-    col = ramp(nt, big.outputs[0], [(0.25, hexcol("#66412e")), (0.5, hexcol("#a0653f")), (0.75, hexcol("#bf9264"))])
+    # (World round 26: the boulders and the rockfall's rocks read as saturated rust-orange sponge: the
+    # weathered grey-tan of the causeway's own sandstone, warm in the beds, the scan carrying the detail.)
+    col = ramp(nt, big.outputs[0], [(0.25, hexcol("#574a3d")), (0.5, hexcol("#8a7660")), (0.75, hexcol("#b09c80"))])
     wave = N(nt, "ShaderNodeTexWave", Scale=1.2, Distortion=9, Detail=5)
     wave.bands_direction = "Z"
     L(nt, vec, wave.inputs["Vector"])
@@ -343,8 +345,18 @@ def wood(name="wood"):
     # Sun-bleached tops: warm honey-tan in the grain, never grey (round 5: the boardwalk read grey-green).
     bleach = ramp(nt, grain.outputs[0], [(0.25, hexcol("#b88f62")), (0.75, hexcol("#e0c49a"))])
     col = mix(nt, math_node(nt, "MULTIPLY", _up_mask(nt, 0.5, 0.9), 0.62), col, bleach, "MIX")
+    # World round 26: the trestle's piles and braces wet where they meet the water (object z ≈ −2.2, the
+    # deck at 0): dark, soaked timber a ragged band above the surface, slick and green with algae at it.
+    zpos = N(nt, "ShaderNodeSeparateXYZ")
+    L(nt, tc.outputs["Object"], zpos.inputs[0])
+    wetn = _noise(nt, tc.outputs["Object"], 4, 3)
+    wz = math_node(nt, "ADD", zpos.outputs[2], math_node(nt, "MULTIPLY", wetn.outputs[0], 0.35))
+    wet = maprange(nt, wz, -1.0, -1.85, 0.0, 1.0)
+    algae = maprange(nt, wz, -1.7, -2.2, 0.0, 1.0)
+    col = mix(nt, math_node(nt, "MULTIPLY", wet, 0.9), col, hexcol("#3e3024"), "MULTIPLY")
+    col = mix(nt, math_node(nt, "MULTIPLY", algae, 0.75), col, hexcol("#2a3a1e"), "MIX")
     L(nt, col, bsdf.inputs["Base Color"])
-    bsdf.inputs["Roughness"].default_value = 0.8
+    L(nt, maprange(nt, wet, 0.0, 1.0, 0.8, 0.42), bsdf.inputs["Roughness"])
     L(nt, _bump(nt, ght.outputs[0], 0.9, 0.025), bsdf.inputs["Normal"])
     return m
 

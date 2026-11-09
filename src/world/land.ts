@@ -178,15 +178,25 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     float steep = 1.0 - smoothstep(0.55, 0.8, vGN.y);
     if (steep > 0.0) {
       vec2 rp = abs(vGN.x) > abs(vGN.z) ? vGW.zy : vGW.xy;
-      // Beds of uneven thickness that pinch and wander, soft-edged and low in contrast.
-      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      // Beds of uneven thickness that pinch and wander, soft-edged and low in contrast. (World round 26:
+      // their spacing itself uneven, thin and thick beds — evenly spaced, they read as layered clay.)
+      float bed = vGW.y * 1.3 + gN(vec2(vGW.y * 0.33, 1.7)) * 2.6 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
       float strata = smoothstep(0.0, 0.5, abs(fract(bed) - 0.5)) * (0.5 + 0.5 * gN(rp * vec2(0.4, 1.5) + 3.0));
       float b1 = gN(rp * 0.7 + 7.0), b2 = gN(rp * 2.6 + 1.0);
-      vec3 rock = mix(vec3(0.34, 0.2, 0.11), vec3(0.44, 0.28, 0.15), strata * 0.7 + b1 * 0.3) * (0.7 + 0.35 * b1 + 0.25 * b2);
+      // (World round 26: real rock tones — a weathered buff-to-rust sandstone, not saturated orange.)
+      vec3 rock = mix(vec3(0.27, 0.19, 0.13), vec3(0.37, 0.28, 0.2), strata * 0.7 + b1 * 0.3) * (0.7 + 0.35 * b1 + 0.25 * b2);
       // (World round 25: the ledge where a bed ends in shadow, and the face a little darker: it read pale.)
       rock *= mix(0.88, 0.55, smoothstep(0.78, 0.98, fract(bed)));
       float cav = uDetailReady > 0.0 ? texture2D(uDetailMap, rp * 0.45).b : 0.6;
       rock *= 0.55 + 0.75 * cav;
+      // World round 26: weathering — dark varnish streaks running down the face, vertical joints in
+      // shadow, pale lichen crusts in patches.
+      float streak = smoothstep(0.55, 0.72, gN(vec2(rp.x * 1.6, rp.y * 0.12) + 5.0));
+      rock *= mix(1.0, 0.6, streak);
+      float jn = abs(gN(vec2(rp.x * 0.55, rp.y * 0.05) + 13.0) - 0.5);
+      rock *= mix(0.45, 1.0, smoothstep(0.0, 0.035, jn));
+      float lich = smoothstep(0.62, 0.7, gN(rp * 2.4 + 21.0)) * smoothstep(0.45, 0.6, gN(rp * 0.4 + 2.0));
+      rock = mix(rock, vec3(0.3, 0.3, 0.25) * (0.8 + 0.4 * b2), lich * 0.6);
       // Moss and soil caught on the ledges.
       rock = mix(rock, vec3(0.08, 0.1, 0.035), smoothstep(0.62, 0.8, gN(rp * 1.3 + 11.0)) * 0.6);
       c = mix(c, rock, steep * 0.95);
@@ -225,7 +235,7 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         vec3 t1 = texture2D(uDetailMap, rp * 0.45).rgb, t2 = texture2D(uDetailMap, rp * 1.6 + 0.37).rgb;
         a = (t1.rg * 2.0 - 1.0) + (t2.rg * 2.0 - 1.0) * 0.5;
       }
-      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      float bed = vGW.y * 1.3 + gN(vec2(vGW.y * 0.33, 1.7)) * 2.6 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
       float ledge = smoothstep(0.78, 0.98, fract(bed));
       vec3 dW = tU * a.x * 0.9 + tV * (a.y * 0.9 + ledge * 1.4);
       float kb = stN * (1.0 - smoothstep(12.0, 70.0, length(vViewPosition)));
@@ -234,6 +244,6 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'ground25';
+  m.customProgramCacheKey = () => 'ground26';
   return m;
 }
