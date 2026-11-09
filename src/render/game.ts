@@ -1334,16 +1334,26 @@ export class Game {
         for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
       }
     }
-    // Camera round 2: in a fall's settled shot the big broken pieces too (the rockfall's boulders
-    // rolled to rest between the lens and him and held the view blocked for a second and a half).
-    // Pieces under ~0.7 m across do not count.
+    // Camera round 2: in a settled shot, the set pieces still standing round him too (the lintel he
+    // had just slid under filled the rockfall's held shot, only his legs under it, for six seconds).
+    // (Not the fall's loose debris: swinging or pulling in round a boulder lost him or put the lens
+    // in his back; the lens cranes up over debris instead, see debrisCrane.)
     if (this.stage === 'crash' || this.stage === 'cashout') {
-      const sph = this.occlSphere;
-      // (And the set pieces still standing round him — the lintel he had just slid under filled the
-      // rockfall's held shot, only his legs under it, for six seconds.)
       const pieces: THREE.Mesh[] = [];
       for (const o of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp, true)) o.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
-      for (const m of [...(this.debris.root.children as THREE.Mesh[]), ...pieces]) {
+      const d = this.meshHit(pieces, from, len);
+      if (d !== null && (best === null || d < best)) best = d;
+    }
+    return best;
+  }
+
+  /** The nearest hit (distance) of the occluder's current ray on any of `meshes` (≥ ~0.7 m across). */
+  private meshHit(meshes: THREE.Mesh[], from: THREE.Vector3, len: number): number | null {
+    const o = this.occl;
+    const sph = this.occlSphere;
+    let best: number | null = null;
+    {
+      for (const m of meshes) {
         if (!m.isMesh || !m.visible || !m.geometry) continue;
         if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
         sph.copy(m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld);
@@ -1358,6 +1368,31 @@ export class Game {
     return best;
   }
   private occlSphere = new THREE.Sphere();
+
+  /**
+   * Camera round 2 (coordinator: rockfall debris blocked the lens on desktop): in a fall's settled
+   * shot, while big broken pieces lie across the sight line from his chest to the lens, the lens
+   * cranes up over them (eased, up to 1.6 m) — never swings round them or pulls in past them.
+   */
+  private craneK = 0;
+  private debrisCrane(dt: number): void {
+    let want = 0;
+    if (this.stage === 'crash') {
+      const cam = this.rig.camera.position;
+      const rp = this.runner.root.position;
+      const chest = this.tmpCrane.set(rp.x, rp.y + 1.1, rp.z);
+      const o = this.occl;
+      const len = o.dir.copy(cam).sub(chest).length();
+      if (len > 0.5) {
+        o.dir.divideScalar(len);
+        o.ray.set(chest, o.dir);
+        if (this.meshHit(this.debris.root.children as THREE.Mesh[], chest, len - 0.3) !== null) want = 1;
+      }
+    }
+    this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (want > this.craneK ? 2.5 : 0.8)));
+    this.rig.craneUp = 1.6 * this.craneK;
+  }
+  private tmpCrane = new THREE.Vector3();
 
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
@@ -3273,6 +3308,7 @@ export class Game {
     }
     this.rig.gapLip = this.stage === 'crash' && this.crashKind === 'chasm' ? this.chasmLip : null;
     this.rig.gapSplash = this.rig.gapLip ? this.splashAt : null;
+    this.debrisCrane(rawDt);
     this.rig.realDt = rawDt;
     // Round 20 (coordinator): the escape's orbit ends in front of his face (the clip turns him).
     {

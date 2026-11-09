@@ -700,6 +700,8 @@ export class CameraRig {
         if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * this.closeSide * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         this.chasmHold(s);
+        // (Camera round 2: up over the fall's debris lying across the sight line; set by the game.)
+        this.targetPos.y += this.craneUp;
         break;
       }
       case 'cashout': {
@@ -1242,6 +1244,8 @@ export class CameraRig {
   /** Camera round 2: the chasm fall's broken causeway edge and heading, and where he went in (game). */
   gapLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
   gapSplash: THREE.Vector3 | null = null;
+  /** Crash: metres the settled lens rises over debris lying between it and him (game, eased). */
+  craneUp = 0;
   /** The held chasm shot's aim (world) and its weight (0..1), for keepInFrame. */
   private gapAim = new THREE.Vector3();
   private gapAimK = 0;
