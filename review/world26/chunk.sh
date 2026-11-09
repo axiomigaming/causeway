@@ -4,6 +4,6 @@
 cd "$(dirname "$0")/../.."
 W=$1; M=$2; shift 2
 until grep -q "$M" "$W" 2>/dev/null; do sleep 15; done
-export BASE=/tmp/claude-0/-home-user-branchfall/8bad0aba-7915-5210-bf1b-c2375b4d19f3/scratchpad/base26
+export BASE=${BASE:-/tmp/claude-0/-home-user-branchfall/8bad0aba-7915-5210-bf1b-c2375b4d19f3/scratchpad/base27}
 sh review/world25/serve.sh "$@"
 echo CHUNKDONE

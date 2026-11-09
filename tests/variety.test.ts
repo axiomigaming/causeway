@@ -342,3 +342,27 @@ it('keeps the running line clear: nothing solid in a 0.6 m by 2 m box along it',
   const found = [...layouts].flatMap(([L, name]) => corridorFindings(L, pts, 0.3, 2.0).map((f) => ({ name, ...f })));
   expect(findingLines(found)).toEqual([]);
 }, 600000);
+
+/**
+ * World round 27 (the owner: on a phone, held upright, the openings looked alike): every world's
+ * opening section carries a hero feature on its near side, and the 16 worlds between them show at
+ * least four of the five kinds.
+ */
+it("gives every world's opening a hero feature, of varied kinds", async () => {
+  const track = new Track(boundsKit());
+  await track.prepare({ foliage: 0.45, scenery: 0.4 });
+  track.viewDistance = 95;
+  const kinds = new Map<string, string>();
+  for (const w of [3, 7, 11, 19, 23, 31, 42, 58, 64, 77, 83, 97, 105, 118, 126, 141]) {
+    track.reset(`${w}-0.5`);
+    track.update(0, 0);
+    const open = track.sections.find((s) => s.type !== 'start');
+    expect(open, `w${w}`).toBeDefined();
+    const hero = open!.layout.features?.hero;
+    if (['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown'].includes(open!.type)) continue;
+    expect(hero, `w${w} ${open!.type}`).toBeDefined();
+    kinds.set(`w${w}`, hero!);
+  }
+  expect(kinds.size).toBeGreaterThan(12);
+  expect(new Set(kinds.values()).size).toBeGreaterThanOrEqual(4);
+}, 300000);

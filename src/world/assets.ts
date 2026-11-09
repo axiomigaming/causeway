@@ -173,18 +173,30 @@ function prepareMaterial(key: string, src: THREE.MeshStandardMaterial): THREE.Ma
           '#include <begin_vertex>',
           `#include <begin_vertex>
           vec4 wp = modelMatrix * vec4(position, 1.0);
-          float h = clamp(position.y * 0.18, 0.0, 1.6);
+          // (World round 27: the sway's height from 2.4 m under the path, not from the path: merged into a
+          // section, the grass, ferns and bushes at the way's level and on the land below it had h = 0 and
+          // never moved, while every crown at one height swayed as one.)
+          float h = clamp((position.y + 2.4) * 0.15, 0.12, 1.6);
           float ph = wp.x * 0.21 + wp.z * 0.17;
+          // Each plant (a ~1.3 m cell) its own phase and rate, and each leaf a flutter of its own: side by
+          // side, identical plants swayed in step.
+          float cellH = fract(sin(dot(floor(wp.xz * 0.75), vec2(127.1, 311.7))) * 43758.5453);
+          float leafH = fract(sin(dot(floor(wp.xyz * 6.0).xz + floor(wp.y * 6.0), vec2(269.5, 183.3))) * 43758.5453);
+          ph += cellH * 6.2832;
+          float rate = 0.8 + 0.45 * cellH;
           // World round 22: gusts — fronts rolling through the trees (world space), the leaves leaning
           // and shivering harder as one passes, then settling.
           float gust = 0.7 + 1.1 * smoothstep(0.55, 1.0, sin(uTime * 0.31 - (wp.x * 0.6 + wp.z * 0.8) * 0.045));
           float wk = uWind * gust;
-          transformed.x += sin(uTime * 1.7 + ph) * 0.07 * h * wk + sin(uTime * 4.3 + ph * 3.0) * 0.02 * h * wk * gust + 0.05 * h * (gust - 0.7);
-          transformed.z += cos(uTime * 1.3 + ph * 1.3) * 0.06 * h * wk;
-          transformed.y += sin(uTime * 2.1 + ph * 2.0) * 0.025 * h * wk;`,
+          transformed.x += sin(uTime * 1.7 * rate + ph) * 0.07 * h * wk + sin(uTime * 4.3 + ph * 3.0) * 0.02 * h * wk * gust + 0.05 * h * (gust - 0.7);
+          transformed.z += cos(uTime * 1.3 * rate + ph * 1.3) * 0.06 * h * wk;
+          transformed.y += sin(uTime * 2.1 * rate + ph * 2.0) * 0.025 * h * wk;
+          // The flutter: a few millimetres to a centimetre or two, each leaf on its own beat.
+          float fl = sin(uTime * (5.5 + 3.0 * leafH) + leafH * 6.2832) * (0.008 + 0.012 * h) * wk;
+          transformed += vec3(fl, fl * 0.6, -fl * 0.8);`,
         );
     };
-    m.customProgramCacheKey = () => 'leaf-wind22';
+    m.customProgramCacheKey = () => 'leaf-wind27';
   }
   if (key === 'rock') m.roughness = 1;
   m.needsUpdate = true;

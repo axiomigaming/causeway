@@ -144,6 +144,7 @@ export function makeGroundMaterial(): THREE.MeshLambertMaterial {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uDetailMap = causticUniforms.uDetailMap;
     sh.uniforms.uDetailReady = causticUniforms.uDetailReady;
+    sh.uniforms.uCausticTime = causticUniforms.uCausticTime;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGW;\nvarying vec3 vGN;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvGN = normalize(mat3(modelMatrix) * objectNormal);');
@@ -155,6 +156,7 @@ varying vec3 vGW;
 varying vec3 vGN;
 uniform sampler2D uDetailMap;
 uniform float uDetailReady;
+uniform float uCausticTime;
 float gH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(gH(i), gH(i + vec2(1, 0)), f.x), mix(gH(i + vec2(0, 1)), gH(i + vec2(1, 1)), f.x), f.y); }`,
@@ -208,6 +210,23 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     float dap = gN(p * 0.09 + 2.0) * 0.6 + gN(p * 0.31 + 5.0) * 0.4;
     c *= 0.5 * mix(mix(0.45, 1.0, smoothstep(0.35, 0.7, dap)), 1.15, steep);
     diffuseColor.rgb = c;
+    {
+      // World round 27 (the owner: hard lines where the land meets the water): the shore. The water
+      // laps up the bank in slow waves: soaked dark earth and a glossy band above it, a broken line of
+      // foam at the swash's edge, and just under the surface the ground takes the water's own green, so
+      // the opaque water's edge blends into it instead of cutting across.
+      float hW = vGW.y - (${WL.toFixed(2)});
+      if (hW > -0.25 && hW < 0.4) {
+        float t = uCausticTime;
+        float swash = 0.04 + 0.05 * sin(t * 0.9 + dot(vGW.xz, vec2(0.61, 0.43))) + 0.025 * sin(t * 2.1 + dot(vGW.xz, vec2(-1.3, 1.9)));
+        float soak = smoothstep(swash + 0.22, swash, hW);
+        diffuseColor.rgb *= mix(1.0, 0.6, soak);
+        float lapN = gN(vGW.xz * 2.2 + vec2(t * 0.3, -t * 0.2)) * 0.6 + gN(vGW.xz * 7.5 - t * 0.45) * 0.4;
+        float line = smoothstep(swash + 0.06, swash + 0.012, hW) * smoothstep(swash - 0.07, swash - 0.012, hW);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.46, 0.43), line * smoothstep(0.4, 0.62, lapN) * 0.85);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.07, 0.06), smoothstep(0.0, -0.15, hW) * 0.75);
+      }
+    }
   }`,
       )
       .replace(
@@ -244,6 +263,6 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'ground26';
+  m.customProgramCacheKey = () => 'ground27';
   return m;
 }

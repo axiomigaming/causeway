@@ -216,6 +216,25 @@ diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 float wetRough = mix(0.22, 0.45, abs(vWetN.y));
 wetRough = max(wetRough, mix(0.22, 0.42, smoothstep(10.0, 45.0, length(vViewPosition))));
 roughnessFactor = mix(roughnessFactor, wetRough, wetK);
+{
+  // World round 27 (the owner: where stone meets the water the line is hard, as if cut): the water laps
+  // the stone. A swash a few centimetres high rides up and down the face in slow waves, leaving a band
+  // of soaked, near-black stone and a broken line of foam at its edge; just under the surface the stone
+  // takes the water's own green, so the opaque water's edge has something to blend into.
+  float hW = vWetPos.y - (${WATER_Y.toFixed(3)});
+  if (hW > -0.2 && hW < 0.3) {
+    float lapT = uCausticTime;
+    float swash = 0.035 + 0.04 * sin(lapT * 1.1 + dot(vWetPos.xz, vec2(0.83, 0.57))) + 0.02 * sin(lapT * 2.3 + dot(vWetPos.xz, vec2(-1.7, 2.1)));
+    float soak = smoothstep(swash + 0.12, swash, hW);
+    diffuseColor.rgb *= mix(1.0, 0.52, soak);
+    roughnessFactor = mix(roughnessFactor, 0.28, soak * 0.8);
+    float lapN = pdN(vWetPos.xz * 2.6 + vec2(lapT * 0.32, -lapT * 0.21)) * 0.6 + pdN(vWetPos.xz * 8.0 + vWetPos.y * 3.0 - lapT * 0.5) * 0.4;
+    float line = smoothstep(swash + 0.045, swash + 0.01, hW) * smoothstep(swash - 0.05, swash - 0.01, hW);
+    float foam = line * smoothstep(0.42, 0.62, lapN);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.74, 0.8, 0.76), foam * 0.8);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.11, 0.09), smoothstep(0.0, -0.12, hW) * 0.7);
+  }
+}
 #ifdef WET_EDGES
 if (vHalf > 0.0) {
   // World round 12: where the paving meets the parapets — grime and wear in the last ~0.7 m, moss
@@ -288,7 +307,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet19${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet27${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
   sm.needsUpdate = true;
 }
 
