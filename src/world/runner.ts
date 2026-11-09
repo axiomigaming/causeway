@@ -434,6 +434,8 @@ export class Runner {
   turnAhead = 0;
   /** The turn layer: bank (rad) and the upper body's lead into the turn (rad), eased. */
   private bank = 0;
+  /** Seconds since a fall clip reached its end (0 while one plays or none does). */
+  private holdT = 0;
   private turnLead = 0;
   slope = 0;
   /** The blended gait's contact time, as a fraction of the stride cycle. */
@@ -1027,6 +1029,7 @@ export class Runner {
     else this.exertion = Math.max(0, this.exertion - dt * 0.035);
     this.weather(dt);
     this.breathe(dt);
+    this.holdLife(dt);
     this.lookLayer(dt);
     this.secondary(dt);
     this.plantFeet(dt);
@@ -1369,6 +1372,42 @@ export class Runner {
     this.rotate(this.bones.shoulderR, 0, 0, -inhale * 0.6);
   }
 
+  /**
+   * After a fall's last key the clip holds its end pose for the whole result (5-6 s): he stood or lay
+   * there as a statue. Once the clip has ended he stays alive: winded breathing that heaves the chest and
+   * shoulders, the head drifting (a look round, down, back), and now and then a stir of an arm, slow and
+   * small, eased in over a second so the clip's own end settles first.
+   */
+  private holdLife(dt: number): void {
+    const a = this.current.startsWith('fall_') ? this.actions.get(this.current) : undefined;
+    const ended = a !== undefined && a.time >= a.getClip().duration - 0.02;
+    this.holdT = ended ? this.holdT + dt : 0;
+    if (this.holdT <= 0) return;
+    const k = smoothstep(0, 1.2, this.holdT);
+    const T = this.holdT;
+    const tw = Math.PI * 2;
+    const b = this.bones;
+    // Winded: ~0.45 breaths/s, the intake sharper than the release, slowly easing over ten seconds.
+    const br = Math.sin(tw * 0.45 * T);
+    const heave = (br > 0 ? br : 0.6 * br) * (0.05 - 0.02 * smoothstep(2, 10, T)) * k;
+    this.rotate(b.chest, heave, 0, 0);
+    this.rotate(b.spine, heave * 0.5, 0, 0);
+    this.rotate(b.neck, -heave * 0.6, 0, 0);
+    this.rotate(b.shoulderL, 0, 0, heave * 0.9);
+    this.rotate(b.shoulderR, 0, 0, -heave * 0.9);
+    // The head drifts: a slow look about, a drop and a lift.
+    this.rotate(b.neck, 0.05 * Math.sin(tw * 0.11 * T + 0.7) * k, 0.12 * Math.sin(tw * 0.07 * T + 1.3) * k, 0);
+    this.rotate(b.head, 0.06 * Math.sin(tw * 0.13 * T + 2.1) * k, 0.1 * Math.sin(tw * 0.09 * T) * k, 0.04 * Math.sin(tw * 0.05 * T) * k);
+    // A stir every few seconds, alternating arms: the forearm draws in and the hand turns, then settles.
+    const cyc = 3.6;
+    const ph = (T + 1.4) / cyc;
+    const u = ph - Math.floor(ph);
+    const bump = u < 0.4 ? Math.sin((Math.PI * u) / 0.4) ** 2 : 0;
+    const side = Math.floor(ph) % 2 === 0 ? 'L' : 'R';
+    this.rotate(b[`forearm${side}`], -0.22 * bump * k, 0, 0);
+    this.rotate(b[`upper_arm${side}`], -0.06 * bump * k, 0, 0.05 * bump * k * (side === 'L' ? 1 : -1));
+  }
+
   /** Aim the neck and head at the look target, within a comfortable range, eased in and out. */
   private lookLayer(dt: number): void {
     const L = this.look;
@@ -1596,9 +1635,21 @@ export class Runner {
       const runningOut = this.current === 'leap_gap' && t >= 26 / 30 && this.speed < 7.5;
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
       const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      // On a bend and through a cut's plant the stance is known (the stride's phase, the cut's plant frames),
+      // and the bank lifts or sinks a planted foot by several cm: the pin follows the stance itself, on the
+      // floor, not the ankle's height (caught by height, the cut's foot was pinned two frames early, still
+      // swinging in, and let go with a 36 cm jump once the leg ran out of reach).
+      const stance = this.stanceLock(s, t);
       if (free) f.locked = false;
-      // (A bend's bank lifts the inside foot a few cm off the floor as it plants: it is caught a little higher.)
-      else if (!f.locked && h < (bending || this.current.startsWith('turn_cut') ? 0.15 : 0.125) && !f.spent) {
+      else if (stance !== null) {
+        if (stance && !f.locked && !f.spent) {
+          f.locked = true;
+          f.pos.copy(ankle).setY(ground + 0.095);
+        } else if (!stance) {
+          f.locked = false;
+          f.spent = false;
+        }
+      } else if (!f.locked && h < 0.125 && !f.spent) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
@@ -1607,7 +1658,7 @@ export class Runner {
       // (Sliding along it, quickly but not at once: a slide escape straight out of a turn cut at the top
       // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
       if (h < -0.05 || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (bending ? 30 : 18) : flying ? 30 : sliding ? 22 : bending ? 40 : 10)));
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (stance ? 30 : 18) : flying ? 30 : sliding ? 22 : stance === false ? 40 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
         continue;
@@ -1671,6 +1722,23 @@ export class Runner {
       // rel = swing · twist; the twist is applied last (about the bone's own Y), so trim it there.
       b.quaternion.multiply(fix);
     }
+  }
+
+  /**
+   * Whether foot `s` is in its stance by the clip's own timing, where that is known and the pins go by it
+   * (true / false), else null (the pins go by the ankle's height): the run on a bend (the stride's phase
+   * against the blended contact time), and a turn cut's outside foot through its plant (clip frames 9-12).
+   */
+  private stanceLock(s: 'L' | 'R', t: number): boolean | null {
+    if (this.current === 'run' && Math.abs(this.yawRate) > 0.3) {
+      const u = (((this.phase + (s === 'L' ? 0 : 0.5)) % 1) + 1) % 1;
+      return u > 0.01 && u < this.contact - 0.015;
+    }
+    if (this.current === 'turn_cut_L' || this.current === 'turn_cut_R') {
+      const outside = this.current === 'turn_cut_L' ? 'R' : 'L';
+      return s === outside && t >= 8.2 / 30 && t <= 12.3 / 30;
+    }
+    return null;
   }
 
   /** Hip to ankle with the knee straight (m). */
@@ -1773,6 +1841,12 @@ export class Runner {
   /** Forget velocities (after a teleport to a new round). */
   resetSecondary(): void {
     this.hasPrev = false;
+    // (The turn layer, the fall hold and the root's travel take no state from the last round.)
+    this.bank = this.turnLead = this.holdT = 0;
+    this.yawRate = this.turnAhead = 0;
+    this.body.rotation.z = 0;
+    this.travelPool = this.travelV = 0;
+    this.rootV = this.speed;
     this.glanceT = -1;
     this.stumbleT = -1;
     this.duckT = -1;

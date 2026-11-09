@@ -78,6 +78,15 @@ export function Dock() {
         bar = Math.max(bar, e.offsetTop + e.offsetHeight);
       }
       ctl.game.rig.setInsets(bar, window.innerHeight - top, window.innerHeight);
+      // The cinematic bars stay above the top bar's first line (its text, the settled multiplier).
+      let free = Infinity;
+      for (const q of ['.topbar > *', '.hud.held.won .mult']) {
+        for (const e of document.querySelectorAll(q)) {
+          const r = e.getBoundingClientRect();
+          if (r.height > 0 && r.width > 0) free = Math.min(free, r.top);
+        }
+      }
+      ctl.game.setLetterboxRoom(free, window.innerHeight);
       // Cinematics hook (round 17): the interface column's horizontal extent (dock + result card)
       // and the top bar alone, so a landscape result shot can stand the runner beside the column.
       const col = [el, document.querySelector<HTMLElement>('.result')].filter((x): x is HTMLElement => !!x).map((x) => x.getBoundingClientRect()).filter((r) => r.width > 0);

@@ -70,6 +70,19 @@ export function TopBar() {
   // It is still in the history panel and the verifier, which the player opens on purpose.
   const held = phase === 'result' && result?.won ? result.round.id : null;
   const shown = held ? history.filter((h) => h.id !== held) : history;
+  // The strip fades out at its right end only when it runs past its column: a short strip (one or
+  // two runs) ends on a whole figure, never a half-faded one.
+  const histRef = useRef<HTMLButtonElement>(null);
+  const [over, setOver] = useState(false);
+  useLayoutEffect(() => {
+    const el = histRef.current;
+    if (!el) return;
+    const check = () => setOver(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [shown.length]);
 
   return (
     <header className="topbar">
@@ -81,7 +94,7 @@ export function TopBar() {
       {/* Responsible play: the strip is a quiet, uniform record. No highlight of big falls, no
           "this was your round" mark, no entrance on the newest entry, and while a result is shown it
           steps back further, so a past fall point never reads as a near miss beside a win. */}
-      <button className={`history${quiet ? ' quiet' : ''}`} onClick={() => open('history')} aria-label="History of previous rounds">
+      <button ref={histRef} className={`history${quiet ? ' quiet' : ''}${over ? ' over' : ''}`} onClick={() => open('history')} aria-label="History of previous rounds">
         {history.length === 0 ? (
           <span className="chip none">No runs yet</span>
         ) : shown.length === 0 ? null : (

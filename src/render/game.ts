@@ -19,6 +19,7 @@ import { isLand, PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
 import type { Look } from '../world/look';
 import { WATER_Y, Water } from '../world/water';
+import { foliageUniforms } from '../world/foliage';
 import { Ambient } from './ambient';
 import { CameraRig } from './cameraRig';
 import { Motes, Particles } from './particles';
@@ -610,6 +611,8 @@ export class Game {
     this.ambient.setBudget(q.ambientLife);
     this.water.setDetail(q.waterDetail);
     this.water.setReflections(q.waterReflections > 0);
+    // No MSAA and the lowest resolution: leaf cut-outs take the dithered coverage edge (foliage.ts).
+    foliageUniforms.uLeafSoft.value = level === 'low' ? 1 : 0;
     this.motes.setBudget(q.motes);
     this.mistAmount = q.mist;
     this.shadowExtent = q.shadowExtent;
@@ -3379,6 +3382,16 @@ export class Game {
       this.onQualityDrop(to);
     }
     void ms;
+  }
+
+  /**
+   * The interface's room for the cinematic bars: `freePx` of the frame's top is clear above the top
+   * bar's first line (`heightPx` tall). Each bar keeps 4 px off that line; under 8 px of room there
+   * are no bars at all (a sliver reads as a glitch, not a frame).
+   */
+  setLetterboxRoom(freePx: number, heightPx: number): void {
+    const px = freePx - 4;
+    this.cine.bars.cap = heightPx > 0 && Number.isFinite(px) ? (px < 8 ? 0 : px / heightPx) : 1;
   }
 
   /**

@@ -99,3 +99,23 @@ body.
   chest (run) or chin (sprint, dash) height, elbows 60–105° (run) to 45–120° (dash); head pitch steady to
   ~1.5°.
 
+
+## Turning
+
+On a curve a runner leans in from the ground contact by about atan(v²/(g·r)). At 7–11 m/s on the
+4.5 m corners that is 45° and more; sprinters on a bend lean 10–20°. Their head and eyes turn into the
+bend first and the shoulders follow, while the planted foot stays fixed and the body rotates over it.
+
+* Bank (runtime, `Runner.turn`): half the physical lean, at most 23°, from the path's turn rate now and
+  over the next ~0.45 s (`turnAhead`, sampled ahead by the game). So the bank builds as the bend comes
+  up, not once it has begun. It is a roll of the whole body about the ground under him, into the turn;
+  the old roll leaned him out of it.
+* Lead: head 22%, neck 14%, chest 12% and spine 6% of the turn ahead (≤ 1 rad), eased; the hips stay on
+  the path. A turn cut keys its own lead.
+* Feet: on a bend, and through a cut's plant (clip frames 9–12 on the outside foot), the pins follow
+  the stance itself, the stride's phase or the cut's plant frames, and hold the ankle on the floor. The
+  root turns about a point between the feet, so a stance foot ahead of or behind it was swept 5–7 cm a
+  frame sideways (24–43 cm in a cut).
+* turn_cut_L/R (runner_anim.py): the outside leg keeps the gait's own stance solve (no abduction or
+  knee nudge), the body is moved over the planted foot so it holds still in the clip
+  (`pin_stance`), and the cut's bank leans into the turn.
