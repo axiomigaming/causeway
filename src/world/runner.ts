@@ -407,6 +407,12 @@ export class Runner {
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
   lean = 0;
   roll = 0;
+  /** The path's turn rate under him (rad/s, + to his left) and how far it turns over the next ~0.45 s (rad). */
+  yawRate = 0;
+  turnAhead = 0;
+  /** The turn layer: bank (rad) and the upper body's lead into the turn (rad), eased. */
+  private bank = 0;
+  private turnLead = 0;
   slope = 0;
   /** The blended gait's contact time, as a fraction of the stride cycle. */
   private contact = CONTACT.run;
@@ -990,7 +996,7 @@ export class Runner {
     this.stairW += ((this.current === 'run' ? sl : 0) - this.stairW) * (1 - Math.exp(-dt * 5));
     // Into a climb from the ankles, more than a descent sits back (which keeps the eyes on the treads).
     const lean = this.lean + drivePhase + sl * (sl > 0 ? 0.6 : 0.45);
-    this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, this.roll, 1 - Math.exp(-dt * 6));
+    this.turn(dt, speed);
     // The body faces −Z: a forward pitch is a negative rotation about X (positive tipped him back).
     this.body.rotation.x = THREE.MathUtils.lerp(this.body.rotation.x, -lean, 1 - Math.exp(-dt * 4));
 
@@ -1057,6 +1063,31 @@ export class Runner {
   private step(foot: Foot, k: number): void {
     if (this.surface === 'wood') this.plankV -= 0.32 * Math.min(1, k + 0.3);
     this.onFootstep(foot, k);
+  }
+
+  /**
+   * Into a bend: he banks from the ankles against the turn's pull (a share of the lean the speed and the
+   * turn rate call for, atan(v·ω/g)), starting as the bend comes up rather than when it is already under
+   * him, and the turn is led from the top: eyes and head first, then the shoulders, the hips following on
+   * the path. (The body used to rotate rigidly with the path, upright until the turn had begun.)
+   */
+  private turn(dt: number, speed: number): void {
+    const ahead = THREE.MathUtils.clamp(this.turnAhead, -1.2, 1.2);
+    const omega = 0.5 * this.yawRate + 0.5 * (ahead / 0.45);
+    const onFeet = this.current === 'run' || this.obst !== null || this.current === 'start';
+    const bankTo = onFeet ? THREE.MathUtils.clamp(-Math.atan((speed * omega) / 9.81) * 0.5, -0.4, 0.4) : this.roll;
+    this.bank += (bankTo - this.bank) * (1 - Math.exp(-dt * 7));
+    this.body.rotation.z = this.bank;
+    // (A turn cut keys its own lead: the layer adds a little.)
+    const leadTo = onFeet ? THREE.MathUtils.clamp(ahead, -1, 1) * (this.current.startsWith('turn_cut') ? 0.35 : 1) : 0;
+    this.turnLead += (leadTo - this.turnLead) * (1 - Math.exp(-dt * 8));
+    const l = this.turnLead;
+    if (Math.abs(l) < 1e-3) return;
+    const b = this.bones;
+    this.rotate(b.spine, 0, 0.06 * l, 0);
+    this.rotate(b.chest, 0, 0.12 * l, 0);
+    this.rotate(b.neck, 0, 0.14 * l, 0);
+    this.rotate(b.head, 0, 0.22 * l, 0);
   }
 
   /** A catch step at the lip of a flight of stairs: a check, eyes down to the steps, arms out a touch. */
@@ -1472,7 +1503,10 @@ export class Runner {
   private plantFeet(dt: number): void {
     // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
     const blendIn = this.current.startsWith('fall_') && !DROPS.has(this.current) && (this.weights.get(this.current) ?? 1) < 0.999;
-    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current);
+    // On a bend the run's planted foot is pinned too: the root turns with the path about a point between
+    // the feet, and the stance foot, ahead of or behind it, swept sideways 5-7 cm a frame (a skate).
+    const bending = this.current === 'run' && Math.abs(this.yawRate) > 0.3;
+    const active = bending || (this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current));
     const ground = this.root.position.y;
     // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
     // pinned foot would wind the leg up and unwind with a snap when it lifts).
@@ -1549,7 +1583,7 @@ export class Runner {
       // (Sliding along it, quickly but not at once: a slide escape straight out of a turn cut at the top
       // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
       if (h < -0.05 || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : sliding ? 22 : 10)));
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (bending ? 30 : 18) : flying ? 30 : sliding ? 22 : bending ? 40 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
         continue;

@@ -214,6 +214,7 @@ export class Game {
   private s = 0;
   private speed = 0;
   private yawPrev = 0;
+  private aheadFrame = { pos: new THREE.Vector3(), yaw: 0 };
   private stairCool = 0;
   private timeScale = 1;
   private worldT = 0;
@@ -2804,10 +2805,10 @@ export class Game {
       }
       this.runner.root.position.y = this.groundY;
     } else this.groundY = null;
-    if (dt > 0) {
-      const yawRate = (f.yaw - this.yawPrev) / dt;
-      this.runner.roll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.05, -0.3, 0.3);
-    }
+    // The turn for the runner's own bank and lead (Runner.turn): the path's turn rate now, and how far it
+    // turns over the next ~0.45 s, so he leans and looks into a bend before it starts.
+    if (dt > 0) this.runner.yawRate = (f.yaw - this.yawPrev) / dt;
+    this.runner.turnAhead = this.track.path.sample(this.s + Math.max(2, this.speed) * 0.45, this.aheadFrame).yaw - f.yaw;
     this.yawPrev = f.yaw;
   }
 
