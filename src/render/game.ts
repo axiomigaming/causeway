@@ -1339,7 +1339,11 @@ export class Game {
     // Pieces under ~0.7 m across do not count.
     if (this.stage === 'crash' || this.stage === 'cashout') {
       const sph = this.occlSphere;
-      for (const m of this.debris.root.children as THREE.Mesh[]) {
+      // (And the set pieces still standing round him — the lintel he had just slid under filled the
+      // rockfall's held shot, only his legs under it, for six seconds.)
+      const pieces: THREE.Mesh[] = [];
+      for (const o of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp, true)) o.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
+      for (const m of [...(this.debris.root.children as THREE.Mesh[]), ...pieces]) {
         if (!m.isMesh || !m.visible || !m.geometry) continue;
         if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
         sph.copy(m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld);
