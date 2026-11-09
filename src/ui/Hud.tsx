@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { countUp, heatOf, milestoneCrossed, milestoneLabel, tierOf } from '../audio/feedback';
 import { TIER_PULSE_EVENT, type TierPulseDetail } from './pulse';
 import { formatCredits, formatMult } from '../engine/money';
@@ -155,11 +155,46 @@ export function Hud() {
   }, [ctl, motion]);
 
   const held = phase === 'result' && hold && !!result;
-  if (!held && (!live || !(phase === 'lead' || phase === 'running' || phase === 'cashing'))) return null;
+  const heldWon = held && !!result?.won;
+  // The settled escape figure steps up into the top band (a layout change, so the cameras' band is
+  // measured from the boxes): it now glides there from where it stood (FLIP) instead of jumping.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const lastRect = useRef<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    const el = multRef.current;
+    if (!el) return;
+    const from = lastRect.current;
+    if (heldWon && from && motion === 'full') {
+      const to = el.getBoundingClientRect();
+      if (to.height > 0 && from.height > 0) {
+        // (By height: the line box is the font size, whatever the digit count was at the last render.)
+        const s = from.height / to.height;
+        const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+        const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+        el.animate([{ transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${s.toFixed(3)})` }, { transform: 'none' }], { duration: 520, easing: EASE });
+      }
+    }
+    if (!heldWon) lastRect.current = el.getBoundingClientRect();
+  });
+  // At the reveal the held figure leaves with a short fade (it used to vanish the frame the card came).
+  const [exiting, setExiting] = useState<null | { won: boolean }>(null);
+  const wasHeld = useRef(false);
+  useEffect(() => {
+    if (wasHeld.current && !held && phase === 'result' && result) {
+      setExiting({ won: result.won });
+      const t = window.setTimeout(() => setExiting(null), 260);
+      wasHeld.current = held;
+      return () => window.clearTimeout(t);
+    }
+    wasHeld.current = held;
+    if (held || phase !== 'result') setExiting(null);
+    return undefined;
+  }, [held, phase, result]);
+  if (!held && !exiting && (!live || !(phase === 'lead' || phase === 'running' || phase === 'cashing'))) return null;
   const stake = live?.stake ?? result?.round.stake ?? 0;
   const auto = live?.autoCashout ?? null;
   return (
-    <div className={`hud ${held ? (result!.won ? 'held won' : 'held fell') : phase}`} aria-live="off">
+    <div className={`hud ${held ? (result!.won ? 'held won' : 'held fell') : exiting ? `held ${exiting.won ? 'won' : 'fell'} exit` : phase}`} aria-live="off" ref={wrapRef}>
       <div className="hud-slot">
         {phase === 'lead' ? <span className="getready">Get ready</span> : <span className="flare gold" ref={flareRef} aria-hidden="true" />}
       </div>
