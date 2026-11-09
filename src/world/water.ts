@@ -141,17 +141,22 @@ export class Water {
             float bub = wnoise(adv * 28.0 - age * 1.1).x;
             // The edge frays at two scales (no smooth outline): the threshold wanders with the fine
             // noise and, finer still, with the bubbles.
-            float th = 0.56 + age * 0.05 + (fine - 0.5) * 0.16 + (bub - 0.5) * 0.09;
-            float inside = smoothstep(th, th + 0.07, churn);
-            float rimB = inside * (1.0 - smoothstep(th + 0.03, th + 0.12 + 0.08 * fine, churn));
-            float interior = inside * (0.22 + 0.32 * smoothstep(0.42, 0.78, bub));
+            float th = 0.56 + age * 0.085 + (fine - 0.5) * 0.16 + (bub - 0.5) * 0.09;
+            float inside = smoothstep(th, th + 0.18, churn);
+            float rimB = inside * (1.0 - smoothstep(th + 0.08, th + 0.24 + 0.08 * fine, churn)) * 0.65;
+            float interior = inside * (0.08 + 0.3 * smoothstep(0.55, 0.85, bub));
             float dens = max(rimB * 0.9, interior);
             float ringR = 0.55 + age * 1.1;
             float ring = exp(-pow((r - ringR) / (0.28 + age * 0.16), 2.0));
             float ang = atan(d.y, d.x);
             float streak = smoothstep(0.64, 0.8, wnoise(vec2(ang * 4.0 + s.z * 7.0, r * 0.7 - age * 0.5)).x) * smoothstep(ringR + 1.5, ringR, r) * smoothstep(ringR * 0.5, ringR * 0.8, r);
             float coreF = smoothstep(0.45 + age * 0.3, 0.0, r) * exp(-age * 2.6);
-            float where = max(max(ring, streak * 0.75), coreF) * exp(-age * 0.75) * s.w;
+            // QA hunt (the chasm's end shot): the patches were all one size, hard-edged and pale, laid
+            // evenly over the whole ring for four seconds: camouflage, not foam. They now come in
+            // clumps (a broad noise thins the ring and streaks between them), with soft edges, a
+            // fainter rim and a see-through interior, and break up faster as they age.
+            float clump = smoothstep(0.25, 0.7, wnoise(adv * 0.8 + s.z * 3.1).x);
+            float where = max(max(ring, streak * 0.75) * (0.3 + 0.7 * clump), coreF) * exp(-age * 0.95) * s.w;
             foam += where * mix(dens, 0.85 * inside, coreF);
             gap += where * (1.0 - inside) * 0.3;
           }
