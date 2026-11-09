@@ -222,10 +222,18 @@ function Range({ label, value, onChange }: { label: string; value: number; onCha
 }
 
 function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
+  const ctl = useCtl();
   return (
     <div className="seg" role="group" aria-label={label}>
       {options.map(([v, l]) => (
-        <button key={v} aria-pressed={v === value} onClick={() => onChange(v)}>
+        <button
+          key={v}
+          aria-pressed={v === value}
+          onClick={() => {
+            if (v !== value) ctl?.audio.ui('toggle');
+            onChange(v);
+          }}
+        >
           {l}
         </button>
       ))}
@@ -239,6 +247,11 @@ function Settings({ onClose }: { onClose: () => void }) {
   const phase = useStore((s) => s.phase);
   const ctl = useCtl();
   const [fs, setFs] = useState(!!document.fullscreenElement);
+  // Every switch answers with the toggle click (the Auto switch in the dock ticks; these were silent).
+  const flip = (p: Parameters<typeof setSettings>[0]) => {
+    ctl?.audio.ui('toggle');
+    setSettings(p);
+  };
   return (
     <Sheet title="Settings" eyebrow="Sound · picture · motion" onClose={onClose}>
       <div className="sect">
@@ -248,7 +261,7 @@ function Settings({ onClose }: { onClose: () => void }) {
         <Range label="Effects" value={st.sfx} onChange={(v) => setSettings({ sfx: v })} />
         <div className="setting-row">
           <span>Mute everything</span>
-          <button className="toggle" role="switch" aria-checked={st.muted} onClick={() => setSettings({ muted: !st.muted })}>
+          <button className="toggle" role="switch" aria-checked={st.muted} onClick={() => flip({ muted: !st.muted })}>
             <span className="switch" />
           </button>
         </div>
@@ -268,7 +281,7 @@ function Settings({ onClose }: { onClose: () => void }) {
         />
         <div className="setting-row">
           <span>Lower quality automatically if frames drop</span>
-          <button className="toggle" role="switch" aria-checked={st.autoQuality} onClick={() => setSettings({ autoQuality: !st.autoQuality })}>
+          <button className="toggle" role="switch" aria-checked={st.autoQuality} onClick={() => flip({ autoQuality: !st.autoQuality })}>
             <span className="switch" />
           </button>
         </div>
@@ -300,14 +313,14 @@ function Settings({ onClose }: { onClose: () => void }) {
         />
         <div className="setting-row">
           <span>Camera shake</span>
-          <button className="toggle" role="switch" aria-checked={st.cameraShake} disabled={st.motion === 'reduced'} onClick={() => setSettings({ cameraShake: !st.cameraShake })}>
+          <button className="toggle" role="switch" aria-checked={st.cameraShake} disabled={st.motion === 'reduced'} onClick={() => flip({ cameraShake: !st.cameraShake })}>
             <span className="switch" />
           </button>
         </div>
         {'vibrate' in navigator && (
           <div className="setting-row">
             <span>Vibration</span>
-            <button className="toggle" role="switch" aria-checked={st.haptics} onClick={() => setSettings({ haptics: !st.haptics })}>
+            <button className="toggle" role="switch" aria-checked={st.haptics} onClick={() => flip({ haptics: !st.haptics })}>
               <span className="switch" />
             </button>
           </div>
@@ -344,6 +357,10 @@ function Menu({ onClose }: { onClose: () => void }) {
   const ctl = useCtl();
   // The menu opens mid-run too (on phones it holds fairness and settings); the run carries on.
   const live = phase === 'running' || phase === 'lead' || phase === 'cashing' || phase === 'placing';
+  const go = (m: 'how' | 'fair' | 'history' | 'settings') => {
+    ctl?.audio.ui('open');
+    set({ modal: m });
+  };
   return (
     // Nothing pauses behind it (the world plays on, a run carries on): never "Paused" / "Resume".
     <Sheet title="Menu" eyebrow="Causeway" onClose={onClose}>
@@ -351,16 +368,16 @@ function Menu({ onClose }: { onClose: () => void }) {
         <button onClick={onClose}>
           Back to the game <span>Esc</span>
         </button>
-        <button onClick={() => set({ modal: 'how' })}>
+        <button onClick={() => go('how')}>
           How it works <span>The rules in a minute</span>
         </button>
-        <button onClick={() => set({ modal: 'fair' })}>
+        <button onClick={() => go('fair')}>
           Provably fair <span>Seeds and verification</span>
         </button>
-        <button onClick={() => set({ modal: 'history' })}>
+        <button onClick={() => go('history')}>
           Previous runs <span>Your history</span>
         </button>
-        <button onClick={() => set({ modal: 'settings' })}>
+        <button onClick={() => go('settings')}>
           Settings <span>Sound, picture, motion</span>
         </button>
         <button onClick={() => ctl?.toTitle()} disabled={live}>
