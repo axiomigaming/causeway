@@ -402,6 +402,10 @@ const UNPINNED = new Set(['fall_drop', 'fall_side_hit', 'start', 'fall_chasm_b']
 const DROPS = new Set(['fall_ledge', 'fall_chasm', 'fall_chasm_b', 'fall_drop']);
 /** The lowest an ankle may sweep while a fall on the floor blends in (m above it). */
 const FOOT_FLOOR = 0.05;
+/** The toe joint's lowest height over the floor while a pin holds the ankle (m): the floor (a good stance has it at 1-2 mm). */
+const TOE_FLOOR = 0;
+/** A turn cut's outside-foot plant, clip time (s): from its touchdown (frame 7.8) to its push-off. */
+const CUT_PLANT: readonly [number, number] = [7.8 / 30, 12.3 / 30];
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -474,6 +478,7 @@ interface FootLock {
   thigh?: THREE.Bone;
   shin?: THREE.Bone;
   foot?: THREE.Bone;
+  toe?: THREE.Bone;
   locked: boolean;
   pos: THREE.Vector3;
   w: number;
@@ -656,6 +661,7 @@ export class Runner {
   private v2 = new THREE.Vector3();
   private v3 = new THREE.Vector3();
   private v4 = new THREE.Vector3();
+  private v5 = new THREE.Vector3();
   private inv = new THREE.Quaternion();
   /** The airborne layer: its weight (eased in real time), its noise clock (real seconds), and the
    * trunk's follow-through springs (pitch and head lag the body's change of vertical speed). */
@@ -717,6 +723,7 @@ export class Runner {
       f.thigh = this.body.getObjectByName(`thigh${s}`) as THREE.Bone | undefined;
       f.shin = this.body.getObjectByName(`shin${s}`) as THREE.Bone | undefined;
       f.foot = this.body.getObjectByName(`foot${s}`) as THREE.Bone | undefined;
+      f.toe = this.body.getObjectByName(`toe${s}`) as THREE.Bone | undefined;
     }
     this.body.traverse((o) => {
       if ((o as THREE.Bone).isBone) this.clipPose.set(o as THREE.Bone, o.quaternion.clone());
@@ -1854,11 +1861,16 @@ export class Runner {
       // floor, not the ankle's height (caught by height, the cut's foot was pinned two frames early, still
       // swinging in, and let go with a 36 cm jump once the leg ran out of reach).
       const stance = this.stanceLock(s, t);
+      const cut = this.current === 'turn_cut_L' || this.current === 'turn_cut_R';
       if (free) f.locked = false;
       else if (stance !== null) {
         if (stance && !f.locked && !f.spent) {
           f.locked = true;
           f.pos.copy(ankle).setY(ground + 0.095);
+          // A cut's plant takes the foot whole from its touchdown: at the top tier the body passes over it
+          // in two frames, and eased in (63 % the first frame, out of reach the next) the clip's own foot,
+          // keyed for a slower pace, slid 11 cm a frame through the plant (turn_cut_R at 12.6 m/s).
+          if (cut) f.w = 1;
         } else if (!stance) {
           f.locked = false;
           f.spent = false;
@@ -1875,6 +1887,12 @@ export class Runner {
       f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (stance ? 30 : 18) : flying ? 30 : sliding ? 22 : stance === false ? 40 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
+        // A cut's push-off, keyed for a slower pace, rolls the free toe 3-5 cm into the stone at the top
+        // tier: the ankle is lifted by as much.
+        if (cut && f.toe && !free) {
+          const under = ground + TOE_FLOOR - f.toe.getWorldPosition(this.v4).y;
+          if (under > 0.002) this.solveLeg(f, this.v2.copy(ankle).setY(ankle.y + under));
+        }
         continue;
       }
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);
@@ -1884,6 +1902,22 @@ export class Runner {
       // stiff for 4 frames — and let go with a snap.)
       const H = f.thigh.getWorldPosition(this.v3);
       const reachMax = 0.94 * this.legLen(f);
+      // A cut's planted foot the body outruns skids along the floor, as far as the leg reaches, until its
+      // push-off: at the top tier the hips pass over it in about a frame (42 cm), and let go when out of
+      // reach the foot jumped 21 cm to the clip's in a frame.
+      if (cut && stance && f.locked && f.w > 0.99 && H.distanceTo(f.pos) > reachMax) {
+        const from = this.v4.copy(f.pos);
+        const to = this.v2.set(ankle.x, f.pos.y, ankle.z);
+        if (H.distanceTo(to) <= reachMax) {
+          let lo = 0, hi = 1;
+          for (let i = 0; i < 10; i++) {
+            const m = 0.5 * (lo + hi);
+            if (H.distanceTo(this.v5.copy(from).lerp(to, m)) > reachMax) lo = m;
+            else hi = m;
+          }
+          f.pos.copy(from).lerp(to, hi);
+        }
+      }
       if (H.distanceTo(this.v2.copy(ankle).lerp(f.pos, f.w)) > reachMax) {
         let lo = 0, hi = f.w;
         for (let i = 0; i < 8; i++) {
@@ -1915,6 +1949,13 @@ export class Runner {
         w = lo;
       }
       const target = this.v2.copy(ankle).lerp(f.pos, w);
+      // The toe stays on the floor: held lower than the clip has it while the clip rolls onto the toe (the
+      // push-off), the ankle took the toe 5 cm under the stone (the cut's plant as the pin gave way).
+      if (f.toe) {
+        const toeDrop = f.toe.getWorldPosition(this.v4).y - ankle.y;
+        const under = ground + TOE_FLOOR - (target.y + toeDrop);
+        if (under > 0) target.y += under;
+      }
       f.reach = H.distanceTo(target);
       if (!this.solveLeg(f, target)) f.locked = false;
     }
@@ -1941,7 +1982,7 @@ export class Runner {
   /**
    * Whether foot `s` is in its stance by the clip's own timing, where that is known and the pins go by it
    * (true / false), else null (the pins go by the ankle's height): the run on a bend (the stride's phase
-   * against the blended contact time), and a turn cut's outside foot through its plant (clip frames 9-12).
+   * against the blended contact time), and a turn cut's outside foot through its plant (CUT_PLANT).
    */
   private stanceLock(s: 'L' | 'R', t: number): boolean | null {
     if (this.current === 'run' && Math.abs(this.yawRate) > 0.3) {
@@ -1950,7 +1991,7 @@ export class Runner {
     }
     if (this.current === 'turn_cut_L' || this.current === 'turn_cut_R') {
       const outside = this.current === 'turn_cut_L' ? 'R' : 'L';
-      return s === outside && t >= 8.2 / 30 && t <= 12.3 / 30;
+      return s === outside && t >= CUT_PLANT[0] && t <= CUT_PLANT[1];
     }
     return null;
   }
