@@ -10,6 +10,8 @@ await page.waitForFunction(() => document.body.dataset.ready === '1', null, { ti
 await page.evaluate(() => {
   const g = window.__game;
   g.paused = true;
+  g.autoQuality = false;
+  document.querySelector('#app')?.style.setProperty('visibility', 'hidden');
   g.track.forceNext = ['stairsUp', 'corridor', 'stairsDown'];
   g.newWorld('setup');
   g.debugStep(1);
@@ -21,14 +23,14 @@ await page.evaluate(() => {
 });
 const shots = new Set([0, 6, 12, 120, 130]);
 for (let f = 0; f < 150; f++) {
-  const r = await page.evaluate(() => {
+  const r = await page.evaluate((draw) => {
     const g = window.__game;
     g.virtualNow += 1000 / 30;
-    g.frame(1 / 30, false);
+    g.frame(1 / 30, draw);
     const sec = g.track.sectionAt(g.s);
     const rp = g.runner.root.position;
     return { sec: sec?.type, s: +g.s.toFixed(2), runY: +rp.y.toFixed(3), pathY: +g.track.path.sample(g.s).pos.y.toFixed(3) };
-  });
+  }, shots.has(f));
   if (r.sec?.startsWith('stairs') && f % 3 === 0) console.log('STAIRS', f, JSON.stringify(r));
   if (shots.has(f)) await page.screenshot({ path: `${out}-f${f}.png` });
 }
