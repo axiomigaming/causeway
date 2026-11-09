@@ -22,9 +22,11 @@ from common import add_block, finish_obj, hexcol, jitter_color, new_mesh_obj
 import foliage as F
 from setpieces import face_bm, _merge, _cyl, _tube
 
-# Saturated sandstone of the references: warm red-orange strata with pale cream bands.
-CLIFF = [hexcol(h) for h in ("#b8683c", "#c77a47", "#a45a34", "#d08c58", "#b36e45", "#9a5534")]
-CLIFF_PALE = [hexcol(h) for h in ("#d9a878", "#e0b486", "#cf9c6c")]
+# Sandstone strata with pale bands. (World round 26: real rock tones, not the references' saturated
+# red-orange — the cliffs and the cutting's walls read as cartoon clay: a weathered buff-to-rust
+# sandstone, a grey-brown bed now and then, pale limey bands.)
+CLIFF = [hexcol(h) for h in ("#a27258", "#b0805f", "#93644b", "#b98d6b", "#9c7059", "#866049", "#8f7f6c")]
+CLIFF_PALE = [hexcol(h) for h in ("#cbb08f", "#d3ba99", "#c0a385")]
 TEMPLE = [hexcol(h) for h in ("#b98a62", "#a87a55", "#c29670", "#9c7452", "#b0835c")]
 GOLD = hexcol("#e0a93a")
 
@@ -136,24 +138,61 @@ def cliff_wall(name, seed, length=24.0, height=20.0, depth=7.0, res=0.72):
         x = p.x + dx if p.x < 1e-4 else p.x + (dx if p.x < depth * 0.5 else 0.3 * fr) * (1 - p.x / depth) + curl * curl * 3.0
         v.co = Vector((x, p.y * (1 - 0.08 * curl), z))
     bm.normal_update()
-    # Colour: beds alternate hue; pale cream bands; darker at the waterline.
-    cl = bm.loops.layers.float_color.new("Col")
-    for f in bm.faces:
-        for l in f.loops:
-            z = l.vert.co.z
-            _, bed = _strata(z, seed)
-            r = random.Random(seed * 77 + bed)
-            c = r.choice(CLIFF_PALE) if r.random() < 0.22 else r.choice(CLIFF)
-            k = 0.55 + 0.45 * min(1.0, max(0.0, (z + 0.5) / 2.5))
-            l[cl] = (c[0] * k, c[1] * k, c[2] * k, 1)
-    # Ledges: upward-facing points on the face, for plants.
+    # Ledges: upward-facing points on the face, for plants. (World round 26: taken before the finer
+    # relief below, so the plants, crest trees and vines stay where they were baked.)
     ledges = []
     for f in bm.faces:
         c = f.calc_center_median()
         if f.normal.z > 0.55 and c.x < 3.5 and 0.5 < c.z and rng.random() < 0.5:
             ledges.append((c.copy(), f.normal.copy()))
-    ob = finish_obj(name, bm, 55)
-    return ob, ledges
+    pre = [v.co.copy() for v in bm.verts]
+    # World round 26: the face's finer relief (it read as soft layered clay, evenly banded): thin beds
+    # of uneven thickness stepping in and out within each big bed, vertical joints cut into it, and a
+    # sharp fracture grain. Only the face (not the sloping top or the crest's own row).
+    subs = _sub_beds(seed, height)
+    front = [vv for key, vv in verts.items() if key[0] == "f" and key[1] < nz - 1]
+    for v in front:
+        p = v.co
+        sb = _sub_bed(subs, p.z)
+        rr = random.Random(seed * 131 + sb)
+        step = rr.uniform(-0.18, 0.18)
+        jn = noise.noise(Vector((p.y * 0.42, p.z * 0.035, seed * 0.77)))
+        joint = 0.32 * max(0.0, 1.0 - abs(jn) / 0.06)
+        grain = 0.14 * noise.fractal(Vector((p.y * 1.3, p.z * 1.3, p.x * 1.3)) + off, 0.6, 2.2, 3)
+        v.co.x = p.x + step + joint + grain
+    bm.normal_update()
+    # Colour: thin beds of uneven thickness alternate hue (pale bands among them), each varied along
+    # its length; darker at the waterline.
+    cl = bm.loops.layers.float_color.new("Col")
+    for f in bm.faces:
+        for l in f.loops:
+            z = l.vert.co.z
+            sb = _sub_bed(subs, z)
+            r = random.Random(seed * 77 + sb)
+            c = r.choice(CLIFF_PALE) if r.random() < 0.2 else r.choice(CLIFF)
+            vary = 0.9 + 0.2 * noise.noise(Vector((l.vert.co.y * 0.15, sb * 1.7, seed)))
+            k = (0.55 + 0.45 * min(1.0, max(0.0, (z + 0.5) / 2.5))) * vary
+            l[cl] = (c[0] * k, c[1] * k, c[2] * k, 1)
+    # (Sharper creases: at 55 degrees the beds' breaks were smoothed into soft folds.)
+    ob = finish_obj(name, bm, 32)
+    return ob, ledges, pre
+
+
+def _sub_beds(seed, height):
+    """World round 26: the boundaries (z) of thin beds of uneven thickness, 0.3 to 1.9 m."""
+    r = random.Random(seed * 59 + 3)
+    z, out = -4.0, []
+    while z < height + 6:
+        z += r.choice((r.uniform(0.3, 0.7), r.uniform(0.6, 1.2), r.uniform(1.1, 1.9)))
+        out.append(z)
+    return out
+
+
+def _sub_bed(subs, z):
+    for k, b in enumerate(subs):
+        if z < b:
+            return k
+    return len(subs)
 
 
 def cliff_veg(f, rng, ledges, density=1.0):
@@ -197,17 +236,18 @@ def cliff_set(name, seed, length=24.0, height=20.0, depth=7.0):
     """cliff_wall_N (rock), cliff_wall_N_veg (leaf clumps: material leaf_jungle), cliff_wall_N_trees (bark)."""
     import jungle as J
     rng = random.Random(seed + 5)
-    rock, ledges = cliff_wall(name, seed, length, height, depth)
+    rock, ledges, pre = cliff_wall(name, seed, length, height, depth)
     f = J.Fol()
     cliff_veg(f, random.Random(seed), ledges)
     me = rock.data
     crest = []
     for y in [-length / 2 + length * (k + rng.uniform(0.2, 0.8)) / 5 for k in range(5)]:
         best = None
-        for v in me.vertices:
-            if abs(v.co.y - y) < 0.8 and v.co.x < 3.0:
-                if best is None or v.co.z > best.z:
-                    best = v.co.copy()
+        # (The face as it was before its finer relief: the crest trees stand where they did.)
+        for co in pre:
+            if abs(co.y - y) < 0.8 and co.x < 3.0:
+                if best is None or co.z > best.z:
+                    best = co.copy()
         if best is not None:
             crest.append(best + Vector((1.2, 0, -0.4)))
     trunks = crest_trees(f, rng, crest[: rng.randint(3, 5)])

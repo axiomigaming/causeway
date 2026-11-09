@@ -231,6 +231,9 @@ TEXEL = {
     "rock": [(("rock_mid_",), 3.0), (("rock_big_",), 0.8)],
     # bark: roots at the path's edge and the log he jumps; the trees on the cliff tops.
     "bark": [(("log_fallen_",), 3.0), (("roots_", "root_giant_"), 2.0), (("cliff_wall_",), 0.6)],
+    # stoneA (World round 26): the parapets beside the runner, a metre or two from the lens, were soft;
+    # the footings below them (mostly under the paving's edge and the water) give up texels to them.
+    "stoneA": [(("wall_low_",), 1.6), (("foundation_",), 0.55)],
     # wood (World round 26): the rail's posts and ropes stand at the lens's side on every bridge.
     "wood": [(("rope_rail_",), 2.0)],
 }
@@ -305,7 +308,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10|ragged-moss-r24", "rock": "scan-r11|texel-moss-r24", "cliff": "scan-r11|moss-r24", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10|ragged-moss-r24", "rock": "scan-r11|texel-moss-r24|tone-r26", "cliff": "scan-r11|moss-r24|rock-r26", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:

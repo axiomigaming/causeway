@@ -277,7 +277,9 @@ def rock(name="rock"):
     vec, _ = _coords(nt, 0.6)
     big = _noise(nt, vec, 1.0, 8, 0.6, 0.4)
     # (Round 24: less saturated — beside the tan paving the boulders read as bright orange plastic.)
-    col = ramp(nt, big.outputs[0], [(0.25, hexcol("#66412e")), (0.5, hexcol("#a0653f")), (0.75, hexcol("#bf9264"))])
+    # (World round 26: the boulders and the rockfall's rocks read as saturated rust-orange sponge: the
+    # weathered grey-tan of the causeway's own sandstone, warm in the beds, the scan carrying the detail.)
+    col = ramp(nt, big.outputs[0], [(0.25, hexcol("#574a3d")), (0.5, hexcol("#8a7660")), (0.75, hexcol("#b09c80"))])
     wave = N(nt, "ShaderNodeTexWave", Scale=1.2, Distortion=9, Detail=5)
     wave.bands_direction = "Z"
     L(nt, vec, wave.inputs["Vector"])

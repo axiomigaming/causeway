@@ -1088,7 +1088,9 @@ function stageKit(kit: Kit): void {
     // Detail normals strongest underfoot, where the camera is closest.
     // (Round 23: the gate jambs and dressed blocks the route passes within 2-3 m of — temple, statue,
     // glyph stone — read as plain flat cards at 0.6: they get the masonry's 0.9.)
-    const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' || key === 'temple' || key === 'statue' || key === 'glyph' ? 0.9 : key === 'wood' ? 0.4 : 0.6;
+    // (World round 26: the boulders too — the rolling boulder and the rockfall's rocks pass within a
+    // metre or two of the lens and read as a low-detail sponge at 0.6.)
+    const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' || key === 'temple' || key === 'statue' || key === 'glyph' || key === 'rock' ? 0.9 : key === 'wood' ? 0.4 : 0.6;
     if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
   }
   // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):

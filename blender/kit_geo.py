@@ -334,20 +334,41 @@ def arch(name, seed, span=6.8, pier_h=4.0, depth=1.3):
     bm = bmesh.new()
     r = span / 2
     for side in (-1, 1):
+        # World round 26 (the owner: the piers looked like Lego — two even bricks a course, light even
+        # joints): rubble-cored ashlar as the Maya laid it. Courses of uneven height, one to three stones
+        # of uneven length across, a stone now and then split front and back, each set a little proud or
+        # back and off square, weathered unevenly, the arrises broken; a stone gone here and there from
+        # the outer corner; and a dark lime-mortar core behind the faces, so the joints read as mortar
+        # in shadow, not as slits of sky.
+        add_block(bm, (1.25 - 0.14, depth - 0.16, pier_h + 0.3), (side * (r + 0.625), 0, (pier_h - 0.3) / 2), bevel=0.0, rng=rng,
+                  color=jitter_color(hexcol("#5b5043"), rng, 0.05, 0.02), jit=0.0)
         z = -0.3
+        k = 0
         while z < pier_h:
-            h = rng.uniform(0.45, 0.7)
-            # Round 11: some courses are two stones across the pier, not one identical box per course.
-            if rng.random() < 0.5:
-                a = rng.uniform(0.45, 0.8)
-                for x0, x1 in ((r, r + a), (r + a, r + 1.25)):
-                    blk(bm, rng, (x1 - x0 - 0.02, depth * rng.uniform(0.92, 1.0), h - 0.02 - rng.uniform(0, 0.04)),
-                        (side * (x0 + x1) / 2 + rng.uniform(-0.02, 0.02), rng.uniform(-0.04, 0.04), z + h / 2),
-                        (rng.uniform(-0.02, 0.02), 0, rng.uniform(-0.04, 0.04)), radius=0.3, erode=0.55)
-            else:
-                blk(bm, rng, (1.25, depth, h - 0.02), (side * (r + 0.62) + rng.uniform(-0.03, 0.03), 0, z + h / 2),
-                    (0, 0, rng.uniform(-0.04, 0.04)), radius=0.35, erode=0.5)
+            h = min(rng.uniform(0.34, 0.78), pier_h - z + 0.05)
+            n = rng.choices((1, 2, 3), (0.3, 0.45, 0.25))[0]
+            cuts_x = sorted(rng.uniform(0.25, 1.0) for _ in range(n - 1))
+            edges = [r] + [r + 1.25 * c for c in cuts_x] + [r + 1.25]
+            for j, (x0, x1) in enumerate(zip(edges, edges[1:])):
+                if x1 - x0 < 0.18:
+                    continue
+                outer = j == len(edges) - 2
+                if outer and k > 1 and rng.random() < 0.08:
+                    continue  # a stone gone from the outer arris
+                hh = h - 0.03 - rng.uniform(0, 0.06)
+                if rng.random() < 0.28 and x1 - x0 > 0.35:
+                    ym = rng.uniform(-0.1, 0.15)
+                    parts = ((-depth / 2, ym), (ym + 0.03, depth / 2))
+                else:
+                    parts = ((-depth / 2, depth / 2),)
+                for a, b in parts:
+                    w = x1 - x0 - 0.035
+                    blk(bm, rng, (w, (b - a) * rng.uniform(0.94, 1.0), hh),
+                        (side * (x0 + x1) / 2 + rng.uniform(-0.04, 0.04), (a + b) / 2 + rng.uniform(-0.05, 0.05), z + h / 2 + rng.uniform(-0.015, 0.015)),
+                        (rng.uniform(-0.05, 0.05), rng.uniform(-0.04, 0.04), rng.uniform(-0.06, 0.06)),
+                        color=weathered(rng), radius=rng.uniform(0.22, 0.45), erode=rng.uniform(0.5, 0.85), cuts=1 if w < 0.5 else 2)
             z += h
+            k += 1
     # Round 8: a corbel (Maya) vault instead of a Roman voussoir ring: courses step inward over the
     # opening until a capstone closes it, under a carved lintel band.
     z = pier_h
@@ -359,6 +380,9 @@ def arch(name, seed, span=6.8, pier_h=4.0, depth=1.3):
             # slightly different heights and depths), not one long slab per side: it read as Lego.
             x0, x1 = inner - 0.15, r + 1.25
             w = x1 - x0
+            # (World round 26: the mortar core behind the course's faces, as in the piers.)
+            add_block(bm, (w - 0.16, depth - 0.16, h - 0.06), (side * (x0 + x1) / 2, 0, z + h / 2), bevel=0.0, rng=rng,
+                      color=jitter_color(hexcol("#5b5043"), rng, 0.05, 0.02), jit=0.0)
             n = max(1, min(3, round(w / rng.uniform(1.1, 1.7))))
             cuts_x = sorted(x0 + w * (k + rng.uniform(-0.18, 0.18)) / n for k in range(1, n))
             edges = [x0] + cuts_x + [x1]

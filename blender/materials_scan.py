@@ -12,13 +12,13 @@ import materials as M
 from common import L, N, hexcol, maprange, math_node, mix, nodes_clear, ramp
 
 
-def _inject(m, asset, scales, amount, bump):
+def _inject(m, asset, scales, amount, bump, desat=0.8):
     nt = m.node_tree
     bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
     vec, _ = M._coords(nt, 1.0)
     cols, hs = [], []
     for s in scales:
-        c, h, _r = M.scan(nt, vec, asset, s, 0.8, 1.1)
+        c, h, _r = M.scan(nt, vec, asset, s, desat, 1.1)
         cols.append(c)
         hs.append(h)
     c = mix(nt, 0.5, cols[0], cols[1], "MULTIPLY") if len(cols) > 1 else cols[0]
@@ -33,11 +33,55 @@ def _inject(m, asset, scales, amount, bump):
 
 
 def rock(name="rock"):
-    return _inject(M.rock(name), "rock_face", (0.16, 0.55), 0.85, 0.9)
+    # (World round 26: the scan's own colour kept more (desaturated 0.5, not 0.8), at a finer second
+    # scale and a stronger bump: the boulder up close read as a low-detail sponge.)
+    return _inject(M.rock(name), "rock_face", (0.16, 0.9), 1.0, 1.2, desat=0.5)
 
 
 def cliff(name="cliff"):
-    return _inject(M.cliff(name), "rock_face", (0.12, 0.45), 0.8, 0.8)
+    return _weather(_inject(M.cliff(name), "rock_face", (0.12, 0.45), 0.8, 0.8))
+
+
+def _weather(m):
+    """World round 26 (the owner: the cliffs and the cutting's walls read as soft, evenly banded cartoon
+    clay): weathering over the cliff's colour — dark desert-varnish streaks running down the beds and
+    broad stains; vertical joints and fine cracks, dark and cut into the relief; grey-green and pale
+    lichen crusts in patches; and the whole a third nearer to grey (real rock tones)."""
+    nt = m.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    vec, _ = M._coords(nt, 0.5)
+    base_in = bsdf.inputs["Base Color"]
+    col = base_in.links[0].from_socket
+    mp2 = N(nt, "ShaderNodeMapping")
+    mp2.inputs["Scale"].default_value = (1.4, 1.4, 0.09)
+    mp2.inputs["Location"].default_value = (7.3, 2.1, 0.0)
+    L(nt, vec, mp2.inputs[0])
+    varnish = maprange(nt, M._noise(nt, mp2.outputs[0], 3.0, 6, 0.65).outputs[0], 0.52, 0.7, 0.0, 0.75)
+    col = mix(nt, varnish, col, hexcol("#4a3a30"), "MULTIPLY")
+    stain = maprange(nt, M._noise(nt, vec, 0.7, 4, 0.5).outputs[0], 0.55, 0.75, 0.0, 0.35)
+    col = mix(nt, stain, col, hexcol("#6a5a4c"), "MULTIPLY")
+    mpj = N(nt, "ShaderNodeMapping")
+    mpj.inputs["Scale"].default_value = (0.45, 0.45, 0.07)
+    L(nt, vec, mpj.inputs[0])
+    joints = M._voronoi(nt, mpj.outputs[0], 1.0)
+    jline = maprange(nt, joints.outputs["Distance"], 0.0, 0.035, 1.0, 0.0)
+    col = mix(nt, math_node(nt, "MULTIPLY", jline, 0.85), col, hexcol("#2a2018"), "MULTIPLY")
+    cracks = M._voronoi(nt, vec, 2.6)
+    cline = maprange(nt, cracks.outputs["Distance"], 0.0, 0.02, 1.0, 0.0)
+    col = mix(nt, math_node(nt, "MULTIPLY", cline, 0.6), col, hexcol("#3a2c22"), "MULTIPLY")
+    ln = M._noise(nt, vec, 7.0, 4, 0.7)
+    lichen = math_node(nt, "MULTIPLY", maprange(nt, ln.outputs[0], 0.6, 0.68), maprange(nt, M._noise(nt, vec, 1.1, 3, 0.5).outputs[0], 0.45, 0.6))
+    lc = ramp(nt, M._noise(nt, vec, 18, 3).outputs[0], [(0.35, hexcol("#8c8e78")), (0.65, hexcol("#b4b2a0"))])
+    col = mix(nt, math_node(nt, "MULTIPLY", lichen, 0.7), col, lc, "MIX")
+    grey = N(nt, "ShaderNodeRGBToBW")
+    L(nt, col, grey.inputs[0])
+    L(nt, mix(nt, 0.33, col, grey.outputs[0], "MIX"), base_in)
+    nin = bsdf.inputs["Normal"]
+    nrm = nin.links[0].from_socket if nin.links else None
+    nrm = M._bump(nt, math_node(nt, "SUBTRACT", 1.0, jline), 0.9, 0.08, nrm)
+    nrm = M._bump(nt, math_node(nt, "SUBTRACT", 1.0, cline), 0.6, 0.03, nrm)
+    L(nt, nrm, nin)
+    return m
 
 
 def _scan_flat(nt, vec, asset, scale, desat):
