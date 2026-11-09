@@ -234,7 +234,7 @@ float skyF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { v += 
         // with faint wisps over flat, dark cut-out hills): clouds and mist.
         {
           float hzL2 = dot(skyHaze.rgb, vec3(0.2126, 0.7152, 0.0722));
-          float isSky = smoothstep(0.55, 0.85, skyL / max(hzL2, 1e-3));
+          float isSky = smoothstep(0.32, 0.6, skyL / max(hzL2, 1e-3));
           // Mist lying at the foot of the far hills: their bases fade into the haze, their crowns stand
           // out (they stood as one flat dark shape from crown to waterline).
           float foot = smoothstep(0.1, 0.0, skyD.y) * smoothstep(-0.2, -0.02, skyD.y) * (1.0 - isSky);
@@ -245,14 +245,14 @@ float skyF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { v += 
           if (skyD.y > 0.0 && isSky > 0.0) {
             vec2 cp = skyD.xz / (skyD.y + 0.08) * 0.9 + vec2(skyMist.x * 0.006, skyMist.x * 0.0025);
             float n = skyF(cp + skyF(cp * 0.6 + 3.1) * 0.9);
-            float cover = smoothstep(0.5, 0.74, n) * smoothstep(0.015, 0.1, skyD.y) * (1.0 - 0.6 * smoothstep(0.35, 0.85, skyD.y));
+            float cover = smoothstep(0.44, 0.66, n) * smoothstep(0.012, 0.08, skyD.y) * (1.0 - 0.5 * smoothstep(0.4, 0.9, skyD.y));
             vec2 toS = normalize(skySun.xz + 1e-4) * 0.08;
             float lit = clamp((n - skyF(cp + toS + skyF(cp * 0.6 + 3.1) * 0.9)) * 4.0 + 0.55, 0.0, 1.0);
             float sunNear = pow(skyToSun, 4.0);
-            vec3 shade = skyHaze.rgb * vec3(0.82, 0.86, 0.92);
+            vec3 shade = skyHaze.rgb * vec3(0.72, 0.76, 0.84);
             vec3 light = mix(vec3(0.93, 0.92, 0.88), vec3(1.05, 0.93, 0.76), sunNear) * max(skyL, hzL2) * 1.25;
             vec3 cloud = mix(shade, light, lit);
-            texColor.rgb = mix(texColor.rgb, cloud, cover * isSky * 0.62);
+            texColor.rgb = mix(texColor.rgb, cloud, cover * isSky * 0.8);
           }
         }
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
