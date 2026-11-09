@@ -397,13 +397,38 @@ export function airWeight(clip: string, t: number): number {
   return 0;
 }
 
+/** The sideways acceleration the secondary springs feel saturates round this (m/s²). */
+const LAT_A = 18;
+
+/** x, eased into [lo, hi] (lo < 0 < hi): unchanged up to 70 % of either limit, then a tanh knee. */
+export function softLimit(x: number, lo: number, hi: number): number {
+  const K = 0.7;
+  if (x > K * hi) {
+    const r = (1 - K) * hi;
+    return K * hi + r * Math.tanh((x - K * hi) / r);
+  }
+  if (x < K * lo) {
+    const r = (1 - K) * -lo;
+    return K * lo - r * Math.tanh((K * lo - x) / r);
+  }
+  return x;
+}
+
 class Spring {
   x = 0;
   v = 0;
+  /** The angle last returned (the state through the soft limit). */
+  out = 0;
   constructor(
     private k: number,
     private c: number,
   ) {}
+  /**
+   * Advance and return the angle, limited to [lo, hi] (lo < 0 < hi) by a soft knee: linear to 70 % of the
+   * limit, then easing into it (tanh, matched in slope). A hard stop zeroed the velocity on contact, a
+   * knock each stride where a sleeve overshot its 0.12 rad and in the turn cut where the pouches and the
+   * satchel swing out to theirs. The state itself stops only at twice the limit (a guard).
+   */
   step(target: number, force: number, dt: number, lo = -1, hi = 1): number {
     // Semi-implicit Euler in small substeps: stable at 1/30 s and at slow motion.
     const n = Math.max(1, Math.ceil(dt / (1 / 120)));
@@ -412,19 +437,21 @@ class Spring {
       const a = -this.k * (this.x - target) - this.c * this.v + force;
       this.v += a * h;
       this.x += this.v * h;
-      if (this.x < lo) {
-        this.x = lo;
+      if (this.x < 2 * lo) {
+        this.x = 2 * lo;
         this.v = Math.max(0, this.v);
-      } else if (this.x > hi) {
-        this.x = hi;
+      } else if (this.x > 2 * hi) {
+        this.x = 2 * hi;
         this.v = Math.min(0, this.v);
       }
     }
-    return this.x;
+    this.out = softLimit(this.x, lo, hi);
+    return this.out;
   }
   reset() {
     this.x = 0;
     this.v = 0;
+    this.out = 0;
   }
 }
 
@@ -1642,12 +1669,17 @@ export class Runner {
     this.root.getWorldQuaternion(this.inv).invert();
     const a = this.acc.clone().applyQuaternion(this.inv);
     const ha = this.hipAcc.clone().applyQuaternion(this.inv);
+    // Sideways, a turn holds 33-45 m/s² for half a second (12.6 m/s round a corner): taken linearly it pinned
+    // the satchel, the pouches and the hem on their limits, and they flew back as it ended. Compressed
+    // (footfall sway of a few m/s² passes nearly as it is), a turn swings them out to about half way.
+    a.x = LAT_A * Math.tanh(a.x / LAT_A);
+    ha.x = LAT_A * Math.tanh(ha.x / LAT_A);
     const s = this.springs;
     const run = Math.min(1, this.speed / 9);
 
     // The satchel rides the hip: it lags each landing and swings as the pelvis turns.
     const pack = s.pack.step(0, -ha.y * 0.5 + ha.z * 0.5, dt, -0.3, 0.35);
-    const packSide = s.packSide.step(0, -ha.x * 0.6, dt, -0.25, 0.25);
+    const packSide = s.packSide.step(0, -ha.x * 0.45, dt, -0.25, 0.25);
     this.rotate(this.bones.pack, pack, 0, packSide);
     this.cloth(dt, a, ha, run);
     // The pouches on the harness's side straps ride the ribcage: a bounce and a lag on each footfall and
