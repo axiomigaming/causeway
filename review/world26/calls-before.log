@@ -1,0 +1,8 @@
+a26 CALLS max 80
+a26 FRAME {"t":16,"calls":75,"sec":"ravine","top":"tiles:9 stoneA|near:7 rock|near:7 leaf|near:7 bark|near:7 stoneB|near:7 moss|near:5 ambient:4 ground:3 floor|grit:2 glyph|near:2 Points:2 fx.spray:2 water:1"}
+a26 FRAME {"t":18,"calls":79,"sec":"approach","top":"tiles:9 leaf|near:7 bark|near:7 stoneB|near:7 debris:7 rock|near:6 stoneA|near:6 moss|near:5 ambient:4 ground:3 floor|grit:2 Points:2 fx.spray:2 water:1"}
+a26 FRAME {"t":20,"calls":78,"sec":"approach","top":"tiles:9 leaf|near:7 bark|near:7 stoneB|near:7 rock|near:6 stoneA|near:6 moss|near:5 ambient:4 ground:2 floor|grit:2 glyph|near:2 Points:2 fx.spray:2 water:1"}
+a26 FRAME {"t":44,"calls":79,"sec":"corridor","top":"tiles:9 landmark|column_lone_0:9 leaf|near:7 bark|near:7 stoneA|near:6 stoneB|near:6 rock|near:5 moss|near:4 ambient:4 floor|grit:3 ground:2 glyph|near:2 Points:2 fx.spray:2"}
+a26 FRAME {"t":46,"calls":79,"sec":"approach","top":"tiles:9 landmark|column_lone_0:9 leaf|near:8 bark|near:7 rock|near:6 stoneA|near:6 stoneB|near:6 moss|near:5 ambient:4 ground:2 floor|grit:2 obstacle|pillar_2:2 Points:2 fx.spray:2"}
+a26 FRAME {"t":48,"calls":80,"sec":"approach","top":"tiles:9 landmark|column_lone_0:9 leaf|near:7 stoneB|near:7 stoneA|near:6 bark|near:6 debris:6 rock|near:5 moss|near:4 ambient:4 floor|grit:2 Points:2 fx.spray:2 water:1"}
+a26 FRAME {"t":60,"calls":76,"sec":"ravine","top":"debris:14 tiles:9 leaf|near:6 bark|near:5 rock|near:5 stoneB|near:4 ambient:4 ground:3 stoneA|near:3 statue|near:3 cliff|near:2 falls:2 Points:2 fx.spray:2"}

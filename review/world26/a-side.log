@@ -1,0 +1,17 @@
+servers 5195:200 5196:200
+side w7 STATE {"t":2.5,"view":"S","s":13.8,"sec":"bridge","pick":"/leaf|far@15.8 /rock|far@18.9 /rock|near@11.3"}
+side w7 STATE {"t":2.5,"view":"A","s":14.1,"sec":"bridge","pick":"track/tiles:planks_0@8.9 /water@14 /rock|near@9.7"}
+side w31 STATE {"t":2.5,"view":"S","s":13.8,"sec":"bridge","pick":"/falls@14 /cliff|far@16.1 /falls@12.8"}
+side w31 STATE {"t":2.5,"view":"A","s":14.1,"sec":"bridge","pick":"track/tiles:planks_0@8.9 /water@14 /falls@5.2"}
+side w105 STATE {"t":4,"view":"S","s":23.6,"sec":"bridge","pick":"track/tiles:planks_1@4.5 /rock|far@21.5 /falls@11.6"}
+side w105 STATE {"t":4,"view":"A","s":23.8,"sec":"bridge","pick":"/falls@2.5 track/tiles:planks_1@9.6 /falls@2.8"}
+side w83 STATE {"t":2.5,"view":"S","s":13.8,"sec":"boardwalk","pick":"/stoneA|near@9.9 /rock|near@10.2 /statue|near@0.5"}
+side w83 STATE {"t":2.5,"view":"A","s":14.1,"sec":"boardwalk","pick":"/leaf|far@1.2 /stoneA|near@0.5 /leaf|far@1.8"}
+side w11 STATE {"t":13,"view":"S","s":84,"sec":"boardwalk","pick":"/rock|near@0.1 /rock|near@0.1 /rock|near@0"}
+side w11 STATE {"t":13,"view":"A","s":84.3,"sec":"boardwalk","pick":"track/tiles:floor_0@20.2 track/tiles:planks_0@3.7 /rock|near@8.7"}
+side w118 STATE {"t":2.5,"view":"S","s":13.8,"sec":"stepping","pick":"/stoneA|near@4.2 /stoneA|near@9.6 /stoneA|near@10.1"}
+side w118 STATE {"t":2.5,"view":"A","s":14.1,"sec":"stepping","pick":"/stoneA|near@3.2 /stoneA|near@9.2 /water@14"}
+side w42 STATE {"t":27.5,"view":"S","s":201.4,"sec":"stepping","pick":"/stoneB|far@0.8 /stoneB|far@0.8 /stoneB|far@1"}
+side w42 STATE {"t":27.5,"view":"A","s":201.7,"sec":"stepping","pick":"/stoneA|near@7.1 /stoneA|near@3.4 /water@11.8"}
+ALLDONE
+SERVEDONE

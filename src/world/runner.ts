@@ -221,12 +221,12 @@ function smoothstep(a: number, b: number, x: number): number {
 
 /**
  * The runner's material: full-detail sampling (trilinear + 8× anisotropy on the colour and normal maps,
- * which the chase camera sees at a grazing angle), and a runner-only lift so he never reads as a
- * silhouette against the sunlit causeway: a soft sky/ground fill (a hemisphere term: cool from above,
- * warm bounce from below, scaled by the albedo so it shades rather than flattens) and a faint rim along
- * the contour. The world's lights are untouched.
+ * which the chase camera sees at a grazing angle). He takes the world's light exactly as the stone around
+ * him does (the sun, the bounce fill behind the lens, the sky and the environment); the one addition is a
+ * faint cool sky edge along his contour, for his silhouette against busy ground, scaled with the scene's
+ * light. (A runner-only sky/ground fill and a warm sun rim used to lift him: they flattened his back to a
+ * pale even tone the stone beside him never had.)
  */
-export const RUNNER_FILL = 0.2;
 /** The sun's shadow biases on him (normal offset, m; depth, in the shadow map's depth units over its 129 m). */
 const RUNNER_SHADOW_NORMAL = 0.02;
 const RUNNER_SHADOW_BIAS = -0.00012;
@@ -236,16 +236,15 @@ export const RUNNER_SKIN = 1;
 const SKIN_SHADOW_SLACK = 0.7;
 /** The sun's shadow camera depth range (render/game.ts: near 1, far 130), to put the slack in its depth units. */
 const SUN_SHADOW_DEPTH = 129;
-export const RUNNER_RIM = 0.3;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
-export const RUNNER_COOL_RIM = 0.12;
+export const RUNNER_COOL_RIM = 0.1;
 /** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
 const runnerWet = { value: 0 };
 /**
- * The light the lift takes after: the world's hemisphere sky and ground colours, the sun's colour (the warm
- * rim), and k, the lift's strength relative to the reference look (the world's hemi at 0.4). With fixed
- * colours and strength he kept his glow through the storm, the mood's dimming and the shade, and read as
- * pasted in. Set every frame by the game (setRunnerLight); the defaults are the reference look.
+ * The world's light his sky edge takes after: the hemisphere's sky colour, and k, its strength relative to
+ * the reference look (the world's hemi at 0.4), so the edge dims with the storm, the mood and the shade.
+ * (The ground and sun colours are kept for the API; nothing reads them now.) Set every frame by the game
+ * (setRunnerLight from applyMood); the defaults are the reference look.
  */
 const runnerLight = {
   sky: { value: new THREE.Color(0.62, 0.68, 0.78) },
@@ -268,8 +267,6 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     t.needsUpdate = true;
   }
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uRunnerFill = { value: RUNNER_FILL };
-    sh.uniforms.uRunnerRim = { value: RUNNER_RIM };
     sh.uniforms.uRunnerCool = { value: RUNNER_COOL_RIM };
     sh.uniforms.uRunnerWet = runnerWet;
     sh.uniforms.uRunnerSkin = { value: RUNNER_SKIN };
@@ -285,7 +282,7 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
       THREE.ShaderChunk.shadowmap_vertex.replace(/directionalLightShadows\[ i \]\.shadowNormalBias/g, `min( directionalLightShadows[ i ].shadowNormalBias, ${RUNNER_SHADOW_NORMAL.toFixed(3)} )`),
     );
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform float uRunnerSkin;\nfloat runnerSkin = 0.0;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
+      .replace('#include <common>', '#include <common>\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform float uRunnerSkin;\nfloat runnerSkin = 0.0;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
       // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
       .replace(
         '#include <roughnessmap_fragment>',
@@ -339,9 +336,7 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
         `#include <lights_fragment_end>
         {
           vec3 nW = inverseTransformDirection(normal, viewMatrix);
-          vec3 hemi = mix(uRunnerGround, uRunnerSky, nW.y * 0.5 + 0.5);
           float rim = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);
-          reflectedLight.indirectDiffuse += uRunnerK * diffuseColor.rgb * (hemi * uRunnerFill + uRunnerSun * rim * uRunnerRim);
           reflectedLight.indirectSpecular += uRunnerK * uRunnerSky * 1.15 * pow(rim, 1.4) * uRunnerCool * (0.6 + 0.4 * saturate(nW.y + 0.5));
         }`,
       );

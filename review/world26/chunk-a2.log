@@ -1,0 +1,29 @@
+servers 5195:200 5196:200
+high w64 STATE {"t":3,"s":17.1,"sec":"ruins","calls":191,"tris":937317,"mult":1.21,"look":"storm","style":"rainforest"}
+high w64 STATE {"t":25,"s":180.3,"sec":"cutting","calls":213,"tris":765978,"mult":4.83,"look":"storm","style":"rainforest"}
+high w64 STATE {"t":55,"s":507.2,"sec":"tall","calls":229,"tris":973119,"mult":31.98,"look":"storm","style":"rainforest"}
+high w77 STATE {"t":3,"s":17.1,"sec":"forest","calls":166,"tris":730685,"mult":1.21,"look":"afternoon","style":"jade"}
+high w77 STATE {"t":25,"s":180.7,"sec":"corridor","calls":202,"tris":847208,"mult":4.83,"look":"afternoon","style":"jade"}
+high w77 STATE {"t":55,"s":505.3,"sec":"cutting","calls":237,"tris":894968,"mult":31.98,"look":"afternoon","style":"jade"}
+high w83 STATE {"t":3,"s":17.1,"sec":"boardwalk","calls":179,"tris":774235,"mult":1.21,"look":"storm","style":"jade"}
+high w83 STATE {"t":25,"s":181.5,"sec":"approach","calls":211,"tris":846501,"mult":4.83,"look":"storm","style":"jade"}
+high w83 STATE {"t":55,"s":502.7,"sec":"gorge","calls":213,"tris":934532,"mult":31.98,"look":"storm","style":"jade"}
+high w97 STATE {"t":3,"s":17.1,"sec":"statues","calls":191,"tris":907894,"mult":1.21,"look":"golden","style":"rainforest"}
+high w97 STATE {"t":25,"s":182.4,"sec":"approach","calls":249,"tris":909041,"mult":4.83,"look":"golden","style":"rainforest"}
+high w97 STATE {"t":55,"s":502.2,"sec":"stepping","calls":226,"tris":940329,"mult":31.98,"look":"golden","style":"rainforest"}
+high w105 STATE {"t":3,"s":17.1,"sec":"gate","calls":192,"tris":698189,"mult":1.21,"look":"morning","style":"dry"}
+high w105 STATE {"t":25,"s":182,"sec":"approach","calls":221,"tris":802276,"mult":4.83,"look":"morning","style":"dry"}
+high w105 STATE {"t":55,"s":499.8,"sec":"forest","calls":214,"tris":755846,"mult":31.98,"look":"morning","style":"dry"}
+high w118 STATE {"t":3,"s":17.1,"sec":"stepping","calls":179,"tris":764323,"mult":1.21,"look":"golden","style":"jade"}
+high w118 STATE {"t":25,"s":181.3,"sec":"approach","calls":180,"tris":688995,"mult":4.83,"look":"golden","style":"jade"}
+high w118 STATE {"t":55,"s":510,"sec":"corridor","calls":257,"tris":915321,"mult":31.98,"look":"golden","style":"jade"}
+high w126 STATE {"t":3,"s":17.1,"sec":"sunken","calls":215,"tris":788122,"mult":1.21,"look":"morning","style":"jade"}
+high w126 STATE {"t":25,"s":184.5,"sec":"ravine","calls":201,"tris":957980,"mult":4.83,"look":"morning","style":"jade"}
+high w126 STATE {"t":55,"s":507.7,"sec":"overgrown","calls":182,"tris":830797,"mult":31.98,"look":"morning","style":"jade"}
+high w141 STATE {"t":3,"s":17.1,"sec":"sunken","calls":182,"tris":719145,"mult":1.21,"look":"storm","style":"dry"}
+high w141 STATE {"t":25,"s":177.6,"sec":"approach","calls":211,"tris":804967,"mult":4.83,"look":"storm","style":"dry"}
+high w141 STATE {"t":55,"s":501,"sec":"forestWall","calls":223,"tris":837648,"mult":31.98,"look":"storm","style":"dry"}
+ALLDONE
+SHEETPART high-a
+SERVEDONE
+CHUNKDONE

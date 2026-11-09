@@ -1,0 +1,3 @@
+b26 CALLS max 87
+b26 FRAME {"t":50,"calls":87,"sec":"stairsDown","top":"tiles:9 leaf|near:7 stoneA|near:6 stoneB|near:5 rock|far:5 leaf|far:5 bark|far:4 falls:4 ambient:4 floor|grit:3 glyph|near:3 bark|near:3 cliff|far:3 stoneB|far:3"}
+b26 FRAME {"t":52,"calls":85,"sec":"sunken","top":"tiles:9 stoneA|near:6 leaf|near:6 rock|far:5 leaf|far:5 debris:5 stoneB|near:4 bark|far:4 falls:4 ambient:4 statue|near:3 cliff|far:3 bark|near:3 glyph|near:2"}

@@ -181,6 +181,8 @@ interface Variant {
   key: string;
   /** World round 25: on the lightest tier, its props merged without the near/far split (see spawn). */
   flat?: THREE.Group;
+  /** World round 26: the same for an instance a flight down (keyed by its rise to the water, m). */
+  flatAt?: Map<string, THREE.Group>;
 }
 
 export interface TileSlot {
@@ -431,7 +433,7 @@ export class Track {
       }
       next.set(type, list);
     }
-    for (const vs of this.variants.values()) for (const v of vs) this.retired.push(v.group, ...(v.flat ? [v.flat] : []));
+    for (const vs of this.variants.values()) for (const v of vs) this.retired.push(v.group, ...(v.flat ? [v.flat] : []), ...(v.flatAt?.values() ?? []));
     this.variants = next;
   }
 
@@ -441,7 +443,7 @@ export class Track {
   /** The variants of this world's last ten sections (spreads the repeats; never follows the despawn). */
   private recent: string[] = [];
 
-  private mergeProps(layout: Layout, flat = false): THREE.Group {
+  private mergeProps(layout: Layout, flat = false, farDy = 0): THREE.Group {
     // Near the path (walls, pillars, arches) casts shadows; scenery out over the water does not,
     // and is merged separately so both halves cull on their own tighter bounds. Things that float
     // on the water (lilies, foam) are a third zone: like the far scenery they are placed relative
@@ -491,6 +493,9 @@ export class Track {
       // path, which is at the water's level or a flight (1.6 m) below it, never above: in the section's
       // own frame the water is never lower than WATER_REL, so 0.3 m under that is under water everywhere.
       stripBelow(c, WATER_REL - 0.3);
+      // (World round 26: far props merged for an instance a flight down are raised as spawn raises the
+      // far meshes, so they keep to the water.)
+      if (merged !== zone && farDy) c.translate(0, farDy, 0);
       if (!byKey.has(key)) byKey.set(key, []);
       byKey.get(key)!.push(c);
     }
@@ -870,6 +875,18 @@ export class Track {
         if (variant.key.endsWith('#open')) this.retired.push(variant.flat);
       }
       group = variant.flat;
+    } else if (this.density.scenery < 0.5 && !layout.ground) {
+      // World round 26: and a flight down too, its far props raised to the water in the merge (after a
+      // stairsDown every section in view kept the split: phones peaked at 87-88 calls).
+      const k = toWater.toFixed(2);
+      variant.flatAt ??= new Map();
+      let fg = variant.flatAt.get(k);
+      if (!fg) {
+        fg = this.mergeProps(variant.layout, true, toWater);
+        variant.flatAt.set(k, fg);
+        if (variant.key.endsWith('#open')) this.retired.push(fg);
+      }
+      group = fg;
     }
     for (const child of group.children) {
       const m = child as THREE.Mesh;
@@ -1088,7 +1105,9 @@ function stageKit(kit: Kit): void {
     // Detail normals strongest underfoot, where the camera is closest.
     // (Round 23: the gate jambs and dressed blocks the route passes within 2-3 m of — temple, statue,
     // glyph stone — read as plain flat cards at 0.6: they get the masonry's 0.9.)
-    const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' || key === 'temple' || key === 'statue' || key === 'glyph' ? 0.9 : key === 'wood' ? 0.4 : 0.6;
+    // (World round 26: the boulders too — the rolling boulder and the rockfall's rocks pass within a
+    // metre or two of the lens and read as a low-detail sponge at 0.6.)
+    const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' || key === 'temple' || key === 'statue' || key === 'glyph' || key === 'rock' ? 0.9 : key === 'wood' ? 0.4 : 0.6;
     if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
   }
   // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):
