@@ -1292,7 +1292,9 @@ export class CameraRig {
       const k = Math.min(1, this.revealK * 1.5);
       if (k < 0.001) return;
       c.updateMatrixWorld();
-      const p = this.tmp4.copy(this.gapBody!).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
+      // (Camera round 2, QA hunt: the point held is halfway between where he went in and the broken
+      // lip he went over: on the body alone the held shot was five seconds of foam, top-down.)
+      const p = this.tmp4.copy(this.gapBody!).lerp(runnerPos, 0.5).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
       if (p.z > -0.3) return;
       const beside = Math.min(this.sideK, k);
       const yWant = lerp(lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, 1 - 2 * s - 2 * this.insetTop - 0.05, 0.5), -2 * s, beside);
