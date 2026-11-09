@@ -314,6 +314,12 @@ export class Letterbox {
   private uniforms = { uH: { value: 0 } };
   private h = 0;
   target = 0;
+  /**
+   * The most each bar may take (a share of the frame's height), set from the interface: the room
+   * above the top bar's first line. The bars never cover the top band or the settled multiplier
+   * (coordinator, QA hunt: at 6 % they ran over the balance and the 30x figure on desktop).
+   */
+  cap = 1;
 
   constructor() {
     // Two quads; z marks which band (top +1, bottom −1), y spans the band.
@@ -343,8 +349,9 @@ export class Letterbox {
   }
 
   update(rawDt: number): void {
-    this.h += (this.target - this.h) * (1 - Math.exp(-rawDt * 5));
-    if (Math.abs(this.target - this.h) < 1e-4) this.h = this.target;
+    const target = Math.min(this.target, this.cap);
+    this.h += (target - this.h) * (1 - Math.exp(-rawDt * 5));
+    if (Math.abs(target - this.h) < 1e-4) this.h = target;
     this.uniforms.uH.value = this.h;
     this.mesh.visible = this.h > 0.0015;
   }
