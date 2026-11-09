@@ -308,7 +308,7 @@ SRC_HASH = hashlib.sha256(b"".join(open(os.path.join(os.path.dirname(__file__), 
 def group_hash(objs, key, size):
     import numpy as np
     # MAT_TAG: bump when a group's material arguments change in this file (not covered by SRC_HASH).
-    MAT_TAG = {"glyph": "geom-glyphs-r10|ragged-moss-r24", "rock": "scan-r11|texel-moss-r24|tone-r26", "cliff": "scan-r11|moss-r24|rock-r26", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24|pale-roots-r26", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
+    MAT_TAG = {"glyph": "geom-glyphs-r10|ragged-moss-r24", "rock": "scan-r11|texel-moss-r24|tone-r26b", "cliff": "scan-r11|moss-r24|rock-r26", "flora": "moss-r11", "temple": "uvfit-r11", "bark": "grain-r23|texel-moss-r24|pale-roots-r26", "stoneA": "tall-undersides-r11|ragged-moss-r24", "stoneB": "vault-undersides-r11|texel-r24b"}
     h = hashlib.sha256(f"{SRC_HASH}|{key}|{size}|{FAST}|{MAT_TAG.get(key, '')}".encode())
     OBJ_DIGESTS[key] = {}
     for o in objs:

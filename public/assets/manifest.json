@@ -5,9 +5,9 @@
     "high": {
       "kit": {
         "file": "kit.high.glb",
-        "bytes": 12685916,
-        "v": "c614ca34fa",
-        "src": "24cc1cb8b4"
+        "bytes": 12608960,
+        "v": "e1961bea8c",
+        "src": "82df7f1ec8"
       },
       "runner": {
         "file": "runner.high.glb",
@@ -19,9 +19,9 @@
     "mobile": {
       "kit": {
         "file": "kit.mobile.glb",
-        "bytes": 5635976,
-        "v": "463fc30db6",
-        "src": "253aad562d"
+        "bytes": 5610664,
+        "v": "c02eb25e8b",
+        "src": "d712eb81c0"
       },
       "runner": {
         "file": "runner.mobile.glb",
