@@ -198,6 +198,19 @@ for (let f = 0; f < N; f++) {
           }
         }
         near = { n, d: +dmin.toFixed(2), what };
+        // Camera round 2: while the lens ducks under a beam, the share of the frame its underside
+        // fills (a 9x12 grid, first hit within 8 m on a beam or lintel).
+        if ((g.duckT ?? 0) > 0.01) {
+          let nb = 0;
+          for (let iy = 0; iy < 12; iy++) for (let ix = 0; ix < 9; ix++) {
+            rc.setFromCamera({ x: -1 + (2 * (ix + 0.5)) / 9, y: -1 + (2 * (iy + 0.5)) / 12 }, cam);
+            rc.near = cam.near;
+            rc.far = 8;
+            const h = rc.intersectObjects(window.__tg, false)[0];
+            if (h && /beam|lintel/.test(h.object.name || h.object.parent?.name || '')) nb++;
+          }
+          near.beam = +(nb / 108).toFixed(3);
+        }
       }
       return {
         near,
@@ -278,6 +291,7 @@ const nearHits = nearS.filter((r) => r.near.n >= 3 || r.near.d < 0.45);
 const summary = {
   jitter: { camRmsCm: +(rms(camJ) * 100).toFixed(2), hipsRmsNdc: +rms(hipJ).toFixed(4) },
   nearLens: { samples: nearS.length, hits: nearHits.length, worst: nearHits.sort((x, y) => y.near.n - x.near.n || x.near.d - y.near.d).slice(0, 4).map((r) => `${r.sec}:${r.near.n}@${r.near.d}:${r.near.what}`) },
+  beam: { max: Math.max(0, ...nearS.map((r) => r.near.beam ?? 0)), samples: nearS.filter((r) => r.near.beam !== undefined).length },
   name: NAME,
   world: W,
   view: VIEW,

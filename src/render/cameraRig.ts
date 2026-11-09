@@ -699,6 +699,7 @@ export class CameraRig {
         const ck = (this.camera.aspect < 1 ? 0.72 : 1) / Math.max(1, this.closeIn);
         if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * this.closeSide * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
+        this.chasmHold(s);
         break;
       }
       case 'cashout': {
@@ -1238,6 +1239,34 @@ export class CameraRig {
   bodyPts: THREE.Vector3[] | null = null;
   /** FX round 21: his body (hips) in a fall into the water, where the root stays at the lip; or null. */
   gapBody: THREE.Vector3 | null = null;
+  /** Camera round 2: the chasm fall's broken causeway edge and heading, and where he went in (game). */
+  gapLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
+  gapSplash: THREE.Vector3 | null = null;
+  /** The held chasm shot's aim (world) and its weight (0..1), for keepInFrame. */
+  private gapAim = new THREE.Vector3();
+  private gapAimK = 0;
+  private gapPos = new THREE.Vector3();
+
+  /**
+   * Camera round 2 (coordinator): once the card is up, the chasm's end shot holds on the broken
+   * causeway edge with the water below it — the lens back over the causeway and up, aimed between
+   * the lip and where he went in — not top-down on empty water. Before the card, the drop and the
+   * splash play as before (the lens over the lip, tilting down after him).
+   */
+  private chasmHold(s: number): void {
+    const L = this.gapLip;
+    this.gapAimK = 0;
+    if (this.crashShot !== 'chasm' || this.gap <= 0 || !L) return;
+    const k = ease(this.revealK) * Math.min(1, this.gap);
+    if (k < 0.001) return;
+    const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
+    const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -3.6).addScaledVector(side, 1.1 * (s || 1)).setY(L.pos.y + 2.5);
+    this.gapAim.copy(L.pos).lerp(splash, 0.45);
+    this.targetPos.lerp(this.gapPos, k);
+    this.targetLook.lerp(this.gapAim, k);
+    this.gapAimK = k;
+  }
   private tmp4 = new THREE.Vector3();
 
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60, rdt = dt): void {
@@ -1293,7 +1322,7 @@ export class CameraRig {
       const k = Math.min(1, this.revealK * 1.5);
       if (k < 0.001) return;
       c.updateMatrixWorld();
-      const p = this.tmp4.copy(this.gapBody!).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
+      const p = this.tmp4.copy(this.gapBody!).lerp(this.gapAim, this.gapAimK).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
       if (p.z > -0.3) return;
       const beside = Math.min(this.sideK, k);
       const yWant = lerp(lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, 1 - 2 * s - 2 * this.insetTop - 0.05, 0.5), -2 * s, beside);

@@ -709,6 +709,8 @@ export class Game {
     this.cine.clear();
     this.releaseReveal();
     this.gapAt = null;
+    this.chasmLip = null;
+    this.splashAt = null;
     this.clearEscapeGate();
     this.runner.root.visible = true;
     this.rig.gap = 0;
@@ -1329,13 +1331,34 @@ export class Game {
         for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
       }
     }
+    // Camera round 2: in a fall's settled shot the big broken pieces too (the rockfall's boulders
+    // rolled to rest between the lens and him and held the view blocked for a second and a half).
+    // Pieces under ~0.7 m across do not count.
+    if (this.stage === 'crash' || this.stage === 'cashout') {
+      const sph = this.occlSphere;
+      for (const m of this.debris.root.children as THREE.Mesh[]) {
+        if (!m.isMesh || !m.visible || !m.geometry) continue;
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        sph.copy(m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld);
+        if (sph.radius < 0.35 || !o.ray.intersectsSphere(sph)) continue;
+        o.rc.set(from, o.dir);
+        o.rc.far = len;
+        o.hits.length = 0;
+        m.raycast(o.rc, o.hits);
+        for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
+      }
+    }
     return best;
   }
+  private occlSphere = new THREE.Sphere();
 
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
   private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
   private gapBodyPos = new THREE.Vector3();
+  /** The chasm fall: the broken causeway's edge (and its heading), and where he went into the water. */
+  private chasmLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
+  private splashAt: THREE.Vector3 | null = null;
   /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
   debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
@@ -1833,6 +1856,12 @@ export class Game {
       const dropT = 1.1;
       const under = st.variant % 2 === 0 ? this.tileUnder(this.stopAt) : null;
       if (st.variant % 2 === 0 && !under) this.runner.play('fall_chasm_b', 0.12);
+      // Camera round 2: where the causeway now ends (the near edge of the slab that gives under him,
+      // else the seam he stopped at) and its heading, for the held shot over the broken edge.
+      if (under) {
+        const lf = frameAt(this.tileSpan(under)[0]);
+        this.chasmLip = { pos: lf.pos.clone(), fwd: lf.fwd.clone() };
+      }
       if (under) {
         this.later(dropT - 0.06, () => {
           this.track.hideTile(under);
@@ -2602,9 +2631,10 @@ export class Game {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
-        // (Camera round 2, QA hunt: 0.6 m under the beam, not 0.4 — that close its dark, untextured
-        // underside filled the top 40 % of a phone frame, magnified, for half a second.)
-        depth = Math.max(depth, cam.position.y - (y - 0.6));
+        // (Camera round 2: 0.45 m under the beam, and the view leans down further while under it — at
+        // 0.4 its dark, untextured underside filled the top 40 % of a phone frame for half a second;
+        // ducking to 0.6 put the lens among the floor tiles instead.)
+        depth = Math.max(depth, cam.position.y - (y - 0.45));
       }
     }
     if (near) this.duckDepth = depth;
@@ -2629,7 +2659,7 @@ export class Game {
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
-    look.y -= drop * (0.35 + 0.25 * k);
+    look.y -= drop * (0.35 + 0.6 * k);
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -3200,8 +3230,12 @@ export class Game {
       if (hips) {
         this.runner.body.updateWorldMatrix(true, true);
         this.rig.gapBody = this.gapBodyPos.setFromMatrixPosition(hips.matrixWorld);
+        // Where he went in: his hips' ground position as they first reach the water.
+        if (!this.splashAt && this.gapBodyPos.y < WATER_Y + 0.4) this.splashAt = this.gapBodyPos.clone().setY(WATER_Y);
       }
     }
+    this.rig.gapLip = this.stage === 'crash' && this.crashKind === 'chasm' ? this.chasmLip : null;
+    this.rig.gapSplash = this.rig.gapLip ? this.splashAt : null;
     this.rig.realDt = rawDt;
     // Round 20 (coordinator): the escape's orbit ends in front of his face (the clip turns him).
     {
