@@ -160,6 +160,28 @@ export function gaitCadence(speed: number, drive: number): number {
   const stride = STRIDE.run * m.run + STRIDE.sprint * m.sprint + STRIDE.dash * m.dash;
   return Math.min(Math.max(speed / stride, 1.1), cadenceCap(drive));
 }
+/**
+ * The lowest run tier (up to `max`) whose stride the floor's speed fits under the turnover ceiling. The tier
+ * eases back to 0 once a run is banked, but the cash-out's run-on still goes at the round's pace: at 60x,
+ * 12.6 m/s on the plain run's 3.6 m stride wanted 3.5 strides/s against the 2.55 ceiling, and the planted
+ * foot slid 10 cm a frame. The stride lengthens to the speed instead (the gait the pace needs).
+ */
+export function gaitDriveFloor(speed: number, max: number): number {
+  const fits = (d: number): boolean => {
+    const m = gaitMix(d);
+    return speed / (STRIDE.run * m.run + STRIDE.sprint * m.sprint + STRIDE.dash * m.dash) <= cadenceCap(d);
+  };
+  if (fits(0)) return 0;
+  if (!fits(max)) return max;
+  let lo = 0;
+  let hi = max;
+  for (let i = 0; i < 14; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (fits(mid)) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
 const IDLES = ['idle', 'idle_b', 'idle_c'] as const;
 const ONE_SHOT = new Set<string>(['start', 'fall_start', 'fall_chasm', 'fall_chasm_b', 'fall_gate', 'fall_gate_b', 'fall_rock', 'fall_rock_b', 'fall_pillar', 'fall_pillar_b', 'fall_trip', 'fall_side_hit', 'fall_drop', 'win', 'win_cheer', 'win_salute', 'win_leap', 'win_slide', 'fall_ledge', 'win_pump', 'win_cheer_big', 'jump_log', 'leap_gap', 'slide', 'vault', 'turn_cut_L', 'turn_cut_R', 'stumble_land']);
 /** Foot plants inside one-shot clips (seconds, foot, strength 0..1). Skids read heavier. */
@@ -205,6 +227,12 @@ function smoothstep(a: number, b: number, x: number): number {
  * the contour. The world's lights are untouched.
  */
 export const RUNNER_FILL = 0.3;
+/** The skin's warmth and wrap (0 off, 1 as tuned), on the skin mask the ORM map carries in R. */
+export const RUNNER_SKIN = 1;
+/** How far past the skin the wrap's shadow test looks for the world's casters (m): more than his body's depth. */
+const SKIN_SHADOW_SLACK = 0.7;
+/** The sun's shadow camera depth range (render/game.ts: near 1, far 130), to put the slack in its depth units. */
+const SUN_SHADOW_DEPTH = 129;
 export const RUNNER_RIM = 0.4;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
 export const RUNNER_COOL_RIM = 0.22;
@@ -241,15 +269,57 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     sh.uniforms.uRunnerRim = { value: RUNNER_RIM };
     sh.uniforms.uRunnerCool = { value: RUNNER_COOL_RIM };
     sh.uniforms.uRunnerWet = runnerWet;
+    sh.uniforms.uRunnerSkin = { value: RUNNER_SKIN };
     sh.uniforms.uRunnerSky = runnerLight.sky;
     sh.uniforms.uRunnerGround = runnerLight.ground;
     sh.uniforms.uRunnerSun = runnerLight.sun;
     sh.uniforms.uRunnerK = runnerLight.k;
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
+      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform float uRunnerSkin;\nfloat runnerSkin = 0.0;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
       // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, roughnessFactor * 0.45 + 0.08, uRunnerWet);')
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, roughnessFactor * 0.45 + 0.08, uRunnerWet);
+        #ifdef USE_ROUGHNESSMAP
+          runnerSkin = texture2D(roughnessMap, vRoughnessMapUv).r;
+        #endif`,
+      )
       .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 - 0.2 * uRunnerWet;')
+      // Skin: a little warmer and richer than the scan's de-lit albedo, which still read grey under the sun.
+      .replace(
+        '#include <lights_fragment_begin>',
+        `{
+          vec3 sk = diffuseColor.rgb;
+          float l = dot(sk, vec3(0.2126, 0.7152, 0.0722));
+          sk = mix(vec3(l), sk, 1.18) * vec3(1.06, 0.98, 0.9);
+          diffuseColor.rgb = mix(diffuseColor.rgb, max(sk, 0.0), runnerSkin * uRunnerSkin);
+        }
+        #include <lights_fragment_begin>
+        #if NUM_DIR_LIGHTS > 0
+        {
+          // Wrap: the sun reaches a little past the terminator through the skin, reddened (light that has
+          // travelled under it). Only past the terminator (the lit side has its own light), and only where
+          // the world does not shade him: the shadow test is moved ${SKIN_SHADOW_SLACK} m sunward, past
+          // his own body (which always shades the far side), so a wall or a crown still puts it out.
+          DirectionalLight dl;
+          #pragma unroll_loop_start
+          for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+            dl = directionalLights[i];
+            float nl = dot(geometryNormal, dl.direction);
+            float wrap = nl < 0.0 ? saturate((nl + 0.45) / 1.45) : 0.0;
+            float vis = 1.0;
+            #if defined( USE_SHADOWMAP ) && ( UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS )
+              vec4 sc = vDirectionalShadowCoord[i];
+              sc.z -= ${(SKIN_SHADOW_SLACK / SUN_SHADOW_DEPTH).toFixed(5)} * sc.w;
+              if (receiveShadow && wrap > 0.0) vis = getShadow(directionalShadowMap[i], directionalLightShadows[i].shadowMapSize, directionalLightShadows[i].shadowIntensity, directionalLightShadows[i].shadowBias, directionalLightShadows[i].shadowRadius, sc);
+            #endif
+            reflectedLight.directDiffuse += runnerSkin * uRunnerSkin * wrap * vis * dl.color * diffuseColor.rgb * vec3(1.0, 0.42, 0.28) * 0.55 * RECIPROCAL_PI;
+          }
+          #pragma unroll_loop_end
+        }
+        #endif`,
+      )
       .replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>
@@ -923,10 +993,11 @@ export class Runner {
     // near an elite sprinter's (~5 steps/s), a touch higher in the desperate dash.
     this.driveS += (this.drive - this.driveS) * (1 - Math.exp(-dt * 1.5));
     if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
-    const d = this.driveS;
-    const mix: Record<string, number> = gaitMix(this.actions.has('dash') ? d : Math.min(d, 2.2));
+    const dMax = this.actions.has('dash') ? 4 : 2.2;
+    const d = Math.max(Math.min(this.driveS, dMax), gaitDriveFloor(speed, dMax));
+    const mix: Record<string, number> = gaitMix(d);
     this.contact = GAITS.reduce((a, g) => a + (mix[g] ?? 0) * CONTACT[g], 0);
-    const cadence = gaitCadence(speed, this.actions.has('dash') ? d : Math.min(d, 2.2));
+    const cadence = gaitCadence(speed, d);
     this.cadence = cadence;
     const prevPhase = this.phase;
     // (And while the stride is still fading out under the next clip: frozen on its phase, the arms and legs

@@ -335,7 +335,9 @@ DASH = dict(
 
 # leap_gap's landing stride: the run's contact, stride and strike, the knees much deeper through the
 # stance (it soaks the drop); the clip eases from it into the run (both solved, so the plant holds).
-RUN_LAND = dict(RUN, knee=(0.55, 1.35, 0.6), frames=96)
+# (It lands on a knee already giving, 46°, and folds to 74°: from 31° the knee folded 34° in the frame
+# after the strike, a snap at the top tier's rate.)
+RUN_LAND = dict(RUN, knee=(0.8, 1.3, 0.6), frames=96)
 LEAP_END = 37  # leap_gap's last frame: its run-out hands back at the phase it reaches (runner.ts OBSTACLES)
 
 # The start clip's run-in: one stride cycle in this many frames (the game's speed is ~6 m/s by then;
@@ -2264,8 +2266,10 @@ def epic_clips():
         key(fr, G_, x=x_)
     # A little hop into it: off the right foot, both legs fold up under him in the air, the lead leg only
     # opening out ahead as he lands on his seat at 8.
-    for fr, w, L_, R_ in ((5, 0.2, (0.75, 1.6, -0.3), (0.2, 1.35, -0.2)), (6, 0.45, (1.05, 1.35, -0.35), (0.28, 1.8, 0.05)),
-                          (7, 0.75, (1.2, 0.6, -0.3), (0.45, 2.3, -0.6))):
+    # (The right thigh comes back from the strike steadily, 44° to 30°: to 12° at 5 and forward again, it
+    # turned 34° in a frame.)
+    for fr, w, L_, R_ in ((5, 0.2, (0.75, 1.6, -0.3), (0.62, 1.35, -0.2)), (6, 0.45, (1.05, 1.35, -0.35), (0.55, 1.8, 0.05)),
+                          (7, 0.75, (1.2, 0.6, -0.3), (0.52, 2.3, -0.6))):
         ph = 0.5 + (fr - 4) / 6.0
         G_, x_ = loco(ph, RUN, 0.95)
         Q = lerp_pose(G_, P8, w)
@@ -2752,7 +2756,7 @@ def obstacle_clips():
     run_up(4)
     T = {}
     torso(T, lean=0.55, look=0.45, hp=0.2, yaw=-0.1)
-    leg(T, "L", hip=-0.35, knee=0.5, ankle=0.85, toe=0.65)
+    leg(T, "L", hip=-0.35, knee=0.5, ankle=0.6, toe=0.65)
     leg(T, "R", hip=1.75, knee=2.15, ankle=-0.1)
     arm(T, "R", fwd=VA[0], elbow=0.25, out=0.12, wrist=-0.9, curl=0.25)
     arm(T, "L", fwd=0.5, elbow=1.0, out=0.45, curl=0.4)
@@ -2761,6 +2765,13 @@ def obstacle_clips():
     for b in ("shoulder.L", "upper_arm.L", "forearm.L", "hand.L"):
         T[b] = lerp_pose({b: G6.get(b, (0.0, 0.0, 0.0))}, {b: T.get(b, (0.0, 0.0, 0.0))}, 0.5)[b]
     zt = solve_root(T)
+    # The push-off foot extends over two frames, the heel coming up off the stride's stance: from the
+    # stride's toe-off to the take-off in one, the ankle turned 35° a frame (38° in game at the top tier).
+    G5v, x5v = loco(4 * OBST_CADENCE / FPS, RUN)
+    Q5 = dict(G5v)
+    for b in ("thigh.L", "shin.L", "foot.L", "toe.L"):
+        Q5[b] = lerp_pose({b: G5v.get(b, (0.0, 0.0, 0.0))}, {b: T.get(b, (0.0, 0.0, 0.0))}, 0.5)[b]
+    key(5, Q5, z=max(gait_root(4 * OBST_CADENCE / FPS, RUN), floor_z(Q5, x5v, 0.0)), x=x5v)
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
     torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)
