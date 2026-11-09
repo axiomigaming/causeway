@@ -855,6 +855,7 @@ export class Post {
   private cameraBlur = false;
   private sharpen = new SharpenEffect();
   private sharpenBase = 0;
+  private sharpenMax = 1;
   private shafts: SunShaftsEffect | null = null;
   private lens: LensEffect | null = null;
   private ssr: WaterReflectEffect | null = null;
@@ -910,6 +911,7 @@ export class Post {
     if (this.blurPass) this.composer.addPass(this.blurPass);
     this.hasPrev = false;
     this.sharpenBase = q.sharpen;
+    this.sharpenMax = q.sharpenMax;
     // Bloom: a tight radius and a high knee, so the sky does not haze over every silhouette (a soft
     // halo around all edges against the sky reads as a blurred, milky frame). Only the hot sun,
     // its glints and the cash-out flare bloom.
@@ -933,7 +935,7 @@ export class Post {
     this.composer.setSize(w, h);
     // Sharpen harder the more the browser will stretch this frame (screen px per drawn px).
     const up = (globalThis.devicePixelRatio || 1) / Math.max(0.25, this.renderer.getPixelRatio());
-    this.sharpen.uniforms.get('sharpness')!.value = Math.min(1, this.sharpenBase + 0.35 * Math.min(1.5, Math.max(0, up - 1)));
+    this.sharpen.uniforms.get('sharpness')!.value = Math.min(this.sharpenMax, this.sharpenBase + 0.35 * Math.min(1.5, Math.max(0, up - 1)));
     for (const e of [this.blur, this.shafts, this.lens]) if (e) e.uniforms.get('aspectRatio')!.value = w / h;
     if (this.ssr) this.ssr.uniforms.get('aspect')!.value = w / h;
     // Portrait: sun glare and shafts are sized by the short side and toned down (see the shaders).
