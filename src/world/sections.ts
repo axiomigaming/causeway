@@ -108,6 +108,8 @@ class Builder {
   seed = '';
   /** World round 25: a world's opening section (the first after the start): what the opening shot looks down. */
   opening = false;
+  /** World round 26: the last trunk placed, for its crown (see place). */
+  private lastTrunk: { piece: string; x: number; y: number; z: number; rotY: number; s: number | [number, number, number]; tilt?: [number, number] } | null = null;
   constructor(
     readonly rng: Rng,
     readonly density: { foliage: number; scenery: number },
@@ -135,6 +137,17 @@ class Builder {
   }
 
   place(piece: string, x: number, y: number, z: number, rotY = 0, s: number | [number, number, number] = 1, tilt?: [number, number]) {
+    // World round 26: a crown sits on the trunk placed just before it — the same tree, place, turn and
+    // size. Placements drew their own for each (a palm's crown sized apart from its trunk, a big tree's
+    // turned apart, a gorge palm's crown of another palm, a bank palm's crown a metre off its trunk):
+    // crowns hung off their trunks. (The crown's own arguments are still evaluated: the layout's stream
+    // of draws stays as it was.)
+    if (piece.endsWith('_crown') && this.lastTrunk) {
+      const t = this.lastTrunk;
+      piece = t.piece.replace(/_trunk$/, '_crown');
+      [x, y, z, rotY, s, tilt] = [t.x, t.y, t.z, t.rotY, t.s, t.tilt];
+      this.lastTrunk = null;
+    } else if (piece.endsWith('_trunk')) this.lastTrunk = { piece, x, y, z, rotY, s, tilt };
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt?.[0] ?? 0, rotY, tilt?.[1] ?? 0, 'YXZ'));
     const sc = typeof s === 'number' ? new THREE.Vector3(s, s, s) : new THREE.Vector3(...s);
@@ -240,11 +253,11 @@ function cliffWall(b: Builder, side: number, x: number, z: number, i = b.rng.int
     const t = b.rng.int(0, 1);
     const tr = b.rng.range(0, 6.28);
     const ts = b.rng.range(0.95, 1.15);
-    b.place(`tree_big_${t}_trunk`, side * (x + 2.6), WL, z + L / 2 + 2.6, tr, ts);
-    b.place(`tree_big_${t}_crown`, side * (x + 2.6), WL, z + L / 2 + 2.6, tr, ts);
+    b.place(`tree_big_${t}_trunk`, side * (x + 2.6), WL - 0.35, z + L / 2 + 2.6, tr, ts);
+    b.place(`tree_big_${t}_crown`, side * (x + 2.6), WL - 0.35, z + L / 2 + 2.6, tr, ts);
   }
   b.place(`rock_big_${b.rng.int(0, 2)}`, side * (x + 4.5), WL - 1.4, z + L / 2 + 1.2, b.rng.range(0, 6.28), [0.5, 0.6, 0.45]);
-  if (b.foliage(0.8)) jungleBank(b, side, x + 0.5, z + L / 2 + 4, 0, 1);
+  if (b.foliage(0.8)) jungleBank(b, side, x + 0.5, z + L / 2 + 4, -0.7, 1);
   return h * sy;
 }
 
@@ -265,10 +278,17 @@ function cliffFall(b: Builder, side: number, x: number, z: number, top: number, 
  * from below the water to ~8 m above the path). Phones get them too: they are a few hundred
  * triangles of cards each, and they are most of what makes the place read as jungle.
  */
-function jungleBank(b: Builder, side: number, x: number, z: number, y = 0, p = 1) {
+// (World round 26: over the water it stands 0.7 m lower: at 0 its foot, 1.8 m down, stopped 0.4 m over
+// the surface — a wall of leaves resting on the water. Its foot now goes under.)
+function jungleBank(b: Builder, side: number, x: number, z: number, y = -0.7, p = 1, water = true) {
   if (!b.foliage(p)) return;
-  b.place(`jungle_bank_${b.rng.int(0, 2)}`, side * x, y, z, (side > 0 ? 0 : Math.PI) + b.rng.range(-0.06, 0.06), [1, b.rng.range(0.85, 1.15), 1]);
+  const i = b.rng.int(0, 2), ry = (side > 0 ? 0 : Math.PI) + b.rng.range(-0.06, 0.06), sy = b.rng.range(0.85, 1.15);
+  // Over the water, its foot at least 0.3 m under the surface whatever its height.
+  if (water) y = Math.min(y, WL - 0.3 + BANK_FOOT[i]! * sy);
+  b.place(`jungle_bank_${i}`, side * x, y, z, ry, [1, sy, 1]);
 }
+/** How far each jungle bank's foot goes under its origin (kit, m at scale 1). */
+const BANK_FOOT = [1.83, 1.84, 1.67];
 
 /** A limb leaning out from the bank on `side` and arching over the way at z: leaves over the top of the shot, dappled light on the path. */
 function canopy(b: Builder, side: number, z: number, y = 0, p = 1) {
@@ -352,8 +372,9 @@ function edgeMoss(b: Builder, x: number, y: number, z: number, crest = false) {
   if (b.foliage(0.6)) b.place(b.rng.chance(0.5) ? `fern_${b.rng.int(0, 1)}` : `grass_${b.rng.int(0, 1)}`, x, y - 0.02, z + b.rng.range(-0.6, 0.6), b.rng.range(0, 6.28), b.rng.range(0.5, 0.8));
   if (crest && b.foliage(0.35)) {
     const side = Math.sign(x) || 1;
-    // (spill: origin on the crest's inner edge, spanning 0..3.3 m along its local +y, draping toward local -x.)
-    b.place(`spill_${b.rng.int(0, 1)}`, x - side * 0.15, y, z + 1.6, side > 0 ? Math.PI / 2 : -Math.PI / 2, [1, 0.55, 0.8]);
+    // (spill: origin on the crest's inner edge, spanning 3.3 m along its local −z, draping down its local
+    // −x. World round 26: turned a quarter it lay across the way, 0.3 m off the runner's line.)
+    b.place(`spill_${b.rng.int(0, 1)}`, x - side * 0.15, y, side > 0 ? z + 1.35 : z - 1.35, side > 0 ? 0 : Math.PI, [1, 0.55, 0.8]);
   }
 }
 
@@ -366,7 +387,12 @@ function rootDress(b: Builder, side: number, z0: number, y = 0, crest = 1.3) {
   const zc = z0 - b.rng.range(1, 3);
   if (b.foliage(0.9)) edgeMoss(b, side * (PATH_HALF + 0.5), y + crest + 0.05, zc);
   if (b.foliage(0.7)) b.place(`vines_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.1), y + crest + 0.2, zc + b.rng.range(-0.6, 0.6), side * Math.PI / 2, [0.55, b.rng.range(0.35, 0.5), 1]);
-  if (b.foliage(0.6)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.25), y - 0.05, z0 - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.6, 0.85));
+  // (World round 26: on the ground beside the paving, not inside its edge — seated at y − 0.05 at the
+  // paving's edge, most of it was under the stone.)
+  if (b.foliage(0.6)) {
+    const piece = `fern_${b.rng.int(0, 1)}`, x = side * (PATH_HALF + 0.5), z = z0 - b.rng.range(0.5, 3.5), ry = b.rng.range(0, 6.28);
+    b.place(piece, x, coverY(b, x, z, 0.3), z, ry, b.rng.range(0.6, 0.85), slopeTilt(b, x, z, ry));
+  }
 }
 
 function bananas(b: Builder, x: number, y: number, z: number, p = 1) {
@@ -403,7 +429,7 @@ type Vista = 'arch' | 'guardians' | 'temple' | 'towers' | 'falls';
 function colossus(b: Builder, side: number, z: number, p = 1) {
   if (!b.rng.chance(p)) return;
   const x = side * b.rng.range(5.4, 6.4);
-  b.place(b.rng.chance(0.65) ? 'guardian_0' : 'guardian_1', x, WL + 0.35, z, faceIn(side, 0.7), b.rng.range(1.55, 1.85));
+  b.place(b.rng.chance(0.65) ? 'guardian_0' : 'guardian_1', x, WL - 0.25, z, faceIn(side, 0.7), b.rng.range(1.55, 1.85));
   b.foamRing(x, z, 2.8);
   if (b.foliage(0.7)) b.place('vines_0', x - side * 0.4, WL + 6.4, z, faceIn(side, 0.7), [0.55, 0.9, 1]);
 }
@@ -434,7 +460,7 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
       const vr = new Rng(`${b.seed}/gate`);
       const form = vr.int(0, 3);
       const flip = b.rng.chance(0.5) ? 0 : Math.PI;
-      if (form === 0) b.place('arch_1', 0, 0, z, flip);
+      if (form === 0) b.place('arch_1', 0, -0.04, z, flip);
       else if (form === 1) b.place('lintel_gate_0', 0, 0, z, flip);
       else if (form === 2) {
         // A trilithon: two piers and the lintel across them.
@@ -452,16 +478,27 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
         b.place(`rock_mid_${b.rng.int(0, 2)}`, sd * 3.7, WL + 0.9, z, b.rng.range(0, 6.28), [0.6, 0.8, 0.55]);
         b.foamRing(sd * 3.7, z, 1.6);
       }
-      if (b.foliage(0.9)) b.place('vines_1', b.rng.range(-1.5, 1.5), 8.0, z + 0.6, 0, [1, 1.0, 1]);
-      if (b.foliage(0.9)) b.place(`bush_${b.rng.int(0, 3)}`, b.rng.range(-2.5, 2.5), 8.3, z, 0, 1.1);
+      // (World round 26: green on the gate's own top — the brick arch's crown, the lintel gate's, the
+      // trilithon's beam; none on the fallen one. Placed for the arch alone, over the other forms the bush
+      // and vines hung in the air. The draws are made as before.)
+      const vineY = [8.0, 7.4, 5.0][form], bushY = [8.3, 7.7, 5.45][form];
+      if (b.foliage(0.9)) {
+        const x = b.rng.range(-1.5, 1.5);
+        if (vineY !== undefined) b.place('vines_1', x, vineY, z + 0.6, 0, [1, form === 2 ? 0.6 : 1.0, 1]);
+      }
+      if (b.foliage(0.9)) {
+        const piece = `bush_${b.rng.int(0, 3)}`;
+        const x = b.rng.range(-2.5, 2.5);
+        if (bushY !== undefined) b.place(piece, form === 2 ? x * 0.8 : x, bushY, z, 0, 1.1);
+      }
       break;
     }
     case 'guardians':
       for (const sd of [-1, 1]) {
         const x = sd * b.rng.range(4.6, 5.2);
-        b.place(sd < 0 || b.rng.chance(0.7) ? 'guardian_0' : 'guardian_1', x, WL + 0.45, z, faceIn(sd, 1.2), b.rng.range(1.3, 1.45));
+        b.place(sd < 0 || b.rng.chance(0.7) ? 'guardian_0' : 'guardian_1', x, WL - 0.25, z, faceIn(sd, 1.2), b.rng.range(1.3, 1.45));
         b.foamRing(x, z, 2.5);
-        jungleBank(b, sd, Math.abs(x) + 3.5, z - 4, 0, 0.6);
+        jungleBank(b, sd, Math.abs(x) + 3.5, z - 4, -0.7, 0.6);
       }
       break;
     case 'temple': {
@@ -471,10 +508,10 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
       b.foamRing(x, -len - 3, 5.5);
       if (b.foliage(0.8)) {
         const t = b.rng.int(0, 1);
-        b.place(`tree_big_${t}_trunk`, x + side * 6, WL, -len - 6, b.rng.range(0, 6.28), 1.1);
-        b.place(`tree_big_${t}_crown`, x + side * 6, WL, -len - 6, b.rng.range(0, 6.28), 1.1);
+        b.place(`tree_big_${t}_trunk`, x + side * 6, WL - 0.35, -len - 6, b.rng.range(0, 6.28), 1.1);
+        b.place(`tree_big_${t}_crown`, x + side * 6, WL - 0.35, -len - 6, b.rng.range(0, 6.28), 1.1);
       }
-      jungleBank(b, -side, 9, -len + 2, 0, 0.8);
+      jungleBank(b, -side, 9, -len + 2, -0.7, 0.8);
       break;
     }
     case 'towers':
@@ -525,9 +562,12 @@ function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], 
       if (b.rng.chance(gaps)) {
         // (Round 22: the two lighter heaps on phones. Round 23: the biggest heap, 2 m across, sits further
         // out — at the gap it spread to 0.7 m from the running line.)
-        const big = b.density.scenery >= 0.5 && b.rng.chance(0.25);
-        b.place(big ? 'rubble_3' : `rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 2)}`, side * (PATH_HALF + (big ? 1.4 : 0.6)), 0, z - 2, b.rng.range(0, 6.28));
-        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 2)}`, side * (PATH_HALF + 0.9), 0, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
+        // (World round 26: and only over a footing — on the ravine, whose own footing stands apart, it hung
+        // 0.2 m over the dry bed.)
+        const big = b.density.scenery >= 0.5 && b.rng.chance(0.25) && opts.foundation !== false;
+        // (The small heaps on the footing's top, 0.25 m down: at the paving's height they hung over it.)
+        b.place(big ? 'rubble_3' : `rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 2)}`, side * (PATH_HALF + (big ? 1.05 : 0.6)), big ? -0.12 : -0.15, z - 2, b.rng.range(0, 6.28));
+        if (b.ruin > 0.5) b.place(`rubble_${b.rng.int(0, b.density.scenery < 0.5 ? 1 : 2)}`, side * (PATH_HALF + 0.9), -0.15, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), b.rng.range(0.8, 1.2));
         continue;
       }
       if (b.rng.chance(b.carving)) {
@@ -716,14 +756,14 @@ function turnCorner(b: Builder): ReturnType<Build> {
   if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, -R + 0.6, 0, -0.6, 0, 0.7);
   // Green behind the outer corner (the
   // inside is where the exit leg's own world begins).
-  jungleBank(b, 1, PATH_HALF + 4.5, -3, 0, 0.8);
+  jungleBank(b, 1, PATH_HALF + 4.5, -3, -0.7, 0.8);
   // No canopy here: its limb arched across the entry lane runs right along the exit leg, and the camera
   // filmed leaves at the exit of every corner. A big tree stands outside the bend instead.
   if (b.foliage(0.6)) {
     const t = b.rng.int(0, 1);
     const ry = b.rng.range(0, 6.28);
-    b.place(`tree_big_${t}_trunk`, PATH_HALF + 6.5, WL, -R - 4.5, ry, 0.8);
-    b.place(`tree_big_${t}_crown`, PATH_HALF + 6.5, WL, -R - 4.5, ry, 0.8);
+    b.place(`tree_big_${t}_trunk`, PATH_HALF + 6.5, WL - 0.35, -R - 4.5, ry, 0.8);
+    b.place(`tree_big_${t}_crown`, PATH_HALF + 6.5, WL - 0.35, -R - 4.5, ry, 0.8);
   }
   // (No scenery of its own: it is built after the corner's clearance check and could stand in the way
   // the route takes next.)
@@ -738,7 +778,42 @@ export const isLand = (t: SectionType | string | undefined): boolean => !!t && (
 
 /** Height of the ground at (x, z) in a land section (see land.ts), less a little so nothing hovers on a bump. */
 function gy(b: Builder, x: number, z: number, kind: GroundKind = 'land'): number {
-  return groundY(kind, x, z, b.len, b.lower) - 0.12 - 0.05 * b.rng.range(0, 1);
+  // (World round 26: 3-5 cm into the ground, not 12-17: ferns, moss and grass are 0.2-0.7 m tall, and
+  // seated that deep they were half buried. Trees and rocks add their own depth where they are placed.)
+  return groundY(kind, x, z, b.len, b.lower) - 0.03 - 0.02 * b.rng.range(0, 1);
+}
+
+/**
+ * World round 26: the tilt ([about x, about z], after its turn `ry`) that lays a low plant or a moss
+ * cushion on the ground's slope at (x, z) — on the ravine's banks a flat fern stood half inside the slope.
+ * At most ~46 degrees.
+ */
+function slopeTilt(b: Builder, x: number, z: number, ry: number, kind: GroundKind = 'land', e = 0.4): [number, number] {
+  const gx = (groundY(kind, x + e, z, b.len, b.lower) - groundY(kind, x - e, z, b.len, b.lower)) / (2 * e);
+  const gz = (groundY(kind, x, z + e, b.len, b.lower) - groundY(kind, x, z - e, b.len, b.lower)) / (2 * e);
+  const c = Math.cos(ry), sn = Math.sin(ry);
+  const lx = c * gx - sn * gz, lz = sn * gx + c * gz;
+  const cl = (v: number) => Math.max(-0.8, Math.min(0.8, v));
+  return [cl(-Math.atan(lz)), cl(Math.atan(lx))];
+}
+
+/** World round 26: the ground's slope at (x, z), radians. */
+function steepness(b: Builder, x: number, z: number, kind: GroundKind = 'land', e = 0.4): number {
+  const g = (u: number, v: number) => groundY(kind, u, v, b.len, b.lower);
+  return Math.atan(Math.hypot((g(x + e, z) - g(x - e, z)) / (2 * e), (g(x, z + e) - g(x, z - e)) / (2 * e)));
+}
+
+/**
+ * World round 26: where a low plant or a cushion sits — the higher of the ground at its centre and the
+ * mean of four points `r` m round it, 3 cm in. At the foot of a bank (where the slope bends up) a plant
+ * seated at its centre had its uphill half in the ground.
+ */
+function coverY(b: Builder, x: number, z: number, r = 0.4, kind: GroundKind = 'land'): number {
+  const g = (u: number, v: number) => groundY(kind, u, v, b.len, b.lower);
+  const ring = (g(x + r, z) + g(x - r, z) + g(x, z + r) + g(x, z - r)) / 4;
+  const c = g(x, z);
+  // (Lifted at most 12 cm: in a hollow, seated on the ring it stood off the ground at its middle.)
+  return Math.max(c, Math.min(ring, c + 0.12)) - 0.03;
 }
 
 /**
@@ -753,14 +828,22 @@ function groundCover(b: Builder, side: number, len: number, x0: number, x1: numb
   const on = (p: number) => r.chance(p * b.density.foliage);
   for (let z = -r.range(0.3, 1.5); z > -len + 0.5; z -= r.range(0.7, 1.3) * step) {
     const x = side * r.range(x0, x1);
-    const y = groundY(kind, x, z, b.len, b.lower) - 0.12;
+    const y = coverY(b, x, z, 0.4, kind);
     const k = r.range(0, 1);
     const ry = r.range(0, 6.28);
-    if (k < 0.38) { if (on(0.9)) b.place(`grass_${r.int(0, 1)}`, x, y, z, ry, r.range(0.9, 1.4)); }
-    else if (k < 0.68) { if (on(0.85)) b.place(`fern_${r.int(0, 1)}`, x, y - 0.05, z, ry, r.range(0.8, 1.3)); }
+    const tilt = slopeTilt(b, x, z, ry, kind);
+    if (k < 0.38) { if (on(0.9)) b.place(`grass_${r.int(0, 1)}`, x, y, z, ry, r.range(0.9, 1.4), tilt); }
+    else if (k < 0.68) { if (on(0.85)) b.place(`fern_${r.int(0, 1)}`, x, y, z, ry, r.range(0.8, 1.3), tilt); }
     // (Bushes, up to 1.7 m round, from 3.7 m out: nothing but grass and ferns brushes the running line.)
     else if (k < 0.82) { if (Math.abs(x) >= 3.7 && on(0.7)) b.place(`bush_${r.int(0, 3)}`, x, y + 0.2, z, ry, r.range(0.7, 1.05)); }
-    else b.place(`scatter_edge_${r.int(0, 2)}`, x, y + 0.06, z, side > 0 ? 0 : Math.PI);
+    // (A 4 m strip of stones: on the ravine's slopes one end stood off the ground.)
+    // (World round 26: and only where the ground under its length is even — on the terrace's slope a
+    // third of it was under the ground.)
+    else if (kind !== 'ravine') {
+      const piece = `scatter_edge_${r.int(0, 2)}`, dz = side > 0 ? -1 : 1;
+      const g = [0, 1, 2, 3, 4].map((t) => groundY(kind, x, z + dz * t, b.len, b.lower));
+      if (Math.max(...g) - Math.min(...g) < 0.12) b.place(piece, x, Math.max(...g) - 0.03 + 0.06, z, side > 0 ? 0 : Math.PI);
+    }
   }
 }
 
@@ -795,11 +878,19 @@ function forestSide(b: Builder, side: number, len: number, dense = 1) {
     const x = side * b.rng.range(2.9, 5.5);
     const r = b.rng.range(0, 1);
     const y = gy(b, x, z);
-    if (r < 0.3 && b.foliage(0.9)) b.place(`fern_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.4));
-    else if (r < 0.5 && b.foliage(0.8)) b.place(`grass_${b.rng.int(0, 1)}`, x, y, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.3));
-    else if (r < 0.68 && b.foliage(0.85)) b.place(`bush_${b.rng.int(0, 3)}`, x + side * 0.6, y + 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.25));
-    else if (r < 0.76 && b.foliage(0.7)) b.place(`banana_${b.rng.int(0, 1)}`, x + side * 0.8, y - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.2));
-    else if (r < 0.86 && b.rich) b.place(`moss_${b.rng.int(0, 2)}`, x, y + 0.02, z, b.rng.range(0, 6.28), b.rng.range(1, 1.6));
+    if (r < 0.3 && b.foliage(0.9)) {
+      const piece = `fern_${b.rng.int(0, 1)}`, ry = b.rng.range(0, 6.28);
+      b.place(piece, x, coverY(b, x, z), z, ry, b.rng.range(0.9, 1.4), slopeTilt(b, x, z, ry));
+    } else if (r < 0.5 && b.foliage(0.8)) {
+      const piece = `grass_${b.rng.int(0, 1)}`, ry = b.rng.range(0, 6.28);
+      b.place(piece, x, coverY(b, x, z), z, ry, b.rng.range(0.9, 1.3), slopeTilt(b, x, z, ry));
+    }
+    else if (r < 0.68 && b.foliage(0.85)) b.place(`bush_${b.rng.int(0, 3)}`, x + side * 0.6, y + 0.2, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.25));
+    else if (r < 0.76 && b.foliage(0.7)) b.place(`banana_${b.rng.int(0, 1)}`, x + side * 0.8, y - 0.5, z, b.rng.range(0, 6.28), b.rng.range(0.9, 1.2));
+    else if (r < 0.86 && b.rich) {
+      const piece = `moss_${b.rng.int(0, 2)}`, ry = b.rng.range(0, 6.28);
+      b.place(piece, x, coverY(b, x, z, 0.5) + 0.03, z, ry, b.rng.range(1, 1.6), slopeTilt(b, x, z, ry));
+    }
     else if (r < 0.93) b.place(`scatter_edge_${b.rng.int(0, 2)}`, side * 3.4, y + 0.08, z, side > 0 ? 0 : Math.PI);
     else if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, x, y + 0.2, z, b.rng.range(0, 6.28), [0.8, 0.25, 0.7], [Math.PI / 2, 0]);
   }
@@ -816,7 +907,7 @@ function forestSide(b: Builder, side: number, len: number, dense = 1) {
     const x = side * b.rng.range(16, 34);
     landTree(b, x, z, b.rng.range(1.0, 1.4), 'land', 0.8);
   }
-  for (let z = -8; z > -len - 8; z -= 16) jungleBank(b, side, b.rng.range(13, 18), z, gy(b, side * 15, z) - 0.4, 0.9);
+  for (let z = -8; z > -len - 8; z -= 16) jungleBank(b, side, b.rng.range(13, 18), z, gy(b, side * 15, z) - 0.4, 0.9, false);
 }
 
 /** A tall pillar standing at the causeway's edge, close enough to topple across it (crash: topple). */
@@ -835,11 +926,18 @@ function lowerTerrace(b: Builder, side: number, z0: number, n: number) {
     // on one tile and a 4 m hole on the next.)
     const piece = b.rng.pick(FLOORS.slice(0, 4));
     const flip = b.rng.chance(0.5);
-    b.place(piece, side * (PATH_HALF + 2.6), -1.6, flip ? z - TILE : z, flip ? Math.PI : 0, [1.15, 1, 1]);
+    // (World round 26: none in the first and last tiles, where the ground comes back to grade: there the
+    // slabs and ferns were buried. The draws are made as before.)
+    const ends = i === 0 || i === n - 1;
+    if (!ends) b.place(piece, side * (PATH_HALF + 2.6), -1.6, flip ? z - TILE : z, flip ? Math.PI : 0, [1.15, 1, 1]);
     // (World round 24: at y 0, as along every edge — the footing spans -0.26 down to -2.6. At -1.6 it lay
     // wholly under the terrace, and the paving's edge hung over the drop with nothing below it.)
     b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.42), 0, z, 0);
-    if (b.foliage(0.5)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF + b.rng.range(1.6, 3.6)), -1.6, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 1.1);
+    if (b.foliage(0.5)) {
+      const piece = `fern_${b.rng.int(0, 1)}`;
+      const fx = side * (PATH_HALF + b.rng.range(1.6, 3.6)), fz = z - b.rng.range(0.5, 3.5), fr = b.rng.range(0, 6.28);
+      if (!ends) b.place(piece, fx, -1.6, fz, fr, 1.1);
+    }
   }
   b.place(`rubble_${b.rng.int(0, 3)}`, side * (PATH_HALF + 3.2), -1.6, z0 - TILE * n * 0.5, b.rng.range(0, 6.28));
   // World round 24: a retaining wall along the court's back edge, its crest about the forest floor's
@@ -957,7 +1055,7 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
       groundCover(b, low, len, 8.6, 11.5, 2.0, 'land', 'bank');
       // Beyond the lower terrace the forest goes on at its level.
       for (let z = -2; z > -len - 4; z -= b.rng.range(5, 8)) landTree(b, low * b.rng.range(9.5, 16), z, b.rng.range(1, 1.3));
-      for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9);
+      for (let z = -6; z > -len - 8; z -= 16) jungleBank(b, low, b.rng.range(14, 18), z, gy(b, low * 15, z) - 0.4, 0.9, false);
       return { hazards: ['gate', 'rockfall'], walls: 'low', ground: 'land', features: { topple: true, trip: true, lower: low } };
     },
   },
@@ -977,16 +1075,33 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
         for (let z = -1; z > -len; z -= b.rng.range(5, 8) * (b.density.scenery < 0.5 ? 1.5 : 1)) {
           const x = side * b.rng.range(3.4, 7);
           b.place(`rock_mid_${b.rng.int(0, 2)}`, x, gy(b, x, z, 'ravine') - 0.2, z, b.rng.range(0, 6.28), b.rng.range(0.25, 0.6));
-          if (b.rng.chance(0.25)) b.place('log_fallen_0', x, gy(b, x, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 0.8);
-          if (b.foliage(0.4)) b.place(`grass_${b.rng.int(0, 1)}`, x + side, gy(b, x + side, z, 'ravine'), z - 1, b.rng.range(0, 6.28), 1.2);
+          if (b.rng.chance(0.25)) {
+            // (World round 26: a 7 m log laid along the slope under it, at the mean of the ground under it
+            // — level, on the bed's slopes one end was in the ground and the other in the air.)
+            gy(b, x, z, 'ravine');
+            const ry = b.rng.range(0, 6.28), g = (t: number) => groundY('ravine', x + Math.cos(ry) * t, z - 1 - Math.sin(ry) * t, b.len, b.lower);
+            b.place('log_fallen_0', x, (g(-2.6) + g(-1.3) + g(0) + g(1.3) + g(2.6)) / 5 - 0.1, z - 1, ry, 0.8, slopeTilt(b, x, z - 1, ry, 'ravine', 2.6));
+          }
+          if (b.foliage(0.4)) {
+            const piece = `grass_${b.rng.int(0, 1)}`, gy0 = gy(b, x + side, z, 'ravine'), ry = b.rng.range(0, 6.28);
+            void gy0;
+            b.place(piece, x + side, coverY(b, x + side, z - 1, 0.4, 'ravine'), z - 1, ry, 1.2, slopeTilt(b, x + side, z - 1, ry, 'ravine'));
+          }
         }
         // (Round 23: the banks between the bed and the cliffs read as bare earth slides: green caught
         // on them — shrub masses, ferns and hanging grass — up the slope.)
         for (let z = -b.rng.range(1, 3); z > -len; z -= b.rng.range(3.5, 5.5)) {
           const x = side * b.rng.range(8.0, 10.0);
-          if (b.foliage(0.85)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, gy(b, x, z, 'ravine') - 0.4, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.05));
+          if (b.foliage(0.85)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, x, gy(b, x, z, 'ravine') - 0.15, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.05));
           const x2 = side * b.rng.range(7.2, 8.6);
-          if (b.foliage(0.8)) b.place(b.rng.chance(0.6) ? `fern_${b.rng.int(0, 1)}` : `grass_${b.rng.int(0, 1)}`, x2, gy(b, x2, z - 2, 'ravine') - 0.1, z - 2, b.rng.range(0, 6.28), b.rng.range(1.0, 1.4));
+          if (b.foliage(0.8)) {
+            const piece = b.rng.chance(0.6) ? `fern_${b.rng.int(0, 1)}` : `grass_${b.rng.int(0, 1)}`;
+            gy(b, x2, z - 2, 'ravine');
+            const ry = b.rng.range(0, 6.28), sc = b.rng.range(1.0, 1.4);
+            // (Seated over its own spread: a fern 2.5 m across on the steep bank. None where the bank is
+            // steeper than it can lie on, 46 degrees: half of it stood off the slope, half in it.)
+            if (steepness(b, x2, z - 2, 'ravine') < 0.8) b.place(piece, x2, coverY(b, x2, z - 2, 0.5 * sc, 'ravine'), z - 2, ry, sc, slopeTilt(b, x2, z - 2, ry, 'ravine'));
+          }
         }
         cliffWall(b, side, b.rng.range(9.5, 11), -len / 2, b.density.scenery < 0.5 ? 0 : b.rng.int(0, 1), b.rng.range(0.55, 0.75));
         for (let z = -3; z > -len - 4; z -= b.rng.range(6, 9)) landTree(b, side * b.rng.range(15, 24), z, b.rng.range(1.0, 1.3), 'ravine', 0.9);
@@ -1027,7 +1142,7 @@ const BUILDERS = {
       for (let z = -b.rng.range(3, 6); z > -len; z -= b.rng.range(7, 10)) {
         const side = b.rng.chance(0.5) ? -1 : 1;
         const x = side * b.rng.range(3.4, 4.4);
-        b.place(`rock_mid_${b.rng.int(0, 2)}`, x, WL + 0.3, z, b.rng.range(0, 6.28), [0.5, 0.4, 0.5]);
+        b.place(`rock_mid_${b.rng.int(0, 2)}`, x, WL + 0.15, z, b.rng.range(0, 6.28), [0.5, 0.4, 0.5]);
         b.foamRing(x, z, 1.1);
       }
       scenery(b, len, { minX: 9 });
@@ -1114,17 +1229,17 @@ const BUILDERS = {
     build: (b) => {
       b.tile('floor_wide_0', 0, -0.02, 4, 0, [1, 1, 1]);
       floorRun(b, -4, 2, 0, 0);
-      b.place('arch_0', 0, 0, 3.2);
+      b.place('arch_0', 0, -0.04, 3.2);
       for (const side of [-1, 1]) {
         b.place('stele_0', side * 4.2, 0, -0.5, side * 0.3);
         b.pillar('pillar_0', side * 4.4, 0, -3.6);
         b.place(`bush_${b.rng.int(1, 3)}`, side * 4.6, 0.2, 1.2, 0, 1.1);
         b.place(`grass_1`, side * 3.6, 0, -2.2, 0, 1.1);
-        b.place(`palm_${side > 0 ? 0 : 2}_trunk`, side * 6.5, -2.2, -1, 0, 1);
-        b.place(`palm_${side > 0 ? 0 : 2}_crown`, side * 6.5, -2.2, -1, 0, 1);
+        b.place(`palm_${side > 0 ? 0 : 2}_trunk`, side * 6.5, -2.55, -1, 0, 1);
+        b.place(`palm_${side > 0 ? 0 : 2}_crown`, side * 6.5, -2.55, -1, 0, 1);
       }
       lowWalls(b, -4, 2, [-1, 1], { gaps: 0 });
-      for (const side of [-1, 1]) jungleBank(b, side, 7.5, -2, 0, 0.8);
+      for (const side of [-1, 1]) jungleBank(b, side, 7.5, -2, -0.7, 0.8);
       // World round 16: the causeway's beginning, behind the start (the result shots look back down
       // the way): a flight of steps rising out of the water to the plaza, stepping stones across the
       // shallows, a ruined gate over them, and rock and jungle closing the view — never a cut edge.
@@ -1136,14 +1251,14 @@ const BUILDERS = {
         b.place('foundation_0', side * (PATH_HALF + 0.42), -1.6, 8, Math.PI, [1, 1, 1]);
         b.place(`rock_mid_${b.rng.int(0, 2)}`, side * 3.6, WL + 0.4, 11, b.rng.range(0, 6.28), [0.8, 0.6, 0.9]);
         b.foamRing(side * 3.6, 11, 1.6);
-        jungleBank(b, side, 6.5, 16, 0, 1);
+        jungleBank(b, side, 6.5, 16, -0.7, 1);
         b.place(`rock_big_${side > 0 ? 1 : 2}`, side * 14, WL - 1, 30, b.rng.range(0, 6.28), 0.75);
       }
       b.place('rock_big_0', 0, WL - 2, 38, 0.6, [1.1, 0.8, 1.0]);
       // (One check for both: on a phone the trunk stood bare when only its crown was thinned out.)
       if (b.foliage(1)) {
-        b.place('tree_big_0_trunk', -5, WL, 26, 1.2, 1.0);
-        b.place('tree_big_0_crown', -5, WL, 26, 1.2, 1.0);
+        b.place('tree_big_0_trunk', -5, WL - 0.35, 26, 1.2, 1.0);
+        b.place('tree_big_0_crown', -5, WL - 0.35, 26, 1.2, 1.0);
       }
       scenery(b, 12);
       return { hazards: ['gate'], walls: 'low' };
@@ -1206,7 +1321,7 @@ const BUILDERS = {
         }
       }
       if (style !== 'gorge') {
-        for (const side of [-1, 1]) jungleBank(b, side, b.rng.range(11, 14), -len / 2, 0, 0.5);
+        for (const side of [-1, 1]) jungleBank(b, side, b.rng.range(11, 14), -len / 2, -0.7, 0.5);
         for (const side of [-1, 1]) openSide(b, side, len);
         scenery(b, len, { minX: 6 });
         vista(b, len, ['arch', 'towers', 'temple'], 0.55);
@@ -1221,7 +1336,7 @@ const BUILDERS = {
       const n = len / TILE;
       floorRun(b, 0, n, 0, 0.08);
       for (let z = -2; z > -len; z -= 8) {
-        b.place(b.rng.chance(0.7) ? 'arch_0' : 'arch_1', 0, 0, z, b.rng.chance(0.5) ? 0 : Math.PI);
+        b.place(b.rng.chance(0.7) ? 'arch_0' : 'arch_1', 0, -0.04, z, b.rng.chance(0.5) ? 0 : Math.PI);
         if (b.foliage(0.8)) b.place(b.rng.chance(0.5) ? 'vines_1' : 'vines_2', b.rng.range(-1.5, 1.5), 8.2, z + 0.5, 0, [1, 1.1, 1]);
         if (b.foliage(0.5)) b.place(`roots_${b.rng.int(0, 1)}`, b.rng.pick([-1, 1]) * b.rng.range(3.6, 4.4), 7.6, z + 0.7, 0, [0.6, b.rng.range(0.8, 1.2), 1]);
         if (b.foliage(0.6)) b.place(`bush_${b.rng.int(0, 3)}`, b.rng.range(-3, 3), 8.6, z, 0, 1);
@@ -1234,7 +1349,7 @@ const BUILDERS = {
           if (b.foliage(0.35)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.05), -0.05, -TILE * i - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 0.8);
         }
       }
-      jungleBank(b, b.rng.pick([-1, 1]), 9, -len / 2, 0, 0.45);
+      jungleBank(b, b.rng.pick([-1, 1]), 9, -len / 2, -0.7, 0.45);
       scenery(b, len, { minX: 9 });
       return { hazards: ['gate', 'rockfall', 'chasm'], walls: 'tall' };
     },
@@ -1243,7 +1358,7 @@ const BUILDERS = {
     lengths: [8],
     build: (b) => {
       floorRun(b, 0, 2, 0, 0);
-      b.place('arch_1', 0, 0, -4);
+      b.place('arch_1', 0, -0.04, -4);
       b.place('vines_1', 0, 9.2, -3.4, 0, [1.2, 1.2, 1]);
       for (const side of [-1, 1]) {
         b.wall('wall_tall_' + b.rng.int(0, 1), side, 5.6, 0, 0);
@@ -1282,11 +1397,14 @@ const BUILDERS = {
             spill(b, side, z, 5.0, PATH_HALF + 0.12, 0.25);
           }
           b.edgeRubble(side, z, PATH_HALF - 0.4);
-          if (b.foliage(0.3)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.1), b.rng.range(4.4, 5.0), z - 2, -side * Math.PI / 2, [b.rng.range(0.7, 1), b.rng.range(0.8, 1.2), 1]);
+          // (World round 26: what grows on the crest follows the wall's height — a mid wall's crest is
+          // 2.5 m, a relief wall's capped at ~4.2: bushes and roots stood in the air over them.)
+          const off = r < 0.15 ? -2.1 : r < 0.4 ? -0.35 : 0;
+          if (b.foliage(0.3)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.1), b.rng.range(4.4, 5.0) + off, z - 2, -side * Math.PI / 2, [b.rng.range(0.7, 1), b.rng.range(0.8, 1.2), 1]);
           if (b.foliage(0.3)) b.place(`fern_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.05), -0.05, z - b.rng.range(0.5, 3.5), b.rng.range(0, 6.28), 0.85);
-          if (b.foliage(0.55)) b.place('vines_0', side * (PATH_HALF + 0.15), b.rng.range(3.8, 4.8), z - 2, -side * Math.PI / 2, [1, b.rng.range(0.8, 1.3), 1]);
-          if (b.foliage(0.5)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.7), b.rng.range(4.2, 5.0), z - b.rng.range(0, 4), 0, b.rng.range(0.7, 1.1));
-          if (b.foliage(0.35)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 1.4), b.rng.range(4.4, 5.0), z - 2, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
+          if (b.foliage(0.55)) b.place('vines_0', side * (PATH_HALF + 0.15), b.rng.range(3.8, 4.8) + off, z - 2, -side * Math.PI / 2, [1, b.rng.range(0.8, 1.3), 1]);
+          if (b.foliage(0.5)) b.place(`bush_${b.rng.int(0, 3)}`, side * (PATH_HALF + 0.7), b.rng.range(4.2, 5.0) + off - 0.3, z - b.rng.range(0, 4), 0, b.rng.range(0.7, 1.1));
+          if (b.foliage(0.35)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * (PATH_HALF + 1.4), b.rng.range(4.4, 5.0) + off - 0.2, z - 2, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
           if (b.foliage(0.4)) b.place(`grass_${b.rng.int(0, 1)}`, side * (PATH_HALF - 0.15), 0, z - 1.5, 0, 0.9);
         }
       }
@@ -1339,7 +1457,7 @@ const BUILDERS = {
         b.wall('foundation_1', side, PATH_HALF + 0.42, 0, 0);
         b.pillar('pillar_0', side * 3.1, 0, 0.3);
       }
-      jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -1.6, 0.45);
+      jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -0.7, 0.45);
       canopy(b, b.rng.pick([-1, 1]), -6, -1.6, 0.3);
       scenery(b, 12);
       return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: -1.6 };
@@ -1355,7 +1473,7 @@ const BUILDERS = {
         b.wall('foundation_0', side, PATH_HALF + 0.42, 0, 0);
         b.place('pillar_1', side * 3.1, 1.6, -4.3);
       }
-      jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, 1.6, 0.45);
+      jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -0.7, 0.45); // (World round 26: banks follow the water, not the stairs: at 1.6 it hung 2.3 m over it.)
       canopy(b, b.rng.pick([-1, 1]), -6, 1.6, 0.3);
       scenery(b, 12);
       return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: 1.6 };
@@ -1383,7 +1501,7 @@ const BUILDERS = {
         isletShrub(b, b.rng.int(0, 1), sx, islet(b, sx, z, 0.7) - 0.3, z, b.rng.range(0, 6.28), b.rng.range(0.8, 1.2), 0.7);
       }
       canopy(b, side, -len * b.rng.range(0.15, 0.4), 0, 0.6);
-      jungleBank(b, -side, b.rng.range(7.5, 9), -len / 2, 0, 0.5);
+      jungleBank(b, -side, b.rng.range(7.5, 9), -len / 2, -0.7, 0.5);
       scenery(b, len, { sides: [-side] });
       return { hazards: ['rockfall', 'chasm'], walls: 'cliff' };
     },
@@ -1414,10 +1532,10 @@ const BUILDERS = {
           const cx = side * b.rng.range(5.5, 7.5);
           b.place(`column_fallen_${b.rng.int(0, 1)}`, cx, WL + 0.2, cz, b.rng.range(0, 6.28));
           b.foamRing(cx, cz, 2.4);
-        } else b.place('guardian_1', side * 5.6, WL + 0.3, cz, faceIn(side, 0.9), 0.9);
+        } else b.place('guardian_1', side * 5.6, WL - 0.25, cz, faceIn(side, 0.9), 0.9);
         for (let k = 0; k < 2; k++) if (b.rich && b.foliage(0.6)) edgeMoss(b, side * (PATH_HALF + 0.12), 0, -b.rng.range(1, len - 1)); // (round 20: on the footing, not in the air)
       }
-      jungleBank(b, b.rng.pick([-1, 1]), b.rng.range(7, 9), -len / 2, 0, 0.6);
+      jungleBank(b, b.rng.pick([-1, 1]), b.rng.range(7, 9), -len / 2, -0.7, 0.6);
       canopy(b, b.rng.pick([-1, 1]), -b.rng.range(4, len - 4), 0, 0.35);
       scenery(b, len, { minX: 9, big: false });
       vista(b, len, ['towers', 'temple', 'guardians', 'falls'], 0.6);
@@ -1440,7 +1558,7 @@ const BUILDERS = {
         for (const side of [-1, 1]) {
           const x = side * 5.2;
           const broken = b.rng.chance(0.3);
-          b.place(broken ? 'guardian_1' : 'guardian_0', x, WL + 0.45, z, faceIn(side, 0.25), b.rng.range(1.15, 1.3));
+          b.place(broken ? 'guardian_1' : 'guardian_0', x, WL - 0.25, z, faceIn(side, 0.25), b.rng.range(1.15, 1.3));
           b.foamRing(x, z, 2.4);
           b.lilies(x + side * 1.8, z - 3, b.rng.range(0.8, 1.2));
           if (b.rich && b.foliage(0.5)) b.place(`moss_${b.rng.int(0, 2)}`, x, WL + 1.05, z + 0.6, 0, 0.8);
@@ -1456,7 +1574,7 @@ const BUILDERS = {
         b.foamRing(hs * 12, -len * 0.6, 3.4);
         vista(b, len, ['arch', 'temple', 'falls'], 0.6);
       }
-      for (const side of [-1, 1]) jungleBank(b, side, b.rng.range(8.5, 10), -len / 2, 0, 0.5);
+      for (const side of [-1, 1]) jungleBank(b, side, b.rng.range(8.5, 10), -len / 2, -0.7, 0.5);
       canopy(b, b.rng.pick([-1, 1]), -b.rng.range(4, len - 4), 0, 0.25);
       scenery(b, len, { minX: 13, big: true });
       return { hazards: ['chasm', 'gate'], walls: 'low' };
@@ -1566,17 +1684,19 @@ const BUILDERS = {
         if (!b.foliage(0.85)) continue;
         const pi = b.rng.int(0, 2);
         const z = -len * b.rng.range(0.15, 0.85);
-        b.place(`palm_${pi}_trunk`, bank * b.rng.range(6.5, 8), WL + 1.2, z, b.rng.range(0, 6.28), b.rng.range(0.85, 1.1));
-        b.place(`palm_${pi}_crown`, bank * b.rng.range(6.5, 8), WL + 1.2, z, b.rng.range(0, 6.28), b.rng.range(0.85, 1.1));
+        // (World round 26: rooted in the shallows by the bank — at WL + 1.2 a palm whose rock was not
+        // under it stood on air.)
+        b.place(`palm_${pi}_trunk`, bank * b.rng.range(6.5, 8), WL - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.85, 1.1));
+        b.place(`palm_${pi}_crown`, bank * b.rng.range(6.5, 8), WL - 0.35, z, b.rng.range(0, 6.28), b.rng.range(0.85, 1.1));
       }
       if (b.foliage(0.9)) {
         const t = b.rng.int(0, 1);
-        b.place(`tree_big_${t}_trunk`, bank * 9, WL, -len * 0.5, b.rng.range(0, 6.28), 1);
-        b.place(`tree_big_${t}_crown`, bank * 9, WL, -len * 0.5, b.rng.range(0, 6.28), 1);
+        b.place(`tree_big_${t}_trunk`, bank * 9, WL - 0.35, -len * 0.5, b.rng.range(0, 6.28), 1);
+        b.place(`tree_big_${t}_crown`, bank * 9, WL - 0.35, -len * 0.5, b.rng.range(0, 6.28), 1);
       }
       for (let z = -3; z > -len; z -= b.rng.range(5, 8)) b.lilies(-bank * b.rng.range(4.5, 7), z, b.rng.range(0.9, 1.3));
       // Jungle heaped on the bank behind the boulders, a limb leaning out over the boards.
-      for (let z = -6; z > -len - 4; z -= 14) jungleBank(b, bank, b.rng.range(6.8, 7.6), z, WL + 1.6);
+      for (let z = -6; z > -len - 4; z -= 14) jungleBank(b, bank, b.rng.range(6.8, 7.6), z, -0.7);
       for (let k = 0; k < 2; k++) bananas(b, bank * b.rng.range(4.6, 5.6), WL + 1.1, -b.rng.range(1, len - 1), 0.7);
       canopy(b, bank, -len * b.rng.range(0.3, 0.7), 0, 0.6);
       vista(b, len, ['temple', 'falls', 'guardians'], 0.5);
@@ -1615,24 +1735,33 @@ const BUILDERS = {
         if (b.foliage(0.95)) b.place('vines_2', b.rng.range(-0.8, 0.8), 6.3, z - face * 0.35, 0, [1.05, b.rng.range(0.5, 0.65), 1]);
         if (b.foliage(0.8)) b.place('vines_1', b.rng.range(-3, 3), 8.2, z + face * 0.1, 0, [1, 1.1, 1]);
         for (const side of [-1, 1]) {
-          if (b.foliage(0.9)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, side * b.rng.range(2.5, 5), b.rng.range(6.8, 8.2), z - face * 0.8, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1));
-          if (b.foliage(0.6)) b.place(`roots_${b.rng.int(0, 1)}`, side * b.rng.range(3.5, 5.5), b.rng.range(7.5, 8.5), z + face * 0.05, 0, [0.8, b.rng.range(0.9, 1.3), 1]);
+          // (World round 26: on the portal's crest — 7.3 m to 3.7 m out, 6.8 m beyond — not over it.)
+          const crest = (x: number) => (Math.abs(x) < 3.75 ? 7.27 : 6.78);
+          if (b.foliage(0.9)) {
+            const piece = `shrub_mass_${b.rng.int(0, 1)}`, x = side * b.rng.range(2.5, 5), y = Math.min(b.rng.range(6.8, 8.2), crest(x) + 0.2);
+            b.place(piece, x, y, z - face * 0.8, b.rng.range(0, 6.28), b.rng.range(0.8, 1.1));
+          }
+          if (b.foliage(0.6)) {
+            const piece = `roots_${b.rng.int(0, 1)}`, x = side * b.rng.range(3.5, 5.5);
+            b.rng.range(7.5, 8.5);
+            b.place(piece, x, crest(x) + 0.1, z + face * 0.05, 0, [0.8, b.rng.range(0.9, 1.3), 1]);
+          }
         }
       }
       for (let z = mouthZ - 3; z > exitZ; z -= b.rng.range(3, 5)) {
         if (b.foliage(0.8)) b.place(`shrub_mass_${b.rng.int(0, 1)}`, b.rng.range(-2.5, 2.5), 6.9, z, b.rng.range(0, 6.28), b.rng.range(0.7, 1.0));
-        // Bushes on the vault's sloping shoulders (a corbel vault: its back falls from ~7.4 m over the
-        // middle to the springing at 3.2 m, 3.45 m out).
+        // Bushes on the vault's shoulders. (World round 26: its back is level at 6.8 m from 2 to 3.5 m out
+        // — seated on a slope falling to 3.2 m, they were inside the masonry, 1-2.5 m under its top.)
         if (b.foliage(0.55)) {
-          const x = b.rng.range(1.6, 2.8);
-          b.place(`bush_${b.rng.int(0, 3)}`, b.rng.pick([-1, 1]) * x, 3.2 + 4.2 * (1 - x / 3.45) + 0.2, z, 0, b.rng.range(0.9, 1.3));
+          const x = b.rng.range(2.0, 3.2);
+          b.place(`bush_${b.rng.int(0, 3)}`, b.rng.pick([-1, 1]) * x, 6.75, z, 0, b.rng.range(0.9, 1.3));
         }
       }
       if (b.foliage(0.8)) {
         const t = b.rng.int(0, 1);
         const side = b.rng.pick([-1, 1]);
-        b.place(`tree_big_${t}_trunk`, side * 7.5, WL, (mouthZ + exitZ) / 2, b.rng.range(0, 6.28), 0.95);
-        b.place(`tree_big_${t}_crown`, side * 7.5, WL, (mouthZ + exitZ) / 2, b.rng.range(0, 6.28), 0.95);
+        b.place(`tree_big_${t}_trunk`, side * 7.5, WL - 0.35, (mouthZ + exitZ) / 2, b.rng.range(0, 6.28), 0.95);
+        b.place(`tree_big_${t}_crown`, side * 7.5, WL - 0.35, (mouthZ + exitZ) / 2, b.rng.range(0, 6.28), 0.95);
       }
       for (const side of [-1, 1]) {
         for (let i = 1; i < n; i++) {
@@ -1686,12 +1815,12 @@ const BUILDERS = {
       for (const side of [-1, 1]) {
         if (b.foliage(0.8)) {
           const t = b.rng.int(0, 1);
-          b.place(`tree_big_${t}_trunk`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
-          b.place(`tree_big_${t}_crown`, side * 14, WL, -len - 4, b.rng.range(0, 6.28), 1.05);
+          b.place(`tree_big_${t}_trunk`, side * 14, WL - 0.35, -len - 4, b.rng.range(0, 6.28), 1.05);
+          b.place(`tree_big_${t}_crown`, side * 14, WL - 0.35, -len - 4, b.rng.range(0, 6.28), 1.05);
         }
         if (b.foliage(0.8)) isletShrub(b, b.rng.int(0, 1), side * 8.5, islet(b, side * 8.5, -len + 1, 0.8) - 0.3, -len + 1, b.rng.range(0, 6.28), 1.2, 0.8); // (round 20: on a boulder, not the water)
       }
-      jungleBank(b, -fs, 5.4, -len / 2 + 2, 0, 0.5);
+      jungleBank(b, -fs, 5.4, -len / 2 + 2, -0.7, 0.5);
       canopy(b, -fs, -len * b.rng.range(0.25, 0.5), 0, 0.4);
       scenery(b, len, { minX: 11, big: false, cliffs: b.variant % 2 === 1 });
       return { hazards: ['gate', 'rockfall', 'chasm'], walls: 'low' };
@@ -1754,8 +1883,13 @@ const BUILDERS = {
         }
         const t = b.rng.int(0, 1);
         const tz = -len * b.rng.range(0.25, 0.75);
-        b.place(`tree_big_${t}_trunk`, side * b.rng.range(6, 7), WL, tz, b.rng.range(0, 6.28), b.rng.range(1.0, 1.15));
-        b.place(`tree_big_${t}_crown`, side * b.rng.range(6, 7), WL, tz, b.rng.range(0, 6.28), b.rng.range(1.0, 1.15));
+        // (World round 26: the crown on its own trunk — each drew its own place, turn and size, and the
+        // crown stood off the trunk; standing in the water, not on it. The second draws are kept, unused,
+        // so the layout's stream stays as it was.)
+        const tx = side * b.rng.range(6, 7), tr = b.rng.range(0, 6.28), ts = b.rng.range(1.0, 1.15);
+        b.place(`tree_big_${t}_trunk`, tx, WL - 0.35, tz, tr, ts);
+        b.rng.range(6, 7), b.rng.range(0, 6.28), b.rng.range(1.0, 1.15);
+        b.place(`tree_big_${t}_crown`, tx, WL - 0.35, tz, tr, ts);
       }
       canopy(b, -1, -len * b.rng.range(0.15, 0.4), 0, 0.9);
       canopy(b, 1, -len * b.rng.range(0.55, 0.85), 0, 0.9);
@@ -1824,15 +1958,28 @@ const BUILDERS = {
  * Round 11 crescendo: in the ruined variants, towers in the distance lean and break, their fallen
  * blocks heaped at their feet: the world falling apart as the multiplier climbs.
  */
-function ruinedSkyline(b: Builder, len: number, ruin: number) {
+function ruinedSkyline(b: Builder, len: number, ruin: number, ground?: GroundKind) {
   const n = ruin > 0.8 ? 2 : 1;
   for (let i = 0; i < n; i++) {
     const side = b.rng.chance(0.5) ? -1 : 1;
     const x = side * b.rng.range(30, 44);
     const z = -b.rng.range(0.2, 0.8) * len;
     const lean = b.rng.range(0.12, 0.26) * ruin;
-    b.place(b.rng.pick(['tower_0', 'tower_1']), x, WL - 1.2, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.25), [b.rng.range(-1, 1) * lean, side * lean]);
-    for (let k = 0; k < 3; k++) b.place(`rubble_${b.rng.int(0, 3)}`, x + b.rng.range(-4, 4), WL - 0.3, z + b.rng.range(-4, 4), b.rng.range(0, 6.28), b.rng.range(1.6, 2.6));
+    // (World round 26: on land, seated on the hills it stands in — at the water's level it was buried
+    // to two fifths of its height.)
+    const base = (gx: number, gz: number) => (ground ? groundY(ground, gx, gz, len, b.lower) : WL);
+    // (Its foot at the lowest of the ground round it: on a hillside its downhill edge stood off it.)
+    const foot = Math.min(base(x, z), base(x + 2.5, z), base(x - 2.5, z), base(x, z + 2.5), base(x, z - 2.5));
+    b.place(b.rng.pick(['tower_0', 'tower_1']), x, foot - 1.2, z, b.rng.range(0, 6.28), b.rng.range(1.0, 1.25), [b.rng.range(-1, 1) * lean, side * lean]);
+    for (let k = 0; k < 3; k++) {
+      const piece = `rubble_${b.rng.int(0, 3)}`;
+      const rx = x + b.rng.range(-4, 4);
+      const rz = z + b.rng.range(-4, 4);
+      // (On land laid on the hill's slope: level, half of a 9 m heap was inside the hill.)
+      const ry = b.rng.range(0, 6.28);
+      const ring = (base(rx + 2.5, rz) + base(rx - 2.5, rz) + base(rx, rz + 2.5) + base(rx, rz - 2.5)) / 4;
+      b.place(piece, rx, ground ? Math.max(base(rx, rz), ring) - 0.1 : base(rx, rz) - 0.3, rz, ry, b.rng.range(1.6, 2.6), ground ? slopeTilt(b, rx, rz, ry, ground, 2.5) : undefined);
+    }
   }
 }
 
@@ -1847,7 +1994,7 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   b.opening = seed.includes('/open/');
   const r = def.build(b, L);
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
-  if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin);
+  if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin, r.ground);
   return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: r.features };
 }
 
