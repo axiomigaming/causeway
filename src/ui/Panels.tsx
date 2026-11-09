@@ -345,10 +345,11 @@ function Menu({ onClose }: { onClose: () => void }) {
   // The menu opens mid-run too (on phones it holds fairness and settings); the run carries on.
   const live = phase === 'running' || phase === 'lead' || phase === 'cashing' || phase === 'placing';
   return (
-    <Sheet title={live ? 'Menu' : 'Paused'} eyebrow="Causeway" onClose={onClose}>
+    // Nothing pauses behind it (the world plays on, a run carries on): never "Paused" / "Resume".
+    <Sheet title="Menu" eyebrow="Causeway" onClose={onClose}>
       <nav className="menu">
         <button onClick={onClose}>
-          Resume <span>Esc</span>
+          Back to the game <span>Esc</span>
         </button>
         <button onClick={() => set({ modal: 'how' })}>
           How it works <span>The rules in a minute</span>
