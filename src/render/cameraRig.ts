@@ -948,13 +948,7 @@ export class CameraRig {
     const w = this.wideK;
     const out = { ...f, along: f.along * (1 + 0.5 * grow) * (1 + 0.8 * w), lat: f.lat * (1 + 0.25 * grow) * (1 + 0.5 * w), up: f.up + 1.6 * grow + v * ease(T / 2), fov: f.fov + 4 * grow + 10 * w };
     // The runner went down with the floor: lean out over the lip and tilt down into the gap.
-    // (Camera round 2, QA hunt: with the card up it no longer holds the top-down view of the water
-    // he went into — five seconds of foam, no runner, no readable causeway. It eases back and up over
-    // the lip and lowers its tilt: the broken edge in front, the water where he went in beyond it.)
-    if (this.crashShot === 'chasm' && this.gap > 0) {
-      const g = mixFrame(F(-1.3, 1.1 * s, 3.1, 1.2, 0, -2.8, 56, 0), F(-3.4, 1.5 * s, 3.7, 2.6, 0, -1.9, 58, 0), ease(this.revealK));
-      return mixFrame(out, g, this.gap);
-    }
+    if (this.crashShot === 'chasm' && this.gap > 0) return mixFrame(out, F(-1.3, 1.1 * s, 3.1, 1.2, 0, -2.8, 56, 0), this.gap);
     return out;
   }
 
@@ -1295,10 +1289,7 @@ export class CameraRig {
       const k = Math.min(1, this.revealK * 1.5);
       if (k < 0.001) return;
       c.updateMatrixWorld();
-      // (Camera round 2, QA hunt: the point held goes from halfway between where he went in and the
-      // broken lip he went over to most of the way to the lip as the card comes up: on the body
-      // alone the held shot was five seconds of foam, top-down.)
-      const p = this.tmp4.copy(this.gapBody!).lerp(runnerPos, 0.5 + 0.35 * k).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
+      const p = this.tmp4.copy(this.gapBody!).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
       if (p.z > -0.3) return;
       const beside = Math.min(this.sideK, k);
       const yWant = lerp(lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, 1 - 2 * s - 2 * this.insetTop - 0.05, 0.5), -2 * s, beside);
