@@ -648,7 +648,10 @@ export class CameraRig {
         const wy = Math.sin(t * 0.51 + 1.7) * 0.6 + Math.sin(t * 0.83 + 0.4) * 0.4;
         this.liftK = damp(this.liftK, THREE.MathUtils.clamp(this.lift, -0.6, 1.2), 10, dt);
         const lift = this.liftK * (1 - k);
-        const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k);
+        // (Camera round 2: not on top of the corner's own lead. At a right-angle corner the orbit's
+        // yawLead already swings the lens ~40° into the turn; the look point leaning a further 1.5 m
+        // pushed him out to a third of the frame from its left edge before he had turned.)
+        const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k) * (1 - 0.7 * Math.min(1, Math.abs(this.yawLead) / 0.4));
         fov = this.shot(
           runnerPos,
           this.fitInBand(
