@@ -604,6 +604,7 @@ export class CameraRig {
         // at his hips from 9.8 m up, the first quarter second looked down onto the crown of the arch
         // under the lens (loose blocks filling the frame).
         const hk = ease(THREE.MathUtils.clamp((this.pos.y - runnerPos.y - 3.4) / 4.4, 0, 1));
+        this.setupHigh = hk;
         fov = this.shot(runnerPos, F(-back, 0.25 + 0.06 * back, 1.15 + 0.12 * back, lerp(0.6, 18, hk), lerp(0.1, 0.3, hk), lerp(0.92, 0.5, hk), sfov));
         break;
       }
@@ -1164,6 +1165,8 @@ export class CameraRig {
   }
 
   private shift = 0;
+  /** Setup only: 0..1, how high the lens still is from the title's pass (the aim and the framing wait). */
+  private setupHigh = 0;
   private shiftTarget = 0;
   /** Compose for the part of the screen the interface leaves free (px covered at top/bottom). */
   setInsets(top: number, bottom: number, heightPx: number): void {
@@ -1417,7 +1420,7 @@ export class CameraRig {
     // (Camera round 2, QA hunt: out of the title's high pass the setup does not drag him into the
     // band from 9.8 m up — that tilt pointed the first frames after ENTER down onto the crown of
     // the arch under the lens. The framing comes in as the lens descends, with the aim.)
-    const high = this.mode === 'setup' ? ease(THREE.MathUtils.clamp((this.pos.y - runnerPos.y - 3.4) / 4.4, 0, 1)) : 0;
+    const high = this.mode === 'setup' ? this.setupHigh : 0;
     tilt *= 1 - high;
     if (Math.abs(tilt) > 1e-4) c.rotateX(tilt);
     // Horizontal: both arms inside the side margins.
@@ -1492,7 +1495,9 @@ export class CameraRig {
     // A settled shot under the result card centres the band between the card and the dock, which
     // can sit higher than the run's own limits allow.
     const cine = this.revealK > 0.001 ? Math.min(0.32, Math.max(-0.3, (this.insetBottom - this.insetTop) / 2)) : this.shiftTarget;
-    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, Math.min(this.sideK, this.revealK * 1.5));
+    // (Camera round 2: nor does the band's shift reveal what lies under the high lens — the arch
+    // crown the title's copy had covered — until it comes down.)
+    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, Math.min(this.sideK, this.revealK * 1.5)) * (1 - (this.mode === 'setup' ? this.setupHigh : 0));
     this.shift += (target - this.shift) * (1 - Math.exp(-dt * 3));
     const c = this.camera;
     if (Math.abs(this.shift) < 0.001) {
