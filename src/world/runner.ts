@@ -1841,6 +1841,12 @@ export class Runner {
   /** Forget velocities (after a teleport to a new round). */
   resetSecondary(): void {
     this.hasPrev = false;
+    // (The turn layer, the fall hold and the root's travel take no state from the last round.)
+    this.bank = this.turnLead = this.holdT = 0;
+    this.yawRate = this.turnAhead = 0;
+    this.body.rotation.z = 0;
+    this.travelPool = this.travelV = 0;
+    this.rootV = this.speed;
     this.glanceT = -1;
     this.stumbleT = -1;
     this.duckT = -1;
