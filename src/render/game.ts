@@ -2732,8 +2732,9 @@ export class Game {
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
     look.y -= drop * (0.35 + 1.0 * k);
     // A tall screen's wide lens closes a little under the beam (the underside, a metre over the
-    // floor, filled 40 % of its frame as it passed over).
-    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.24 : 0.05) * k;
+    // floor, filled 40 % of its frame as it passed over). (A tenth: at a quarter the beam's share did
+    // not fall further and the lens visibly zoomed.)
+    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.1 : 0.04) * k;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
