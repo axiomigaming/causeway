@@ -178,8 +178,9 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     float steep = 1.0 - smoothstep(0.55, 0.8, vGN.y);
     if (steep > 0.0) {
       vec2 rp = abs(vGN.x) > abs(vGN.z) ? vGW.zy : vGW.xy;
-      // Beds of uneven thickness that pinch and wander, soft-edged and low in contrast.
-      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      // Beds of uneven thickness that pinch and wander, soft-edged and low in contrast. (World round 26:
+      // their spacing itself uneven, thin and thick beds — evenly spaced, they read as layered clay.)
+      float bed = vGW.y * 1.3 + gN(vec2(vGW.y * 0.33, 1.7)) * 2.6 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
       float strata = smoothstep(0.0, 0.5, abs(fract(bed) - 0.5)) * (0.5 + 0.5 * gN(rp * vec2(0.4, 1.5) + 3.0));
       float b1 = gN(rp * 0.7 + 7.0), b2 = gN(rp * 2.6 + 1.0);
       // (World round 26: real rock tones — a weathered buff-to-rust sandstone, not saturated orange.)
@@ -234,7 +235,7 @@ float gN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         vec3 t1 = texture2D(uDetailMap, rp * 0.45).rgb, t2 = texture2D(uDetailMap, rp * 1.6 + 0.37).rgb;
         a = (t1.rg * 2.0 - 1.0) + (t2.rg * 2.0 - 1.0) * 0.5;
       }
-      float bed = vGW.y * 1.3 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
+      float bed = vGW.y * 1.3 + gN(vec2(vGW.y * 0.33, 1.7)) * 2.6 + gN(rp * vec2(0.18, 0.5)) * 2.2 + gN(rp * 0.9) * 0.5;
       float ledge = smoothstep(0.78, 0.98, fract(bed));
       vec3 dW = tU * a.x * 0.9 + tV * (a.y * 0.9 + ledge * 1.4);
       float kb = stN * (1.0 - smoothstep(12.0, 70.0, length(vViewPosition)));
