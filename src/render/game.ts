@@ -711,6 +711,7 @@ export class Game {
     this.gapAt = null;
     this.chasmLip = null;
     this.splashAt = null;
+    this.rippleAt = Infinity;
     this.clearEscapeGate();
     this.runner.root.visible = true;
     this.rig.gap = 0;
@@ -1415,6 +1416,7 @@ export class Game {
   /** The chasm fall: the broken causeway's edge (and its heading), and where he went into the water. */
   private chasmLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
   private splashAt: THREE.Vector3 | null = null;
+  private rippleAt = Infinity;
   /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
   debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
@@ -1993,6 +1995,9 @@ export class Game {
           // mist. The white water, the rings running out through the normals and the foam that
           // breaks up over 2–3 s are the water shader's (splash()).
           this.splashCrown(p, 1);
+          // Camera round 3: where he went in, for the held shot (and the ripples it keeps).
+          this.splashAt = p.clone();
+          this.rippleAt = this.worldT + 3;
           B.puff(p, { count: 2, spread: 1.0, jitter: 0.6, vel: new THREE.Vector3(0, 1.6, 0), size: [0.6, 1.8], life: 1.4, alpha: 0.2, tint: MIST_T, rise: 0.2, floor: WATER_Y });
           this.water.splash(p.x, p.z, 1.2);
           // The column as he goes under, then bubbles breaking on the surface where he went.
@@ -3333,11 +3338,19 @@ export class Game {
       if (hips) {
         this.runner.body.updateWorldMatrix(true, true);
         this.rig.gapBody = this.gapBodyPos.setFromMatrixPosition(hips.matrixWorld);
-        // Where he went in: his hips' ground position as they first reach the water.
+        // Where he went in: his hips' ground position as they first reach the water (until the
+        // splash itself sets it).
         if (!this.splashAt && this.gapBodyPos.y < WATER_Y + 0.4) this.splashAt = this.gapBodyPos.clone().setY(WATER_Y);
       }
     }
     this.rig.gapLip = this.stage === 'crash' && this.crashKind === 'chasm' ? this.chasmLip : null;
+    // Camera round 3 (coordinator): the held shot's subject. Long after the splash the water where he
+    // went under still stirs — a soft ring and a few bubbles every 1.4 s — so the eye has a place.
+    if (this.rig.gapLip && this.splashAt && this.worldT >= this.rippleAt) {
+      this.rippleAt = this.worldT + 1.4;
+      this.water.splash(this.splashAt.x, this.splashAt.z, 0.35);
+      this.splashBubbles(this.splashAt, 0.9, 0.35);
+    }
     this.rig.gapSplash = this.rig.gapLip ? this.splashAt : null;
     this.debrisCrane(rawDt);
     this.rig.realDt = rawDt;
