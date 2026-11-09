@@ -4,7 +4,7 @@
 // save a still for each. Run it against two servers (the old build and the new) for a before/after pair.
 //
 //   URL=http://localhost:5197 node tools/same-frame.mjs --view desktop --q high --w 7 --at run:6.0 \
-//       --out dir --name after [--variant 'name=js' ...] [--crop x,y,w,h] [--size 1280x720]
+//       --out dir --name after [--variant 'name=js' ...] [--crop x,y,w,h] [--size 1280x720] [--dpr 3]
 //
 // --at: run:<s> (the premium-hunt run scene, <s> seconds since the round was staged), title:<s>,
 //       crash:<kind>:<variant>:<mult>:<s after the fall>, cash:<mult>:<s after the cash-out>.
@@ -33,6 +33,7 @@ const AT = arg('at', 'run:6.0');
 const OUT = arg('out', 'review/same-frame');
 const NAME = arg('name', 'shot');
 const CROP = arg('crop', '');
+const DPR = +arg('dpr', '1');
 const [VW, VH] = (arg('size', VIEW === 'phone' ? '390x844' : '1280x720')).split('x').map(Number);
 mkdirSync(OUT, { recursive: true });
 
@@ -41,7 +42,7 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 const mobile = VIEW === 'phone';
-const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile });
+const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, isMobile: mobile, hasTouch: mobile });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`${URL}/?qa&q=${Q}&w=${W}&seed=hunt22`, { waitUntil: 'load' });
