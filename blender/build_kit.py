@@ -231,6 +231,8 @@ TEXEL = {
     "rock": [(("rock_mid_",), 3.0), (("rock_big_",), 0.8)],
     # bark: roots at the path's edge and the log he jumps; the trees on the cliff tops.
     "bark": [(("log_fallen_",), 3.0), (("roots_", "root_giant_"), 2.0), (("cliff_wall_",), 0.6)],
+    # wood (World round 26): the rail's posts and ropes stand at the lens's side on every bridge.
+    "wood": [(("rope_rail_",), 2.0)],
 }
 # (World round 24: the jump log keeps a little moss in its furrows, not a green back; see MS.bark.)
 for o in groups["bark"]:

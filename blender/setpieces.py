@@ -274,7 +274,9 @@ def rope_rail(name, seed, length=4.0, width=3.2, h=1.05):
         for zr, sag in ((h, 0.2), (h * 0.55, 0.12)):
             n = 10
             pts = [Vector((x, 0.15 + (length - 0.3) * i / n, zr - sag * 4 * (i / n) * (1 - i / n))) for i in range(n + 1)]
-            _merge(bm, _tube(pts, [0.03] * len(pts)), hexcol("#a08458"))
+            # (World round 26: a hand's thickness of pale manila, six-sided: thin and five-sided, its few
+            # texels baked to a near-black cable.)
+            _merge(bm, _tube(pts, [0.036] * len(pts), ring_n=6), hexcol("#b89a68"))
     return finish_obj(name, bm, 60)
 
 
