@@ -419,3 +419,105 @@ def joints(rig):
     for b in B:
         out[b.name] = (b.head_local.copy(), b.tail_local.copy())
     return out
+
+
+def soft_bones(mesh, J, rig, key):
+    """Spring bones for what hangs off him or moves on its own (driven in src/world/runner.ts): the two
+    pouches under the arms on the harness's side straps, the shirt blousing over the belt front and back,
+    the rolled sleeve cuffs, the hair, and a jaw (the lower face, hinged below the ears) for breathing hard.
+    Each takes at most a part of its vertices' weight, feathered, so the motion stays a lag and a bounce
+    on the body, never a piece swinging free. `key` is each vertex's material: 1 skin, 2 hair, 3 leather,
+    4 jeans, 5 shirt."""
+    co = [v.co.copy() for v in mesh.data.vertices]
+    W = _weights(mesh)
+    sh = {s: J[f"shoulder.{s}"] for s in "LR"}
+    el = {s: J[f"elbow.{s}"] for s in "LR"}
+    bones = {}
+
+    def take(i, nm, w):
+        W[i] = {n: x * (1 - w) for n, x in W[i].items()}
+        W[i][nm] = W[i].get(nm, 0.0) + w
+
+    def dom(i):
+        """The bone a vertex mostly follows (each piece only takes vertices of its own body part: with the
+        arms hanging, the torso's flank lies within a cuff's radius of the upper arm, and given to the
+        sleeve it was torn off the body in shards whenever the arm moved away)."""
+        return max(W[i], key=W[i].get).split(".")[0] if W[i] else ""
+    # The pouches: leather on the flanks between the ribcage and the arm, below the armpit.
+    for s in "LR":
+        sx = 1 if s == "L" else -1
+        idx = [i for i, c in enumerate(co) if key[i] == 3 and 0.15 < c.x * sx < 0.255 and 1.0 < c.z < sh[s].z - 0.08 and abs(c.y) < 0.14
+               and dom(i) in ("spine", "chest")]
+        if len(idx) >= 6:
+            cx = sum(co[i].x for i in idx) / len(idx)
+            cy = sum(co[i].y for i in idx) / len(idx)
+            top = max(co[i].z for i in idx)
+            bot = min(co[i].z for i in idx)
+            bones[f"pouch.{s}"] = ((cx, cy, top), (cx, cy, bot), "chest")
+            for i in idx:
+                w = 0.5 * smooth((top - co[i].z) / max(0.04, 0.6 * (top - bot)))
+                if w > 0:
+                    take(i, f"pouch.{s}", w)
+    # The shirt over the belt, front and back: a little blousing that lags each landing.
+    belt = max((c.z for i, c in enumerate(co) if key[i] == 4 and abs(c.x) < 0.05), default=J["pelvis"].z)
+    for nm, sgn in (("hemF", 1), ("hemB", -1)):
+        idx = [i for i, c in enumerate(co) if key[i] == 5 and abs(c.x) < 0.17 and c.y * sgn > 0.03 and belt < c.z < belt + 0.14
+               and dom(i) in ("hips", "spine")]
+        if len(idx) >= 6:
+            cy = sum(co[i].y for i in idx) / len(idx)
+            bones[nm] = ((0.0, cy, belt + 0.14), (0.0, cy, belt), "hips")
+            for i in idx:
+                w = 0.3 * smooth((belt + 0.14 - co[i].z) / 0.08) * smooth((co[i].z - belt) / 0.03)
+                if w > 0:
+                    take(i, nm, w)
+    # The rolled cuffs: the shirt over the last third of the upper arm.
+    for s in "LR":
+        a_, b_ = sh[s], el[s]
+        idx = []
+        for i, c in enumerate(co):
+            if key[i] != 5 or c.x * (1 if s == "L" else -1) < 0.15 or dom(i) not in ("upper_arm", "forearm"):
+                continue
+            t = _seg_t(c, a_, b_)
+            if 0.6 < t < 1.08 and (c - (a_ + (b_ - a_) * t)).length < 0.08:
+                idx.append((i, t))
+        if len(idx) >= 6:
+            d = (b_ - a_).normalized()
+            bones[f"sleeve.{s}"] = (tuple(a_ + (b_ - a_) * 0.6), tuple(b_ + d * 0.02), f"upper_arm.{s}")
+            for i, t in idx:
+                w = 0.35 * smooth((t - 0.6) / 0.25)
+                if w > 0:
+                    take(i, f"sleeve.{s}", w)
+    # The hair above the ears.
+    hz = J["head"].z + 0.03
+    idx = [i for i, c in enumerate(co) if key[i] == 2 and c.z > hz and dom(i) == "head"]
+    if idx:
+        cy = sum(co[i].y for i in idx) / len(idx)
+        bones["hair"] = ((0.0, cy, hz), (0.0, cy, J["crown"].z), "head")
+        for i in idx:
+            w = 0.45 * smooth((co[i].z - hz) / 0.1)
+            if w > 0:
+                take(i, "hair", w)
+    # The jaw: the face below the mouth, hinged below the ears; feathered up to the mouth and back to the neck.
+    fr = [c for c in co if abs(c.x) < 0.02 and J["head"].z - 0.08 < c.z < J["head"].z + 0.06]
+    chin_y = max((c.y for c in fr), default=0.1)
+    mouth = J["head"].z - 0.01
+    hinge = Vector((0.0, chin_y - 0.1, J["head"].z + 0.01))
+    idx = [i for i, c in enumerate(co) if key[i] in (1, 2) and c.y > hinge.y + 0.02 and J["head"].z - 0.09 < c.z < mouth and abs(c.x) < 0.075
+           and dom(i) in ("head", "neck")]
+    if len(idx) >= 4:
+        bones["jaw"] = (tuple(hinge), (0.0, chin_y, J["head"].z - 0.06), "head")
+        for i in idx:
+            c = co[i]
+            w = smooth((mouth - c.z) / 0.025) * smooth((c.y - hinge.y - 0.02) / 0.05)
+            if w > 0:
+                take(i, "jaw", w)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode="EDIT")
+    eb = rig.data.edit_bones
+    for nm, (h, t, parent) in bones.items():
+        b = eb.new(nm)
+        b.head, b.tail = Vector(h), Vector(t)
+        b.parent = eb[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+    _write(mesh, W)
+    print("  soft bones:", ", ".join(f"{nm} ({sum(1 for w in W if nm in w)} verts)" for nm in bones), flush=True)

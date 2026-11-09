@@ -213,6 +213,8 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
 
 /** Spring-driven cloth bones (three strips the dots from the Blender names). */
 const CLOTH = ['hemF', 'hemL', 'hemB', 'hemR', 'sleeveL', 'sleeveR'];
+/** The kit and the head's soft parts (blender/char_rig.py soft_bones): the pouches under the arms, the hair, the jaw. */
+const SOFT = ['pouchL', 'pouchR', 'hair', 'jaw'];
 
 function smoothstep(a: number, b: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -578,7 +580,14 @@ export class Runner {
     hemSide: [new Spring(90, 6), new Spring(80, 5), new Spring(80, 5), new Spring(80, 5)],
     sleeve: [new Spring(160, 9), new Spring(160, 9)],
     sleeveOut: [new Spring(140, 8), new Spring(140, 8)],
+    /** The pouches on the harness's side straps (fore-aft, sideways), and the hair (a short crop: stiff). */
+    pouch: [new Spring(85, 6.5), new Spring(85, 6.5)],
+    pouchSide: [new Spring(75, 6), new Spring(75, 6)],
+    hair: new Spring(150, 10),
+    hairSide: new Spring(150, 10),
   };
+  /** How far the jaw hangs open this frame (rad): set by the breathing, the fall's winded hold. */
+  private jawOpen = 0;
   /** Upper-arm swing angle last frame (for the sleeves' lag), per side. */
   private armPrev = [0, 0];
   private armVel = [0, 0];
@@ -660,7 +669,7 @@ export class Runner {
     const legacyFall = this.actions.get('fall');
     if (legacyFall) for (const k of ['fall_chasm', 'fall_gate', 'fall_rock']) if (!this.actions.has(k)) this.actions.set(k, legacyFall);
     // three sanitises node names ('upper_arm.L' → 'upper_armL').
-    for (const n of ['hips', 'spine', 'chest', 'neck', 'head', 'upper_armL', 'upper_armR', 'forearmL', 'forearmR', 'shoulderL', 'shoulderR', 'pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH])
+    for (const n of ['hips', 'spine', 'chest', 'neck', 'head', 'upper_armL', 'upper_armR', 'forearmL', 'forearmR', 'shoulderL', 'shoulderR', 'pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH, ...SOFT])
       this.bones[n] = this.body.getObjectByName(n) as THREE.Bone | undefined;
     for (const s of ['L', 'R'] as const) {
       const f = this.feet[s];
@@ -675,7 +684,7 @@ export class Runner {
       const b = this.bones[n];
       if (b) this.armBind.set(b, b.quaternion.clone());
     }
-    for (const n of ['pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH]) {
+    for (const n of ['pack', 'scarf0', 'scarf1', 'scarf2', ...CLOTH, ...SOFT]) {
       const b = this.bones[n];
       if (b) this.rest.set(b, b.quaternion.clone());
     }
@@ -1509,6 +1518,8 @@ export class Runner {
     const s = Math.sin(this.breathPh);
     // Inhale: chest lifts and opens, shoulders rise; a faster, sharper intake when winded.
     const inhale = (s > 0 ? s : s * 0.7) * (0.012 + 0.045 * x) * rest;
+    // Winded, he breathes through the mouth: the jaw hangs open a little and drops on each intake.
+    this.jawOpen = smoothstep(0.25, 0.9, x) * (0.05 + 0.07 * Math.max(0, s));
     this.rotate(this.bones.chest, inhale, 0, 0);
     this.rotate(this.bones.spine, inhale * 0.4, 0, 0);
     this.rotate(this.bones.neck, -inhale * 0.8, 0, 0);
@@ -1539,6 +1550,7 @@ export class Runner {
     this.rotate(b.neck, -heave * 0.6, 0, 0);
     this.rotate(b.shoulderL, 0, 0, heave * 0.9);
     this.rotate(b.shoulderR, 0, 0, -heave * 0.9);
+    this.jawOpen = Math.max(this.jawOpen, (0.06 + 0.08 * Math.max(0, br)) * k * (1 - 0.5 * smoothstep(3, 10, T)));
     // The head drifts: a slow look about, a drop and a lift.
     this.rotate(b.neck, 0.05 * Math.sin(tw * 0.11 * T + 0.7) * k, 0.12 * Math.sin(tw * 0.07 * T + 1.3) * k, 0);
     this.rotate(b.head, 0.06 * Math.sin(tw * 0.13 * T + 2.1) * k, 0.1 * Math.sin(tw * 0.09 * T) * k, 0.04 * Math.sin(tw * 0.05 * T) * k);
@@ -1638,6 +1650,18 @@ export class Runner {
     const packSide = s.packSide.step(0, -ha.x * 0.6, dt, -0.25, 0.25);
     this.rotate(this.bones.pack, pack, 0, packSide);
     this.cloth(dt, a, ha, run);
+    // The pouches on the harness's side straps ride the ribcage: a bounce and a lag on each footfall and
+    // landing, a swing out in the turns; the hair, a short crop, barely a nod after the head.
+    for (let k = 0; k < 2; k++) {
+      const x = s.pouch[k]!.step(0, -a.y * 0.4 + a.z * 0.35, dt, -0.3, 0.3);
+      const z = s.pouchSide[k]!.step(0, -a.x * 0.45, dt, -0.25, 0.25);
+      this.rotate(this.bones[k === 0 ? 'pouchL' : 'pouchR'], x, 0, z);
+    }
+    const hx = s.hair.step(0, -a.y * 0.1 + a.z * 0.08, dt, -0.06, 0.06);
+    const hz = s.hairSide.step(0, -a.x * 0.08, dt, -0.05, 0.05);
+    this.rotate(this.bones.hair, hx, 0, hz);
+    // The jaw: hanging a little open when winded, wider on each intake (breathe, holdLife).
+    this.rotate(this.bones.jaw, -this.jawOpen, 0, 0);
 
     // Neckerchief: lifted by the airflow, fluttering faster and wider with speed, lagging the body.
     const w = this.t * (9 + this.speed * 1.6);
@@ -2013,7 +2037,7 @@ export class Runner {
       this.feet[s].w = 0;
     }
     const s = this.springs;
-    for (const sp of [s.pack, s.packSide, ...s.scarf, ...s.scarfSide, ...s.hem, ...s.hemSide, ...s.sleeve, ...s.sleeveOut]) sp.reset();
+    for (const sp of [s.pack, s.packSide, ...s.scarf, ...s.scarfSide, ...s.hem, ...s.hemSide, ...s.sleeve, ...s.sleeveOut, ...s.pouch, ...s.pouchSide, s.hair, s.hairSide]) sp.reset();
     this.catchT = -1;
     this.accel = 0;
     this.speedPrev = 0;
