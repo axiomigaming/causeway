@@ -434,6 +434,8 @@ export class Runner {
   turnAhead = 0;
   /** The turn layer: bank (rad) and the upper body's lead into the turn (rad), eased. */
   private bank = 0;
+  /** Seconds since a fall clip reached its end (0 while one plays or none does). */
+  private holdT = 0;
   private turnLead = 0;
   slope = 0;
   /** The blended gait's contact time, as a fraction of the stride cycle. */
@@ -1027,6 +1029,7 @@ export class Runner {
     else this.exertion = Math.max(0, this.exertion - dt * 0.035);
     this.weather(dt);
     this.breathe(dt);
+    this.holdLife(dt);
     this.lookLayer(dt);
     this.secondary(dt);
     this.plantFeet(dt);
@@ -1367,6 +1370,42 @@ export class Runner {
     this.rotate(this.bones.neck, -inhale * 0.8, 0, 0);
     this.rotate(this.bones.shoulderL, 0, 0, inhale * 0.6);
     this.rotate(this.bones.shoulderR, 0, 0, -inhale * 0.6);
+  }
+
+  /**
+   * After a fall's last key the clip holds its end pose for the whole result (5-6 s): he stood or lay
+   * there as a statue. Once the clip has ended he stays alive: winded breathing that heaves the chest and
+   * shoulders, the head drifting (a look round, down, back), and now and then a stir of an arm, slow and
+   * small, eased in over a second so the clip's own end settles first.
+   */
+  private holdLife(dt: number): void {
+    const a = this.current.startsWith('fall_') ? this.actions.get(this.current) : undefined;
+    const ended = a !== undefined && a.time >= a.getClip().duration - 0.02;
+    this.holdT = ended ? this.holdT + dt : 0;
+    if (this.holdT <= 0) return;
+    const k = smoothstep(0, 1.2, this.holdT);
+    const T = this.holdT;
+    const tw = Math.PI * 2;
+    const b = this.bones;
+    // Winded: ~0.45 breaths/s, the intake sharper than the release, slowly easing over ten seconds.
+    const br = Math.sin(tw * 0.45 * T);
+    const heave = (br > 0 ? br : 0.6 * br) * (0.05 - 0.02 * smoothstep(2, 10, T)) * k;
+    this.rotate(b.chest, heave, 0, 0);
+    this.rotate(b.spine, heave * 0.5, 0, 0);
+    this.rotate(b.neck, -heave * 0.6, 0, 0);
+    this.rotate(b.shoulderL, 0, 0, heave * 0.9);
+    this.rotate(b.shoulderR, 0, 0, -heave * 0.9);
+    // The head drifts: a slow look about, a drop and a lift.
+    this.rotate(b.neck, 0.05 * Math.sin(tw * 0.11 * T + 0.7) * k, 0.12 * Math.sin(tw * 0.07 * T + 1.3) * k, 0);
+    this.rotate(b.head, 0.06 * Math.sin(tw * 0.13 * T + 2.1) * k, 0.1 * Math.sin(tw * 0.09 * T) * k, 0.04 * Math.sin(tw * 0.05 * T) * k);
+    // A stir every few seconds, alternating arms: the forearm draws in and the hand turns, then settles.
+    const cyc = 3.6;
+    const ph = (T + 1.4) / cyc;
+    const u = ph - Math.floor(ph);
+    const bump = u < 0.4 ? Math.sin((Math.PI * u) / 0.4) ** 2 : 0;
+    const side = Math.floor(ph) % 2 === 0 ? 'L' : 'R';
+    this.rotate(b[`forearm${side}`], -0.22 * bump * k, 0, 0);
+    this.rotate(b[`upper_arm${side}`], -0.06 * bump * k, 0, 0.05 * bump * k * (side === 'L' ? 1 : -1));
   }
 
   /** Aim the neck and head at the look target, within a comfortable range, eased in and out. */
