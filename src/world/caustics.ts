@@ -159,12 +159,26 @@ if (uDetail > 0.0 && uDetailReady > 0.0) {
     vec4 b = dtTri(vWetPos * 2.9 + 0.37, w, wn);
     #endif
     vec3 dw = a.xyz * 1.5 + b.xyz * 0.8 * fine;
+    // World round 27 (the coordinator: a pier ~4 m from the lens still read blotchy and soft — the
+    // atlas magnified past its texels): within 6 m a third, finest octave of the scan (offset again,
+    // ~14 cm a tile): crisp grains, pits and hairline cracks in the normal and in the albedo, over the
+    // atlas's soft blotches. Faded out before it could shimmer.
+    float finest = 0.0;
+    vec4 c3 = vec4(0.0, 0.0, 0.0, 0.5);
+    #ifndef DETAIL_FAR
+    finest = 1.0 - smoothstep(2.5, 6.0, dist);
+    if (finest > 0.0) {
+      c3 = dtTri(vWetPos * 7.3 + 1.91, w, wn);
+      dw += c3.xyz * 0.6 * finest;
+    }
+    #endif
     vec3 dv = mat3(viewMatrix) * dw;
     vec3 bn = normal + dv * k;
     float bl = length(bn);
     // NaN guard (an exactly cancelling tilt would be normalize(0), which bloom smeared over the frame).
     if (bl > 1e-4) normal = bn / bl;
     float cav = mix(a.w, a.w * (0.6 + 0.8 * b.w), fine);
+    cav = mix(cav, cav * (0.7 + 0.6 * c3.w), finest);
     diffuseColor.rgb *= mix(1.0, 0.62 + 0.7 * cav, min(1.0, k * 1.2));
   }
 }
