@@ -1596,9 +1596,21 @@ export class Runner {
       const runningOut = this.current === 'leap_gap' && t >= 26 / 30 && this.speed < 7.5;
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
       const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
+      // On a bend and through a cut's plant the stance is known (the stride's phase, the cut's plant frames),
+      // and the bank lifts or sinks a planted foot by several cm: the pin follows the stance itself, on the
+      // floor, not the ankle's height (caught by height, the cut's foot was pinned two frames early, still
+      // swinging in, and let go with a 36 cm jump once the leg ran out of reach).
+      const stance = this.stanceLock(s, t);
       if (free) f.locked = false;
-      // (A bend's bank lifts the inside foot a few cm off the floor as it plants: it is caught a little higher.)
-      else if (!f.locked && h < (bending || this.current.startsWith('turn_cut') ? 0.15 : 0.125) && !f.spent) {
+      else if (stance !== null) {
+        if (stance && !f.locked && !f.spent) {
+          f.locked = true;
+          f.pos.copy(ankle).setY(ground + 0.095);
+        } else if (!stance) {
+          f.locked = false;
+          f.spent = false;
+        }
+      } else if (!f.locked && h < 0.125 && !f.spent) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
@@ -1607,7 +1619,7 @@ export class Runner {
       // (Sliding along it, quickly but not at once: a slide escape straight out of a turn cut at the top
       // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
       if (h < -0.05 || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (bending ? 30 : 18) : flying ? 30 : sliding ? 22 : bending ? 40 : 10)));
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (stance ? 30 : 18) : flying ? 30 : sliding ? 22 : stance === false ? 40 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
         continue;
@@ -1671,6 +1683,23 @@ export class Runner {
       // rel = swing · twist; the twist is applied last (about the bone's own Y), so trim it there.
       b.quaternion.multiply(fix);
     }
+  }
+
+  /**
+   * Whether foot `s` is in its stance by the clip's own timing, where that is known and the pins go by it
+   * (true / false), else null (the pins go by the ankle's height): the run on a bend (the stride's phase
+   * against the blended contact time), and a turn cut's outside foot through its plant (clip frames 9-12).
+   */
+  private stanceLock(s: 'L' | 'R', t: number): boolean | null {
+    if (this.current === 'run' && Math.abs(this.yawRate) > 0.3) {
+      const u = (((this.phase + (s === 'L' ? 0 : 0.5)) % 1) + 1) % 1;
+      return u > 0.01 && u < this.contact - 0.015;
+    }
+    if (this.current === 'turn_cut_L' || this.current === 'turn_cut_R') {
+      const outside = this.current === 'turn_cut_L' ? 'R' : 'L';
+      return s === outside && t >= 8.2 / 30 && t <= 12.3 / 30;
+    }
+    return null;
   }
 
   /** Hip to ankle with the knee straight (m). */

@@ -2855,7 +2855,9 @@ def obstacle_clips():
                 arm(A, o, fwd=0.85, elbow=1.5, out=0.08, curl=0.9)
                 for nm, v in A.items():
                     P[nm] = tuple(a + (b - a) * w9 for a, b in zip(P.get(nm, (0.0, 0.0, 0.0)), v))
-            P["root"] = (0.0, (0.12 * w9 + 0.14 * w13 + 0.08 * w16) * sg, (0.12 * w9 + 0.3 * w13 + 0.1 * w16) * sg)
+            # (The bank into the cut: about the root's Y, negative leans him to his left. It had the sign the
+            # other way, and leaned him out of the turn.)
+            P["root"] = (0.0, -(0.12 * w9 + 0.14 * w13 + 0.08 * w16) * sg, (0.12 * w9 + 0.3 * w13 + 0.1 * w16) * sg)
             key(fr, P, z=gait_root(ph, RUN), x=x)
         # The outside foot's plant (its stance, frames 9-12) held on the stone while the body turns and
         # drops over it: keyed through the nudges alone it hovered 2-7 cm up and slid 14-24 cm a frame
