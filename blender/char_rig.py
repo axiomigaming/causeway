@@ -537,7 +537,109 @@ def soft_bones(mesh, J, rig, key):
     print("  soft bones:", ", ".join(f"{nm} ({sum(1 for w in W if nm in w)} verts)" for nm in bones), flush=True)
 
 
-def unweld(mesh, rig, albedo=None):
+def _load_rgb(path):
+    if not path:
+        return None
+    im = bpy.data.images.load(path)
+    w, h = im.size
+    a = np.array(im.pixels[:], np.float32).reshape(h, w, 4)[..., :3]
+    bpy.data.images.remove(im)
+    return a
+
+
+def _texel(img, u, r=0):
+    """The texel under uv u (Blender's pixel rows run bottom-up, as uv v does); with r > 0, the
+    (2r+1)-square window round it."""
+    h, w = img.shape[:2]
+    y, x = min(h - 1, max(0, int(u.y * h))), min(w - 1, max(0, int(u.x * w)))
+    if not r:
+        return img[y, x]
+    return img[max(0, y - r):y + r + 1, max(0, x - r):x + r + 1].reshape(-1, img.shape[2])
+
+
+def _uvs_around(uv, vs, ok, skip):
+    """UVs of the surface within 5 cm of a rim (rings out from it, through vertices `ok` accepts), not
+    counting the faces in `skip`."""
+    vs = list(vs)
+    c = sum((v.co for v in vs), vs[0].co * 0) / len(vs)
+    lim = max((v.co - c).length for v in vs) + 0.05
+    seen, front = set(vs), set(vs)
+    for _ in range(12):
+        nxt = {e.other_vert(v) for v in front for e in v.link_edges}
+        nxt = {w for w in nxt if w not in seen and ok(w) and (w.co - c).length < lim}
+        if not nxt:
+            break
+        seen |= nxt
+        front = nxt
+    return [lo[uv].uv.copy() for v in seen for lo in v.link_loops if lo.face not in skip]
+
+
+def _pick_texel(px, rg, cands, win=0):
+    """A matte, typical cloth texel round a rim: of its brighter half and its roughest quarter (no strap,
+    pouch or atlas padding, no glossy leather), the one nearest their median colour and roughness. The rim's
+    brightest texel was glossy (0.72 in a shirt of 0.94; under the arms the harness's leather is 0.55): a
+    flat plane with no normal detail, each armpit cap caught the low sun of the vault as one pale sheen.
+    With win > 0 a texel is judged by its window (the darkest and the least rough in it), so the filtering
+    of the shipped, mipmapped maps cannot pull a strap's edge onto the cap."""
+    if px is None:
+        return cands[len(cands) // 2]
+    LW = np.array([0.2126, 0.7152, 0.0722])
+    cols = np.array([_texel(px, u) for u in cands])
+    lum = np.array([(_texel(px, u, win) @ LW).min() for u in cands]) if win else cols @ LW
+    r = np.array([_texel(rg, u, win)[:, 1].min() if win else _texel(rg, u)[1] for u in cands]) if rg is not None else np.ones(len(cands))
+    keep = lum >= np.median(lum)
+    both = keep & (r >= np.percentile(r, 75))
+    if both.any():
+        keep = both
+    d = ((cols - np.median(cols[keep], axis=0)) ** 2).sum(1) + (r - np.median(r[keep])) ** 2
+    d[~keep] = np.inf
+    return cands[int(np.argmin(d))]
+
+
+def recap_texels(mesh, tex):
+    """The caps and joint skins unweld added carry one texel each (every loop on one uv). Picked again here
+    from the final maps (refine_orm paints the leather's roughness over a feathered halo in uv space, and
+    delight_albedo shifts the colours), with a 5-texel window, so each stays matte cloth in the shipped game."""
+    import bmesh
+    px, rg = _load_rgb(tex["color"]), _load_rgb(tex["orm"])
+    bm = bmesh.new()
+    bm.from_mesh(mesh.data)
+    uv = bm.loops.layers.uv.active
+
+    def flat(f):
+        u0 = f.loops[0][uv].uv
+        return all((lo[uv].uv - u0).length < 1e-7 for lo in f.loops)
+    caps = {f for f in bm.faces if flat(f)}
+    done, n = set(), 0
+    for f0 in caps:
+        if f0 in done:
+            continue
+        key = f0.loops[0][uv].uv.copy()
+        comp, st = [], [f0]
+        done.add(f0)
+        while st:
+            f = st.pop()
+            comp.append(f)
+            for e in f.edges:
+                for f2 in e.link_faces:
+                    if f2 in caps and f2 not in done and (f2.loops[0][uv].uv - key).length < 1e-7:
+                        done.add(f2)
+                        st.append(f2)
+        cand = _uvs_around(uv, {v for f in comp for v in f.verts}, lambda w: True, caps)
+        if not cand:
+            continue
+        m = _pick_texel(px, rg, cand, win=2)
+        for f in comp:
+            for lo in f.loops:
+                lo[uv].uv = m
+        n += 1
+    bm.to_mesh(mesh.data)
+    bm.free()
+    mesh.data.update()
+    print(f"  recapped: {n} caps and joint skins, {len(caps)} faces, on the final maps", flush=True)
+
+
+def unweld(mesh, rig, albedo=None, orm=None):
     """Cut the scan's webbing between parts that move apart. The source was scanned with the arms hanging
     against the flanks and the hands at the hips and the thighs touching: its surface runs straight across
     those contacts. Below the armpit (and below the crotch), a face with vertices on both the arm and the
@@ -548,15 +650,7 @@ def unweld(mesh, rig, albedo=None):
     import bmesh
     names = {g.index: g.name for g in mesh.vertex_groups}
     B = rig.data.bones
-    px = None
-    if albedo:
-        im = bpy.data.images.load(albedo)
-        tw, th = im.size
-        px = np.array(im.pixels[:], np.float32).reshape(th, tw, 4)[..., :3]
-        bpy.data.images.remove(im)
-
-    def texel(u):
-        return px[min(th - 1, max(0, int(u.y * th))), min(tw - 1, max(0, int(u.x * tw)))]
+    px, rg = _load_rgb(albedo), _load_rgb(orm)
     pit = {s: B[f"upper_arm.{s}"].head_local.z - 0.09 for s in "LR"}
     crotch = min(B["thigh.L"].head_local.z, B["thigh.R"].head_local.z) - 0.06
     bm = bmesh.new()
@@ -596,6 +690,7 @@ def unweld(mesh, rig, albedo=None):
     bm.normal_update()
     # Each part's open rim, as chains of boundary edges whose ends are both that part's: capped by a fan.
     caps = 0
+    capset = set()
     rim = [e for e in bm.edges if e.is_boundary and P.get(e.verts[0]) == P.get(e.verts[1])]
     seen = set()
     for e0 in rim:
@@ -643,37 +738,47 @@ def unweld(mesh, rig, albedo=None):
         # One texel for the whole cap, the rim's middle: the rim's UVs fanned across it read as a striped
         # sunburst on the flank.
         if uv is not None and caps_faces:
-            rim_uv = [l2[uv].uv.copy() for v in verts for l2 in v.link_loops if l2.face not in caps_faces]
+            capset.update(caps_faces)
+            rim_uv = _uvs_around(uv, verts, lambda w, pp=pp: P.get(w) == pp, capset)
             if rim_uv:
-                # the rim's brightest texel: the shirt the cap closes, not a strap, a pouch or the atlas's
-                # dark padding (the median of a rim round the pouches read as a dark leather membrane)
-                if px is not None:
-                    cols = np.array([texel(u) for u in rim_uv])
-                    m = rim_uv[int(np.argmax(cols @ np.array([0.2126, 0.7152, 0.0722])))]
-                else:
-                    m = rim_uv[len(rim_uv) // 2]
+                # the shirt the cap closes, not a strap, a pouch or the atlas's dark padding (the median of a
+                # rim round the pouches read as a dark leather membrane)
+                m = _pick_texel(px, rg, rim_uv)
                 for f in caps_faces:
                     for lo in f.loops:
                         lo[uv].uv = m
     # Where the cut meets the armpit and the crotch, the rims change part and stay open: a skin of their own
-    # (it stretches with the joint, as the armpit does). Faces out, one texel of the rim's brightest colour.
+    # (it stretches with the joint, as the armpit does). Faces out, one texel of the rim's typical cloth.
     rest = [e for e in bm.edges if e.is_boundary]
     filled = bmesh.ops.holes_fill(bm, edges=rest, sides=0)["faces"]
     filled = bmesh.ops.triangulate(bm, faces=filled)["faces"] if filled else []
     bm.normal_update()
+    fset = set(filled)
     for f in filled:
         vs = list(f.verts)
         n = sum((v.normal for v in vs), vs[0].normal * 0)
         if f.normal.dot(n) < 0:
             f.normal_flip()
-        if uv is not None:
-            cand = [l2[uv].uv.copy() for v in vs for l2 in v.link_loops if l2.face not in filled]
-            if cand:
-                if px is not None:
-                    cols = np.array([texel(u) for u in cand])
-                    m = cand[int(np.argmax(cols @ np.array([0.2126, 0.7152, 0.0722])))]
-                else:
-                    m = cand[0]
+    # one texel per closed hole (its triangles joined by edges), not per triangle: a patchwork otherwise
+    done = set()
+    for f0 in filled if uv is not None else []:
+        if f0 in done:
+            continue
+        comp, st = [], [f0]
+        done.add(f0)
+        while st:
+            f = st.pop()
+            comp.append(f)
+            for e in f.edges:
+                for f2 in e.link_faces:
+                    if f2 in fset and f2 not in done:
+                        done.add(f2)
+                        st.append(f2)
+        vs = {v for f in comp for v in f.verts}
+        cand = _uvs_around(uv, vs, lambda w: True, fset | capset)
+        if cand:
+            m = _pick_texel(px, rg, cand)
+            for f in comp:
                 for lo in f.loops:
                     lo[uv].uv = m
     bm.to_mesh(mesh.data)

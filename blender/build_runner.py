@@ -69,11 +69,12 @@ def build_model():
     R.arm_clean(body, rig)
     # (On the final weights: cut where they now part the arm from the flank. The cut adds cap vertices, so the
     # per-vertex colours are taken again.)
-    R.unweld(body, rig, tex["color"])
+    R.unweld(body, rig, tex["color"], tex["orm"])
     hue, sat, val = CP.vertex_hsv(body, tex["color"])
     R.bind(body, rig)
     CP.refine_orm(body, tex, hue, sat, val, (hue < 33) & (sat > 0.42) & (val < 0.72))
     CP.delight_albedo(body, tex, hue, sat, val, (hue < 33) & (sat > 0.42) & (val < 0.72))
+    R.recap_texels(body, tex)
     R.repose(rig, body, J)
     # The sole as it now stands: the ankle's height above the lowest point of the boot (left).
     ank = rig.data.bones["foot.L"].head_local
