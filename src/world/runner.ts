@@ -1815,8 +1815,7 @@ export class Runner {
   /**
    * Whether foot `s` is in its stance by the clip's own timing, where that is known and the pins go by it
    * (true / false), else null (the pins go by the ankle's height): the run on a bend (the stride's phase
-   * against the blended contact time), a turn cut's outside foot through its plant (clip frames 9-12), and
-   * leap_gap's run-out at speed (its strides from the landing).
+   * against the blended contact time), and a turn cut's outside foot through its plant (clip frames 9-12).
    */
   private stanceLock(s: 'L' | 'R', t: number): boolean | null {
     if (this.current === 'run' && Math.abs(this.yawRate) > 0.3) {
@@ -1826,13 +1825,6 @@ export class Runner {
     if (this.current === 'turn_cut_L' || this.current === 'turn_cut_R') {
       const outside = this.current === 'turn_cut_L' ? 'R' : 'L';
       return s === outside && t >= 8.2 / 30 && t <= 12.3 / 30;
-    }
-    // leap_gap's run-out at speed: its strides are keyed on the gait from the landing (clip frame 22, the left
-    // strike) at the moves' cadence. (Caught by height, the right foot was held on past its toe-off as it
-    // skimmed the floor, and let go at the hand-back sliding 18 cm a frame.)
-    if (this.current === 'leap_gap' && t >= 22 / 30 && this.speed >= 7.5) {
-      const u = (((t - 22 / 30) * OBST_CADENCE + (s === 'L' ? 0 : 0.5)) % 1 + 1) % 1;
-      return u > 0.01 && u < CONTACT.run - 0.015;
     }
     return null;
   }
