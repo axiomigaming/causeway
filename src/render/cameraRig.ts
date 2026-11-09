@@ -13,6 +13,8 @@ const FF_DROP = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
+/** Camera round 2: how far ahead (s) the framing reads a moving limb (about the output spring's lag). */
+const LIMB_LEAD = 0.16;
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -1304,9 +1306,7 @@ export class CameraRig {
     const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? Math.min(1, this.escapeIn * 4) : 0;
     // (And on a phone a fall keeps a little more too: the reworked clips throw a hand out faster than
     // the jerk-limited pan follows — the pillar's recoil reached the edge for three frames.)
-    // (Camera round 2: 0.09 — at 0.06 the pillar's recoil reached the edge again for three frames
-    // after the merged runner rounds.)
-    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.09 : 0;
+    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.06 : 0;
     const mx = 1 - 0.09 - fall - esc * (this.camera.aspect < 1 ? (this.mode === 'run' ? 0.14 : 0.1) : 0.06); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
@@ -1342,19 +1342,48 @@ export class CameraRig {
       // Round 18: the limbs as posed (a slide throws the legs a metre out from the hips): widen
       // the extent to take them in (never narrower than the standing figure above).
       if (this.bodyPts) {
-        for (const b of this.bodyPts) {
-          const p = this.tmp4.copy(b).applyMatrix4(inv);
-          if (p.z > -0.3) continue;
-          const x = p.x / -p.z;
-          const y = p.y / -p.z;
-          m.left = Math.min(m.left, x);
-          m.right = Math.max(m.right, x);
-          m.feet = Math.min(m.feet, y);
-          m.head = Math.max(m.head, y);
-        }
+        this.bodyPts.forEach((b, i) => {
+          // Camera round 2: each limb where it is and where it will be when the jerk-limited output
+          // has caught up (LIMB_LEAD ahead at its present speed). Framed only where it is, a flung
+          // hand outran the output: the pillar's recoil threw his right hand from 0.7 to the frame's
+          // edge on a phone while the lens was still turning toward it.
+          for (let k = 0; k < 2; k++) {
+            const w = this.tmp4.copy(b);
+            if (k === 1) {
+              const v = this.limbVel[i];
+              if (!v) continue;
+              w.addScaledVector(v, LIMB_LEAD);
+            }
+            const p = w.applyMatrix4(inv);
+            if (p.z > -0.3) continue;
+            const x = p.x / -p.z;
+            const y = p.y / -p.z;
+            m.left = Math.min(m.left, x);
+            m.right = Math.max(m.right, x);
+            m.feet = Math.min(m.feet, y);
+            m.head = Math.max(m.head, y);
+          }
+        });
       }
       return true;
     };
+    // The limbs' velocities (world, per second of real time), for the lead in measure().
+    if (this.bodyPts) {
+      const pts = this.bodyPts;
+      while (this.limbPrev.length < pts.length) this.limbPrev.push(null);
+      while (this.limbVel.length < pts.length) this.limbVel.push(null);
+      pts.forEach((b, i) => {
+        const prev = this.limbPrev[i];
+        if (prev && rdt > 1e-4) {
+          const v = (this.limbVel[i] ??= new THREE.Vector3()).copy(b).sub(prev).divideScalar(rdt);
+          if (v.length() > 12) v.setLength(12);
+        } else this.limbVel[i] = null;
+        (this.limbPrev[i] ??= new THREE.Vector3()).copy(b);
+      });
+    } else {
+      this.limbPrev.length = 0;
+      this.limbVel.length = 0;
+    }
     if (!measure()) return;
     const m = this.frameM;
     {
@@ -1449,6 +1478,8 @@ export class CameraRig {
     // (the crash close-in) rolled the horizon by up to ~25°.)
     if (Math.abs(pan) > 1e-4) c.rotateOnWorldAxis(WORLD_UP, pan);
   }
+  private limbPrev: (THREE.Vector3 | null)[] = [];
+  private limbVel: (THREE.Vector3 | null)[] = [];
   private framePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   private frameM = { feet: 0, head: 0, left: 0, right: 0, depth: 0 };
   private tmpInv = new THREE.Matrix4();
