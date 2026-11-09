@@ -201,12 +201,30 @@ function smoothstep(a: number, b: number, x: number): number {
  * warm bounce from below, scaled by the albedo so it shades rather than flattens) and a faint rim along
  * the contour. The world's lights are untouched.
  */
-export const RUNNER_FILL = 0.45;
+export const RUNNER_FILL = 0.3;
 export const RUNNER_RIM = 0.4;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
 export const RUNNER_COOL_RIM = 0.22;
 /** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
 const runnerWet = { value: 0 };
+/**
+ * The light the lift takes after: the world's hemisphere sky and ground colours, the sun's colour (the warm
+ * rim), and k, the lift's strength relative to the reference look (the world's hemi at 0.4). With fixed
+ * colours and strength he kept his glow through the storm, the mood's dimming and the shade, and read as
+ * pasted in. Set every frame by the game (setRunnerLight); the defaults are the reference look.
+ */
+const runnerLight = {
+  sky: { value: new THREE.Color(0.62, 0.68, 0.78) },
+  ground: { value: new THREE.Color(0.46, 0.36, 0.28) },
+  sun: { value: new THREE.Color(1.0, 0.86, 0.68) },
+  k: { value: 1 },
+};
+export function setRunnerLight(sky: THREE.Color, ground: THREE.Color, sun: THREE.Color, k: number): void {
+  runnerLight.sky.value.copy(sky);
+  runnerLight.ground.value.copy(ground);
+  runnerLight.sun.value.copy(sun);
+  runnerLight.k.value = Math.max(0, k);
+}
 function liftRunner(m: THREE.MeshStandardMaterial): void {
   for (const t of [m.map, m.normalMap, m.roughnessMap]) {
     if (!t) continue;
@@ -220,8 +238,12 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     sh.uniforms.uRunnerRim = { value: RUNNER_RIM };
     sh.uniforms.uRunnerCool = { value: RUNNER_COOL_RIM };
     sh.uniforms.uRunnerWet = runnerWet;
+    sh.uniforms.uRunnerSky = runnerLight.sky;
+    sh.uniforms.uRunnerGround = runnerLight.ground;
+    sh.uniforms.uRunnerSun = runnerLight.sun;
+    sh.uniforms.uRunnerK = runnerLight.k;
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;')
+      .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
       // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, roughnessFactor * 0.45 + 0.08, uRunnerWet);')
       .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= 1.0 - 0.2 * uRunnerWet;')
@@ -230,10 +252,10 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
         `#include <lights_fragment_end>
         {
           vec3 nW = inverseTransformDirection(normal, viewMatrix);
-          vec3 hemi = mix(vec3(0.46, 0.36, 0.28), vec3(0.62, 0.68, 0.78), nW.y * 0.5 + 0.5);
+          vec3 hemi = mix(uRunnerGround, uRunnerSky, nW.y * 0.5 + 0.5);
           float rim = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);
-          reflectedLight.indirectDiffuse += diffuseColor.rgb * (hemi * uRunnerFill + vec3(1.0, 0.86, 0.68) * rim * uRunnerRim);
-          reflectedLight.indirectSpecular += vec3(0.62, 0.74, 0.92) * pow(rim, 1.4) * uRunnerCool * (0.6 + 0.4 * saturate(nW.y + 0.5));
+          reflectedLight.indirectDiffuse += uRunnerK * diffuseColor.rgb * (hemi * uRunnerFill + uRunnerSun * rim * uRunnerRim);
+          reflectedLight.indirectSpecular += uRunnerK * uRunnerSky * 1.15 * pow(rim, 1.4) * uRunnerCool * (0.6 + 0.4 * saturate(nW.y + 0.5));
         }`,
       );
   };
@@ -407,6 +429,12 @@ export class Runner {
   /** Forward pitch (rad) and bank (rad), eased. `slope` is the path grade (rise/run) for stairs. */
   lean = 0;
   roll = 0;
+  /** The path's turn rate under him (rad/s, + to his left) and how far it turns over the next ~0.45 s (rad). */
+  yawRate = 0;
+  turnAhead = 0;
+  /** The turn layer: bank (rad) and the upper body's lead into the turn (rad), eased. */
+  private bank = 0;
+  private turnLead = 0;
   slope = 0;
   /** The blended gait's contact time, as a fraction of the stride cycle. */
   private contact = CONTACT.run;
@@ -990,7 +1018,7 @@ export class Runner {
     this.stairW += ((this.current === 'run' ? sl : 0) - this.stairW) * (1 - Math.exp(-dt * 5));
     // Into a climb from the ankles, more than a descent sits back (which keeps the eyes on the treads).
     const lean = this.lean + drivePhase + sl * (sl > 0 ? 0.6 : 0.45);
-    this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, this.roll, 1 - Math.exp(-dt * 6));
+    this.turn(dt, speed);
     // The body faces −Z: a forward pitch is a negative rotation about X (positive tipped him back).
     this.body.rotation.x = THREE.MathUtils.lerp(this.body.rotation.x, -lean, 1 - Math.exp(-dt * 4));
 
@@ -1057,6 +1085,32 @@ export class Runner {
   private step(foot: Foot, k: number): void {
     if (this.surface === 'wood') this.plankV -= 0.32 * Math.min(1, k + 0.3);
     this.onFootstep(foot, k);
+  }
+
+  /**
+   * Into a bend: he banks from the ankles against the turn's pull (a share of the lean the speed and the
+   * turn rate call for, atan(v·ω/g)), starting as the bend comes up rather than when it is already under
+   * him, and the turn is led from the top: eyes and head first, then the shoulders, the hips following on
+   * the path. (The body used to rotate rigidly with the path, upright until the turn had begun.)
+   */
+  private turn(dt: number, speed: number): void {
+    const ahead = THREE.MathUtils.clamp(this.turnAhead, -1.2, 1.2);
+    const omega = 0.5 * this.yawRate + 0.5 * (ahead / 0.45);
+    const onFeet = this.current === 'run' || this.obst !== null || this.current === 'start';
+    // (+ about the body's Z tips him to his left: into a left turn. The old roll had it the other way out.)
+    const bankTo = onFeet ? THREE.MathUtils.clamp(Math.atan((speed * omega) / 9.81) * 0.5, -0.4, 0.4) : this.roll;
+    this.bank += (bankTo - this.bank) * (1 - Math.exp(-dt * 7));
+    this.body.rotation.z = this.bank;
+    // (A turn cut keys its own lead.)
+    const leadTo = onFeet && !this.current.startsWith('turn_cut') ? THREE.MathUtils.clamp(ahead, -1, 1) : 0;
+    this.turnLead += (leadTo - this.turnLead) * (1 - Math.exp(-dt * 8));
+    const l = this.turnLead;
+    if (Math.abs(l) < 1e-3) return;
+    const b = this.bones;
+    this.rotate(b.spine, 0, 0.06 * l, 0);
+    this.rotate(b.chest, 0, 0.12 * l, 0);
+    this.rotate(b.neck, 0, 0.14 * l, 0);
+    this.rotate(b.head, 0, 0.22 * l, 0);
   }
 
   /** A catch step at the lip of a flight of stairs: a check, eyes down to the steps, arms out a touch. */
@@ -1472,7 +1526,10 @@ export class Runner {
   private plantFeet(dt: number): void {
     // No pinning in the drops (the chasm and ledge falls end below the floor, the feet are meant to go).
     const blendIn = this.current.startsWith('fall_') && !DROPS.has(this.current) && (this.weights.get(this.current) ?? 1) < 0.999;
-    const active = this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current);
+    // On a bend the run's planted foot is pinned too: the root turns with the path about a point between
+    // the feet, and the stance foot, ahead of or behind it, swept sideways 5-7 cm a frame (a skate).
+    const bending = this.current === 'run' && Math.abs(this.yawRate) > 0.3;
+    const active = bending || (this.current !== 'run' && this.current !== 'idle' && this.current !== 'ready' && this.current !== 'fall_ledge' && this.current !== 'fall_chasm' && !UNPINNED.has(this.current));
     const ground = this.root.position.y;
     // Turning on the spot (the escapes' turn to the lens): the feet pivot, they are not pinned (a
     // pinned foot would wind the leg up and unwind with a snap when it lifts).
@@ -1540,7 +1597,8 @@ export class Runner {
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
       const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       if (free) f.locked = false;
-      else if (!f.locked && h < 0.125 && !f.spent) {
+      // (A bend's bank lifts the inside foot a few cm off the floor as it plants: it is caught a little higher.)
+      else if (!f.locked && h < (bending || this.current.startsWith('turn_cut') ? 0.15 : 0.125) && !f.spent) {
         f.locked = true;
         f.pos.copy(ankle);
       } else if (f.locked && h > 0.16) f.locked = false;
@@ -1549,7 +1607,7 @@ export class Runner {
       // (Sliding along it, quickly but not at once: a slide escape straight out of a turn cut at the top
       // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
       if (h < -0.05 || kneeling) f.w = 0;
-      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? 18 : flying ? 30 : sliding ? 22 : 10)));
+      f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (bending ? 30 : 18) : flying ? 30 : sliding ? 22 : bending ? 40 : 10)));
       if (f.w < 0.01) {
         f.reach = undefined;
         continue;
