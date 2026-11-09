@@ -132,7 +132,11 @@ def bark(name="bark"):
     gh = math_node(nt, "ADD", gh1, math_node(nt, "MULTIPLY", gh2, 0.4))
     h = math_node(nt, "ADD", math_node(nt, "MULTIPLY", h, math_node(nt, "SUBTRACT", 1.0, gw.outputs["Fac"])),
                   math_node(nt, "MULTIPLY", gh, math_node(nt, "MULTIPLY", gw.outputs["Fac"], 1.4)))
-    L(nt, mix(nt, 1.0, hexcol("#6a5440"), c, "MULTIPLY"), bsdf.inputs["Base Color"])
+    # (World round 26: the thin hanging roots, flagged `palew`, a paler weathered grey-brown — 4-9 cm
+    # tubes bake dark in their own occlusion, and at the trunks' tint they read as black cables.)
+    pw = N(nt, "ShaderNodeAttribute", _attribute_name="palew")
+    tint = mix(nt, pw.outputs["Fac"], hexcol("#6a5440"), hexcol("#b09a80"), "MIX")
+    L(nt, mix(nt, 1.0, tint, c, "MULTIPLY"), bsdf.inputs["Base Color"])
     L(nt, maprange(nt, r1, 0.3, 1.0, 0.75, 0.97), bsdf.inputs["Roughness"])
     L(nt, M._bump(nt, h, 1.0, 0.06), bsdf.inputs["Normal"])
     geo = N(nt, "ShaderNodeNewGeometry")

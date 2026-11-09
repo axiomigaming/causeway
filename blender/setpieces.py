@@ -299,8 +299,14 @@ def roots(name, seed, width=3.0, n=7, length=(1.5, 3.5)):
                 p = p + Vector((rng.uniform(-0.1, 0.1), rng.uniform(-0.03, 0.05), -ln / segs))
             pts.append(p.copy())
             rad.append(r0 * (1 - 0.8 * s) + 0.008)
-        _merge(bm, _tube(pts, rad), (0.3, 0.25, 0.2, 1))
-    return finish_obj(name, bm, 70)
+        # (World round 26: a weathered grey-brown, not near-black — thin tubes bake dark in their own
+        # occlusion, and at 0.3 the hanging roots read as black cables against the stone.)
+        _merge(bm, _tube(pts, rad), (0.62, 0.53, 0.42, 1))
+    ob = finish_obj(name, bm, 70)
+    # (Read by materials_scan.bark: these thin roots take a paler, weathered tint.)
+    at = ob.data.attributes.new("palew", "FLOAT", "POINT")
+    at.data.foreach_set("value", [1.0] * len(ob.data.vertices))
+    return ob
 
 
 def stepping_stones(name, seed, n=6, spread=3.0):
