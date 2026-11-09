@@ -2061,60 +2061,73 @@ export const HERO_KINDS = ['statue', 'column', 'falls', 'tree', 'ruin'] as const
 
 /**
  * World round 27 (the owner: on a phone, held upright, the worlds' openings looked alike): a strong
- * feature on the near side of each of a world's two opening sections, past their middle — in the first ten seconds and
- * inside a portrait frame (within ~4 m of the way): a colossal guardian, a fallen column, a ruined wall
- * with a fall pouring off it into the water, a great tree, or a ruined wall end-on to the way. Which, on
- * which side and where come from the world's own seed (a generator of its own: the layout's stream is
- * untouched). Returns the kind placed.
+ * feature on the near side of each of a world's two opening sections — a colossal guardian, a fallen
+ * column, a ruined wall with a fall pouring off it into the water, a great tree, or a ruined wall end-on
+ * to the way — `at` m into the section (Track.spawn puts the first ~42 m and the second ~64 m into the
+ * world: in a portrait frame through the first ten seconds, the one then the other). Placed against the
+ * route (a bend's arc, not the section's straight axis) and within ~5 m of it, where an upright frame
+ * still holds it 10 m out. Which, on which side, from the world's own seed (a generator of its own: the
+ * layout's stream is untouched). Returns the kind placed.
  */
-function openingHero(b: Builder, len: number, ground?: GroundKind): (typeof HERO_KINDS)[number] {
+function openingHero(b: Builder, len: number, turn: number, at: number | undefined, ground?: GroundKind): (typeof HERO_KINDS)[number] {
   const r = new Rng(`${b.seed}/hero`);
   let kind = HERO_KINDS[r.int(0, HERO_KINDS.length - 1)]!;
   // (A fall pours into water: on land, the great tree instead.)
   if (kind === 'falls' && ground) kind = 'tree';
   const side = r.chance(0.5) ? -1 : 1;
-  const z = -Math.min(len - 4, Math.max(7, len * r.range(0.4, 0.75)));
+  const u0 = Math.min(len - 3, Math.max(7, at ?? len * r.range(0.4, 0.75)));
+  // A point `x` m right of the route, `du` m past the hero's place along it, and the route's heading there.
+  const f = { pos: new THREE.Vector3(), yaw: 0 };
+  const P = (x: number, du = 0) => {
+    evalSeg({ s0: 0, len, p0: new THREE.Vector3(), yaw0: 0, turn, dy: 0 }, Math.min(len, u0 + du), f);
+    return { x: f.pos.x + Math.cos(f.yaw) * x, z: f.pos.z - Math.sin(f.yaw) * x, yaw: f.yaw };
+  };
   const g = (x: number, zz: number) => (ground ? groundY(ground, x, zz, len, b.lower) : WL);
-  const yaw = (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  const across = side > 0 ? -Math.PI / 2 : Math.PI / 2;
   const save = b.lift;
   b.lift = 0;
   if (kind === 'statue') {
     // A colossal guardian on the near side, turned to the way; over the water it stands in the shallows.
-    const x = side * 3.7;
-    b.place(r.chance(0.6) ? 'guardian_0' : 'guardian_1', x, ground ? g(x, z) - 0.06 : WL - 0.25, z, faceIn(side, 1.0), ground ? 0.95 : 1.15);
+    const q = P(side * 3.7);
+    b.place(r.chance(0.6) ? 'guardian_0' : 'guardian_1', q.x, ground ? g(q.x, q.z) - 0.06 : WL - 0.25, q.z, q.yaw + faceIn(side, 1.0), ground ? 0.95 : 1.15);
   } else if (kind === 'column') {
     // A great column fallen out from the way's edge, its drums broken, lying out over the ground or
-    // half sunk in the shallows.
-    const x = side * 3.4;
-    const ry = yaw + side * r.range(0.35, 0.6);
-    const s = r.range(0.95, 1.1);
-    if (ground) b.place('column_fallen_0', x, g(x, z) + 0.2, z, ry, s, slopeTilt(b, x, z, ry, ground, 2.5));
-    else b.place('column_fallen_0', x, WL + 0.05, z, ry, s, [0.08, 0]);
-    b.place('column_lone_0', side * 4.4, ground ? g(side * 4.4, z - 3.5) - 0.1 : WL - 0.3, z - 3.5, r.range(0, 6.28), 0.55);
+    // half sunk in the shallows; a lone standing one past it.
+    const q = P(side * 3.4);
+    const ry = q.yaw + across + side * r.range(0.35, 0.6);
+    const sc = r.range(0.95, 1.1);
+    if (ground) b.place('column_fallen_0', q.x, g(q.x, q.z) + 0.2, q.z, ry, sc, slopeTilt(b, q.x, q.z, ry, ground, 2.5));
+    else b.place('column_fallen_0', q.x, WL + 0.05, q.z, ry, sc, [0.08, 0]);
+    const c = P(side * 4.4, 3.5);
+    b.place('column_lone_0', c.x, ground ? g(c.x, c.z) - 0.1 : WL - 0.3, c.z, r.range(0, 6.28), 0.55);
   } else if (kind === 'falls') {
     // A tall ruined wall standing in the water beside the way, a fall pouring off its crest.
-    const x = PATH_HALF + 3.0;
-    b.place('foundation_1', side * x, 0, z + 2, side > 0 ? 0 : Math.PI);
-    b.place(r.chance(0.5) ? 'wall_tall_0' : 'wall_tall_1', side * x, 0, z + 2, side > 0 ? 0 : Math.PI);
+    const x = PATH_HALF + 2.4;
+    const q = P(side * x, -2);
+    b.place('foundation_1', q.x, 0, q.z, q.yaw + (side > 0 ? 0 : Math.PI));
+    b.place(r.chance(0.5) ? 'wall_tall_0' : 'wall_tall_1', q.x, 0, q.z, q.yaw + (side > 0 ? 0 : Math.PI));
+    const m = P(side * (x - 0.55));
     const fm = new THREE.Matrix4().compose(
-      new THREE.Vector3(side * (x - 0.55), 4.9, z),
-      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (-side * Math.PI) / 2),
+      new THREE.Vector3(m.x, 4.9, m.z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), m.yaw + (-side * Math.PI) / 2),
       new THREE.Vector3(1, 1, 1),
     );
     b.falls.push({ m: fm, w: r.range(1.6, 2.2), h: 4.9 - WL, bow: 0.9 });
-    b.foamRing(side * (x - 1.0), z, 1.6);
+    const fr = P(side * (x - 1.0));
+    b.foamRing(fr.x, fr.z, 1.6);
   } else if (kind === 'tree') {
     // A great tree rooted just past the way's edge, its crown over the way.
-    const x = side * 6.0;
+    const q = P(side * 5.2);
     const ry = r.range(0, 6.28);
     const t = r.int(0, 1);
-    b.place(`tree_big_${t}_trunk`, x, ground ? g(x, z) - 0.2 : WL - 0.35, z, ry, 1.15);
-    b.place(`tree_big_${t}_crown`, x, ground ? g(x, z) - 0.2 : WL - 0.35, z, ry, 1.15);
+    b.place(`tree_big_${t}_trunk`, q.x, ground ? g(q.x, q.z) - 0.2 : WL - 0.35, q.z, ry, 1.15);
+    b.place(`tree_big_${t}_crown`, q.x, ground ? g(q.x, q.z) - 0.2 : WL - 0.35, q.z, ry, 1.15);
   } else {
     // A ruined wall end-on to the way, running out from just past its edge.
-    const x = side * (PATH_HALF + 1.2);
-    if (!ground) b.place('foundation_1', x, 0, z, yaw);
-    b.place(r.chance(0.5) ? 'wall_tall_0' : 'wall_tall_1', x, ground ? Math.max(g(x, z), g(x + side * 4, z)) - 0.1 : 0, z, yaw);
+    const q = P(side * (PATH_HALF + 1.2));
+    const o = P(side * (PATH_HALF + 5.2));
+    if (!ground) b.place('foundation_1', q.x, 0, q.z, q.yaw + across);
+    b.place(r.chance(0.5) ? 'wall_tall_0' : 'wall_tall_1', q.x, ground ? Math.max(g(q.x, q.z), g(o.x, o.z)) - 0.1 : 0, q.z, q.yaw + across);
   }
   b.lift = save;
   return kind;
@@ -2145,7 +2158,7 @@ function ruinedSkyline(b: Builder, len: number, ruin: number, ground?: GroundKin
   }
 }
 
-export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0): Layout {
+export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0, opts: { heroAt?: number } = {}): Layout {
   const rng = new Rng(seed);
   const def = BUILDERS[type];
   const L = len ?? rng.pick(def.lengths);
@@ -2158,7 +2171,7 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin, r.ground);
   // (World round 27: the opening's hero feature; not in a tunnel, nor on a corner or the stairs.)
-  const hero = b.opening && !['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown', 'start'].includes(type) ? openingHero(b, L, r.ground) : undefined;
+  const hero = b.opening && !['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown', 'start'].includes(type) ? openingHero(b, L, r.turn ?? 0, opts.heroAt, r.ground) : undefined;
   return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, ramp: r.ramp, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: hero ? { ...r.features, hero } : r.features };
 }
 
