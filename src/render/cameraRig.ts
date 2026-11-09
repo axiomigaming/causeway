@@ -1265,12 +1265,15 @@ export class CameraRig {
     if (k < 0.001) return;
     const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
     const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
-    // (Close behind the edge and high: 3.6 m back it framed the near paving and the edge sank
-    // under the card.)
-    // (And aimed only a little under the edge: on the splash itself, 8 m down in a gorge, the tilt
-    // took the edge out of the frame's bottom and held on the water again.)
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -2.6).addScaledVector(side, 1.0 * (s || 1)).setY(L.pos.y + 2.4);
-    this.gapAim.copy(L.pos).lerp(splash, 0.6).setY(L.pos.y - Math.min(1.2, 0.6 * Math.max(0, L.pos.y - splash.y)));
+    // Camera round 3 (coordinator): high and close behind the edge, aimed at where he went in. Low
+    // and 2.6 m back, the paving under the lens filled a quarter of a phone frame as a pale, magnified
+    // blur and the aim held on empty water. Now the paving between the lens and the edge is a thin
+    // band at the frame's foot, the broken edge below centre, the splash ring the subject. (The tilt
+    // is held under 50°: aimed straight at a splash 8 m down a gorge, the edge left the frame.)
+    const narrow = this.camera.aspect < 1;
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, narrow ? -1.2 : -2.0).addScaledVector(side, 0.8 * (s || 1)).setY(L.pos.y + 3.8);
+    const hd = Math.hypot(splash.x - this.gapPos.x, splash.z - this.gapPos.z);
+    this.gapAim.copy(splash).setY(Math.max(splash.y + 0.2, this.gapPos.y - hd * Math.tan((50 * Math.PI) / 180)));
     this.targetPos.lerp(this.gapPos, k);
     this.targetLook.lerp(this.gapAim, k);
     this.gapAimK = k;
