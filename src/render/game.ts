@@ -1334,16 +1334,6 @@ export class Game {
         for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
       }
     }
-    // Camera round 2: in a settled shot, the set pieces still standing round him too (the lintel he
-    // had just slid under filled the rockfall's held shot, only his legs under it, for six seconds).
-    // (Not the fall's loose debris: swinging or pulling in round a boulder lost him or put the lens
-    // in his back; the lens cranes up over debris instead, see debrisCrane.)
-    if (this.stage === 'crash' || this.stage === 'cashout') {
-      const pieces: THREE.Mesh[] = [];
-      for (const o of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp, true)) o.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
-      const d = this.meshHit(pieces, from, len);
-      if (d !== null && (best === null || d < best)) best = d;
-    }
     return best;
   }
 
@@ -1370,9 +1360,12 @@ export class Game {
   private occlSphere = new THREE.Sphere();
 
   /**
-   * Camera round 2 (coordinator: rockfall debris blocked the lens on desktop): in a fall's settled
-   * shot, while big broken pieces lie across the sight line from his chest to the lens, the lens
-   * cranes up over them (eased, up to 1.6 m) — never swings round them or pulls in past them.
+   * Camera round 2 (coordinator: rockfall debris blocked the lens on desktop; QA: the lintel he had
+   * just slid under filled the rockfall's held shot, only his legs under it): in a fall's settled
+   * shot, while big broken pieces or a set piece still standing lie across the sight line from his
+   * chest to the lens, the lens cranes up over them (eased, up to 1 m). Never swings round them or
+   * pulls in past them: given to the occlusion swing, the orbit swung back and forth through him
+   * every three seconds (the swing's straight path from one side to the other).
    */
   private craneK = 0;
   private debrisCrane(dt: number): void {
@@ -1386,13 +1379,18 @@ export class Game {
       if (len > 0.5) {
         o.dir.divideScalar(len);
         o.ray.set(chest, o.dir);
-        if (this.meshHit(this.debris.root.children as THREE.Mesh[], chest, len - 0.3) !== null) want = 1;
+        const pieces = this.cranePieces;
+        pieces.length = 0;
+        for (const m of this.debris.root.children as THREE.Mesh[]) pieces.push(m);
+        for (const p of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp, true)) p.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
+        if (this.meshHit(pieces, chest, len - 0.3) !== null) want = 1;
       }
     }
     this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (want > this.craneK ? 2.5 : 0.8)));
-    this.rig.craneUp = 1.6 * this.craneK;
+    this.rig.craneUp = 1.0 * this.craneK;
   }
   private tmpCrane = new THREE.Vector3();
+  private cranePieces: THREE.Mesh[] = [];
 
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
