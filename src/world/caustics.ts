@@ -236,19 +236,21 @@ roughnessFactor = mix(roughnessFactor, wetRough, wetK);
 {
   // World round 27 (the owner: where stone meets the water the line is hard, as if cut): the water laps
   // the stone. A swash a few centimetres high rides up and down the face in slow waves, leaving a band
-  // of soaked, near-black stone and a broken line of foam at its edge; just under the surface the stone
+  // of soaked, darkened stone and a broken line of foam at its edge; just under the surface the stone
   // takes the water's own green, so the opaque water's edge has something to blend into.
   float hW = vWetPos.y - (${WATER_Y.toFixed(3)});
   if (hW > -0.2 && hW < 0.45) {
     float lapT = uCausticTime;
     float swash = 0.035 + 0.04 * sin(lapT * 1.1 + dot(vWetPos.xz, vec2(0.83, 0.57))) + 0.02 * sin(lapT * 2.3 + dot(vWetPos.xz, vec2(-1.7, 2.1)));
     float soak = smoothstep(swash + 0.3, swash, hW);
-    diffuseColor.rgb *= mix(1.0, 0.42, soak);
+    diffuseColor.rgb *= mix(1.0, 0.58, soak);
     roughnessFactor = mix(roughnessFactor, 0.28, soak * 0.8);
     float lapN = pdN(vWetPos.xz * 2.6 + vec2(lapT * 0.32, -lapT * 0.21)) * 0.6 + pdN(vWetPos.xz * 8.0 + vWetPos.y * 3.0 - lapT * 0.5) * 0.4;
     float line = smoothstep(swash + 0.08, swash + 0.02, hW) * smoothstep(swash - 0.07, swash - 0.015, hW);
-    float foam = line * smoothstep(0.42, 0.62, lapN);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.88, 0.84), foam * 0.9);
+    // Foam clings to the faces the water runs along; a flat top at the swash's height would take it
+    // over its whole face (white tiles).
+    float foam = line * smoothstep(0.3, 0.7, lapN) * (1.0 - smoothstep(0.45, 0.8, abs(vWetN.y)));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.77, 0.73), foam * 0.6);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.11, 0.09), smoothstep(0.0, -0.12, hW) * 0.7);
   }
 }
