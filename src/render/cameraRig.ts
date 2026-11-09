@@ -1265,19 +1265,15 @@ export class CameraRig {
     if (k < 0.001) return;
     const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
     const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
-    // Camera round 3 (coordinator): high and close behind the edge, looking down past it into the
-    // water where he went in. Low and 2.6 m back, the paving under the lens filled a quarter of a
-    // phone frame as a pale, magnified blur, and the aim held on empty water. The aim sits 8° over
-    // the line to the edge, so the broken edge lies just under the middle of the free band and the
-    // water where he went under (it keeps stirring, see the game) beyond it.
-    const narrow = this.camera.aspect < 1;
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, narrow ? -1.3 : -2.0).addScaledVector(side, 0.8 * (s || 1)).setY(L.pos.y + 3.6);
-    const back = Math.hypot(L.pos.x - this.gapPos.x, L.pos.z - this.gapPos.z);
-    const tilt = Math.min(1.2, Math.max(0.5, Math.atan2(this.gapPos.y - L.pos.y, back) - (8 * Math.PI) / 180));
-    const toSplash = this.tmp3.set(splash.x - this.gapPos.x, 0, splash.z - this.gapPos.z);
-    if (toSplash.lengthSq() < 0.01) toSplash.copy(L.fwd);
-    toSplash.normalize();
-    this.gapAim.copy(this.gapPos).addScaledVector(toSplash, 6 * Math.cos(tilt)).setY(this.gapPos.y - 6 * Math.sin(tilt));
+    // Camera round 3 (coordinator): "the way is gone". The lens stands at eye height on the intact
+    // causeway, 3 m back from the break on its centre line, and looks along the way at its broken
+    // end, the water in the gap (where he went under; it keeps stirring, see the game) and the far
+    // side beyond, the horizon level. (From 3.6 m up, looking steeply down, the walls leaned every
+    // way and the foam read as pale blobs; lower and 2.6 m back, the paving under the lens filled the
+    // frame's foot; 4 m back it stood under the gate's soffit.)
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -3).setY(L.pos.y + 1.7);
+    const far = this.tmp3.copy(L.pos).addScaledVector(L.fwd, 6);
+    this.gapAim.copy(splash).lerp(far, 0.5);
     this.targetPos.lerp(this.gapPos, k);
     this.targetLook.lerp(this.gapAim, k);
     this.gapAimK = k;
@@ -1342,7 +1338,13 @@ export class CameraRig {
       const beside = Math.min(this.sideK, k);
       const yWant = lerp(lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, 1 - 2 * s - 2 * this.insetTop - 0.05, 0.5), -2 * s, beside);
       c.rotateX((Math.atan(p.y / -p.z) - Math.atan(yWant * tanV)) * k);
-      if (beside > 0.001) c.rotateY((Math.atan(this.sideX * tanH) - Math.atan(p.x / -p.z)) * beside);
+      if (beside > 0.001) {
+        const yaw = (Math.atan(this.sideX * tanH) - Math.atan(p.x / -p.z)) * beside;
+        // (The grounded hold over the broken edge pans about the world's vertical: about its own
+        // axis a tilted lens rolled the horizon.)
+        if (this.gapAimK > 0.5) c.rotateOnWorldAxis(WORLD_UP, yaw);
+        else c.rotateY(yaw);
+      }
       return;
     }
     // (FX round 21: the escape's run-on — still the run shot, closing in on his shoulder — keeps the
