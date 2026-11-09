@@ -1888,14 +1888,16 @@ export class Runner {
       // tier let a pin go that held the foot ~0.5 m behind the clip's, and the foot jumped there in a frame.)
       if (h < -0.05 || kneeling) f.w = 0;
       f.w += ((f.locked ? 1 : 0) - f.w) * (1 - Math.exp(-dt * (f.locked ? (stance ? 30 : 18) : flying ? 30 : sliding ? 22 : stance === false ? 40 : 10)));
+      // A cut's push-off, keyed for a slower pace, rolls the free toe 3-5 cm into the stone at the top tier:
+      // the ankle is lifted by as much (wherever the pin lets go).
+      const toeGuard = () => {
+        if (!cut || !f.toe || free) return;
+        const under = ground + TOE_FLOOR - f.toe.getWorldPosition(this.v4).y;
+        if (under > 0.002) this.solveLeg(f, this.v2.copy(ankle).setY(ankle.y + under));
+      };
       if (f.w < 0.01) {
         f.reach = undefined;
-        // A cut's push-off, keyed for a slower pace, rolls the free toe 3-5 cm into the stone at the top
-        // tier: the ankle is lifted by as much.
-        if (cut && f.toe && !free) {
-          const under = ground + TOE_FLOOR - f.toe.getWorldPosition(this.v4).y;
-          if (under > 0.002) this.solveLeg(f, this.v2.copy(ankle).setY(ankle.y + under));
-        }
+        toeGuard();
         continue;
       }
       if (f.locked) f.pos.y = Math.max(f.pos.y, ground + 0.08);
@@ -1933,6 +1935,7 @@ export class Runner {
         f.spent = true;
         if (f.w < 0.01) {
           f.reach = undefined;
+          toeGuard();
           continue;
         }
       }
