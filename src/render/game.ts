@@ -2647,7 +2647,10 @@ export class Game {
     const sCam = this.s - this.lensAlong();
     let near = false;
     let depth = 0;
-    for (const ahead of [0, 0.15, 0.3, 0.45, 0.6]) {
+    // (Camera round 2: not for the chasm's held shot, high over the broken edge: it sat 2 m behind
+    // a lintel he had slid under, and the duck dropped it onto the paving.)
+    const hold = this.stage === 'crash' && this.crashKind === 'chasm' && this.rig.gapLip !== null;
+    for (const ahead of hold ? [] : [0, 0.15, 0.3, 0.45, 0.6]) {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
