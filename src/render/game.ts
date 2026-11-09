@@ -2654,9 +2654,10 @@ export class Game {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
-        // (Camera round 2: 0.45 m under the beam (0.55 on a tall screen, its lens is wider), and the view leans down further while under it — at
-        // 0.4 its dark, untextured underside filled the top 40 % of a phone frame for half a second;
-        // ducking to 0.6 put the lens among the floor tiles instead.)
+        // (Camera round 2: 0.45 m under the beam — 0.55 on a tall screen, whose lens is wider — and
+        // the view leans down further while under it. At 0.4 its dark, untextured underside filled
+        // the top 40 % of a phone frame for half a second; ducking to 0.6 put the lens among the
+        // floor tiles instead.)
         depth = Math.max(depth, cam.position.y - (y - (cam.aspect < 1 ? 0.55 : 0.45)));
       }
     }
