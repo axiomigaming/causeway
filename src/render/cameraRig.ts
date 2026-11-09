@@ -1413,6 +1413,15 @@ export class CameraRig {
     const headCap = this.mode === 'crash' ? Math.max(hiT, 0.92 * tanV) : hiT;
     if (tilt < 0) tilt = -Math.min(-tilt, Math.max(0, Math.atan(headCap) - Math.atan(m.head)));
     else if (tilt > 0) tilt = Math.min(tilt, Math.max(0, Math.atan(m.feet) - Math.atan(loT)));
+    // (Camera round 2: in a fall the crown never reaches the frame's top edge either. When the boots
+    // already sit on the dock line and the stand-back is still easing in — the pillar fall after the
+    // longer slide run-up put his head at 0.98 of the frame — the boots give way below the dock line
+    // instead, never past the frame's own bottom.)
+    if (this.mode === 'crash' && tilt >= 0 && m.head > 0.9 * tanV) {
+      const need = Math.atan(m.head) - Math.atan(0.9 * tanV);
+      const room = Math.max(0, Math.atan(m.feet) - Math.atan(-0.94 * tanV));
+      tilt = Math.max(tilt, Math.min(need, room));
+    }
     // (Camera round 2, QA hunt: out of the title's high pass the setup does not drag him into the
     // band from 9.8 m up — that tilt pointed the first frames after ENTER down onto the crown of
     // the arch under the lens. The framing comes in as the lens descends, with the aim.)
