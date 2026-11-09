@@ -240,6 +240,8 @@ const SKIN_SHADOW_SLACK = 0.7;
 const SUN_SHADOW_DEPTH = 129;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
 export const RUNNER_COOL_RIM = 0.1;
+/** How much of the specular the joint caps (creases: their uv is one texel) lose. */
+const RUNNER_CREASE_SPEC = 0.85;
 /** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
 const runnerWet = { value: 0 };
 /**
@@ -340,7 +342,19 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
           vec3 nW = inverseTransformDirection(normal, viewMatrix);
           float rim = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);
           reflectedLight.indirectSpecular += uRunnerK * uRunnerSky * 1.15 * pow(rim, 1.4) * uRunnerCool * (0.6 + 0.4 * saturate(nW.y + 0.5));
-        }`,
+        }
+        #ifdef USE_MAP
+        {
+          // The armpit and crotch caps (the mesh closes its joints with fans that carry one texel: their uv
+          // does not vary) are creases: no sheen. Flat, with no wrinkle in the normals, a cap seen edge-on
+          // against the low sun (the vault's reach) took the full grazing Fresnel and read as a white patch.
+          // (Interpolating one uv leaves ~1e-7 of rounding; real cloth moves ~1e-3 a pixel even in close-up.)
+          vec2 du = abs(dFdx(vMapUv)) + abs(dFdy(vMapUv));
+          float crease = 1.0 - step(1e-5, du.x + du.y);
+          reflectedLight.directSpecular *= 1.0 - ${RUNNER_CREASE_SPEC.toFixed(2)} * crease;
+          reflectedLight.indirectSpecular *= 1.0 - ${RUNNER_CREASE_SPEC.toFixed(2)} * crease;
+        }
+        #endif`,
       );
   };
   m.customProgramCacheKey = () => 'runner-lift';

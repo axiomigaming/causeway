@@ -575,25 +575,37 @@ def _uvs_around(uv, vs, ok, skip):
 
 
 def _pick_texel(px, rg, cands, win=0):
-    """A matte, typical cloth texel round a rim: of its brighter half and its roughest quarter (no strap,
-    pouch or atlas padding, no glossy leather), the one nearest their median colour and roughness. The rim's
-    brightest texel was glossy (0.72 in a shirt of 0.94; under the arms the harness's leather is 0.55): a
-    flat plane with no normal detail, each armpit cap caught the low sun of the vault as one pale sheen.
-    With win > 0 a texel is judged by its window (the darkest and the least rough in it), so the filtering
-    of the shipped, mipmapped maps cannot pull a strap's edge onto the cap."""
+    """The local cloth's texel for a cap: of the texels round its rim, the cloth ones (not the harness's
+    leather, by the build's own leather colour test, nor anything glossier than 0.6), and of those the one at
+    the 8th percentile of brightness: the crease tone the scan has baked in round the armpits and the crotch,
+    for the crease the cap closes. A flat plane with no wrinkle in its normals takes the sun whole: in the
+    vault's reach the cap behind the right shoulder faces the low sun square on, and with the rim's brightest
+    texel (glossy, 0.72), or any open-shirt tone (0.38-0.52), it read as a white patch. With win > 0 a texel
+    is judged by its window (its least rough texel, and an even window only, off the islands' edges and
+    their padding), so the filtering of the shipped, mipmapped maps cannot pull a strap's edge or the
+    padding onto the cap."""
     if px is None:
         return cands[len(cands) // 2]
     LW = np.array([0.2126, 0.7152, 0.0722])
     cols = np.array([_texel(px, u) for u in cands])
-    lum = np.array([(_texel(px, u, win) @ LW).min() for u in cands]) if win else cols @ LW
+    lum = cols @ LW
     r = np.array([_texel(rg, u, win)[:, 1].min() if win else _texel(rg, u)[1] for u in cands]) if rg is not None else np.ones(len(cands))
-    keep = lum >= np.median(lum)
-    both = keep & (r >= np.percentile(r, 75))
-    if both.any():
-        keep = both
-    d = ((cols - np.median(cols[keep], axis=0)) ** 2).sum(1) + (r - np.median(r[keep])) ** 2
-    d[~keep] = np.inf
-    return cands[int(np.argmin(d))]
+    mx, mn = cols.max(1), cols.min(1)
+    d = np.maximum(mx - mn, 1e-6)
+    R_, G_, B_ = cols[:, 0], cols[:, 1], cols[:, 2]
+    hue = np.where(mx == R_, (G_ - B_) / d % 6, np.where(mx == G_, (B_ - R_) / d + 2, (R_ - G_) / d + 4)) * 60.0
+    leather = (hue < 33) & ((mx - mn) / (mx + 1e-6) > 0.42) & (mx < 0.72)
+    keep = ~leather & (r >= 0.6)
+    if not keep.any():
+        keep = r >= np.percentile(r, 75)
+    if win:
+        wl = [_texel(px, u, win) @ LW for u in cands]
+        even = np.array([w.max() - w.min() < 0.12 for w in wl])
+        if (keep & even).any():
+            keep = keep & even
+    idx = np.where(keep)[0]
+    idx = idx[np.argsort(lum[idx])]
+    return cands[int(idx[int(0.08 * (len(idx) - 1))])]
 
 
 def recap_texels(mesh, tex):
