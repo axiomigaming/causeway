@@ -313,17 +313,26 @@ def gear(mesh, J, leather, rig=None):
         b.head, b.tail = Vector((cx, cy, top)), Vector((cx, cy, bot))
         b.parent = eb["hips"]
         bpy.ops.object.mode_set(mode="OBJECT")
+    # The belt (the leather round the body's centre line, front and back) rides the pelvis alone, and so does
+    # every piece at its height: its loops, the holster's own loop over it. With the holster's 35 % of the
+    # thigh, and up to a third from bone heat elsewhere, the loops at the holster's hip stood off the belt
+    # in slivers whenever the thigh drove up (the dash, the log jump), and the holster's top folded out of
+    # the hip crease in the vault. Below the belt the thigh comes in.
+    mid = [co[i].z for i in pieces if abs(co[i].x) < 0.1 and co[i].z > 0.85]
+    belt_bot = float(np.percentile(mid, 5)) if len(mid) >= 8 else top - 0.05
+    print(f"  belt from z {belt_bot:.3f} (holster top {top:.3f})", flush=True)
     for i in pieces:
         s = "L" if co[i].x > 0 else "R"
-        th = min(0.33, W[i].get(f"thigh.{s}", 0.0))
+        below = smooth((belt_bot - co[i].z) / 0.05)
+        th = min(0.33, W[i].get(f"thigh.{s}", 0.0)) * below
         pk = 0.0
         if rig is not None and i in bigset:
             # A drop holster: it hangs from the belt and its leg strap ties its foot to the thigh. (Riding the
             # pelvis with at most a third of the thigh, its foot stayed back as the thigh drove up through the
-            # vault and the leap, and the jeans tore through it in shards.)
-            d = smooth((top - co[i].z) / 0.16)
-            th = 0.35 + 0.6 * d
-            pk = 0.05 + 0.1 * d
+            # vault and the leap, and the jeans tore through it in shards.) From nothing at the belt.
+            d = smooth((belt_bot - co[i].z) / 0.16)
+            th = 0.95 * d
+            pk = 0.15 * d
         W[i] = {"hips": (1 - th) * (1 - pk), f"thigh.{s}": th * (1 - pk)}
         if pk > 0:
             W[i]["pack"] = pk
@@ -344,8 +353,28 @@ def gear(mesh, J, leather, rig=None):
             W[j] = out
         done |= ring
         front = ring
+    # Nothing above the belt follows the thigh: the shirt's tail hangs over the belt, and bone heat gave it
+    # the thigh's weights near the hip, so in the dash and the log jump it smeared pale down over the
+    # holster's top as the thigh drove up. Faded out over the belt's lower edge (full 4 cm below it, none
+    # 1 cm above), into the hips.
+    waist = 0
+    for i, c in enumerate(co):
+        f = smooth((c.z - (belt_bot - 0.04)) / 0.05)
+        if f <= 0:
+            continue
+        w = W[i]
+        moved = 0.0
+        for n in ("thigh.L", "thigh.R"):
+            x = w.get(n, 0.0)
+            if x > 0:
+                w[n] = x * (1 - f)
+                moved += x * f
+        if moved > 0:
+            w["hips"] = w.get("hips", 0.0) + moved
+            waist += 1
     bm.free()
     _write(mesh, W)
+    print(f"  waist off the thighs above z {belt_bot:.3f}: {waist} verts", flush=True)
     print(f"  under-arm kit and flanks off the arm bones: {flank} verts; holster to the pelvis: {len(pieces)} (+{len(done) - len(pieces)} feathered)", flush=True)
 
 
