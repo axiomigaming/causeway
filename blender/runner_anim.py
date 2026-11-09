@@ -2522,6 +2522,49 @@ def plant_hand(action, side, f0, f1, where, ramp=1):
         print(f"  plant_hand: bake wrote to {rig.animation_data.action.name}", flush=True)
 
 
+def pin_stance(side, f0, f1, ramp=2, h=0.095):
+    """Hold a stance ankle still on the floor (the floor sliding back at the run's pace, as the gait's own
+    stance foot does) through frames f0..f1 by moving the body over it: the hips' location takes the
+    ankle's error, eased in and out over `ramp` frames each side. The legs keep the gait's stance solve; a
+    move that turns, leans or drops the body about the root (a cut's yaw and bank) no longer swings the
+    planted foot with it."""
+    rig = RIG
+    pb = rig.pose.bones
+    sc = bpy.context.scene
+    act = rig.animation_data.action
+    fcs = {fc.array_index: fc for fc in act.fcurves if fc.data_path == 'pose.bones["hips"].location'}
+    S = RUN["D"] / RUN["ts"]
+
+    def ankle(f):
+        sc.frame_set(f)
+        return rig.matrix_world @ pb[f"foot.{side}"].head
+
+    def shift(f, d):
+        for k in range(3):
+            kp = next(p for p in fcs[k].keyframe_points if abs(p.co[0] - f) < 0.01)
+            kp.co[1] += d[k]
+            kp.handle_left[1] += d[k]
+            kp.handle_right[1] += d[k]
+        for k in range(3):
+            fcs[k].update()
+    a0 = ankle(f0)
+    total = {}
+    for f in range(f0, f1 + 1):
+        tgt = Vector((a0.x, a0.y - S * 0.0625 * (f - f0), h))
+        acc = Vector((0.0, 0.0, 0.0))
+        for _ in range(3):
+            err = tgt - ankle(f)
+            Rr = (rig.matrix_world @ pb["root"].matrix).to_3x3().normalized()
+            d = hips_loc(*(Rr.inverted() @ err))
+            shift(f, d)
+            acc += d
+        total[f] = acc
+    for i in range(1, ramp + 1):
+        w = 1.0 - i / (ramp + 1)
+        shift(f0 - i, total[f0] * w)
+        shift(f1 + i, total[f1] * w)
+
+
 def obstacle_clips():
     """Moves over, under and around the course, authored at run pace (5 m/s); each starts on a left strike
     (gait phase 0) and hands back to the gait at the phase noted (runner.ts OBSTACLES)."""
@@ -2801,8 +2844,6 @@ def obstacle_clips():
             ph = phase_at(fr) % 1.0
             P, x = loco(ph, RUN)
             w9, w13, w16 = hat(fr, 4, 9, 13), hat(fr, 9, 13, 16), hat(fr, 13, 16, 19)
-            nudge(P, f"thigh.{o}", dz=0.22 * sgn(o) * w9)
-            nudge(P, f"shin.{o}", dx=0.25 * w9)
             nudge(P, "chest", dy=(0.12 * w9 + 0.15 * w13 + 0.1 * w16) * sg)
             nudge(P, "spine", dy=0.08 * sg * w9)
             nudge(P, "neck", dy=(0.3 * w9 + 0.25 * w13) * sg)
@@ -2814,8 +2855,14 @@ def obstacle_clips():
                 arm(A, o, fwd=0.85, elbow=1.5, out=0.08, curl=0.9)
                 for nm, v in A.items():
                     P[nm] = tuple(a + (b - a) * w9 for a, b in zip(P.get(nm, (0.0, 0.0, 0.0)), v))
-            P["root"] = (0.0, (0.12 * w9 + 0.14 * w13 + 0.08 * w16) * sg, (0.12 * w9 + 0.3 * w13 + 0.1 * w16) * sg)
-            key(fr, P, z=gait_root(ph, RUN) - 0.04 * w9 - 0.02 * w13, x=x - 0.06 * sg * w9)
+            # (The bank into the cut: about the root's Y, negative leans him to his left. It had the sign the
+            # other way, and leaned him out of the turn.)
+            P["root"] = (0.0, -(0.12 * w9 + 0.14 * w13 + 0.08 * w16) * sg, (0.12 * w9 + 0.3 * w13 + 0.1 * w16) * sg)
+            key(fr, P, z=gait_root(ph, RUN), x=x)
+        # The outside foot's plant (its stance, frames 9-12) held on the stone while the body turns and
+        # drops over it: keyed through the nudges alone it hovered 2-7 cm up and slid 14-24 cm a frame
+        # sideways as the cut's yaw and lean swung the body about the root.
+        pin_stance(o, 9, 12)
 
     # ---------------------------------------------------------- stumble_land: a landing that goes wrong, then saved
     # (start it at a jump's or leap's landing in place of the clean one)
