@@ -335,9 +335,7 @@ DASH = dict(
 
 # leap_gap's landing stride: the run's contact, stride and strike, the knees much deeper through the
 # stance (it soaks the drop); the clip eases from it into the run (both solved, so the plant holds).
-# (It lands on a knee already giving, 46°, and folds to 74°: from 31° the knee folded 34° in the frame
-# after the strike, a snap at the top tier's rate.)
-RUN_LAND = dict(RUN, knee=(0.8, 1.3, 0.6), frames=96)
+RUN_LAND = dict(RUN, knee=(0.55, 1.35, 0.6), frames=96)
 LEAP_END = 37  # leap_gap's last frame: its run-out hands back at the phase it reaches (runner.ts OBSTACLES)
 
 # The start clip's run-in: one stride cycle in this many frames (the game's speed is ~6 m/s by then;
@@ -2268,8 +2266,8 @@ def epic_clips():
     # opening out ahead as he lands on his seat at 8.
     # (The right thigh comes back from the strike steadily, 44° to 30°: to 12° at 5 and forward again, it
     # turned 34° in a frame.)
-    for fr, w, L_, R_ in ((5, 0.2, (0.75, 1.6, -0.3), (0.62, 1.35, -0.2)), (6, 0.45, (1.05, 1.35, -0.35), (0.55, 1.8, 0.05)),
-                          (7, 0.75, (1.2, 0.6, -0.3), (0.52, 2.3, -0.6))):
+    for fr, w, L_, R_ in ((5, 0.2, (0.75, 1.6, -0.3), (0.62, 1.35, -0.2)), (6, 0.45, (1.05, 1.2, -0.35), (0.55, 1.8, 0.05)),
+                          (7, 0.75, (1.2, 0.72, -0.3), (0.52, 2.3, -0.6))):
         ph = 0.5 + (fr - 4) / 6.0
         G_, x_ = loco(ph, RUN, 0.95)
         Q = lerp_pose(G_, P8, w)
@@ -2419,19 +2417,32 @@ def lerp_pose(A, B, u):
     return out
 
 
-def pose_path(stops, u):
-    """Piecewise eased blend through [(u, pose), ...]."""
-    for (u0, A), (u1, B) in zip(stops, stops[1:]):
+def slerp_bones(P, A, B, w, bones):
+    """P with `bones` turned from A's rotation to B's by w along the shortest arc (not Euler by Euler)."""
+    out = dict(P)
+    for b in bones:
+        qa = Euler(A.get(b, (0.0, 0.0, 0.0)), "XYZ").to_quaternion()
+        qb = Euler(B.get(b, (0.0, 0.0, 0.0)), "XYZ").to_quaternion()
+        out[b] = tuple(qa.slerp(qb, w).to_euler("XYZ", Euler(A.get(b, (0.0, 0.0, 0.0)), "XYZ")))
+    return out
+
+
+def pose_path(stops, u, arrive=False):
+    """Piecewise eased blend through [(u, pose), ...]. With `arrive`, the last stretch eases in only: the
+    limbs reach the last pose still moving (a landing leg reaching for the floor), not stopped on it."""
+    last = len(stops) - 2
+    for i, ((u0, A), (u1, B)) in enumerate(zip(stops, stops[1:])):
         if u <= u1:
-            return lerp_pose(A, B, ease((u - u0) / max(1e-6, u1 - u0)))
+            t = max(0.0, min(1.0, (u - u0) / max(1e-6, u1 - u0)))
+            return lerp_pose(A, B, t * t if arrive and i == last else ease(t))
     return dict(stops[-1][1])
 
 
-def air(f0, f1, stops, z0, z1, h, x0=0.0, x1=0.0):
+def air(f0, f1, stops, z0, z1, h, x0=0.0, x1=0.0, arrive=False):
     """Key every frame of a flight: poses along `stops`, the hips on a parabola of apex h over the chord."""
     for f in range(f0, f1 + 1):
         u = (f - f0) / (f1 - f0)
-        key(f, pose_path(stops, u), z=z0 + (z1 - z0) * u + 4 * h * u * (1 - u), x=x0 + (x1 - x0) * u)
+        key(f, pose_path(stops, u, arrive), z=z0 + (z1 - z0) * u + 4 * h * u * (1 - u), x=x0 + (x1 - x0) * u)
 
 
 def nudge(P, bone, dx=0.0, dy=0.0, dz=0.0):
@@ -2656,7 +2667,11 @@ def obstacle_clips():
     arm(D, "L", fwd=1.2, elbow=0.5, out=0.35, curl=0.6)
     arm(D, "R", fwd=1.3, elbow=0.5, out=0.35, curl=0.6)
     zl = gait_root(0.0, RUN_LAND)
-    air(7, 22, [(0.0, T), (0.35, R1), (0.7, R2), (1.0, D)], zt, zl, 0.31)
+    # (Arriving: eased to a stop on the strike pose, the landing leg hung still for two frames and then
+    # folded 34° in one, the knee's give at the top tier's rate a snap.)
+    D1, _ = loco(OBST_CADENCE / FPS, RUN_LAND)
+    D["foot.L"] = lerp_pose({"f": D["foot.L"]}, {"f": D1["foot.L"]}, 0.4)["f"]
+    air(7, 22, [(0.0, T), (0.35, R1), (0.78, R2), (1.0, D)], zt, zl, 0.31, arrive=True)
     # Heavy landing, on the stride: the first stance soaks the drop deep (the hips sink, the knee folds,
     # the trunk and both arms go forward over it), the next steps come up out of it, keyed every frame on
     # the run's phase from this strike. (Held as a crouch on both feet for 5 frames, the planted foot
@@ -2767,11 +2782,15 @@ def obstacle_clips():
     zt = solve_root(T)
     # The push-off foot extends over two frames, the heel coming up off the stride's stance: from the
     # stride's toe-off to the take-off in one, the ankle turned 35° a frame (38° in game at the top tier).
-    G5v, x5v = loco(4 * OBST_CADENCE / FPS, RUN)
-    Q5 = dict(G5v)
-    for b in ("thigh.L", "shin.L", "foot.L", "toe.L"):
-        Q5[b] = lerp_pose({b: G5v.get(b, (0.0, 0.0, 0.0))}, {b: T.get(b, (0.0, 0.0, 0.0))}, 0.5)[b]
-    key(5, Q5, z=max(gait_root(4 * OBST_CADENCE / FPS, RUN), floor_z(Q5, x5v, 0.0)), x=x5v)
+    G4v, x4v = loco(3 * OBST_CADENCE / FPS, RUN)
+    Q5 = lerp_pose(G4v, T, 0.5)
+    # (The support arm reaches for the stone from frame 3, over three frames: from the stride's swing to
+    # the reach in two, 117°, it turned ~60° a frame, at the top tier's rate near a flip.)
+    reach = ("shoulder.R", "upper_arm.R", "forearm.R", "hand.R", "fingers.R")
+    Q4 = slerp_bones(G4v, G4v, T, 0.33, reach)
+    key(4, Q4, z=gait_root(3 * OBST_CADENCE / FPS, RUN), x=x4v)
+    Q5 = slerp_bones(Q5, G4v, T, 0.67, reach)
+    key(5, Q5, z=max(0.5 * (gait_root(3 * OBST_CADENCE / FPS, RUN) + zt), floor_z(Q5, 0.5 * x4v, 0.0)), x=0.5 * x4v)
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
     torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)

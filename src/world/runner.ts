@@ -305,6 +305,8 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
           DirectionalLight dl;
           #pragma unroll_loop_start
           for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+            // (Its own block: three unrolls the loop by repeating the body, so its locals would be redeclared.)
+            {
             dl = directionalLights[i];
             float nl = dot(geometryNormal, dl.direction);
             float wrap = nl < 0.0 ? saturate((nl + 0.45) / 1.45) : 0.0;
@@ -315,6 +317,7 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
               if (receiveShadow && wrap > 0.0) vis = getShadow(directionalShadowMap[i], directionalLightShadows[i].shadowMapSize, directionalLightShadows[i].shadowIntensity, directionalLightShadows[i].shadowBias, directionalLightShadows[i].shadowRadius, sc);
             #endif
             reflectedLight.directDiffuse += runnerSkin * uRunnerSkin * wrap * vis * dl.color * diffuseColor.rgb * vec3(1.0, 0.42, 0.28) * 0.55 * RECIPROCAL_PI;
+            }
           }
           #pragma unroll_loop_end
         }
@@ -704,15 +707,19 @@ export class Runner {
     if (this.current === 'run' && ONE_SHOT.has(name) && name !== 'start' && offset === 0 && fade > 0) {
       let wait = ((1 - this.phase) % 1) / Math.max(0.5, this.cadence);
       const half = WIN_HALF[name];
+      // (win_slide waits for the right strike where it can: its frames before it are only a quick run-in,
+      // two strides' knee in three frames, and joined on the left strike the knee snapped 38° at 60x.)
+      let slideR = false;
       if (half !== undefined) {
         const waitR = ((1.5 - this.phase) % 1) / Math.max(0.5, this.cadence);
-        if (waitR < wait) {
+        slideR = name === 'win_slide' && waitR < 0.45;
+        if (waitR < wait || slideR) {
           wait = waitR;
           offset = half;
         }
       }
       // Escapes can afford a beat to land on the right foot; falls react almost at once.
-      const budget = name.startsWith('win') ? 0.34 : 0.12;
+      const budget = slideR ? 0.45 : name.startsWith('win') ? 0.34 : 0.12;
       if (wait > 0.001 && wait < budget) {
         this.pending = { name, fade, offset, until: this.t + wait };
         return;
@@ -1808,7 +1815,8 @@ export class Runner {
   /**
    * Whether foot `s` is in its stance by the clip's own timing, where that is known and the pins go by it
    * (true / false), else null (the pins go by the ankle's height): the run on a bend (the stride's phase
-   * against the blended contact time), and a turn cut's outside foot through its plant (clip frames 9-12).
+   * against the blended contact time), a turn cut's outside foot through its plant (clip frames 9-12), and
+   * leap_gap's run-out at speed (its strides from the landing).
    */
   private stanceLock(s: 'L' | 'R', t: number): boolean | null {
     if (this.current === 'run' && Math.abs(this.yawRate) > 0.3) {
@@ -1818,6 +1826,13 @@ export class Runner {
     if (this.current === 'turn_cut_L' || this.current === 'turn_cut_R') {
       const outside = this.current === 'turn_cut_L' ? 'R' : 'L';
       return s === outside && t >= 8.2 / 30 && t <= 12.3 / 30;
+    }
+    // leap_gap's run-out at speed: its strides are keyed on the gait from the landing (clip frame 22, the left
+    // strike) at the moves' cadence. (Caught by height, the right foot was held on past its toe-off as it
+    // skimmed the floor, and let go at the hand-back sliding 18 cm a frame.)
+    if (this.current === 'leap_gap' && t >= 22 / 30 && this.speed >= 7.5) {
+      const u = (((t - 22 / 30) * OBST_CADENCE + (s === 'L' ? 0 : 0.5)) % 1 + 1) % 1;
+      return u > 0.01 && u < CONTACT.run - 0.015;
     }
     return null;
   }
