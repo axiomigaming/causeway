@@ -679,8 +679,10 @@ export class CameraRig {
         // Camera round 2: between walls the lens gives way toward the middle of the way (latRoom, from
         // the game: ≥ 1.25 m off a wall on his right). On the fitted frame: the fit scales the whole
         // offset (×1.6-1.9 on a wide screen), so the shoulder's 0.72 m put the lens 1.3 m out.
+        // (Landscape only: a portrait chase sits 0.24 m out, already in the middle of the way — and
+        // easing that in moved the phone's hand-over into a fall: the pillar's recoil left the frame.)
         const room = Math.max(0.12, this.latRoom);
-        if (fr.lat > room) fr.lat = lerp(room, fr.lat, k);
+        if (fr.lat > room) fr.lat = lerp(room, fr.lat, Math.max(k, narrow));
         fov = this.shot(runnerPos, fr);
         break;
       }
