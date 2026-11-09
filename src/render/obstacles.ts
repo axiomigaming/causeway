@@ -242,6 +242,55 @@ export class ObstacleDirector {
     return best;
   }
 
+  /**
+   * Camera round 2: the standing pieces on the ground (a log, blocks, a pillar, a boulder; not the
+   * overhead beams, which the lens ducks under, unless `overhead`) between route distances s0 and s1,
+   * for the chase's clearance: the lens rides over them instead of through them.
+   */
+  groundPieces(s0: number, s1: number, out: THREE.Object3D[], overhead = false): THREE.Object3D[] {
+    out.length = 0;
+    for (const l of this.live) {
+      if (l.kind === 'turn' || (l.ceil && !overhead) || l.s < s0 || l.s > s1) continue;
+      for (const o of l.objs) out.push(o);
+      if (l.world) out.push(l.world.root);
+    }
+    return out;
+  }
+
+  /** Camera round 2: the standing overhead pieces (the lintels he slides under) between s0 and s1. */
+  overheadPieces(s0: number, s1: number, out: THREE.Object3D[]): THREE.Object3D[] {
+    out.length = 0;
+    for (const l of this.live) {
+      if (!l.ceil || l.s < s0 || l.s > s1) continue;
+      for (const o of l.objs) out.push(o);
+      if (l.world) out.push(l.world.root);
+    }
+    return out;
+  }
+
+  /**
+   * Camera round 2: the highest top (m over the path) of a world piece he jumps (a fallen log, a
+   * bough) whose span, widened by `pad` metres, takes in route distance `s`; else null. (Their
+   * meshes are the world's own instances, so the root has no geometry to measure.)
+   */
+  jumpTopAt(s: number, pad: number): number | null {
+    // (Eased in over `pad` before the near face and out over a metre after the far one, so the lens
+    // rises and settles instead of stepping.)
+    const ss = (x: number) => {
+      const t = Math.min(1, Math.max(0, x));
+      return t * t * (3 - 2 * t);
+    };
+    let best: number | null = null;
+    for (const l of this.live) {
+      const w = l.world;
+      if (!w || w.action !== 'jump' || s < w.sNear - pad || s > w.sFar + 1) continue;
+      const k = Math.min(ss((s - (w.sNear - pad)) / (pad - 0.3)), ss((w.sFar + 1 - s) / 0.7));
+      const h = w.clearance * k;
+      if (best === null || h > best) best = h;
+    }
+    return best;
+  }
+
   /** True while a move is lined up or in the air (other beats — hops, ducks, glances — hold off). */
   get busy(): boolean {
     return this.plans.length > 0;

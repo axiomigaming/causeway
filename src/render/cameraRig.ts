@@ -13,6 +13,8 @@ const FF_DROP = 3;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
+/** Camera round 2: how far ahead (s) the framing reads a moving limb (about the output spring's lag). */
+const LIMB_LEAD = 0.16;
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -697,6 +699,9 @@ export class CameraRig {
         const ck = (this.camera.aspect < 1 ? 0.72 : 1) / Math.max(1, this.closeIn);
         if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * this.closeSide * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
+        this.chasmHold(s);
+        // (Camera round 2: up over the fall's debris lying across the sight line; set by the game.)
+        this.targetPos.y += this.craneUp;
         break;
       }
       case 'cashout': {
@@ -1236,6 +1241,40 @@ export class CameraRig {
   bodyPts: THREE.Vector3[] | null = null;
   /** FX round 21: his body (hips) in a fall into the water, where the root stays at the lip; or null. */
   gapBody: THREE.Vector3 | null = null;
+  /** Camera round 2: the chasm fall's broken causeway edge and heading, and where he went in (game). */
+  gapLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
+  gapSplash: THREE.Vector3 | null = null;
+  /** Crash: metres the settled lens rises over debris lying between it and him (game, eased). */
+  craneUp = 0;
+  /** The held chasm shot's aim (world) and its weight (0..1), for keepInFrame. */
+  private gapAim = new THREE.Vector3();
+  private gapAimK = 0;
+  private gapPos = new THREE.Vector3();
+
+  /**
+   * Camera round 2 (coordinator): once the card is up, the chasm's end shot holds on the broken
+   * causeway edge with the water below it — the lens back over the causeway and up, aimed between
+   * the lip and where he went in — not top-down on empty water. Before the card, the drop and the
+   * splash play as before (the lens over the lip, tilting down after him).
+   */
+  private chasmHold(s: number): void {
+    const L = this.gapLip;
+    this.gapAimK = 0;
+    if (this.crashShot !== 'chasm' || this.gap <= 0 || !L) return;
+    const k = ease(this.revealK) * Math.min(1, this.gap);
+    if (k < 0.001) return;
+    const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
+    const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
+    // (Close behind the edge and high: 3.6 m back it framed the near paving and the edge sank
+    // under the card.)
+    // (And aimed only a little under the edge: on the splash itself, 8 m down in a gorge, the tilt
+    // took the edge out of the frame's bottom and held on the water again.)
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -2.6).addScaledVector(side, 1.0 * (s || 1)).setY(L.pos.y + 2.4);
+    this.gapAim.copy(L.pos).lerp(splash, 0.6).setY(L.pos.y - Math.min(1.2, 0.6 * Math.max(0, L.pos.y - splash.y)));
+    this.targetPos.lerp(this.gapPos, k);
+    this.targetLook.lerp(this.gapAim, k);
+    this.gapAimK = k;
+  }
   private tmp4 = new THREE.Vector3();
 
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60, rdt = dt): void {
@@ -1291,7 +1330,7 @@ export class CameraRig {
       const k = Math.min(1, this.revealK * 1.5);
       if (k < 0.001) return;
       c.updateMatrixWorld();
-      const p = this.tmp4.copy(this.gapBody!).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
+      const p = this.tmp4.copy(this.gapBody!).lerp(this.gapAim, this.gapAimK).applyMatrix4(this.tmpInv.copy(c.matrixWorld).invert());
       if (p.z > -0.3) return;
       const beside = Math.min(this.sideK, k);
       const yWant = lerp(lerp(-1 - 2 * s + 2 * this.insetBottom + 0.11, 1 - 2 * s - 2 * this.insetTop - 0.05, 0.5), -2 * s, beside);
@@ -1304,9 +1343,7 @@ export class CameraRig {
     const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? Math.min(1, this.escapeIn * 4) : 0;
     // (And on a phone a fall keeps a little more too: the reworked clips throw a hand out faster than
     // the jerk-limited pan follows — the pillar's recoil reached the edge for three frames.)
-    // (Camera round 2: 0.09 — at 0.06 the pillar's recoil reached the edge again for three frames
-    // after the merged runner rounds.)
-    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.09 : 0;
+    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.06 : 0;
     const mx = 1 - 0.09 - fall - esc * (this.camera.aspect < 1 ? (this.mode === 'run' ? 0.14 : 0.1) : 0.06); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
@@ -1342,19 +1379,58 @@ export class CameraRig {
       // Round 18: the limbs as posed (a slide throws the legs a metre out from the hips): widen
       // the extent to take them in (never narrower than the standing figure above).
       if (this.bodyPts) {
-        for (const b of this.bodyPts) {
-          const p = this.tmp4.copy(b).applyMatrix4(inv);
-          if (p.z > -0.3) continue;
-          const x = p.x / -p.z;
-          const y = p.y / -p.z;
-          m.left = Math.min(m.left, x);
-          m.right = Math.max(m.right, x);
-          m.feet = Math.min(m.feet, y);
-          m.head = Math.max(m.head, y);
-        }
+        this.bodyPts.forEach((b, i) => {
+          // Camera round 2: each limb where it is and where it will be when the jerk-limited output
+          // has caught up (LIMB_LEAD ahead at its present speed). Framed only where it is, a flung
+          // hand outran the output: the pillar's recoil threw his right hand from 0.7 to the frame's
+          // edge on a phone while the lens was still turning toward it.
+          for (let k = 0; k < 2; k++) {
+            const w = this.tmp4.copy(b);
+            if (k === 1) {
+              const v = this.limbVel[i];
+              if (!v) continue;
+              w.addScaledVector(v, LIMB_LEAD);
+            }
+            const p = w.applyMatrix4(inv);
+            if (p.z > -0.3) continue;
+            const x = p.x / -p.z;
+            const y = p.y / -p.z;
+            m.left = Math.min(m.left, x);
+            m.right = Math.max(m.right, x);
+            m.feet = Math.min(m.feet, y);
+            m.head = Math.max(m.head, y);
+          }
+        });
       }
       return true;
     };
+    // The limbs' velocities about his body (world, per second of real time), for the lead in
+    // measure(). (About the body only: the whole figure carried by a throw is the follow's to lead —
+    // leading every limb by the throw's speed panned on past where he landed, off the frame.)
+    // (At most a metre ahead.)
+    if (this.bodyPts) {
+      const pts = this.bodyPts;
+      const bv = this.bodyVel;
+      const ok = this.bodyPrevOk && rdt > 1e-4;
+      if (ok) bv.copy(runnerPos).sub(this.bodyPrev).divideScalar(rdt);
+      else bv.set(0, 0, 0);
+      this.bodyPrev.copy(runnerPos);
+      this.bodyPrevOk = true;
+      while (this.limbPrev.length < pts.length) this.limbPrev.push(null);
+      while (this.limbVel.length < pts.length) this.limbVel.push(null);
+      pts.forEach((b, i) => {
+        const prev = this.limbPrev[i];
+        if (prev && ok) {
+          const v = (this.limbVel[i] ??= new THREE.Vector3()).copy(b).sub(prev).divideScalar(rdt).sub(bv);
+          if (v.length() * LIMB_LEAD > 1.0) v.setLength(1.0 / LIMB_LEAD);
+        } else this.limbVel[i] = null;
+        (this.limbPrev[i] ??= new THREE.Vector3()).copy(b);
+      });
+    } else {
+      this.limbPrev.length = 0;
+      this.limbVel.length = 0;
+      this.bodyPrevOk = false;
+    }
     if (!measure()) return;
     const m = this.frameM;
     {
@@ -1449,6 +1525,11 @@ export class CameraRig {
     // (the crash close-in) rolled the horizon by up to ~25°.)
     if (Math.abs(pan) > 1e-4) c.rotateOnWorldAxis(WORLD_UP, pan);
   }
+  private limbPrev: (THREE.Vector3 | null)[] = [];
+  private limbVel: (THREE.Vector3 | null)[] = [];
+  private bodyPrev = new THREE.Vector3();
+  private bodyVel = new THREE.Vector3();
+  private bodyPrevOk = false;
   private framePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   private frameM = { feet: 0, head: 0, left: 0, right: 0, depth: 0 };
   private tmpInv = new THREE.Matrix4();

@@ -709,6 +709,8 @@ export class Game {
     this.cine.clear();
     this.releaseReveal();
     this.gapAt = null;
+    this.chasmLip = null;
+    this.splashAt = null;
     this.clearEscapeGate();
     this.runner.root.visible = true;
     this.rig.gap = 0;
@@ -1336,10 +1338,83 @@ export class Game {
     return best;
   }
 
+  /** The nearest hit (distance) of the occluder's current ray on any of `meshes` (≥ ~0.7 m across). */
+  private meshHit(meshes: THREE.Mesh[], from: THREE.Vector3, len: number): number | null {
+    const o = this.occl;
+    const sph = this.occlSphere;
+    let best: number | null = null;
+    {
+      for (const m of meshes) {
+        if (!m.isMesh || !m.visible || !m.geometry) continue;
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        sph.copy(m.geometry.boundingSphere!).applyMatrix4(m.matrixWorld);
+        if (sph.radius < 0.35 || !o.ray.intersectsSphere(sph)) continue;
+        o.rc.set(from, o.dir);
+        o.rc.far = len;
+        o.hits.length = 0;
+        m.raycast(o.rc, o.hits);
+        for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
+      }
+    }
+    return best;
+  }
+  private occlSphere = new THREE.Sphere();
+
+  /**
+   * Camera round 2 (coordinator: rockfall debris blocked the lens on desktop; QA: the lintel he had
+   * just slid under filled the rockfall's held shot, only his legs under it): in a fall's settled
+   * shot, while big broken pieces or a set piece still standing lie across the sight line from his
+   * chest or hips to the lens, the lens cranes up over them (eased, up to 1.3 m), or under a lintel
+   * (down 0.7 m). Never swings round them or pulls in past them: given to the occlusion swing, the
+   * orbit swung back and forth through him every three seconds (straight from side to side).
+   */
+  private craneK = 0;
+  private debrisCrane(dt: number): void {
+    let want = 0;
+    if (this.stage === 'crash') {
+      // (Tested from where the lens would be without the crane, so it holds while it helps.)
+      const cam = this.tmpCrane2.copy(this.rig.camera.position).setY(this.rig.camera.position.y - this.rig.craneUp);
+      const rp = this.runner.root.position;
+      const o = this.occl;
+      // (From his chest and from his hips: debris low in front of him hid his legs, the chest clear.)
+      for (const hy of [1.1, 0.5]) {
+        if (want !== 0) break;
+        const chest = this.tmpCrane.set(rp.x, rp.y + hy, rp.z);
+        const len = o.dir.copy(cam).sub(chest).length();
+        if (len <= 0.5) continue;
+        o.dir.divideScalar(len);
+        o.ray.set(chest, o.dir);
+        // Debris and pieces on the ground: up over them. A lintel overhead: down, to look under it
+        // (craned up, the lens looked over it at nothing — he lay just beyond).
+        const pieces = this.cranePieces;
+        pieces.length = 0;
+        for (const m of this.debris.root.children as THREE.Mesh[]) pieces.push(m);
+        for (const p of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp)) p.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
+        if (this.meshHit(pieces, chest, len - 0.3) !== null) want = 1;
+        else {
+          pieces.length = 0;
+          for (const p of this.obstacles.overheadPieces(this.s - 25, this.s + 25, this.groundTmp)) p.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
+          if (this.meshHit(pieces, chest, len - 0.3) !== null) want = -0.7;
+        }
+      }
+    }
+    this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (Math.abs(want) > Math.abs(this.craneK) ? 2.5 : 0.8)));
+    this.rig.craneUp = this.craneK * (this.craneK > 0 ? 1.3 : 1);
+  }
+  private tmpCrane = new THREE.Vector3();
+  private cranePieces: THREE.Mesh[] = [];
+  private tmpCrane2 = new THREE.Vector3();
+
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
   private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
+  private cframeFloor = { pos: new THREE.Vector3(), yaw: 0 };
+  private groundTmp: THREE.Object3D[] = [];
+  private groundBox = new THREE.Box3();
   private gapBodyPos = new THREE.Vector3();
+  /** The chasm fall: the broken causeway's edge (and its heading), and where he went into the water. */
+  private chasmLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
+  private splashAt: THREE.Vector3 | null = null;
   /** QA: pin the camera in the runner's frame (along, lat, up, look height, fov) after the rig. */
   debugPin: { along: number; lat: number; up: number; lookUp: number; fov: number; lookAlong?: number; lookLat?: number } | null = null;
 
@@ -1381,6 +1456,27 @@ export class Game {
     // Round 20: over the ledge's open trough the lens may go down into it (the close-in on him
     // lying on the stone below), keeping clear of its floor and walls.
     let floor = f.pos.y + 0.45;
+    // Camera round 2 (stairs pass): the chase rides at least 0.8 m over the steps under it and the
+    // ones 1.5 m ahead of it — climbing, the next steps rose into the lens's lower edge (0.84 m off);
+    // at the head of a descent it sank to 0.54 m over the landing.
+    if (this.stage === 'run' || this.stage === 'lead') {
+      const fy = f.pos.y;
+      const ay = this.track.path.sample(s + 1.5, this.cframeFloor).pos.y;
+      floor = Math.max(fy, ay) + 0.8;
+      // (And over a set piece on the way — the jump log, blocks, a fallen pillar: the lens passed
+      // through the log in world 11. Its box, 1.2 m wider round, so the lens rises on the approach.)
+      for (const o of this.obstacles.groundPieces(s - 2, s + 3, this.groundTmp)) {
+        const b = this.groundBox.setFromObject(o);
+        // (Low pieces only, the ones he goes over: a lens lifted over a standing pier would fly.)
+        if (b.isEmpty() || b.max.y - fy > 1.8) continue;
+        if (p.x < b.min.x - 1.2 || p.x > b.max.x + 1.2 || p.z < b.min.z - 1.2 || p.z > b.max.z + 1.2) continue;
+        floor = Math.max(floor, b.max.y + 0.35);
+      }
+      // (World pieces — the jump log of world 11 — by their span and height: the lens rises over the
+      // 4 m before the near face and settles over the metre past the far one.)
+      const top = this.obstacles.jumpTopAt(s, 4);
+      if (top !== null && top > 0) floor = Math.max(floor, fy + top + 0.4);
+    }
     const L = this.ledgeBed;
     if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
       // (The open part only: the trough runs 1.6 m further back under floor that still stands.
@@ -1837,6 +1933,12 @@ export class Game {
       const dropT = 1.1;
       const under = st.variant % 2 === 0 ? this.tileUnder(this.stopAt) : null;
       if (st.variant % 2 === 0 && !under) this.runner.play('fall_chasm_b', 0.12);
+      // Camera round 2: where the causeway now ends (the near edge of the slab that gives under him,
+      // else the seam he stopped at) and its heading, for the held shot over the broken edge.
+      if (under) {
+        const lf = frameAt(this.tileSpan(under)[0]);
+        this.chasmLip = { pos: lf.pos.clone(), fwd: lf.fwd.clone() };
+      }
       if (under) {
         this.later(dropT - 0.06, () => {
           this.track.hideTile(under);
@@ -2592,8 +2694,11 @@ export class Game {
       // where the lens would be without any drop.
       this.ceilP.copy(p);
       const top = this.ceilP.clone().setY(this.ceilP.y + 1.6);
-      const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
-      this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
+      // (Camera round 2, stairs pass: from just under the lens, not 0.4 m under it — climbing a
+      // flight, the probe started inside the step below the lens, met that step's top as a
+      // "ceiling" and dropped the lens onto the stairs, 0.5 m off the steps on a phone.)
+      const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.05), top);
+      this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.05));
     }
     // A set piece overhead (a lintel he slides under): looked for every frame, up to 0.6 s ahead,
     // since at speed it passes the lens in a blink. The duck is an S-curve ramp (no surge): down
@@ -2602,13 +2707,18 @@ export class Game {
     const sCam = this.s - this.lensAlong();
     let near = false;
     let depth = 0;
-    for (const ahead of [0, 0.15, 0.3, 0.45, 0.6]) {
+    // (Camera round 2: not for the chasm's held shot, high over the broken edge: it sat 2 m behind
+    // a lintel he had slid under, and the duck dropped it onto the paving.)
+    const hold = this.stage === 'crash' && this.crashKind === 'chasm' && this.rig.gapLip !== null;
+    for (const ahead of hold ? [] : [0, 0.15, 0.3, 0.45, 0.6]) {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
-        // (Camera round 2, QA hunt: 0.6 m under the beam, not 0.4 — that close its dark, untextured
-        // underside filled the top 40 % of a phone frame, magnified, for half a second.)
-        depth = Math.max(depth, cam.position.y - (y - 0.6));
+        // (Camera round 2: 0.45 m under the beam — 0.55 on a tall screen, whose lens is wider — and
+        // the view leans down further while under it. At 0.4 its dark, untextured underside filled
+        // the top 40 % of a phone frame for half a second; ducking to 0.6 put the lens among the
+        // floor tiles instead.)
+        depth = Math.max(depth, cam.position.y - (y - (cam.aspect < 1 ? 0.55 : 0.45)));
       }
     }
     if (near) this.duckDepth = depth;
@@ -2633,7 +2743,11 @@ export class Game {
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
-    look.y -= drop * (0.35 + 0.25 * k);
+    look.y -= drop * (0.35 + 1.0 * k);
+    // A tall screen's wide lens closes a little under the beam (the underside, a metre over the
+    // floor, filled 40 % of its frame as it passed over). (A tenth: at a quarter the beam's share did
+    // not fall further and the lens visibly zoomed.)
+    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.1 : 0.04) * k;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -3219,8 +3333,13 @@ export class Game {
       if (hips) {
         this.runner.body.updateWorldMatrix(true, true);
         this.rig.gapBody = this.gapBodyPos.setFromMatrixPosition(hips.matrixWorld);
+        // Where he went in: his hips' ground position as they first reach the water.
+        if (!this.splashAt && this.gapBodyPos.y < WATER_Y + 0.4) this.splashAt = this.gapBodyPos.clone().setY(WATER_Y);
       }
     }
+    this.rig.gapLip = this.stage === 'crash' && this.crashKind === 'chasm' ? this.chasmLip : null;
+    this.rig.gapSplash = this.rig.gapLip ? this.splashAt : null;
+    this.debrisCrane(rawDt);
     this.rig.realDt = rawDt;
     // Round 20 (coordinator): the escape's orbit ends in front of his face (the clip turns him).
     {
