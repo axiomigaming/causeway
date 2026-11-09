@@ -543,25 +543,28 @@ export class Track {
   }
 
   /** World round 25: the world's own opening section (see spawn); retired with the world. */
-  private openingVariant(type: SectionType): Variant {
-    const r = new Rng(`open/${this.worldSeed}`);
+  private openingVariant(type: SectionType, nth = 0): Variant {
+    const r = new Rng(`open/${this.worldSeed}${nth ? `/${nth}` : ''}`);
     const k = r.int(0, 7);
     const ruin = r.range(0, 0.4);
-    const seed = `${type}#${k}/open/${this.worldSeed}`;
+    const seed = `${type}#${k}/open/${this.worldSeed}${nth ? `/${nth}` : ''}`;
     const layout = buildLayout(type, seed, this.density, undefined, ruin);
     const full = this.density.foliage >= 1 && this.density.scenery >= 1;
     const solidLayout = full ? layout : buildLayout(type, seed, { foliage: 1, scenery: 1 }, undefined, ruin);
     const group = this.mergeProps(layout);
     this.retired.push(group);
-    return { layout, solidLayout, key: `${type}#open`, group, inUse: 0 };
+    return { layout, solidLayout, key: `${type}#open${nth ? nth + 1 : ''}`, group, inUse: 0 };
   }
   private worldSeed = '';
   private openingDone = false;
+  /** World round 27: how many of the world's own opening sections have been laid (see spawn). */
+  private openings = 0;
 
   reset(seed: string): void {
     for (const s of this.sections) this.despawn(s);
     this.worldSeed = seed;
     this.openingDone = false;
+    this.openings = 0;
     this.sections.length = 0;
     for (const g of this.retired) disposeGroup(g);
     this.retired.length = 0;
@@ -838,9 +841,11 @@ export class Track {
     // World round 25: a world's first section after the start is its own — a layout built from the
     // world's seed (dressing, gate, length, how ruined), not one of the shared variants: of 16 worlds,
     // three pairs opened on the very same section (the same variant, the same way round).
+    // World round 27: and the one after it too (each with a hero feature on its near side: in a
+    // portrait frame the first ten seconds of every world looked alike).
     if (!this.openingDone && type !== 'start') {
-      this.openingDone = true;
-      variant = this.openingVariant(type);
+      variant = this.openingVariant(type, this.openings);
+      if (++this.openings >= 2) this.openingDone = true;
     }
     variant.inUse++;
     this.recent.push(variant.key);
@@ -872,7 +877,7 @@ export class Track {
     if (this.density.scenery < 0.5 && !layout.ground && Math.abs(toWater) < 1e-3) {
       if (!variant.flat) {
         variant.flat = this.mergeProps(variant.layout, true);
-        if (variant.key.endsWith('#open')) this.retired.push(variant.flat);
+        if (/#open\d?$/.test(variant.key)) this.retired.push(variant.flat);
       }
       group = variant.flat;
     } else if (this.density.scenery < 0.5 && !layout.ground) {
@@ -884,7 +889,7 @@ export class Track {
       if (!fg) {
         fg = this.mergeProps(variant.layout, true, toWater);
         variant.flatAt.set(k, fg);
-        if (variant.key.endsWith('#open')) this.retired.push(fg);
+        if (/#open\d?$/.test(variant.key)) this.retired.push(fg);
       }
       group = fg;
     }

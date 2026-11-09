@@ -2034,7 +2034,7 @@ export const HERO_KINDS = ['statue', 'column', 'falls', 'tree', 'ruin'] as const
 
 /**
  * World round 27 (the owner: on a phone, held upright, the worlds' openings looked alike): a strong
- * feature on the near side of a world's opening section, 7-12 m in — in the first seconds of the run and
+ * feature on the near side of each of a world's two opening sections, past their middle — in the first ten seconds and
  * inside a portrait frame (within ~4 m of the way): a colossal guardian, a fallen column, a ruined wall
  * with a fall pouring off it into the water, a great tree, or a ruined wall end-on to the way. Which, on
  * which side and where come from the world's own seed (a generator of its own: the layout's stream is
@@ -2046,7 +2046,7 @@ function openingHero(b: Builder, len: number, ground?: GroundKind): (typeof HERO
   // (A fall pours into water: on land, the great tree instead.)
   if (kind === 'falls' && ground) kind = 'tree';
   const side = r.chance(0.5) ? -1 : 1;
-  const z = -Math.min(len - 4, r.range(7, 12));
+  const z = -Math.min(len - 4, Math.max(7, len * r.range(0.4, 0.75)));
   const g = (x: number, zz: number) => (ground ? groundY(ground, x, zz, len, b.lower) : WL);
   const yaw = (side > 0 ? -Math.PI / 2 : Math.PI / 2);
   const save = b.lift;
