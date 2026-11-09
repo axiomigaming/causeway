@@ -1519,7 +1519,7 @@ export class Runner {
     // Inhale: chest lifts and opens, shoulders rise; a faster, sharper intake when winded.
     const inhale = (s > 0 ? s : s * 0.7) * (0.012 + 0.045 * x) * rest;
     // Winded, he breathes through the mouth: the jaw hangs open a little and drops on each intake.
-    this.jawOpen = smoothstep(0.25, 0.9, x) * (0.05 + 0.07 * Math.max(0, s));
+    this.jawOpen = smoothstep(0.25, 0.9, x) * (0.06 + 0.09 * Math.max(0, s));
     this.rotate(this.bones.chest, inhale, 0, 0);
     this.rotate(this.bones.spine, inhale * 0.4, 0, 0);
     this.rotate(this.bones.neck, -inhale * 0.8, 0, 0);
@@ -1550,7 +1550,7 @@ export class Runner {
     this.rotate(b.neck, -heave * 0.6, 0, 0);
     this.rotate(b.shoulderL, 0, 0, heave * 0.9);
     this.rotate(b.shoulderR, 0, 0, -heave * 0.9);
-    this.jawOpen = Math.max(this.jawOpen, (0.06 + 0.08 * Math.max(0, br)) * k * (1 - 0.5 * smoothstep(3, 10, T)));
+    this.jawOpen = Math.max(this.jawOpen, (0.09 + 0.1 * Math.max(0, br)) * k * (1 - 0.5 * smoothstep(3, 10, T)));
     // The head drifts: a slow look about, a drop and a lift.
     this.rotate(b.neck, 0.05 * Math.sin(tw * 0.11 * T + 0.7) * k, 0.12 * Math.sin(tw * 0.07 * T + 1.3) * k, 0);
     this.rotate(b.head, 0.06 * Math.sin(tw * 0.13 * T + 2.1) * k, 0.1 * Math.sin(tw * 0.09 * T) * k, 0.04 * Math.sin(tw * 0.05 * T) * k);
