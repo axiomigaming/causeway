@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { Dock } from './Dock';
@@ -35,19 +35,35 @@ export function App() {
         if (e.repeat) return;
         if (st.phase === 'running') void ctl.cashout();
         else if (st.phase === 'setup' || st.phase === 'result') void ctl.run();
-        else if (st.phase === 'title') ctl.enter();
+        else if (st.phase === 'title') window.dispatchEvent(new Event('causeway:enter'));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [ctl]);
 
+  // Title → setup: a short dip through dark. The title copy and its scrim leave while the lens starts
+  // down from the title shot, and its first frames (the arch crown under the lens, QA hunt) pass
+  // under the veil; it lifts as the setup shot settles. Entered by click or by Space alike.
+  const [veil, setVeil] = useState<'' | 'in' | 'out'>('');
+  const prevPhase = useRef(phase);
+  useEffect(() => {
+    const was = prevPhase.current;
+    prevPhase.current = phase;
+    if (was === 'title' && phase === 'setup') {
+      setVeil('out');
+      const t = window.setTimeout(() => setVeil(''), 900);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [phase]);
   const inGame = phase !== 'title' && phase !== 'loading';
   return (
     <>
+      {veil && <div className={`dip ${veil}`} aria-hidden="true" />}
       {inGame && <div className="scrim-top" />}
       {inGame && <div className="scrim-bottom" />}
-      {!inGame && <Title />}
+      {!inGame && <Title onLeave={() => setVeil('in')} />}
       {inGame && <TopBar />}
       {inGame && <Hud />}
       {inGame && <ResultPlate />}

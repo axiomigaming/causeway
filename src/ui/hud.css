@@ -72,12 +72,14 @@
    dock says SECURED), so it steps up into the top band at about 60 %, its stake/return line folded
    away: the escape then has the frame to show him. Layout, not a transform — the cameras' band is
    measured from the boxes (Dock's report()). */
-.hud.held.won { --hud-top: 0px; top: calc(var(--safe-t) + 12px); animation: hud-settle 0.35s ease-out; }
+.hud.held.won { --hud-top: 0px; top: calc(var(--safe-t) + 12px); }
 .hud.held.won .hud-slot { display: none; }
 .hud.held.won .mult { font-size: calc(var(--t72) * 0.6); }
 .hud.held.won .hud-sub { display: none; }
 .hud.held.won::before { height: 140%; }
-@keyframes hud-settle { from { opacity: 0.4; } }
+/* the reveal: the held figure gives way to the card (it used to vanish on the card's first frame) */
+.hud.exit { animation: hud-exit 0.26s ease-in forwards; pointer-events: none; }
+@keyframes hud-exit { to { opacity: 0; } }
 
 /* ------------------------------------------------------------------ the result card
  * One surface, one reading order: what happened (head) → what you have (the Return, the hero) →

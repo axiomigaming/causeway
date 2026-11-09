@@ -86,6 +86,9 @@ function roughnessOnly(doc) {
 async function textures(doc, set, name) {
   const cfg = name === 'runner' ? { ...SETS[set], ...RUNNER } : SETS[set];
   const grey = roughnessOnly(doc);
+  // The runner's ORM carries his skin mask in R (blender/char_paint.py refine_orm; runner.ts reads it for
+  // the skin's warmth and wrap): kept in colour, at the ORM's quality.
+  const skinMask = name === 'runner';
   for (const tex of doc.getRoot().listTextures()) {
     const name = tex.getName() || tex.getURI();
     const src = Buffer.from(tex.getImage());
@@ -94,7 +97,7 @@ async function textures(doc, set, name) {
     const kind = /normal/i.test(name) ? 'normal' : grey.has(tex) ? 'orm' : 'color';
     let pipe = sharp(src);
     if (size < meta.width) pipe = pipe.resize(size, Math.round((meta.height * size) / meta.width), { kernel: 'lanczos3' });
-    if (kind === 'orm') {
+    if (kind === 'orm' && !skinMask) {
       const { data, info } = await pipe.removeAlpha().raw().toBuffer({ resolveWithObject: true });
       for (let i = 0; i < data.length; i += info.channels) data[i] = data[i + 2] = data[i + 1];
       pipe = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } });

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { Divider } from './icons';
 import { Logo } from './Logo';
 
-export function Title() {
+export function Title({ onLeave }: { onLeave?: () => void }) {
   const phase = useStore((s) => s.phase);
   const loading = useStore((s) => s.loading);
   const fatal = useStore((s) => s.fatal);
@@ -17,11 +17,19 @@ export function Title() {
   const enter = () => {
     if (!ctl || leaving) return;
     setLeaving(true);
+    onLeave?.();
     setTimeout(() => {
       ctl.enter();
       setLeaving(false);
     }, 520);
   };
+
+  // Space on the title takes the same way out as the button (the copy leaves, the veil dips).
+  useEffect(() => {
+    const go = () => enter();
+    window.addEventListener('causeway:enter', go);
+    return () => window.removeEventListener('causeway:enter', go);
+  });
 
   return (
     <>

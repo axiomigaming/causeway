@@ -106,9 +106,11 @@ On a curve a runner leans in from the ground contact by about atan(v²/(g·r)). 
 4.5 m corners that is 45° and more; sprinters on a bend lean 10–20°. Their head and eyes turn into the
 bend first and the shoulders follow, while the planted foot stays fixed and the body rotates over it.
 
-* Bank (runtime, `Runner.turn`): half the physical lean, at most 23°, from the path's turn rate now and
-  over the next ~0.45 s (`turnAhead`, sampled ahead by the game). So the bank builds as the bend comes
-  up, not once it has begun. It is a roll of the whole body about the ground under him, into the turn;
+* Bank (runtime, `Runner.turn`): from the lateral acceleration v·ω (v²/r), the physical lean
+  atan(a/g) compressed as 18°·(1 − e^(−lean/15°)). A gentle bend reads 8–12° and the sharpest cut at
+  dash speed ~18°; it eases in and out at 5/s. (Half the physical lean, capped at 23°, read ~30° on
+  gentle bends: a skier, not a runner.) It takes the path's turn rate now and over the next ~0.45 s
+  (`turnAhead`, sampled ahead by the game), so the bank builds as the bend comes up, not once it has begun. It is a roll of the whole body about the ground under him, into the turn;
   the old roll leaned him out of it.
 * Lead: head 22%, neck 14%, chest 12% and spine 6% of the turn ahead (≤ 1 rad), eased; the hips stay on
   the path. A turn cut keys its own lead.
