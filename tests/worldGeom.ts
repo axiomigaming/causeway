@@ -213,6 +213,43 @@ export function groundingFindings(layout: Layout, pts: Map<string, Float32Array>
 }
 
 /**
+ * Footing: over open water every slab of the way is carried — along both its long edges, every 0.5 m, a
+ * solid piece (a footing, a pier, a wall) reaches up to within 15 cm of the slab's underside within 0.5 m
+ * of the edge; a slab with less than half of its edges carried stands on the water's air. (Planks carry
+ * their own trestle. A corner's slab runs on under the next section's footing, which is not in its layout.)
+ */
+export function footingFindings(layout: Layout, pts: Map<string, Float32Array>, share = 0.5): Finding[] {
+  if (layout.ground || /^turn/.test(layout.type)) return [];
+  const field = new SupportField();
+  layout.props.forEach((pl, k) => {
+    if (FOLIAGE.test(pl.piece) || HANGING.test(pl.piece) || isWaterPiece(pl.piece)) return;
+    const g = pts.get(pl.piece);
+    if (g) field.add(placedPoints(g, pl.m, 1), k);
+  });
+  const out: Finding[] = [];
+  for (const t of layout.tiles) {
+    if (t.piece.startsWith('planks_')) continue;
+    const p = placedPoints(pts.get(t.piece)!, t.m, 1);
+    let lo = Infinity, zs = Infinity, ze = -Infinity, xl = Infinity, xh = -Infinity;
+    for (let i = 0; i < p.length; i += 3) {
+      lo = Math.min(lo, p[i + 1]!);
+      xl = Math.min(xl, p[i]!);
+      xh = Math.max(xh, p[i]!);
+      zs = Math.min(zs, p[i + 2]!);
+      ze = Math.max(ze, p[i + 2]!);
+    }
+    let ok = 0, all = 0;
+    for (const x of [xl + 0.1, xh - 0.1])
+      for (let z = zs + 0.25; z < ze; z += 0.5) {
+        all++;
+        if (field.at(x, z, 0.5) > lo - 0.15) ok++;
+      }
+    if (ok < share * all) out.push({ piece: t.piece, at: [+((xl + xh) / 2).toFixed(1), +lo.toFixed(2), +((zs + ze) / 2).toFixed(1)], what: `carried along ${ok} of ${all} edge points` });
+  }
+  return out;
+}
+
+/**
  * The running line: nothing solid in the runner's way — a box 0.6 m wide and 2.0 m tall over the floor
  * along the line (designed obstacles are not in a layout). Grass and ferns may brush his legs; a
  * foliage card at body height is flagged too (he would pass through it).

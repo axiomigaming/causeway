@@ -108,6 +108,8 @@ class Builder {
   seed = '';
   /** World round 25: a world's opening section (the first after the start): what the opening shot looks down. */
   opening = false;
+  /** World round 26: added to the height of everything placed but what floats on the water (see lowWalls' `y`). */
+  lift = 0;
   /** World round 26: the last trunk placed, for its crown (see place). */
   private lastTrunk: { piece: string; x: number; y: number; z: number; rotY: number; s: number | [number, number, number]; tilt?: [number, number] } | null = null;
   constructor(
@@ -137,6 +139,7 @@ class Builder {
   }
 
   place(piece: string, x: number, y: number, z: number, rotY = 0, s: number | [number, number, number] = 1, tilt?: [number, number]) {
+    if (this.lift && !isWaterPiece(piece)) y += this.lift;
     // World round 26: a crown sits on the trunk placed just before it — the same tree, place, turn and
     // size. Placements drew their own for each (a palm's crown sized apart from its trunk, a big tree's
     // turned apart, a gorge palm's crown of another palm, a bank palm's crown a metre off its trunk):
@@ -569,7 +572,15 @@ function floorRun(b: Builder, z0: number, n: number, y = 0, broken = 0.12, medal
   }
 }
 
-function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], opts: { gaps?: number; foundation?: boolean } = {}) {
+function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], opts: { gaps?: number; foundation?: boolean; y?: number } = {}) {
+  // World round 26: `y`, the floor's height they line (the stairs' landings: at 0 the upper landing's
+  // slabs stood 1.6 m over their footings, the lower landing's parapets 1.6 m over its floor).
+  b.lift = opts.y ?? 0;
+  lowWallRuns(b, z0, n, sides, opts);
+  b.lift = 0;
+}
+
+function lowWallRuns(b: Builder, z0: number, n: number, sides: number[], opts: { gaps?: number; foundation?: boolean }) {
   // Ruined variants: more parapet stretches collapsed into rubble.
   const gaps = (opts.gaps ?? 0.12) + 0.3 * b.ruin;
   for (const side of sides) {
@@ -1393,6 +1404,9 @@ const BUILDERS = {
       b.place('arch_1', 0, -0.04, -4);
       b.place('vines_1', 0, 9.2, -3.4, 0, [1.2, 1.2, 1]);
       for (const side of [-1, 1]) {
+        // (World round 26: the way's own footing under its edges, down into the water — between the arch's
+        // feet and the walls out at 5.6 m the slabs' edges stood over the water on nothing.)
+        for (const z of [0, -4]) b.place('foundation_0', side * (PATH_HALF + 0.42), 0, z, 0);
         b.wall('wall_tall_' + b.rng.int(0, 1), side, 5.6, 0, 0);
         b.wall('wall_tall_' + b.rng.int(0, 1), side, 5.6, 0, -4);
         if (b.variant % 2 === 0) b.place(side < 0 ? 'guardian_0' : b.rng.pick(['guardian_0', 'guardian_1']), side * 3.55, 0, -0.9, faceIn(side, 1.4), 0.78);
@@ -1497,7 +1511,7 @@ const BUILDERS = {
     build: (b) => {
       b.tile('stairs_0', 0, 0, 0, 0);
       floorRun(b, -4, 2, -1.6);
-      lowWalls(b, -4, 2, [-1, 1], { gaps: 0.1 });
+      lowWalls(b, -4, 2, [-1, 1], { gaps: 0.1, y: -1.6 });
       for (const side of [-1, 1]) {
         b.wall('foundation_1', side, PATH_HALF + 0.42, 0, 0);
         b.pillar('pillar_0', side * 3.1, 0, 0.3);
@@ -1513,7 +1527,7 @@ const BUILDERS = {
     build: (b) => {
       b.tile('stairs_0', 0, 1.6, -4, Math.PI);
       floorRun(b, -4, 2, 1.6);
-      lowWalls(b, -4, 2, [-1, 1], { gaps: 0.1 });
+      lowWalls(b, -4, 2, [-1, 1], { gaps: 0.1, y: 1.6 });
       for (const side of [-1, 1]) {
         b.wall('foundation_0', side, PATH_HALF + 0.42, 0, 0);
         b.place('pillar_1', side * 3.1, 1.6, -4.3);
