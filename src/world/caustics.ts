@@ -139,7 +139,10 @@ if (uDetail > 0.0 && uDetailReady > 0.0) {
   // Hero landmarks (40–90 m away, 7–11x scale): the scan at a landmark scale, never faded.
   float k = uDetail * DETAIL_AMP;
   #else
-  float k = uDetail * DETAIL_AMP * (1.0 - smoothstep(14.0, 30.0, dist));
+  // QA hunt #13: within a few metres of the lens the baked atlas is magnified past its texel density
+  // (the filtering is already trilinear at 16x anisotropy), so a pier or wall beside the lens read
+  // as soft clay. The scan's grain carries more of the surface there: 1.8x inside 4 m, 1x from 9 m.
+  float k = uDetail * DETAIL_AMP * (1.0 - smoothstep(14.0, 30.0, dist)) * (1.0 + 0.8 * (1.0 - smoothstep(4.0, 9.0, dist)));
   #endif
   if (k > 0.0) {
     vec3 wn = vWetN;
