@@ -140,6 +140,10 @@ class Builder {
 
   place(piece: string, x: number, y: number, z: number, rotY = 0, s: number | [number, number, number] = 1, tilt?: [number, number]) {
     if (this.lift && !isWaterPiece(piece)) y += this.lift;
+    // World round 26: on the lightest tier no vine curtains hung over the way from arches and portals
+    // (vines_1/2 above 5 m): at a phone's render scale their small leaves read as strings of dots.
+    // (The arguments are drawn all the same: the layout's stream stays as it was.)
+    if (this.density.foliage < 0.6 && y > 5 && (piece === 'vines_1' || piece === 'vines_2')) return;
     // World round 26: a crown sits on the trunk placed just before it — the same tree, place, turn and
     // size. Placements drew their own for each (a palm's crown sized apart from its trunk, a big tree's
     // turned apart, a gorge palm's crown of another palm, a bank palm's crown a metre off its trunk):
@@ -1275,7 +1279,10 @@ const BUILDERS = {
     build: (b) => {
       b.tile('floor_wide_0', 0, -0.02, 4, 0, [1, 1, 1]);
       floorRun(b, -4, 2, 0, 0);
-      b.place('arch_0', 0, -0.04, 3.2);
+      // (World round 26: the gate over the steps' landing, its feet in the water, not over the plaza at
+      // 3.2 m behind the runner: the title's fly-over passes there, and its piers' tops filled a third
+      // of the desktop title as a blurred, crooked stack of slabs.)
+      b.place('arch_0', 0, WL - 0.25, 8.6);
       for (const side of [-1, 1]) {
         b.place('stele_0', side * 4.2, 0, -0.5, side * 0.3);
         b.pillar('pillar_0', side * 4.4, 0, -3.6);
