@@ -66,6 +66,11 @@ def build_model():
     cls = CP.refine_classes(body, hue, sat, val, leather)
     jeans = ((hue > 150) & (hue < 270)) | ((sat < 0.22) & (val < 0.33))
     R.soft_bones(body, J, rig, [int(c) if c else (4 if jn else 5) for c, jn in zip(cls, jeans)])
+    R.arm_clean(body, rig)
+    # (On the final weights: cut where they now part the arm from the flank. The cut adds cap vertices, so the
+    # per-vertex colours are taken again.)
+    R.unweld(body, rig)
+    hue, sat, val = CP.vertex_hsv(body, tex["color"])
     R.bind(body, rig)
     CP.refine_orm(body, tex, hue, sat, val, (hue < 33) & (sat > 0.42) & (val < 0.72))
     CP.delight_albedo(body, tex, hue, sat, val, (hue < 33) & (sat > 0.42) & (val < 0.72))

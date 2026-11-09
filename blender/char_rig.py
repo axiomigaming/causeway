@@ -294,6 +294,13 @@ def gear(mesh, J, leather, rig=None):
     # swings on a spring bone ("pack", driven in src/world/runner.ts), so it jiggles with each landing.
     pieces = {i for i in pieces if co[i].z < 1.0}
     big = [i for i in pieces if abs(co[i].x) > 0.15]
+    # (The holster's side only: with the kit on the other hip counted in, the spring bone sat on the body's
+    # centre line, and the holster swung about a point 20 cm away from it, its edge shearing into torn
+    # shards against the feathered ring in every landing and the vault.)
+    if big:
+        side = 1 if sum(1 for i in big if co[i].x > 0) > len(big) / 2 else -1
+        big = [i for i in big if co[i].x * side > 0]
+    bigset = set(big)
     top = max(co[i].z for i in big) if big else 0.0
     if rig is not None and big:
         cx = sum(co[i].x for i in big) / len(big)
@@ -309,7 +316,14 @@ def gear(mesh, J, leather, rig=None):
     for i in pieces:
         s = "L" if co[i].x > 0 else "R"
         th = min(0.33, W[i].get(f"thigh.{s}", 0.0))
-        pk = 0.55 * smooth((top - co[i].z) / 0.12) if (rig is not None and big and abs(co[i].x) > 0.15) else 0.0
+        pk = 0.0
+        if rig is not None and i in bigset:
+            # A drop holster: it hangs from the belt and its leg strap ties its foot to the thigh. (Riding the
+            # pelvis with at most a third of the thigh, its foot stayed back as the thigh drove up through the
+            # vault and the leap, and the jeans tore through it in shards.)
+            d = smooth((top - co[i].z) / 0.16)
+            th = 0.35 + 0.6 * d
+            pk = 0.05 + 0.1 * d
         W[i] = {"hips": (1 - th) * (1 - pk), f"thigh.{s}": th * (1 - pk)}
         if pk > 0:
             W[i]["pack"] = pk
@@ -521,3 +535,154 @@ def soft_bones(mesh, J, rig, key):
     bpy.ops.object.mode_set(mode="OBJECT")
     _write(mesh, W)
     print("  soft bones:", ", ".join(f"{nm} ({sum(1 for w in W if nm in w)} verts)" for nm in bones), flush=True)
+
+
+def unweld(mesh, rig):
+    """Cut the scan's webbing between parts that move apart. The source was scanned with the arms hanging
+    against the flanks and the hands at the hips and the thighs touching: its surface runs straight across
+    those contacts. Below the armpit (and below the crotch), a face with vertices on both the arm and the
+    torso (or a hand and a thigh, or both thighs) stretched into long torn shards whenever the arm drove or
+    a leg swung away: up to 32 cm at the right hip and flank, the 'torn holster'. Those faces go; the hole
+    each part is left with is capped from its own rim (a fan on its own vertices, so it moves with it), its
+    texture taken from the rim."""
+    import bmesh
+    names = {g.index: g.name for g in mesh.vertex_groups}
+    B = rig.data.bones
+    pit = {s: B[f"upper_arm.{s}"].head_local.z - 0.09 for s in "LR"}
+    crotch = min(B["thigh.L"].head_local.z, B["thigh.R"].head_local.z) - 0.06
+    bm = bmesh.new()
+    bm.from_mesh(mesh.data)
+    dl = bm.verts.layers.deform.active
+    uv = bm.loops.layers.uv.active
+
+    def part(v):
+        if dl is None or not v[dl]:
+            return "torso"
+        g = max(v[dl].items(), key=lambda kv: kv[1])[0]
+        n = names[g]
+        b = n.split(".")[0]
+        s = n[-1] if n[-2:] in (".L", ".R") else ""
+        if b in ("upper_arm", "forearm", "hand", "fingers"):
+            return "arm" + s
+        if b in ("thigh", "shin", "foot", "toe"):
+            return "leg" + s
+        return "torso"
+    P = {v: part(v) for v in bm.verts}
+    kill = []
+    for f in bm.faces:
+        ps = {P[v] for v in f.verts}
+        z = sum(v.co.z for v in f.verts) / len(f.verts)
+        cut = False
+        for s in "LR":
+            if f"arm{s}" in ps and "torso" in ps and z < pit[s]:
+                cut = True
+            if f"arm{s}" in ps and ("legL" in ps or "legR" in ps):
+                cut = True
+        if "legL" in ps and "legR" in ps and z < crotch:
+            cut = True
+        if cut:
+            kill.append(f)
+    nkill = len(kill)
+    bmesh.ops.delete(bm, geom=kill, context="FACES_ONLY")
+    # Each part's open rim, as chains of boundary edges whose ends are both that part's: capped by a fan.
+    caps = 0
+    rim = [e for e in bm.edges if e.is_boundary and P.get(e.verts[0]) == P.get(e.verts[1])]
+    seen = set()
+    for e0 in rim:
+        if e0 in seen:
+            continue
+        pp = P[e0.verts[0]]
+        comp, st = [], [e0]
+        seen.add(e0)
+        while st:
+            e = st.pop()
+            comp.append(e)
+            for v in e.verts:
+                for e2 in v.link_edges:
+                    if e2 not in seen and e2.is_boundary and P.get(e2.verts[0]) == pp and P.get(e2.verts[1]) == pp:
+                        seen.add(e2)
+                        st.append(e2)
+        if len(comp) < 2:
+            continue
+        verts = list({v for e in comp for v in e.verts})
+        c = sum((v.co for v in verts), verts[0].co * 0) / len(verts)
+        cv = bm.verts.new(c)
+        # the centre takes the rim's weights (averaged) so it rides with its part
+        if dl is not None:
+            acc = {}
+            for v in verts:
+                for g, w in v[dl].items():
+                    acc[g] = acc.get(g, 0.0) + w / len(verts)
+            for g, w in acc.items():
+                cv[dl][g] = w
+        P[cv] = pp
+        caps_faces = []
+        for e in comp:
+            a, b = e.verts
+            try:
+                f = bm.faces.new((a, b, cv))
+            except ValueError:
+                continue
+            # face the same way as the rim face it closes against: opposite winding along the shared edge
+            lf = e.link_faces[0] if len(e.link_faces) > 1 else None
+            other = [lf2 for lf2 in e.link_faces if lf2 is not f]
+            if other:
+                o = other[0]
+                for lo in o.loops:
+                    if lo.vert is a and lo.link_loop_next.vert is b:
+                        f.normal_flip()
+                        break
+            caps_faces.append(f)
+            caps += 1
+        # One texel for the whole cap, the rim's middle: the rim's UVs fanned across it read as a striped
+        # sunburst on the flank.
+        if uv is not None and caps_faces:
+            rim_uv = [l2[uv].uv.copy() for v in verts for l2 in v.link_loops if l2.face not in caps_faces]
+            if rim_uv:
+                m = rim_uv[len(rim_uv) // 2]
+                for f in caps_faces:
+                    for lo in f.loops:
+                        lo[uv].uv = m
+    bm.to_mesh(mesh.data)
+    bm.free()
+    mesh.data.update()
+    print(f"  unwelded: {nkill} webbing faces cut, {caps} cap faces", flush=True)
+
+
+def arm_clean(mesh, rig):
+    """Below the armpit an arm vertex follows the arm only, and a flank vertex the ribcage only. Bone heat
+    and the under-arm pass left the inner upper arm with up to half its weight on the spine and the chest:
+    when the arm drove forward or went up, that strip stayed with the body and the inner arm smeared 15-21 cm
+    between the two (the shredded look at the armpit and the flank in the cheers, the falls and the leap).
+    Mixed weights fade out over the 10 cm below the armpit; above it the joint keeps its blend."""
+    W = _weights(mesh)
+    B = rig.data.bones
+    pit = {s: B[f"upper_arm.{s}"].head_local.z - 0.05 for s in "LR"}
+    TORSO = ("spine", "chest", "hips", "pouch", "shoulder")
+    n = 0
+    for i, v in enumerate(mesh.data.vertices):
+        w = W[i]
+        if not w:
+            continue
+        s = "L" if v.co.x > 0 else "R"
+        f = smooth((v.co.z - (pit[s] - 0.1)) / 0.1)
+        if f >= 1.0:
+            continue
+        arm = {k: x for k, x in w.items() if k.startswith(ARM) or k.startswith("sleeve.")}
+        torso = {k: x for k, x in w.items() if k.split(".")[0] in TORSO}
+        if not arm or not torso:
+            continue
+        aw, tw = sum(arm.values()), sum(torso.values())
+        if aw >= tw:
+            keep, drop = arm, torso
+        else:
+            keep, drop = torso, arm
+        lost = sum(drop.values()) * (1 - f)
+        for k in drop:
+            w[k] *= f
+        tot = sum(keep.values())
+        for k in keep:
+            w[k] += lost * keep[k] / tot
+        n += 1
+    _write(mesh, W)
+    print(f"  arm/flank weights unmixed below the armpit: {n} verts", flush=True)
