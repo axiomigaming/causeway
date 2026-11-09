@@ -1352,7 +1352,13 @@ export class Game {
     let lim = h < top ? PATH_HALF - 0.3 : walls === 'none' ? PATH_HALF + 0.4 : Infinity;
     // Round 17: the result shot stays over the way (its orbit swung out over the parapet, into
     // whatever stands beyond it, and the band under the card filled with masonry).
-    if ((this.stage === 'cashout' || this.stage === 'crash') && this.rig.revealK > 0.05) lim = Math.min(lim, PATH_HALF + 0.3 + 8 * (1 - this.rig.revealK) ** 2); // eased in with the card
+    if ((this.stage === 'cashout' || this.stage === 'crash') && this.rig.revealK > 0.05) {
+      lim = Math.min(lim, PATH_HALF + 0.3 + 8 * (1 - this.rig.revealK) ** 2); // eased in with the card
+      // Camera round 2 (QA hunt, the rockfall's end shot): between walls the held result shot keeps
+      // ≥ 1.1 m off the wall. At 0.3 m a blurred block of it filled 45 % of the frame for five
+      // seconds beside the card, the runner small at the other edge. (Eased in with the card too.)
+      if (h < top) lim = Math.min(lim, PATH_HALF - 0.3 - 0.8 * Math.min(1, this.rig.revealK * 1.5));
+    }
     if (Math.abs(lat) > lim) {
       const d = Math.sign(lat) * lim - lat;
       p.x += rx * d;
@@ -2593,7 +2599,9 @@ export class Game {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
-        depth = Math.max(depth, cam.position.y - (y - 0.4));
+        // (Camera round 2, QA hunt: 0.6 m under the beam, not 0.4 — that close its dark, untextured
+        // underside filled the top 40 % of a phone frame, magnified, for half a second.)
+        depth = Math.max(depth, cam.position.y - (y - 0.6));
       }
     }
     if (near) this.duckDepth = depth;
@@ -2618,7 +2626,7 @@ export class Game {
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
-    look.y -= drop * 0.35;
+    look.y -= drop * (0.35 + 0.25 * k);
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -3097,6 +3105,7 @@ export class Game {
     // Camera.
     const rp = this.runner.root.position;
     this.rig.shakeEnabled = this.motion === 'full';
+    this.rig.bars = this.cine.bars.height;
     this.rig.motionScale = this.motion === 'full' ? 1 : 0.25;
     // Settled camera moves follow real time on a slow device; QA time-stepping stays deterministic.
     this.rig.wallClock = !this.paused;

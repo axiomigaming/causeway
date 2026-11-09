@@ -122,6 +122,8 @@ export class CameraRig {
    * game sets it, eased). The look point pans toward it, so a bend is seen opening before he turns.
    */
   aheadLat = 0;
+  /** The letterbox bars' height (each, a share of the frame; set by the game): kept clear like the UI. */
+  bars = 0;
   /** Run: the most the lens may sit out to his right (a wall on that side; set by the game, eased). */
   latRoom = 3;
   /**
@@ -597,7 +599,12 @@ export class CameraRig {
         const lens = Math.min(96, sfov * (a < 1 ? Math.min(1.55, 1 + (1 - a) * 0.95) : 1));
         const span = 0.6 * this.free * 2 * Math.tan((lens * Math.PI) / 360);
         const back = Math.min(9, Math.max(2.75, 1.95 / span));
-        fov = this.shot(runnerPos, F(-back, 0.25 + 0.06 * back, 1.15 + 0.12 * back, 0.6, 0.1, 0.92, sfov));
+        // Camera round 2 (QA hunt, the first thing after ENTER): out of the title's high pass the aim
+        // stays down the way while the lens is still high, and comes onto him as it descends. Aimed
+        // at his hips from 9.8 m up, the first quarter second looked down onto the crown of the arch
+        // under the lens (loose blocks filling the frame).
+        const hk = ease(THREE.MathUtils.clamp((this.pos.y - runnerPos.y - 3.4) / 4.4, 0, 1));
+        fov = this.shot(runnerPos, F(-back, 0.25 + 0.06 * back, 1.15 + 0.12 * back, lerp(0.6, 18, hk), lerp(0.1, 0.3, hk), lerp(0.92, 0.5, hk), sfov));
         break;
       }
       case 'lead': {
@@ -940,7 +947,13 @@ export class CameraRig {
     const w = this.wideK;
     const out = { ...f, along: f.along * (1 + 0.5 * grow) * (1 + 0.8 * w), lat: f.lat * (1 + 0.25 * grow) * (1 + 0.5 * w), up: f.up + 1.6 * grow + v * ease(T / 2), fov: f.fov + 4 * grow + 10 * w };
     // The runner went down with the floor: lean out over the lip and tilt down into the gap.
-    if (this.crashShot === 'chasm' && this.gap > 0) return mixFrame(out, F(-1.3, 1.1 * s, 3.1, 1.2, 0, -2.8, 56, 0), this.gap);
+    // (Camera round 2, QA hunt: with the card up it no longer holds the top-down view of the water
+    // he went into — five seconds of foam, no runner, no readable causeway. It eases back and up over
+    // the lip and lowers its tilt: the broken edge in front, the water where he went in beyond it.)
+    if (this.crashShot === 'chasm' && this.gap > 0) {
+      const g = mixFrame(F(-1.3, 1.1 * s, 3.1, 1.2, 0, -2.8, 56, 0), F(-3.4, 1.5 * s, 3.7, 2.6, 0, -1.9, 58, 0), ease(this.revealK));
+      return mixFrame(out, g, this.gap);
+    }
     return out;
   }
 
@@ -1260,11 +1273,12 @@ export class CameraRig {
     const side = Math.min(this.sideK, this.revealK * 1.5);
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
-    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side) + (this.mode === 'cashout' ? 0.08 : 0); // (the slide's legs swing out: footroom too)
+    // (Camera round 2, QA hunt: and clear of the letterbox — at the 30× escape his head went under the top bar.)
+    const lo = Math.max(THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side) + (this.mode === 'cashout' ? 0.08 : 0), -1 - 2 * s + 2 * this.bars + 0.04); // (the slide's legs swing out: footroom too)
     // (Round 20: the celebration's leaps and raised arms move faster than the jerk-limited lens
     // turns: the cash-out keeps more headroom so the lag never takes his head or hands off the frame.)
     const head = this.mode === 'cashout' ? 0.14 : 0;
-    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head;
+    const hi = Math.min(THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head, 1 - 2 * s - 2 * this.bars - 0.04 - head);
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
