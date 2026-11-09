@@ -1355,6 +1355,9 @@ export class Game {
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
   private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
+  private cframeFloor = { pos: new THREE.Vector3(), yaw: 0 };
+  private groundTmp: THREE.Object3D[] = [];
+  private groundBox = new THREE.Box3();
   private gapBodyPos = new THREE.Vector3();
   /** The chasm fall: the broken causeway's edge (and its heading), and where he went into the water. */
   private chasmLip: { pos: THREE.Vector3; fwd: THREE.Vector3 } | null = null;
@@ -1400,6 +1403,23 @@ export class Game {
     // Round 20: over the ledge's open trough the lens may go down into it (the close-in on him
     // lying on the stone below), keeping clear of its floor and walls.
     let floor = f.pos.y + 0.45;
+    // Camera round 2 (stairs pass): the chase rides at least 0.8 m over the steps under it and the
+    // ones 1.5 m ahead of it — climbing, the next steps rose into the lens's lower edge (0.84 m off);
+    // at the head of a descent it sank to 0.54 m over the landing.
+    if (this.stage === 'run' || this.stage === 'lead') {
+      const fy = f.pos.y;
+      const ay = this.track.path.sample(s + 1.5, this.cframeFloor).pos.y;
+      floor = Math.max(fy, ay) + 0.8;
+      // (And over a set piece on the way — the jump log, blocks, a fallen pillar: the lens passed
+      // through the log in world 11. Its box, 1.2 m wider round, so the lens rises on the approach.)
+      for (const o of this.obstacles.groundPieces(s - 2, s + 3, this.groundTmp)) {
+        const b = this.groundBox.setFromObject(o);
+        // (Low pieces only, the ones he goes over: a lens lifted over a standing pier would fly.)
+        if (b.isEmpty() || b.max.y - fy > 1.8) continue;
+        if (p.x < b.min.x - 1.2 || p.x > b.max.x + 1.2 || p.z < b.min.z - 1.2 || p.z > b.max.z + 1.2) continue;
+        floor = Math.max(floor, b.max.y + 0.35);
+      }
+    }
     const L = this.ledgeBed;
     if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
       // (The open part only: the trough runs 1.6 m further back under floor that still stands.

@@ -242,6 +242,21 @@ export class ObstacleDirector {
     return best;
   }
 
+  /**
+   * Camera round 2: the standing pieces on the ground (a log, blocks, a pillar, a boulder; not the
+   * overhead beams, which the lens ducks under) between route distances s0 and s1, for the chase's
+   * clearance: the lens rides over them instead of through them.
+   */
+  groundPieces(s0: number, s1: number, out: THREE.Object3D[]): THREE.Object3D[] {
+    out.length = 0;
+    for (const l of this.live) {
+      if (l.kind === 'turn' || l.ceil || l.s < s0 || l.s > s1) continue;
+      for (const o of l.objs) out.push(o);
+      if (l.world) out.push(l.world.root);
+    }
+    return out;
+  }
+
   /** True while a move is lined up or in the air (other beats — hops, ducks, glances — hold off). */
   get busy(): boolean {
     return this.plans.length > 0;

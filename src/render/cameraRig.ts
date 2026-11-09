@@ -1261,8 +1261,10 @@ export class CameraRig {
     if (k < 0.001) return;
     const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
     const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -3.6).addScaledVector(side, 1.1 * (s || 1)).setY(L.pos.y + 2.5);
-    this.gapAim.copy(L.pos).lerp(splash, 0.45);
+    // (Close behind the edge and high: 3.6 m back it framed the near paving and the edge sank
+    // under the card.)
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -1.7).addScaledVector(side, 1.0 * (s || 1)).setY(L.pos.y + 3.0);
+    this.gapAim.copy(L.pos).lerp(splash, 0.6);
     this.targetPos.lerp(this.gapPos, k);
     this.targetLook.lerp(this.gapAim, k);
     this.gapAimK = k;
