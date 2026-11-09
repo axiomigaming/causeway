@@ -1363,9 +1363,9 @@ export class Game {
    * Camera round 2 (coordinator: rockfall debris blocked the lens on desktop; QA: the lintel he had
    * just slid under filled the rockfall's held shot, only his legs under it): in a fall's settled
    * shot, while big broken pieces or a set piece still standing lie across the sight line from his
-   * chest to the lens, the lens cranes up over them (eased, up to 1.3 m; a lintel, down 0.7 m). Never swings round them or
-   * pulls in past them: given to the occlusion swing, the orbit swung back and forth through him
-   * every three seconds (the swing's straight path from one side to the other).
+   * chest or hips to the lens, the lens cranes up over them (eased, up to 1.3 m), or under a lintel
+   * (down 0.7 m). Never swings round them or pulls in past them: given to the occlusion swing, the
+   * orbit swung back and forth through him every three seconds (straight from side to side).
    */
   private craneK = 0;
   private debrisCrane(dt: number): void {
