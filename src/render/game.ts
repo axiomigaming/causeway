@@ -14,7 +14,7 @@ import { resetMood, setWorldDrive, stepMood, worldMood, worldTierUp } from '../w
 import { Debris } from '../world/debris';
 import { forward } from '../world/path';
 import { CRASH_CLIPS, crashStaging, escapeStaging, intensityOf, nextBeat, progression, type CrashKind, type CrashStaging, type EscapeStaging, type Progression } from '../world/choreo';
-import { Runner, type RunnerAnim } from '../world/runner';
+import { Runner, setRunnerLight, type RunnerAnim } from '../world/runner';
 import { isLand, PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
 import type { Look } from '../world/look';
@@ -68,6 +68,11 @@ const UP = new THREE.Vector3(0, 1, 0);
 /** Round 11 crescendo targets: a low, red dusk sun and a bruised slate haze. */
 const DUSK_SUN = new THREE.Color(0xff8a52);
 const OMINOUS_FOG = new THREE.Color(0x4f5866);
+// The runner's lift (camera round 2): the golden look's hemisphere colours scaled to the luminance of
+// the lift's old fixed colours (sky 0.62/0.68/0.78, ground 0.46/0.36/0.28), so that look is unchanged.
+const lumOf = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+const RUNNER_SKY_SCALE = 0.674 / lumOf(new THREE.Color(0x9fd0c8));
+const RUNNER_GROUND_SCALE = 0.375 / lumOf(new THREE.Color(0x8a5a3a));
 const SHADOW_U = new THREE.Vector3();
 const SHADOW_V = new THREE.Vector3();
 
@@ -473,6 +478,9 @@ export class Game {
   private moodFog = new THREE.Color();
   private moodLeaves = -1;
   private gustPrev = 0;
+  private liftSky = new THREE.Color();
+  private liftGround = new THREE.Color();
+  private liftSun = new THREE.Color();
   private gustAt = -1e9;
   private gustK = 0;
   /**
@@ -541,6 +549,23 @@ export class Game {
     const f = Math.max(this.lightning(this.worldT, bolts), storm ? flick * this.gustK * 0.8 * ss(0.3, 0.8) : 0);
     this.hemi.intensity = L.hemiI * (1 - 0.25 * d) * (1 + f * 3.5);
     this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.1 * g);
+    // Camera round 2 (with the character agent): the runner's readability lift takes after the
+    // world's own light, so he no longer keeps a fixed glow through the storm, the dusk of the climb
+    // and a lightning flash. The fill follows the hemisphere (its colours, half desaturated and scaled
+    // so the golden look reproduces the old lift; its strength relative to that look's 0.4); the warm
+    // rim follows the sun (its hue, and its strength relative to 15.5, not the hemi's).
+    const soft = (c: THREE.Color, out: THREE.Color, scale: number) => {
+      const y = lumOf(c);
+      return out.setRGB(y + (c.r - y) * 0.5, y + (c.g - y) * 0.5, y + (c.b - y) * 0.5).multiplyScalar(scale);
+    };
+    const kHemi = this.hemi.intensity / 0.4;
+    soft(this.hemi.color, this.liftSky, RUNNER_SKY_SCALE);
+    soft(this.hemi.groundColor, this.liftGround, RUNNER_GROUND_SCALE);
+    const sc = this.sun.color;
+    const m = Math.max(sc.r, sc.g, sc.b, 1e-3);
+    const sunK = Math.min(1.2, this.sun.intensity / 15.5) / Math.max(0.05, kHemi);
+    this.liftSun.setRGB(0.4 + (0.6 * sc.r) / m, 0.4 + (0.6 * sc.g) / m, 0.4 + (0.6 * sc.b) / m).multiplyScalar(sunK);
+    setRunnerLight(this.liftSky, this.liftGround, this.liftSun, kHemi);
     // Life in the air: more falling leaves as the run builds and on every gust.
     const leaves = Math.min(1, d + g * 0.8);
     if (Math.abs(leaves - this.moodLeaves) > 0.02) {
