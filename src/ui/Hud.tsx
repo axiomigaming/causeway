@@ -94,7 +94,9 @@ export function Hud() {
       if (int !== lastInt && intRef.current) {
         // A short roll on each new whole number (not on the first paint).
         // Motion only: the figure is always one solid colour, never half-faded.
-        if (full && lastInt !== '') intRef.current.animate([{ transform: 'translateY(0.12em)' }, { transform: 'none' }], { duration: 220, easing: EASE });
+        // (QA polish: the integer alone dropped 0.12em for 220 ms, so for that beat it sat below its own
+        // decimals, a broken baseline. The whole figure takes a small settle instead.)
+        if (full && lastInt !== '') el.animate([{ transform: 'translateY(0.04em) scale(0.985)' }, { transform: 'none' }], { duration: 240, easing: EASE });
         intRef.current.textContent = int;
         lastInt = int;
       }
