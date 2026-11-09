@@ -652,9 +652,7 @@ export class CameraRig {
         // yawLead already swings the lens ~40° into the turn; the look point leaning a further 1.5 m
         // pushed him out to a third of the frame from its left edge before he had turned.)
         const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k) * (1 - 0.7 * Math.min(1, Math.abs(this.yawLead) / 0.4));
-        fov = this.shot(
-          runnerPos,
-          this.fitInBand(
+        const fr = this.fitInBand(
             F(
               // (Round 20, coordinator: out to his right shoulder, 45° off his back — the swing round
               // to his face at the celebration then has half as far to go: a 180° orbit at 5 m in
@@ -662,15 +660,20 @@ export class CameraRig {
               // (Not for the knee slide: it carries him metres across to his right, out of that frame;
               // there the lens stays behind him, closer and lower: escapeWide = 0.)
               lerp(-dist, lerp(-2.0, -1.6, this.escapeWide) * (1 + 0.3 * narrow), k),
-              lerp(Math.min(lat + drift, Math.max(0.12, this.latRoom)), lerp(0.62, lerp(1.6, 1.25, narrow), this.escapeWide), k),
+              lerp(lat + drift, lerp(0.62, lerp(1.6, 1.25, narrow), this.escapeWide), k),
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.25 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
               lerp(lerp(0.6, 0.18, narrow) + drift * 0.4, lerp(0.2, -0.35, narrow * this.escapeWide), k) + 0.4 * wx * life + bend,
               lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift,
               lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
             ),
-          ),
-        );
+          );
+        // Camera round 2: between walls the lens gives way toward the middle of the way (latRoom, from
+        // the game: ≥ 1.25 m off a wall on his right). On the fitted frame: the fit scales the whole
+        // offset (×1.6-1.9 on a wide screen), so the shoulder's 0.72 m put the lens 1.3 m out.
+        const room = Math.max(0.12, this.latRoom);
+        if (fr.lat > room) fr.lat = lerp(room, fr.lat, k);
+        fov = this.shot(runnerPos, fr);
         break;
       }
       case 'crash': {
