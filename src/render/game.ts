@@ -14,7 +14,7 @@ import { resetMood, setWorldDrive, stepMood, worldMood, worldTierUp } from '../w
 import { Debris } from '../world/debris';
 import { forward } from '../world/path';
 import { CRASH_CLIPS, crashStaging, escapeStaging, intensityOf, nextBeat, progression, type CrashKind, type CrashStaging, type EscapeStaging, type Progression } from '../world/choreo';
-import { Runner, type RunnerAnim } from '../world/runner';
+import { Runner, setRunnerLight, type RunnerAnim } from '../world/runner';
 import { isLand, PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
 import type { Look } from '../world/look';
@@ -69,6 +69,11 @@ const UP = new THREE.Vector3(0, 1, 0);
 /** Round 11 crescendo targets: a low, red dusk sun and a bruised slate haze. */
 const DUSK_SUN = new THREE.Color(0xff8a52);
 const OMINOUS_FOG = new THREE.Color(0x4f5866);
+// The runner's lift (camera round 2): the golden look's hemisphere colours scaled to the luminance of
+// the lift's old fixed colours (sky 0.62/0.68/0.78, ground 0.46/0.36/0.28), so that look is unchanged.
+const lumOf = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+const RUNNER_SKY_SCALE = 0.674 / lumOf(new THREE.Color(0x9fd0c8));
+const RUNNER_GROUND_SCALE = 0.375 / lumOf(new THREE.Color(0x8a5a3a));
 const SHADOW_U = new THREE.Vector3();
 const SHADOW_V = new THREE.Vector3();
 
@@ -473,6 +478,12 @@ export class Game {
   private moodSun = new THREE.Color();
   private moodFog = new THREE.Color();
   private moodLeaves = -1;
+  private gustPrev = 0;
+  private liftSky = new THREE.Color();
+  private liftGround = new THREE.Color();
+  private liftSun = new THREE.Color();
+  private gustAt = -1e9;
+  private gustK = 0;
   /**
    * Round 11 crescendo, every frame: the look's light and air pushed toward a gathering storm (storm
    * look) or a deepening, ominous dusk (the others) by the run's drive (0..1), punctuated by gusts.
@@ -525,9 +536,37 @@ export class Game {
     this.rain.update(this.worldT, rain);
     causticUniforms.uRainWet.value = Math.min(1, (L.wet ?? 0) * (storm ? 0.15 + 0.85 * ss(0.3, 0.9) : d) + rain * 0.5);
     const bolts = (L.lightning ?? 0) * ss(0.55, 1) + (d > 0.8 ? (3 * (d - 0.8)) / 0.2 : 0);
-    const f = Math.max(this.lightning(this.worldT, bolts), storm ? g * 0.8 * ss(0.3, 0.8) : 0);
+    // Camera round 2: a tier-up's "flicker in the sky" is a flicker (the bolt's own 0.45 s double
+    // flash, from the moment the gust kicks), not the gust itself: the gust decays over ~2 s, and
+    // driving the hemi light ×3 with it washed the whole frame grey (a 25-level luma step at 2×).
+    if (g > this.gustPrev + 0.05) {
+      this.gustAt = this.worldT;
+      this.gustK = g;
+    }
+    this.gustPrev = g;
+    if (this.worldT < this.gustAt) this.gustAt = -1e9; // the world clock restarted
+    const gt = this.worldT - this.gustAt;
+    const flick = gt >= 0 && gt < 0.45 ? Math.max(Math.exp(-gt * 18), gt > 0.16 ? Math.exp(-(gt - 0.16) * 14) * 0.8 : 0) : 0;
+    const f = Math.max(this.lightning(this.worldT, bolts), storm ? flick * this.gustK * 0.8 * ss(0.3, 0.8) : 0);
     this.hemi.intensity = L.hemiI * (1 - 0.25 * d) * (1 + f * 3.5);
-    this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.25 * g);
+    this.scene.backgroundIntensity = L.skyI * (1 - 0.35 * d) * (1 + f * 2.5 + 0.1 * g);
+    // Camera round 2 (with the character agent): the runner's readability lift takes after the
+    // world's own light, so he no longer keeps a fixed glow through the storm, the dusk of the climb
+    // and a lightning flash. The fill follows the hemisphere (its colours, half desaturated and scaled
+    // so the golden look reproduces the old lift; its strength relative to that look's 0.4); the warm
+    // rim follows the sun (its hue, and its strength relative to 15.5, not the hemi's).
+    const soft = (c: THREE.Color, out: THREE.Color, scale: number) => {
+      const y = lumOf(c);
+      return out.setRGB(y + (c.r - y) * 0.5, y + (c.g - y) * 0.5, y + (c.b - y) * 0.5).multiplyScalar(scale);
+    };
+    const kHemi = this.hemi.intensity / 0.4;
+    soft(this.hemi.color, this.liftSky, RUNNER_SKY_SCALE);
+    soft(this.hemi.groundColor, this.liftGround, RUNNER_GROUND_SCALE);
+    const sc = this.sun.color;
+    const m = Math.max(sc.r, sc.g, sc.b, 1e-3);
+    const sunK = Math.min(1.2, this.sun.intensity / 15.5) / Math.max(0.05, kHemi);
+    this.liftSun.setRGB(0.4 + (0.6 * sc.r) / m, 0.4 + (0.6 * sc.g) / m, 0.4 + (0.6 * sc.b) / m).multiplyScalar(sunK);
+    setRunnerLight(this.liftSky, this.liftGround, this.liftSun, kHemi);
     // Life in the air: more falling leaves as the run builds and on every gust.
     const leaves = Math.min(1, d + g * 0.8);
     if (Math.abs(leaves - this.moodLeaves) > 0.02) {
@@ -1316,7 +1355,13 @@ export class Game {
     let lim = h < top ? PATH_HALF - 0.3 : walls === 'none' ? PATH_HALF + 0.4 : Infinity;
     // Round 17: the result shot stays over the way (its orbit swung out over the parapet, into
     // whatever stands beyond it, and the band under the card filled with masonry).
-    if ((this.stage === 'cashout' || this.stage === 'crash') && this.rig.revealK > 0.05) lim = Math.min(lim, PATH_HALF + 0.3 + 8 * (1 - this.rig.revealK) ** 2); // eased in with the card
+    if ((this.stage === 'cashout' || this.stage === 'crash') && this.rig.revealK > 0.05) {
+      lim = Math.min(lim, PATH_HALF + 0.3 + 8 * (1 - this.rig.revealK) ** 2); // eased in with the card
+      // Camera round 2 (QA hunt, the rockfall's end shot): between walls the held result shot keeps
+      // ≥ 1.1 m off the wall. At 0.3 m a blurred block of it filled 45 % of the frame for five
+      // seconds beside the card, the runner small at the other edge. (Eased in with the card too.)
+      if (h < top) lim = Math.min(lim, PATH_HALF - 0.3 - 0.8 * Math.min(1, this.rig.revealK * 1.5));
+    }
     if (Math.abs(lat) > lim) {
       const d = Math.sign(lat) * lim - lat;
       p.x += rx * d;
@@ -2557,7 +2602,9 @@ export class Game {
       const y = this.obstacles.ceilingAt(sCam + this.speed * ahead);
       if (y !== null) {
         near = true;
-        depth = Math.max(depth, cam.position.y - (y - 0.4));
+        // (Camera round 2, QA hunt: 0.6 m under the beam, not 0.4 — that close its dark, untextured
+        // underside filled the top 40 % of a phone frame, magnified, for half a second.)
+        depth = Math.max(depth, cam.position.y - (y - 0.6));
       }
     }
     if (near) this.duckDepth = depth;
@@ -2582,7 +2629,7 @@ export class Game {
     // Lean the view down by the same amount so the runner keeps his place in frame.
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
-    look.y -= drop * 0.35;
+    look.y -= drop * (0.35 + 0.25 * k);
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -3061,6 +3108,7 @@ export class Game {
     // Camera.
     const rp = this.runner.root.position;
     this.rig.shakeEnabled = this.motion === 'full';
+    this.rig.bars = this.cine.bars.height;
     this.rig.motionScale = this.motion === 'full' ? 1 : 0.25;
     // Settled camera moves follow real time on a slow device; QA time-stepping stays deterministic.
     this.rig.wallClock = !this.paused;
@@ -3079,6 +3127,18 @@ export class Game {
       const ahead = this.track.path.sample(this.s + Math.max(8, Math.min(16, this.speed * 1.1)), this.cframeAhead);
       const lat = (ahead.pos.x - rp.x) * Math.cos(y0) - (ahead.pos.z - rp.z) * Math.sin(y0);
       this.rig.aheadLat += (lat - this.rig.aheadLat) * (1 - Math.exp(-rawDt * 4));
+      // Camera round 2: room for the shoulder offset. Between walls the lens out at his right
+      // shoulder rode 0.8-1.0 m off the right-hand wall, which filled the frame's edge as a huge soft
+      // slab (and every stele and pier on that side swept past the glass). Keep it ≥ 1.25 m off a
+      // wall on that side: the offset gives way toward the middle of the way, eased (no step at a
+      // section's joint).
+      const here = this.track.path.sample(this.s, this.cframe);
+      const rl = (rp.x - here.pos.x) * Math.cos(here.yaw) - (rp.z - here.pos.z) * Math.sin(here.yaw);
+      const sec = this.track.sectionAt(this.s - 2.5);
+      const w = sec?.layout.walls ?? 'low';
+      const wallR = w === 'low' || w === 'tall' || (w === 'cliff' && !sec?.mirror);
+      const room = wallR && this.stage !== 'cashout' ? Math.max(0, PATH_HALF - 1.25 - rl) : 3;
+      this.rig.latRoom += (room - this.rig.latRoom) * (1 - Math.exp(-rawDt * 2.5));
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips && this.stage === 'run') {
         this.runner.body.updateWorldMatrix(true, true);
@@ -3284,7 +3344,8 @@ export class Game {
       danger: this.fx.danger,
       cold: this.fx.cold,
       gold: this.fx.gold,
-      flash: this.fx.flash + 0.05 * this.tierGlow * this.tierGlow,
+      flash: this.fx.flash,
+      glow: this.tierGlow * this.tierGlow,
       fade: this.fx.fade,
       bloomBoost: this.fx.bloom,
       tension: this.tension,

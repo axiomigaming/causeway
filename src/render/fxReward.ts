@@ -356,6 +356,11 @@ export class Letterbox {
     this.mesh.visible = this.h > 0.0015;
   }
 
+  /** Each bar's current height, as a share of the half-frame (NDC: 2 × this from each edge). */
+  get height(): number {
+    return this.h;
+  }
+
   clear(): void {
     this.h = this.target = 0;
     this.uniforms.uH.value = 0;

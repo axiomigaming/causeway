@@ -165,12 +165,48 @@ for (let f = 0; f < N; f++) {
       const hz = p.clone().addScaledVector(fw, 2000).project(cam);
       const rp = g.runner.root.position;
       const sec = g.track.sectionAt?.(g.s);
+      // Near-lens clutter (every 3rd frame): a 7x5 grid of rays from the lens, the first solid within
+      // 1.2 m (a wall, an arch, a frond swinging through the lens), and the share of rays it blocks.
+      let near = null;
+      if (window.__nf === undefined) window.__nf = 0;
+      if (window.__nf++ % 3 === 0) {
+        const skip = new Set([g.runner.root, g.cine?.root, g.particles?.points, g.motes?.points, g.ambient?.root, g.water?.mesh, g.sunDisc, g.contact?.mesh].filter(Boolean));
+        if (!window.__tg || window.__nf % 30 === 1) {
+          const t = [];
+          const walk = (o) => {
+            if (skip.has(o) || !o.visible) return;
+            if (o.isMesh) t.push(o);
+            for (const c of o.children) walk(c);
+          };
+          walk(g.scene);
+          for (const o of t) if (o.isInstancedMesh) o.computeBoundingSphere();
+          window.__tg = t;
+        }
+        const rc = (window.__rc ??= new g.occl.rc.constructor());
+        let n = 0, dmin = 9, what = '';
+        for (let iy = 0; iy < 5; iy++) for (let ix = 0; ix < 7; ix++) {
+          rc.setFromCamera({ x: -0.9 + (1.8 * ix) / 6, y: -0.85 + (1.7 * iy) / 4 }, cam);
+          rc.near = cam.near;
+          rc.far = 1.2;
+          const h = rc.intersectObjects(window.__tg, false)[0];
+          if (!h) continue;
+          n++;
+          if (h.distance < dmin) {
+            dmin = h.distance;
+            const m = h.object;
+            what = `${m.name || m.parent?.name || ''}:${(Array.isArray(m.material) ? m.material[0]?.name : m.material?.name) ?? ''}`;
+          }
+        }
+        near = { n, d: +dmin.toFixed(2), what };
+      }
       return {
+        near,
         p: [p.x, p.y, p.z],
         q: [q.x, q.y, q.z, q.w],
         fov: +cam.fov.toFixed(2),
         mult: +g.live.mult.toFixed(3),
         drive: +g.rig.drive.toFixed(3),
+        room: +(g.rig.latRoom ?? 3).toFixed(2),
         speed: +(g.speed ?? 0).toFixed(3),
         dist: +p.distanceTo(new V(rp.x, rp.y + 1, rp.z)).toFixed(3),
         head: ndc('head'),
@@ -227,7 +263,21 @@ const stat = (xs) => {
   return { mean: +m.toFixed(3), sd: +sd.toFixed(3), min: +Math.min(...v).toFixed(3), max: +Math.max(...v).toFixed(3) };
 };
 const height = rows.map((r) => (r.head && r.footL && r.footR ? (r.head[1] - Math.min(r.footL[1], r.footR[1])) / 2 : NaN));
+// Jitter: the high-frequency part of the lens's path and of his place on screen (RMS second difference
+// per 30 fps frame, after the stride's own rhythm), and the near-lens clutter samples.
+const rms = (xs) => Math.sqrt(xs.reduce((a, b) => a + b * b, 0) / Math.max(1, xs.length));
+const camJ = [], hipJ = [];
+for (let f = 2; f < rows.length; f++) {
+  const [a, b, d] = [rows[f].p, rows[f - 1].p, rows[f - 2].p];
+  camJ.push(Math.hypot(a[0] - 2 * b[0] + d[0], a[1] - 2 * b[1] + d[1], a[2] - 2 * b[2] + d[2]) * k * k);
+  const [h2, h1, h0] = [rows[f].hips, rows[f - 1].hips, rows[f - 2].hips];
+  if (h2 && h1 && h0) hipJ.push(Math.hypot(h2[0] - 2 * h1[0] + h0[0], h2[1] - 2 * h1[1] + h0[1]) * k * k);
+}
+const nearS = rows.filter((r) => r.near);
+const nearHits = nearS.filter((r) => r.near.n >= 3 || r.near.d < 0.45);
 const summary = {
+  jitter: { camRmsCm: +(rms(camJ) * 100).toFixed(2), hipsRmsNdc: +rms(hipJ).toFixed(4) },
+  nearLens: { samples: nearS.length, hits: nearHits.length, worst: nearHits.sort((x, y) => y.near.n - x.near.n || x.near.d - y.near.d).slice(0, 4).map((r) => `${r.sec}:${r.near.n}@${r.near.d}:${r.near.what}`) },
   name: NAME,
   world: W,
   view: VIEW,
@@ -244,6 +294,21 @@ const summary = {
   horizon: stat(rows.map((r) => r.horizon)),
   errors,
 };
+// Exposure: the mean luma of each drawn frame (the scene band between the HUD and the dock, rows
+// 40-75 % of the height), its range and its largest step between drawn frames.
+{
+  const L = [];
+  for (let i = 0; i < shot; i++) {
+    const img = sharp(`${FR}/${String(i).padStart(4, '0')}.jpg`);
+    const m = await img.metadata();
+    const st = await img.extract({ left: 0, top: Math.round(m.height * 0.4), width: m.width, height: Math.round(m.height * 0.35) }).stats();
+    const [r, gg, b] = st.channels.map((c) => c.mean);
+    L.push(0.2126 * r + 0.7152 * gg + 0.0722 * b);
+  }
+  let step = 0;
+  for (let i = 1; i < L.length; i++) step = Math.max(step, Math.abs(L[i] - L[i - 1]));
+  summary.exposure = L.length ? { min: +Math.min(...L).toFixed(1), max: +Math.max(...L).toFixed(1), maxStep: +step.toFixed(1), drawn: L.length } : null;
+}
 writeFileSync(`${OUT}/${NAME}.json`, JSON.stringify({ summary, rows }, null, 0));
 console.log(`\n${JSON.stringify(summary)}`);
 

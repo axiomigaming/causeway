@@ -740,6 +740,7 @@ class GradeEffect extends Effect {
       uniform float cold;
       uniform float gold;
       uniform float flash;
+      uniform float glow;
       uniform float fade;
       uniform float tension;
       uniform float coolTop;
@@ -798,6 +799,9 @@ class GradeEffect extends Effect {
         c = mix(c, c * vec3(0.78, 0.86, 1.0) * 0.8, cold);
         // Escape: honey light.
         c = mix(c, c * vec3(1.1, 1.0, 0.84), gold);
+        // Tier-up warmth (camera round 2): a lift of the lights, not an offset. (It was 0.05 added to
+        // every pixel: the blacks rose to a milky grey over the whole frame for a second.)
+        c *= 1.0 + glow * mix(vec3(0.04, 0.02, 0.0), vec3(0.16, 0.1, 0.02), hl);
         c += vec3(1.0, 0.92, 0.78) * flash;
         c = mix(c, vec3(0.03, 0.025, 0.02), fade);
         outputColor = vec4(max(c, 0.0), inputColor.a);
@@ -811,6 +815,7 @@ class GradeEffect extends Effect {
           ['cold', new THREE.Uniform(0)],
           ['gold', new THREE.Uniform(0)],
           ['flash', new THREE.Uniform(0)],
+          ['glow', new THREE.Uniform(0)],
           ['fade', new THREE.Uniform(0)],
           ['tension', new THREE.Uniform(0)],
           ['coolTop', new THREE.Uniform(0)],
@@ -830,6 +835,8 @@ export interface PostParams {
   cold: number;
   gold: number;
   flash: number;
+  /** 0..1: the tier-up's warm lift of the lights (multiplies; never raises the blacks). */
+  glow?: number;
   fade: number;
   bloomBoost: number;
   /** 0..1 from the live multiplier during a run (0 outside it): the tension ramp of the grade. */
@@ -996,6 +1003,7 @@ export class Post {
     g.get('cold')!.value = p.cold;
     g.get('gold')!.value = p.gold;
     g.get('flash')!.value = p.flash;
+    g.get('glow')!.value = p.glow ?? 0;
     g.get('fade')!.value = p.fade;
     if (this.bloom) this.bloom.intensity = BLOOM + 0.5 * p.bloomBoost;
     const tension = p.tension ?? 0;

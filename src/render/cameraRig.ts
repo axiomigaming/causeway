@@ -122,6 +122,10 @@ export class CameraRig {
    * game sets it, eased). The look point pans toward it, so a bend is seen opening before he turns.
    */
   aheadLat = 0;
+  /** The letterbox bars' height (each, a share of the frame; set by the game): kept clear like the UI. */
+  bars = 0;
+  /** Run: the most the lens may sit out to his right (a wall on that side; set by the game, eased). */
+  latRoom = 3;
   /**
    * FX round 21, run mode: metres his hips stand above (+, a jump or a vault) or below (-, a slide)
    * their running height (the game sets it). The chase rises and dips with a share of it.
@@ -595,7 +599,13 @@ export class CameraRig {
         const lens = Math.min(96, sfov * (a < 1 ? Math.min(1.55, 1 + (1 - a) * 0.95) : 1));
         const span = 0.6 * this.free * 2 * Math.tan((lens * Math.PI) / 360);
         const back = Math.min(9, Math.max(2.75, 1.95 / span));
-        fov = this.shot(runnerPos, F(-back, 0.25 + 0.06 * back, 1.15 + 0.12 * back, 0.6, 0.1, 0.92, sfov));
+        // Camera round 2 (QA hunt, the first thing after ENTER): out of the title's high pass the aim
+        // stays down the way while the lens is still high, and comes onto him as it descends. Aimed
+        // at his hips from 9.8 m up, the first quarter second looked down onto the crown of the arch
+        // under the lens (loose blocks filling the frame).
+        const hk = ease(THREE.MathUtils.clamp((this.pos.y - runnerPos.y - 3.4) / 4.4, 0, 1));
+        this.setupHigh = hk;
+        fov = this.shot(runnerPos, F(-back, 0.25 + 0.06 * back, 1.15 + 0.12 * back, lerp(0.6, 18, hk), lerp(0.1, 0.3, hk), lerp(0.92, 0.5, hk), sfov));
         break;
       }
       case 'lead': {
@@ -646,10 +656,11 @@ export class CameraRig {
         const wy = Math.sin(t * 0.51 + 1.7) * 0.6 + Math.sin(t * 0.83 + 0.4) * 0.4;
         this.liftK = damp(this.liftK, THREE.MathUtils.clamp(this.lift, -0.6, 1.2), 10, dt);
         const lift = this.liftK * (1 - k);
-        const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k);
-        fov = this.shot(
-          runnerPos,
-          this.fitInBand(
+        // (Camera round 2: not on top of the corner's own lead. At a right-angle corner the orbit's
+        // yawLead already swings the lens ~40° into the turn; the look point leaning a further 1.5 m
+        // pushed him out to a third of the frame from its left edge before he had turned.)
+        const bend = THREE.MathUtils.clamp(this.aheadLat * 0.3, -1.5, 1.5) * (1 - k) * (1 - 0.7 * Math.min(1, Math.abs(this.yawLead) / 0.4));
+        const fr = this.fitInBand(
             F(
               // (Round 20, coordinator: out to his right shoulder, 45° off his back — the swing round
               // to his face at the celebration then has half as far to go: a 180° orbit at 5 m in
@@ -664,8 +675,15 @@ export class CameraRig {
               lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift,
               lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
             ),
-          ),
-        );
+          );
+        // Camera round 2: between walls the lens gives way toward the middle of the way (latRoom, from
+        // the game: ≥ 1.25 m off a wall on his right). On the fitted frame: the fit scales the whole
+        // offset (×1.6-1.9 on a wide screen), so the shoulder's 0.72 m put the lens 1.3 m out.
+        // (Landscape only: a portrait chase sits 0.24 m out, already in the middle of the way — and
+        // easing that in moved the phone's hand-over into a fall: the pillar's recoil left the frame.)
+        const room = Math.max(0.12, this.latRoom);
+        if (fr.lat > room) fr.lat = lerp(room, fr.lat, Math.max(k, narrow));
+        fov = this.shot(runnerPos, fr);
         break;
       }
       case 'crash': {
@@ -1143,6 +1161,8 @@ export class CameraRig {
   }
 
   private shift = 0;
+  /** Setup only: 0..1, how high the lens still is from the title's pass (the aim and the framing wait). */
+  private setupHigh = 0;
   private shiftTarget = 0;
   /** Compose for the part of the screen the interface leaves free (px covered at top/bottom). */
   setInsets(top: number, bottom: number, heightPx: number): void {
@@ -1252,11 +1272,12 @@ export class CameraRig {
     const side = Math.min(this.sideK, this.revealK * 1.5);
     // Beside the column, the free band is the full height under the top bar (the shift eases to 0).
     // (The title stands his boots clear of its footer line, a little higher than the dock margin.)
-    const lo = THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side) + (this.mode === 'cashout' ? 0.08 : 0); // (the slide's legs swing out: footroom too)
+    // (Camera round 2, QA hunt: and clear of the letterbox — at the 30× escape his head went under the top bar.)
+    const lo = Math.max(THREE.MathUtils.lerp(-1 - 2 * s + 2 * this.insetBottom + (this.mode === 'title' ? 0.24 : 0.11), -1 - 2 * s + 0.08, side) + (this.mode === 'cashout' ? 0.08 : 0), -1 - 2 * s + 2 * this.bars + 0.04); // (the slide's legs swing out: footroom too)
     // (Round 20: the celebration's leaps and raised arms move faster than the jerk-limited lens
     // turns: the cash-out keeps more headroom so the lag never takes his head or hands off the frame.)
     const head = this.mode === 'cashout' ? 0.14 : 0;
-    const hi = THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head;
+    const hi = Math.min(THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head, 1 - 2 * s - 2 * this.bars - 0.04 - head);
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * Math.PI) / 360);
     const tanH = tanV * c.aspect;
@@ -1283,7 +1304,9 @@ export class CameraRig {
     const esc = this.mode === 'cashout' ? 1 : this.mode === 'run' ? Math.min(1, this.escapeIn * 4) : 0;
     // (And on a phone a fall keeps a little more too: the reworked clips throw a hand out faster than
     // the jerk-limited pan follows — the pillar's recoil reached the edge for three frames.)
-    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.06 : 0;
+    // (Camera round 2: 0.09 — at 0.06 the pillar's recoil reached the edge again for three frames
+    // after the merged runner rounds.)
+    const fall = this.mode === 'crash' && this.camera.aspect < 1 ? 0.09 : 0;
     const mx = 1 - 0.09 - fall - esc * (this.camera.aspect < 1 ? (this.mode === 'run' ? 0.14 : 0.1) : 0.06); // side margin in NDC (16 pt of a 390 pt phone)
     const settled = this.mode === 'setup' || this.mode === 'crash' || this.mode === 'cashout';
     const pts = this.framePts;
@@ -1390,12 +1413,27 @@ export class CameraRig {
     const headCap = this.mode === 'crash' ? Math.max(hiT, 0.92 * tanV) : hiT;
     if (tilt < 0) tilt = -Math.min(-tilt, Math.max(0, Math.atan(headCap) - Math.atan(m.head)));
     else if (tilt > 0) tilt = Math.min(tilt, Math.max(0, Math.atan(m.feet) - Math.atan(loT)));
+    // (Camera round 2: in a fall the crown never reaches the frame's top edge either. When the boots
+    // already sit on the dock line and the stand-back is still easing in — the pillar fall after the
+    // longer slide run-up put his head at 0.98 of the frame — the boots give way below the dock line
+    // instead, never past the frame's own bottom.)
+    if (this.mode === 'crash' && tilt >= 0 && m.head > 0.9 * tanV) {
+      const need = Math.atan(m.head) - Math.atan(0.9 * tanV);
+      const room = Math.max(0, Math.atan(m.feet) - Math.atan(-0.94 * tanV));
+      tilt = Math.max(tilt, Math.min(need, room));
+    }
+    // (Camera round 2, QA hunt: out of the title's high pass the setup does not drag him into the
+    // band from 9.8 m up — that tilt pointed the first frames after ENTER down onto the crown of
+    // the arch under the lens. The framing comes in as the lens descends, with the aim.)
+    const high = this.mode === 'setup' ? this.setupHigh : 0;
+    tilt *= 1 - high;
     if (Math.abs(tilt) > 1e-4) c.rotateX(tilt);
     // Horizontal: both arms inside the side margins.
     const mT = mx * tanH;
     let pan = 0;
     if (m.left < -mT) pan = Math.atan(-mT) - Math.atan(m.left);
     else if (m.right > mT) pan = -(Math.atan(m.right) - Math.atan(mT));
+    pan *= 1 - high;
     // The result shot on landscape: pan so he stands on a third, beside the interface column.
     if (this.sideK > 0.001) {
       const cx = (m.left + m.right) / 2;
@@ -1462,7 +1500,9 @@ export class CameraRig {
     // A settled shot under the result card centres the band between the card and the dock, which
     // can sit higher than the run's own limits allow.
     const cine = this.revealK > 0.001 ? Math.min(0.32, Math.max(-0.3, (this.insetBottom - this.insetTop) / 2)) : this.shiftTarget;
-    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, Math.min(this.sideK, this.revealK * 1.5));
+    // (Camera round 2: nor does the band's shift reveal what lies under the high lens — the arch
+    // crown the title's copy had covered — until it comes down.)
+    const target = lerp(lerp(this.shiftTarget, cine, this.revealK), 0, Math.min(this.sideK, this.revealK * 1.5)) * (1 - (this.mode === 'setup' ? this.setupHigh : 0));
     this.shift += (target - this.shift) * (1 - Math.exp(-dt * 3));
     const c = this.camera;
     if (Math.abs(this.shift) < 0.001) {
