@@ -579,14 +579,55 @@ def planks(name, seed, width=3.6, length=4.0):
     # Round 11: a dark sub-deck under the boards, so the joints between them read as shadow, not as
     # bright turquoise slits of water.
     add_block(bm, (width - 0.1, length - 0.04, 0.03), (0, length / 2, -0.115), bevel=0.0, rng=rng, color=hexcol("#2a1d14"), jit=0.0)
-    for yb in (0.45, 2.0, 3.55):
-        blk(bm, rng, (width + 0.4, 0.22, 0.22), (rng.uniform(-0.05, 0.05), yb, -0.22), (0, 0, rng.uniform(-0.03, 0.03)),
-            color=jitter_color(WOOD[3], rng), radius=0.5, erode=0.3, cuts=1, taper=0.0, uvshrink={"bottom": 0.8})
-    for side in (-1, 1):
-        for yb in (0.45, 3.55):
-            blk(bm, rng, (0.24, 0.24, 3.0), (side * (width / 2 + 0.12), yb, -1.75), (rng.uniform(-0.05, 0.05), rng.uniform(-0.04, 0.04), rng.uniform(0, 1)),
-                color=jitter_color(WOOD[1], rng), radius=0.6, erode=0.3, cuts=1, taper=0.0, uvshrink={"top": 0.5})
+    # The boards' undersides are never seen; what is under them is (World round 26: from the water's edge
+    # and the chase camera's low corners the deck read as a thin sheet on four sticks).
     drop_faces_below(bm, zmax=-0.05)
+    # World round 26: a timber trestle under the deck, built the way a real one carries its load —
+    # boards on cross-joists, joists on two heavy stringers along the way, stringers on a cap beam at
+    # each end of the tile, each cap on a pair of round piles driven into the bed, X-braced; a deep
+    # fascia board along each edge hides the joists' ends (the deck's edge reads 0.3 m thick); the rail
+    # posts (rope_rail) stand on the caps, over the piles. The piles' wet foot is in the material.
+    for yb in (0.45, 2.0, 3.55):
+        blk(bm, rng, (width + 0.1, 0.2, 0.2), (rng.uniform(-0.03, 0.03), yb, -0.23), (0, 0, rng.uniform(-0.02, 0.02)),
+            color=jitter_color(WOOD[3], rng), radius=0.5, erode=0.3, cuts=1, taper=0.0)
+    for side in (-1, 1):
+        # Fascia (edge board) over the joists' ends.
+        blk(bm, rng, (0.06, length - 0.03, 0.3), (side * (width / 2 + 0.08), length / 2, -0.17), (rng.uniform(-0.01, 0.01), 0, 0),
+            color=jitter_color(WOOD[1], rng, 0.08, 0.03), radius=0.4, erode=0.3, cuts=1, taper=0.0)
+        # Stringer under the joists.
+        blk(bm, rng, (0.26, length - 0.02, 0.3), (side * (width / 2 - 0.3), length / 2, -0.48), (0, 0, 0),
+            color=jitter_color(WOOD[3], rng), radius=0.5, erode=0.3, cuts=1, taper=0.0)
+    for yb in (0.15, length - 0.15):
+        # Cap beam across the bent.
+        blk(bm, rng, (width + 0.62, 0.26, 0.26), (0, yb, -0.76), (0, 0, rng.uniform(-0.015, 0.015)),
+            color=jitter_color(WOOD[0], rng), radius=0.5, erode=0.3, cuts=1, taper=0.0, uvshrink={"top": 0.7, "bottom": 0.4})
+        for side in (-1, 1):
+            # A round pile (a trimmed trunk, slightly tapered, a little off plumb) from the cap into the bed.
+            x = side * (width / 2 + 0.12)
+            lean = Euler((rng.uniform(-0.025, 0.025), side * rng.uniform(0.0, 0.03), 0)).to_matrix().to_4x4()
+            t = bmesh.new()
+            bmesh.ops.create_cone(t, cap_ends=True, segments=9, radius1=0.15, radius2=0.13, depth=2.75)
+            for v in t.verts:
+                n = noise.noise_vector(v.co * 2.1 + Vector((x, yb, 0)))
+                v.co.x += n.x * 0.015
+                v.co.y += n.y * 0.015
+            bmesh.ops.transform(t, matrix=Matrix.Translation(Vector((x, yb, -0.89 - 1.375))) @ lean, verts=t.verts)
+            cl = t.loops.layers.float_color.new("Col")
+            c = jitter_color(WOOD[1], rng)
+            for f in t.faces:
+                for l in f.loops:
+                    l[cl] = c
+            me = bpy.data.meshes.new("_pile")
+            t.to_mesh(me)
+            t.free()
+            bm.from_mesh(me)
+            bpy.data.meshes.remove(me)
+        # X-bracing between the pair, on the bent's outer face (most of it under the water).
+        for k in (-1, 1):
+            ang = math.atan2(1.5, width + 0.24)
+            blk(bm, rng, (math.hypot(width + 0.24, 1.5) + 0.2, 0.05, 0.18), (0, yb + (0.17 if yb < 1 else -0.17), -1.75),
+                (0, k * ang, 0), color=jitter_color(WOOD[3], rng), radius=0.4, erode=0.3, cuts=1, taper=0.0,
+                uvshrink={"top": 0.6, "side": 0.6, "bottom": 0.6, "end": 0.6})
     return finish_obj(name, bm, 40)
 
 

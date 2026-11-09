@@ -343,8 +343,18 @@ def wood(name="wood"):
     # Sun-bleached tops: warm honey-tan in the grain, never grey (round 5: the boardwalk read grey-green).
     bleach = ramp(nt, grain.outputs[0], [(0.25, hexcol("#b88f62")), (0.75, hexcol("#e0c49a"))])
     col = mix(nt, math_node(nt, "MULTIPLY", _up_mask(nt, 0.5, 0.9), 0.62), col, bleach, "MIX")
+    # World round 26: the trestle's piles and braces wet where they meet the water (object z ≈ −2.2, the
+    # deck at 0): dark, soaked timber a ragged band above the surface, slick and green with algae at it.
+    zpos = N(nt, "ShaderNodeSeparateXYZ")
+    L(nt, tc.outputs["Object"], zpos.inputs[0])
+    wetn = _noise(nt, tc.outputs["Object"], 4, 3)
+    wz = math_node(nt, "ADD", zpos.outputs[2], math_node(nt, "MULTIPLY", wetn.outputs[0], 0.35))
+    wet = maprange(nt, wz, -1.25, -1.95, 0.0, 1.0)
+    algae = maprange(nt, wz, -1.85, -2.2, 0.0, 1.0)
+    col = mix(nt, math_node(nt, "MULTIPLY", wet, 0.85), col, hexcol("#5a4636"), "MULTIPLY")
+    col = mix(nt, math_node(nt, "MULTIPLY", algae, 0.6), col, hexcol("#2c3a20"), "MIX")
     L(nt, col, bsdf.inputs["Base Color"])
-    bsdf.inputs["Roughness"].default_value = 0.8
+    L(nt, maprange(nt, wet, 0.0, 1.0, 0.8, 0.42), bsdf.inputs["Roughness"])
     L(nt, _bump(nt, ght.outputs[0], 0.9, 0.025), bsdf.inputs["Normal"])
     return m
 

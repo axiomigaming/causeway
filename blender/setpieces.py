@@ -267,7 +267,9 @@ def rope_rail(name, seed, length=4.0, width=3.2, h=1.05):
     for sd in (-1, 1):
         x = sd * (width / 2 + 0.12)
         for yp in (0.15, length - 0.15):
-            add_block(bm, (0.16, 0.16, h + 0.4), (x, yp, (h + 0.4) / 2 - 0.35), (rng.uniform(-0.06, 0.06), rng.uniform(-0.05, 0.05), 0),
+            # (World round 26: down past the deck's fascia onto the trestle's cap beam, over its pile —
+            # they stopped 0.35 m under the deck, standing on nothing.)
+            add_block(bm, (0.18, 0.18, h + 0.68), (x, yp, (h + 0.05 - 0.63) / 2), (rng.uniform(-0.03, 0.03), rng.uniform(-0.025, 0.025), 0),
                       bevel=0.02, rng=rng, color=jitter_color(WOOD[1], rng), jit=0.01, segments=1)
         for zr, sag in ((h, 0.2), (h * 0.55, 0.12)):
             n = 10

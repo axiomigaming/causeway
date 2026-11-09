@@ -214,6 +214,20 @@ class Builder {
     this.place('foam_ring', x, WL, z, this.rng.range(0, 6.28), [r, 1, r]);
   }
 
+  /**
+   * World round 26: the foam where the planks' trestle piles (x ±1.92, 0.15 m in from each end of a
+   * 4 m tile) stand in the water, for the tiles from z0 on (no draws: the layout's stream stays as it was).
+   */
+  pileFoam(z0: number, n: number) {
+    if (!this.rich) return;
+    for (let i = 0; i < n; i++)
+      for (const dz of [0.15, TILE - 0.15])
+        for (const side of [-1, 1]) {
+          const z = z0 - TILE * i - dz;
+          this.place('foam_ring', side * 1.92, WL, z, (Math.abs(z * 1.7 + side * 2.3) % 6.28), [0.42, 1, 0.42]);
+        }
+  }
+
   lilies(x: number, z: number, s = 1) {
     if (!this.rich) return;
     if (this.foliage(0.9)) this.place(`lily_${this.rng.int(0, 2)}`, x, WL + 0.01, z, this.rng.range(0, 6.28), s);
@@ -307,6 +321,17 @@ function spill(b: Builder, side: number, z0: number, y: number, x = PATH_HALF + 
   // Modelled on the right, spanning 4 m along −Z from its origin: on the left turn it end for end.
   if (side > 0) b.place(`spill_${i}`, x, y, z0 - b.rng.range(0, 0.6), b.rng.range(-0.05, 0.05));
   else b.place(`spill_${i}`, -x, y, z0 - TILE + b.rng.range(0, 0.6), Math.PI + b.rng.range(-0.05, 0.05));
+}
+
+/**
+ * World round 26: a masonry pier across the way under the 4 m slab starting at z0 (one for each `side`,
+ * 1.1 m either side of its middle): a footing turned across and cut to 3.7 m, its top (0.25 m under its
+ * origin) at the slab's underside, running down into the water.
+ */
+function slabPier(b: Builder, side: number, z0: number) {
+  const piece = b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1';
+  // (Turned a quarter, its length — local −z from 0.36 to −5.1, here ×0.68 — runs across the way.)
+  b.place(piece, 1.61, 0, z0 - TILE * 0.5 + side * 1.1, Math.PI / 2, [0.75, 1, 0.68]);
 }
 
 /**
@@ -744,6 +769,10 @@ function turnCorner(b: Builder): ReturnType<Build> {
     b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', x0, 0, back - 0.06, Math.PI / 2, [1, 1, len / 4]);
     b.place(b.rng.pick(LOW_WALLS), x0, 0, back, Math.PI / 2, [1, 1, len / 4]);
   }
+  // World round 26: the inside of the bend on its footing too — the plaza slab's inner corner (x −6.2…
+  // −2.2 along the entry, z 0…−1.9 up to the exit leg's own footing) stood over the water on nothing.
+  b.place('foundation_0', -(PATH_HALF + 0.42), 0, 0.42, Math.PI / 2, [1, 1, 0.78]);
+  b.place('foundation_0', -6.62, 0, 0, 0, [1, 1, 0.37]);
   // The corner pier where the two parapets meet, a bush and grass on it.
   b.pillar('pillar_0', out + 0.3, 0, back - 0.3, Math.PI / 4);
   if (b.foliage(0.8)) b.place(`bush_${b.rng.int(0, 3)}`, out + 0.6, 0.4, back - 0.8, 0, 1.0);
@@ -1128,7 +1157,9 @@ const BUILDERS = {
         for (const side of [-1, 1]) {
           if (i < n) b.foam(side, PATH_HALF + 0.3, z, TILE);
           // A broken pier stump under each joint, a block or two tumbled into the water.
-          if (i < n) b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
+          // (World round 26: two piers across each slab, under it, their tops at its underside: one stump
+          // beside each slab's middle — the far one out in the water — left 4 m slabs 0.3 m thick on air.)
+          if (i < n) slabPier(b, side, z);
           // (Round 20: a block tumbled onto a boulder breaking the surface; set on the water it floated.)
           if (b.rng.chance(0.35)) {
             const rx = side * b.rng.range(3.2, 4.4);
@@ -1162,7 +1193,7 @@ const BUILDERS = {
         const z = -TILE * i;
         for (const side of [-1, 1]) {
           b.foam(side, PATH_HALF + 0.3, z, TILE);
-          b.place(b.rng.chance(0.5) ? 'foundation_0' : 'foundation_1', side * (PATH_HALF + 0.1), -0.25, z - TILE * 0.5, Math.PI / 2, [0.6, 1, 0.5]);
+          slabPier(b, side, z);
           if (b.rng.chance(0.3)) {
             const rx = side * b.rng.range(3.2, 4.4);
             const rz = z - b.rng.range(0.5, 3.5);
@@ -1300,6 +1331,7 @@ const BUILDERS = {
         else b.tile(p, 0, 0, -TILE * i - TILE, Math.PI);
         if (style !== 'plain') b.place('rope_rail_0', 0, 0, -TILE * i, 0);
       }
+      b.pileFoam(0, n);
       if (style === 'gorge') {
         // Cliffs close in on both sides, a fall pouring from each; the planks cross the gap between.
         for (const side of [-1, 1]) {
@@ -1419,6 +1451,19 @@ const BUILDERS = {
       const mid = evalSeg({ s0: 0, len, p0: new THREE.Vector3(), yaw0: 0, turn, dy: 0 }, len / 2, { pos: new THREE.Vector3(), yaw: 0 });
       // Longer than the arc and a hair lower: it tucks under the neighbours' tiles at both ends.
       b.tile('floor_wide_0', mid.pos.x - Math.sin(mid.yaw) * -4.3, -0.02, mid.pos.z - Math.cos(mid.yaw) * -4.3, mid.yaw, [1.05, 1, 1.08]);
+      {
+        // World round 26: the plaza's footing, down into the water round its edges past the causeway's
+        // own (a 10 m slab 0.3 m thick stood over the water on nothing but its corner pillars).
+        const fx = -Math.sin(mid.yaw), fz = -Math.cos(mid.yaw), rx = Math.cos(mid.yaw), rz = -Math.sin(mid.yaw);
+        const ox = mid.pos.x - fx * 4.3, oz = mid.pos.z - fz * 4.3; // the slab's start edge, on the axis
+        for (const side of [-1, 1]) {
+          // Along each long edge (its length ×1.6: 8.7 m from the slab's start).
+          b.place('foundation_0', ox + rx * side * 5.66 + fx * 0.5, 0, oz + rz * side * 5.66 + fz * 0.5, mid.yaw, [1, 1, 1.6]);
+          // Across each end, from the causeway's footing out to the long edge's.
+          for (const d of [-0.42, 8.64 + 0.42])
+            b.place('foundation_0', ox + rx * side * 2.62 + fx * d, 0, oz + rz * side * 2.62 + fz * d, mid.yaw - side * Math.PI / 2, [1, 1, 0.6]);
+        }
+      }
       const o = new THREE.Vector3();
       for (const side of [-1, 1]) {
         for (const t of [0.15, 0.85]) {
@@ -1651,6 +1696,7 @@ const BUILDERS = {
         if (b.rng.chance(0.5)) b.tile(p, 0, 0, -TILE * i, 0);
         else b.tile(p, 0, 0, -TILE * i - TILE, Math.PI);
       }
+      b.pileFoam(0, n);
       // Boulders along the waterline on both sides, bigger and thicker on the bank side.
       for (const side of [-1, 1]) {
         const big = side === bank;
