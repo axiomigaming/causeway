@@ -1263,8 +1263,10 @@ export class CameraRig {
     const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
     // (Close behind the edge and high: 3.6 m back it framed the near paving and the edge sank
     // under the card.)
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -1.7).addScaledVector(side, 1.0 * (s || 1)).setY(L.pos.y + 3.0);
-    this.gapAim.copy(L.pos).lerp(splash, 0.6);
+    // (And aimed only a little under the edge: on the splash itself, 8 m down in a gorge, the tilt
+    // took the edge out of the frame's bottom and held on the water again.)
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -2.6).addScaledVector(side, 1.0 * (s || 1)).setY(L.pos.y + 2.4);
+    this.gapAim.copy(L.pos).lerp(splash, 0.6).setY(L.pos.y - Math.min(1.2, 0.6 * Math.max(0, L.pos.y - splash.y)));
     this.targetPos.lerp(this.gapPos, k);
     this.targetLook.lerp(this.gapAim, k);
     this.gapAimK = k;

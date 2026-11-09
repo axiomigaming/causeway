@@ -2637,8 +2637,11 @@ export class Game {
       // where the lens would be without any drop.
       this.ceilP.copy(p);
       const top = this.ceilP.clone().setY(this.ceilP.y + 1.6);
-      const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.4), top);
-      this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.4));
+      // (Camera round 2, stairs pass: from just under the lens, not 0.4 m under it — climbing a
+      // flight, the probe started inside the step below the lens, met that step's top as a
+      // "ceiling" and dropped the lens onto the stairs, 0.5 m off the steps on a phone.)
+      const d = this.occluder(this.ceilP.clone().setY(this.ceilP.y - 0.05), top);
+      this.ceilWant = d === null ? 0 : Math.max(0, 0.75 - (d - 0.05));
     }
     // A set piece overhead (a lintel he slides under): looked for every frame, up to 0.6 s ahead,
     // since at speed it passes the lens in a blink. The duck is an S-curve ramp (no surge): down
@@ -2684,6 +2687,9 @@ export class Game {
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
     look.y -= drop * (0.35 + 1.0 * k);
+    // A tall screen's wide lens closes a little under the beam (the underside, a metre over the
+    // floor, filled 40 % of its frame as it passed over).
+    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.16 : 0.05) * k;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
