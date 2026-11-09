@@ -313,7 +313,7 @@ RUN = dict(
     arm_f=0.6, arm_b=-1.05, el_f=1.85, el_b=1.1, arm_out=0.16, curl=0.9, sway=0.012,
 )
 SPRINT = dict(
-    v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96,
+    v=9.0, ts=0.193, D=0.8, xtd=0.17, frames=96, thigh_harm=4, sig_swing=12.0,
     knee=(0.48, 0.84, 0.45),
     af=[(0.0, -0.15), (0.3, -0.08), (0.5, -0.22), (0.75, -0.5), (1.0, -0.84)],
     swing=[(0.13, -0.3, 0.98, 0.5), (0.37, 0.3, 2.25, 0.15), (0.56, 1.0, 1.95, -0.12),
@@ -336,6 +336,13 @@ DASH = dict(
 # leap_gap's landing stride: the run's contact, stride and strike, the knees much deeper through the
 # stance (it soaks the drop); the clip eases from it into the run (both solved, so the plant holds).
 RUN_LAND = dict(RUN, knee=(0.55, 1.35, 0.6), frames=96)
+SPRINT_LAND = dict(SPRINT, knee=(0.55, 1.35, 0.6), frames=96)
+DASH_LAND = dict(DASH, knee=(0.55, 1.35, 0.6), frames=96)
+# The moves' run-outs are keyed on a tier's own stride: the run's in the clips as named, the sprint's and the
+# dash's in copies suffixed _sprint and _dash (runner.ts blends the three by the tier). Keyed on the run's
+# 3.6 m stride only, the run-outs fell 25% short of the floor at the top tier (4.8 m), and a planted foot
+# slid 18 cm a frame out of a leap at 60x. (The run-ups and the moves themselves are the same in all three.)
+OG, OG_LAND, SFX = RUN, RUN_LAND, ""
 LEAP_END = 37  # leap_gap's last frame: its run-out hands back at the phase it reaches (runner.ts OBSTACLES)
 
 # The start clip's run-in: one stride cycle in this many frames (the game's speed is ~6 m/s by then;
@@ -545,6 +552,12 @@ PAW_GIVE = 0.6
 R_PAW = None  # the longest the pawing leg gets: the hip-to-ankle reach at 5° of knee, a safety stop (set by configure): the curve itself turns before it
 
 
+# The hip extends on a moment after toe-off, then turns forward: the share of the push-off's extension speed
+# the swing starts with. (0.8 turned it in ~0.04 of a cycle, under a frame at the sprint's turnover: the
+# thighs' 5th-plus harmonics, the critic's judder at 5x. Cut much harder, the lifting toe dragged forward.)
+SWING_HIP_CARRY = 0.8
+
+
 def _swing_leg(s, ph, t, G):
     off = 0.0 if s == "L" else 0.5
     ts = G["ts"]
@@ -563,7 +576,7 @@ def _swing_leg(s, ph, t, G):
     # The knee is still extending through the push-off: it carries on a moment before it folds (stopped dead
     # at toe-off, the hips hauled the leg on and the lifting toe dragged forward over the floor).
     m0[1] = m0[1] if m0[1] > 0 else 0.6 * m0[1]
-    m0[0] *= 0.8  # the hip extends on a moment after toe-off, then turns forward (cut harder, the lifting toe dragged forward over the floor)
+    m0[0] *= SWING_HIP_CARRY
     m1[2] *= 0.5  # the ankle comes into the strike already turning, at half the stance's rate (at none, it turned all at once on the stone)
     m0[2] *= 0.3  # the push-off's plantarflexion eases off as the foot leaves the stone (in full it flicked on ~38° in a frame)
     m1[1] *= 0.3
@@ -689,6 +702,64 @@ EDGE = 0.04  # share of the cycle over which the swing's filter fades in after t
 
 _CYC = {}
 
+# A gait's thighs (its thigh_harm) kept to the stride's first harmonics, and its swing legs filtered wider
+# (sig_swing samples). The sprint's push-off ends in a turn back within a frame at its turnover, and what
+# that leaves above the 4th harmonic (1.5° at the 5th) aliased frame to frame: the critic's thigh judder,
+# 0.12 at 5x (limit 0.1), anywhere from 0.03 to 0.13 by how the frames fell on the stride. Through each
+# stance the knee and the hips' height take up the change, so the planted ankle (and the foot's pitch) stay
+# exactly where the stance put them; the take-up eases out over COMP_EDGE of the swing either side. (Not
+# the dash's: its hips' bob would take up to 10.5 cm/frame², and its thighs judder less.)
+COMP_EDGE = 0.06
+
+
+def _thigh_band(raw, G, k, harm):
+    import numpy as np
+    Gs = _scaled(G, k)
+    ts = Gs["ts"]
+    n = len(raw)
+    hp = [_pelvis(i / n, Gs)[2] * (0.4 + 0.6 * k) for i in range(n)]
+    out = [(dict(P), x, z) for P, x, z in raw]
+    dz = [0.0] * n
+    for s_ in "LR":
+        X = np.array([R[0][f"thigh.{s_}"][0] for R in raw])
+        F = np.fft.rfft(X)
+        F[harm + 1:] = 0
+        X2 = np.fft.irfft(F, n)
+        off = 0.0 if s_ == "L" else 0.5
+        for i in range(n):
+            P = out[i][0]
+            th = P[f"thigh.{s_}"]
+            P[f"thigh.{s_}"] = (float(X2[i]), th[1], th[2])
+            t = (i / n + off) % 1.0
+            d = 0.0 if t < ts else min(t - ts, 1.0 - t)
+            w = 1.0 - ease(d / COMP_EDGE)
+            if w <= 0.0:
+                continue
+            at = THIGH0 - hp[i] - X[i]
+            at2 = THIGH0 - hp[i] - float(X2[i])
+            kn = raw[i][0][f"shin.{s_}"][0] + K0
+            ax = LT * math.sin(at) + LS * math.sin(at - kn)
+            az = -LT * math.cos(at) - LS * math.cos(at - kn)
+            v = max(-1.0, min(1.0, (ax - LT * math.sin(at2)) / LS))
+            kn2 = at2 - math.asin(v)
+            az2 = -LT * math.cos(at2) - LS * math.cos(at2 - kn2)
+            kn_new = kn + (kn2 - kn) * w
+            P[f"shin.{s_}"] = (kn_new - K0,) + tuple(raw[i][0][f"shin.{s_}"][1:])
+            # the foot's pitch in the world kept (its joint turns by what the shin's direction changed)
+            fo = raw[i][0][f"foot.{s_}"]
+            ankle = A0 - fo[0]
+            ankle2 = ankle + ((at2 - kn_new) - (at - kn)) * w
+            P[f"foot.{s_}"] = (A0 - ankle2,) + tuple(fo[1:])
+            dz[i] += (az - az2) * w
+    res = [(P, x, z + dz[i]) for i, (P, x, z) in enumerate(out)]
+    for P, x, z in res:
+        for nm, v in P.items():
+            if any(vv != vv for vv in v):
+                raise ValueError(f"NaN in banded {nm} (k {k})")
+        if z != z:
+            raise ValueError(f"NaN hip height (k {k})")
+    return res
+
 
 def _wrap_smooth(vals, sig):
     n = len(vals)
@@ -703,6 +774,8 @@ def _cycle(G, k):
     if key_ in _CYC:
         return _CYC[key_]
     raw = [_gait(i / CYCLE_N, G, k) for i in range(CYCLE_N)]
+    if G.get("thigh_harm"):
+        raw = _thigh_band(raw, G, k, G["thigh_harm"])
     ts = _scaled(G, k)["ts"]
     names = list(raw[0][0].keys())
     out = [dict() for _ in range(CYCLE_N)]
@@ -716,7 +789,7 @@ def _cycle(G, k):
                 # no planted point, and unfiltered they flicked straight from the toe-off bend in a frame.
                 sm = _wrap_smooth(vals, SIG_TOE)
             else:
-                sm = _wrap_smooth(vals, SIG_SWING if legb else SIG_BODY)
+                sm = _wrap_smooth(vals, G.get("sig_swing", SIG_SWING) if legb else SIG_BODY)
             if legb and not nm.startswith("toe."):
                 off = 0.0 if side == "L" else 0.5
                 for i in range(CYCLE_N):
@@ -865,6 +938,9 @@ def build(rig):
     # (leap_gap's landing stride: solved here for its plant lock, not exported.)
     gait_clip("run_land", RUN_LAND)
     bpy.data.actions.remove(bpy.data.actions["run_land"])
+    for nm, G in (("sprint_land", SPRINT_LAND), ("dash_land", DASH_LAND)):
+        gait_clip(nm, G)
+        bpy.data.actions.remove(bpy.data.actions[nm])
 
     # ---------------------------------------------------------- idle: a ready stance — knees soft, weight rocking
     # from foot to foot, hands loose in front of the hips, a breathing cycle, glances back down the
@@ -1298,14 +1374,15 @@ def build(rig):
             for kp in fc.keyframe_points:
                 kp.interpolation = "LINEAR" if gait else "BEZIER"
     for act in bpy.data.actions:
-        if act.name in ("jump_log", "leap_gap", "vault"):
+        base = act.name.removesuffix("_sprint").removesuffix("_dash")
+        if base in ("jump_log", "leap_gap", "vault"):
             ease_hips(act)
         elif act.name.startswith("fall_"):
             # the crash keys' jolts (the falls key the body's path every 2-4 frames); the impacts that stop his
             # travel against something (under root motion the root carries it) a little wider still
             ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit") else 1.5 if act.name == "fall_drop" else 3.0)
             # (the drop: not σ 4 through its impact, which slowed the fall before the stone into a soft landing)
-        elif act.name == "slide":
+        elif base == "slide":
             ease_hips(act, upto=17)  # the drop only: the rise stays as keyed (head room under the bough)
         elif act.name == "win_slide":
             # The hop down onto the seat, the landing, the knee coming down and the drive up onto his feet
@@ -2218,6 +2295,10 @@ def extra_clips():
 
     epic_clips()
     obstacle_clips()
+    global OG, OG_LAND, SFX
+    for SFX, OG, OG_LAND in (("_sprint", SPRINT, SPRINT_LAND), ("_dash", DASH, DASH_LAND)):
+        obstacle_clips()
+    OG, OG_LAND, SFX = RUN, RUN_LAND, ""
     crash_clips()
 
 
@@ -2465,8 +2546,8 @@ def hand_back(f_land, Q, ph_end, f_end, f_pose=None, k0=1.0, absorb=None, sink=0
     for fr in range(f_pose + 1, f_end + 1):
         ph = (ph_end - (f_end - fr) * OBST_CADENCE / FPS) % 1.0
         k = k0 + (1.0 - k0) * (fr - f_pose) / (f_end - f_pose)
-        P, x = loco(ph, RUN, k)
-        z = gait_root(ph, RUN, k)
+        P, x = loco(ph, OG, k)
+        z = gait_root(ph, OG, k)
         a = max(0.0, 1.0 - abs(fr - (f_land + 2)) / 2.0) if absorb else 0.0
         if a > 0:
             absorb(P, a)
@@ -2593,7 +2674,7 @@ def obstacle_clips():
     # heel leading, the trunk dips toward it and the left arm reaches along it while the right swings
     # back; the left (trail) leg folds and comes over high and out to the side, then pulls through to
     # become the next stride. The right foot takes the landing and he is straight back into the run.
-    new_action("jump_log")
+    new_action("jump_log" + SFX)
     run_up(4)
     T = {}
     torso(T, lean=0.38, look=0.4, hp=0.18, yaw=0.08, hyaw=-0.06)
@@ -2626,12 +2707,12 @@ def obstacle_clips():
     arm(U3, "L", fwd=0.9, elbow=0.9, out=0.15, curl=0.4)
     arm(U3, "R", fwd=0.1, elbow=1.3, out=0.3, curl=0.4)
     # Touchdown on the right (the run's right strike), the left knee driving on.
-    D, _ = loco(0.5, RUN)
+    D, _ = loco(0.5, OG)
     torso(D, lean=0.42, look=0.45, hp=0.2, yaw=-0.06, hyaw=0.05)
     leg(D, "L", hip=1.15, knee=1.75, ankle=0.05, out=0.15)
     arm(D, "R", fwd=0.85, elbow=1.4, out=0.2, curl=0.45)
     arm(D, "L", fwd=-0.55, elbow=1.15, out=0.25, curl=0.45)
-    zl = gait_root(0.5, RUN)
+    zl = gait_root(0.5, OG)
     air(6, JL_LAND, [(0.0, T), (0.17, U1), (0.5, U2), (0.78, U3), (1.0, D)], zt, zl, JL_H)
     # No pause: a slightly deeper first stance (soaking the drop), then the stride rolls on. Keyed every
     # frame on the run's own phase, advancing at the moves' cadence to the hand-back phase on the last
@@ -2640,7 +2721,7 @@ def obstacle_clips():
 
     # ---------------------------------------------------------- leap_gap: bound across a 1.5–3 m gap
     # (nominal 0.5 s flight; the runtime stretches the flight and its arc to the actual gap)
-    new_action("leap_gap")
+    new_action("leap_gap" + SFX)
     run_up(4)
     T = {}
     torso(T, lean=0.45, look=0.5, hp=0.2)
@@ -2662,14 +2743,14 @@ def obstacle_clips():
     arm(R2, "L", fwd=1.9, elbow=0.55, out=0.45, curl=0.4)
     arm(R2, "R", fwd=2.35, elbow=0.45, out=0.4, curl=0.4)
     # Landing on the run's left strike, the knee already soft, the arms out ahead for balance.
-    D, _ = loco(0.0, RUN_LAND)
+    D, _ = loco(0.0, OG_LAND)
     torso(D, lean=0.45, look=0.42, hp=0.2)
     arm(D, "L", fwd=1.2, elbow=0.5, out=0.35, curl=0.6)
     arm(D, "R", fwd=1.3, elbow=0.5, out=0.35, curl=0.6)
-    zl = gait_root(0.0, RUN_LAND)
+    zl = gait_root(0.0, OG_LAND)
     # (Arriving: eased to a stop on the strike pose, the landing leg hung still for two frames and then
     # folded 34° in one, the knee's give at the top tier's rate a snap.)
-    D1, _ = loco(OBST_CADENCE / FPS, RUN_LAND)
+    D1, _ = loco(OBST_CADENCE / FPS, OG_LAND)
     D["foot.L"] = lerp_pose({"f": D["foot.L"]}, {"f": D1["foot.L"]}, 0.4)["f"]
     air(7, 22, [(0.0, T), (0.35, R1), (0.78, R2), (1.0, D)], zt, zl, 0.31, arrive=True)
     # Heavy landing, on the stride: the first stance soaks the drop deep (the hips sink, the knee folds,
@@ -2684,10 +2765,10 @@ def obstacle_clips():
         ph = ((fr - 22) * OBST_CADENCE / FPS) % 1.0
         u = (fr - 22) / float(LEAP_END - 22)
         wl = 1.0 - ease(u / 0.75)  # the deep stride, eased out over three quarters of the run-out
-        P1, x1 = loco(ph, RUN_LAND)
-        P0, x0 = loco(ph, RUN)
+        P1, x1 = loco(ph, OG_LAND)
+        P0, x0 = loco(ph, OG)
         P = lerp_pose(P0, P1, wl)
-        z = gait_root(ph, RUN) + (gait_root(ph, RUN_LAND) - gait_root(ph, RUN)) * wl
+        z = gait_root(ph, OG) + (gait_root(ph, OG_LAND) - gait_root(ph, OG)) * wl
         x = x0 + (x1 - x0) * wl
         # The trunk and arms come up out of the landing over the first steps (the pelvis keeps the
         # stride's own swing and tilt under them: the legs are solved from it).
@@ -2701,7 +2782,7 @@ def obstacle_clips():
         key(fr, P, z=z, x=x)
 
     # ---------------------------------------------------------- slide: under a low beam (head ≤ ~1.0 m), up running
-    new_action("slide")
+    new_action("slide" + SFX)
     # (The run-up is 8 frames, not 4: the drop now comes as the lead (left) leg is already swinging through,
     # off the right foot's strike. Out of the left foot's stance it had to reach ~1 m forward in two
     # frames, and at the top tier's rate the foot jumped 75 cm in one.)
@@ -2767,7 +2848,7 @@ def obstacle_clips():
     # (pillar_topple_0: Ø 0.95 m, top ~0.93 m). Off the left foot, the right hand plants on top; the body
     # leans out over it while both legs swing round to the left, near level, knees soft; the hand stays
     # put as he passes over it (it slides back with the floor), then shoves off; the left foot lands.
-    new_action("vault")
+    new_action("vault" + SFX)
     run_up(4)
     T = {}
     torso(T, lean=0.55, look=0.45, hp=0.2, yaw=-0.1)
@@ -2852,7 +2933,10 @@ def obstacle_clips():
     # The palm on the stone: through the plant the right wrist is held (IK, baked) on the pillar's top,
     # which slides back past him with the floor at run pace (5 m/s in clip time).
     apex = 0.5 * (5 / 30 + (V_LAND - 1) / 30)
-    plant_hand("vault", "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.93), ramp=3)
+    plant_hand("vault" + SFX, "R", V_PLANT[0], V_PLANT[1], lambda t: (-0.2, 5.0 * (apex - t), 0.93), ramp=3)
+
+    if SFX:
+        return  # (the cuts and the stumble: one stride only)
 
     # ---------------------------------------------------------- turn_cut_L / _R: plant the outside foot, cut 90°
     for side in "LR":

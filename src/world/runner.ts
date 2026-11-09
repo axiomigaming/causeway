@@ -226,16 +226,19 @@ function smoothstep(a: number, b: number, x: number): number {
  * warm bounce from below, scaled by the albedo so it shades rather than flattens) and a faint rim along
  * the contour. The world's lights are untouched.
  */
-export const RUNNER_FILL = 0.3;
+export const RUNNER_FILL = 0.2;
+/** The sun's shadow biases on him (normal offset, m; depth, in the shadow map's depth units over its 129 m). */
+const RUNNER_SHADOW_NORMAL = 0.02;
+const RUNNER_SHADOW_BIAS = -0.00012;
 /** The skin's warmth and wrap (0 off, 1 as tuned), on the skin mask the ORM map carries in R. */
 export const RUNNER_SKIN = 1;
 /** How far past the skin the wrap's shadow test looks for the world's casters (m): more than his body's depth. */
 const SKIN_SHADOW_SLACK = 0.7;
 /** The sun's shadow camera depth range (render/game.ts: near 1, far 130), to put the slack in its depth units. */
 const SUN_SHADOW_DEPTH = 129;
-export const RUNNER_RIM = 0.4;
+export const RUNNER_RIM = 0.3;
 /** A cool sky-light edge (not tinted by the albedo), so the figure separates from the terracotta. */
-export const RUNNER_COOL_RIM = 0.22;
+export const RUNNER_COOL_RIM = 0.12;
 /** How wet he is (0..1): eases toward the world's rain wetness, so hair and shirt darken and take a sheen. */
 const runnerWet = { value: 0 };
 /**
@@ -274,6 +277,13 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
     sh.uniforms.uRunnerGround = runnerLight.ground;
     sh.uniforms.uRunnerSun = runnerLight.sun;
     sh.uniforms.uRunnerK = runnerLight.k;
+    // His own shadows (the arms across the trunk, the harness, the pack) as crisp as the world's: the sun's
+    // biases are sized for the long causeway (a normal offset of 6 cm and a depth bias of ~5 cm), which on a
+    // body lifted the shade off anything within a hand's width of what casts it. On him, 2 cm and 1.5 cm.
+    sh.vertexShader = sh.vertexShader.replace(
+      '#include <shadowmap_vertex>',
+      THREE.ShaderChunk.shadowmap_vertex.replace(/directionalLightShadows\[ i \]\.shadowNormalBias/g, `min( directionalLightShadows[ i ].shadowNormalBias, ${RUNNER_SHADOW_NORMAL.toFixed(3)} )`),
+    );
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform float uRunnerFill;\nuniform float uRunnerRim;\nuniform float uRunnerCool;\nuniform float uRunnerWet;\nuniform float uRunnerSkin;\nfloat runnerSkin = 0.0;\nuniform vec3 uRunnerSky;\nuniform vec3 uRunnerGround;\nuniform vec3 uRunnerSun;\nuniform float uRunnerK;')
       // Rain: wet cloth and hair darken a little and turn glossy (rougher stays rougher).
@@ -295,7 +305,7 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
           sk = mix(vec3(l), sk, 1.18) * vec3(1.06, 0.98, 0.9);
           diffuseColor.rgb = mix(diffuseColor.rgb, max(sk, 0.0), runnerSkin * uRunnerSkin);
         }
-        #include <lights_fragment_begin>
+        ${THREE.ShaderChunk.lights_fragment_begin.replace('directionalLightShadow.shadowBias', `max( directionalLightShadow.shadowBias, ${RUNNER_SHADOW_BIAS.toFixed(5)} )`)}
         #if NUM_DIR_LIGHTS > 0
         {
           // Wrap: the sun reaches a little past the terminator through the skin, reddened (light that has
@@ -310,7 +320,8 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
             dl = directionalLights[i];
             float nl = dot(geometryNormal, dl.direction);
             float wrap = nl < 0.0 ? saturate((nl + 0.45) / 1.45) : 0.0;
-            float vis = 1.0;
+            // (The sun only: three puts the shadow-casting light first; the bounce fill behind the lens gets none.)
+            float vis = UNROLLED_LOOP_INDEX == 0 ? 1.0 : 0.0;
             #if defined( USE_SHADOWMAP ) && ( UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS )
               vec4 sc = vDirectionalShadowCoord[i];
               sc.z -= ${(SKIN_SHADOW_SLACK / SUN_SHADOW_DEPTH).toFixed(5)} * sc.w;
@@ -449,6 +460,13 @@ export class Runner {
   private mixer: THREE.AnimationMixer;
   private actions = new Map<string, THREE.AnimationAction>();
   private weights = new Map<string, number>();
+  /**
+   * The moves' copies keyed on the sprint's and the dash's stride (`slide_sprint`, `leap_gap_dash`...): only
+   * their run-outs differ. They play in step with the move and share its weight by the tier's gait mix, so a
+   * run-out's planted foot keeps pace with the floor at any tier. (On the run's stride alone the run-outs
+   * fell 25% short at the top tier: a foot slid 18 cm a frame out of a leap at 60x.)
+   */
+  private strideCopies = new Map<string, Partial<Record<'sprint' | 'dash', THREE.AnimationAction>>>();
   private current: RunnerAnim = 'idle';
   private fade = 0.25;
   /** Gait cycle phase, 0..1 (0 = left strike, 0.5 = right strike). */
@@ -627,6 +645,15 @@ export class Runner {
     this.mixer = new THREE.AnimationMixer(this.body);
     for (const clip of kit.runner.clips) {
       const a = this.mixer.clipAction(clip);
+      const copy = /^(.+)_(sprint|dash)$/.exec(clip.name);
+      if (copy && copy[1]! in OBSTACLES) {
+        a.setLoop(THREE.LoopOnce, 1);
+        a.clampWhenFinished = true;
+        const c = this.strideCopies.get(copy[1]!) ?? {};
+        c[copy[2] as 'sprint' | 'dash'] = a;
+        this.strideCopies.set(copy[1]!, c);
+        continue;
+      }
       if (ONE_SHOT.has(clip.name)) {
         a.setLoop(THREE.LoopOnce, 1);
         a.clampWhenFinished = true;
@@ -696,7 +723,11 @@ export class Runner {
     if (name === this.current) return;
     // Out of the slide, lying back on the stone with the lead leg out straight, a fall rises over a longer
     // blend: over 0.2 s the straight leg swung down through the floor in two frames as the hips came up.
-    if (this.current === 'slide' && name.startsWith('fall_') && !DROPS.has(name)) fade = Math.max(fade, 0.45);
+    // (And while the slide is still fading out under the run it handed back to: over the run's short blend the
+    // slide's last weight, lying back on the stone, went in a few frames — a rockfall staged just after a
+    // slide jolted the hips 20 cm/frame² and snapped a foot 28°.)
+    const lying = this.current === 'slide' || (this.weights.get('slide') ?? 0) > 0.02;
+    if (lying && name.startsWith('fall_') && !DROPS.has(name)) fade = Math.max(fade, 0.45);
     // An escape called mid obstacle waits for the move to hand back to the run, then for the strike as
     // from the run. (Started at once, win_slide's own run-in played over the move's pose: a 49 cm foot
     // step and a snapped foot as a turn_cut handed straight into the slide.)
@@ -1046,12 +1077,15 @@ export class Runner {
     for (const [k, x] of split) {
       const a = this.actions.get(k)!;
       const w = sum > 0 ? x / sum : 0;
+      const copies = this.strideCopies.get(k);
       if (w > 0.001) {
         if (!a.isRunning() && !(ONE_SHOT.has(k) && a.time > 0)) a.play();
         a.enabled = true;
-        a.setEffectiveWeight(w);
+        if (copies) this.strideShare(a, w, copies, mix);
+        else a.setEffectiveWeight(w);
       } else if (a.isRunning() || a.enabled) {
         a.setEffectiveWeight(0);
+        if (copies) for (const c of Object.values(copies)) c.stop();
         if (!this.isActive(k)) {
           a.stop();
           this.weights.set(k, 0);
@@ -1164,6 +1198,33 @@ export class Runner {
     }
     this.pending = { name, fade, offset: 0, until: this.t + wait };
     return wait;
+  }
+
+  /**
+   * A move's weight `w` shared between it (the run's stride) and its stride copies by the gait mix; the
+   * copies are held on the move's own time and rate (the mixer then steps all of them alike).
+   */
+  private strideShare(a: THREE.AnimationAction, w: number, copies: Partial<Record<'sprint' | 'dash', THREE.AnimationAction>>, mix: Record<string, number>): void {
+    let own = mix.run ?? 1;
+    for (const g of ['sprint', 'dash'] as const) {
+      const c = copies[g];
+      const m = mix[g] ?? 0;
+      if (!c) {
+        own += m;
+        continue;
+      }
+      if (m * w > 0.001) {
+        // (Restarted with the move, or caught up after it; a finished copy is clamped and paused.)
+        if (!c.isRunning() || c.time > a.time + 1e-4) {
+          c.reset();
+          c.play();
+        }
+        c.timeScale = a.timeScale;
+        c.time = a.time;
+        c.setEffectiveWeight(m * w);
+      } else if (c.isRunning()) c.stop();
+    }
+    a.setEffectiveWeight(own * w);
   }
 
   /** A footfall: on planks the boards give under it (see plank in overlays); then the world's cue. */
