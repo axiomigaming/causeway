@@ -2696,7 +2696,7 @@ export class Game {
     look.y -= drop * (0.35 + 1.0 * k);
     // A tall screen's wide lens closes a little under the beam (the underside, a metre over the
     // floor, filled 40 % of its frame as it passed over).
-    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.16 : 0.05) * k;
+    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.24 : 0.05) * k;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
