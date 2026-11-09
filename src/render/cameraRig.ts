@@ -1412,12 +1412,18 @@ export class CameraRig {
     const headCap = this.mode === 'crash' ? Math.max(hiT, 0.92 * tanV) : hiT;
     if (tilt < 0) tilt = -Math.min(-tilt, Math.max(0, Math.atan(headCap) - Math.atan(m.head)));
     else if (tilt > 0) tilt = Math.min(tilt, Math.max(0, Math.atan(m.feet) - Math.atan(loT)));
+    // (Camera round 2, QA hunt: out of the title's high pass the setup does not drag him into the
+    // band from 9.8 m up — that tilt pointed the first frames after ENTER down onto the crown of
+    // the arch under the lens. The framing comes in as the lens descends, with the aim.)
+    const high = this.mode === 'setup' ? ease(THREE.MathUtils.clamp((this.pos.y - runnerPos.y - 3.4) / 4.4, 0, 1)) : 0;
+    tilt *= 1 - high;
     if (Math.abs(tilt) > 1e-4) c.rotateX(tilt);
     // Horizontal: both arms inside the side margins.
     const mT = mx * tanH;
     let pan = 0;
     if (m.left < -mT) pan = Math.atan(-mT) - Math.atan(m.left);
     else if (m.right > mT) pan = -(Math.atan(m.right) - Math.atan(mT));
+    pan *= 1 - high;
     // The result shot on landscape: pan so he stands on a third, beside the interface column.
     if (this.sideK > 0.001) {
       const cx = (m.left + m.right) / 2;
