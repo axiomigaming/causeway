@@ -1404,22 +1404,31 @@ export class CameraRig {
       }
       return true;
     };
-    // The limbs' velocities (world, per second of real time), for the lead in measure().
+    // The limbs' velocities about his body (world, per second of real time), for the lead in
+    // measure(). (About the body only: the whole figure carried by a throw is the follow's to lead —
+    // leading every limb by the throw's speed panned on past where he landed, off the frame.)
     if (this.bodyPts) {
       const pts = this.bodyPts;
+      const bv = this.bodyVel;
+      const ok = this.bodyPrevOk && rdt > 1e-4;
+      if (ok) bv.copy(runnerPos).sub(this.bodyPrev).divideScalar(rdt);
+      else bv.set(0, 0, 0);
+      this.bodyPrev.copy(runnerPos);
+      this.bodyPrevOk = true;
       while (this.limbPrev.length < pts.length) this.limbPrev.push(null);
       while (this.limbVel.length < pts.length) this.limbVel.push(null);
       pts.forEach((b, i) => {
         const prev = this.limbPrev[i];
-        if (prev && rdt > 1e-4) {
-          const v = (this.limbVel[i] ??= new THREE.Vector3()).copy(b).sub(prev).divideScalar(rdt);
-          if (v.length() > 12) v.setLength(12);
+        if (prev && ok) {
+          const v = (this.limbVel[i] ??= new THREE.Vector3()).copy(b).sub(prev).divideScalar(rdt).sub(bv);
+          if (v.length() * LIMB_LEAD > 0.6) v.setLength(0.6 / LIMB_LEAD);
         } else this.limbVel[i] = null;
         (this.limbPrev[i] ??= new THREE.Vector3()).copy(b);
       });
     } else {
       this.limbPrev.length = 0;
       this.limbVel.length = 0;
+      this.bodyPrevOk = false;
     }
     if (!measure()) return;
     const m = this.frameM;
@@ -1517,6 +1526,9 @@ export class CameraRig {
   }
   private limbPrev: (THREE.Vector3 | null)[] = [];
   private limbVel: (THREE.Vector3 | null)[] = [];
+  private bodyPrev = new THREE.Vector3();
+  private bodyVel = new THREE.Vector3();
+  private bodyPrevOk = false;
   private framePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   private frameM = { feet: 0, head: 0, left: 0, right: 0, depth: 0 };
   private tmpInv = new THREE.Matrix4();
