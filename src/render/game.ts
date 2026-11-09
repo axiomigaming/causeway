@@ -1461,6 +1461,10 @@ export class Game {
         if (p.x < b.min.x - 1.2 || p.x > b.max.x + 1.2 || p.z < b.min.z - 1.2 || p.z > b.max.z + 1.2) continue;
         floor = Math.max(floor, b.max.y + 0.35);
       }
+      // (World pieces — the jump log of world 11 — by their span and height: the lens rises over the
+      // 4 m before the near face and settles over the metre past the far one.)
+      const top = this.obstacles.jumpTopAt(s, 4);
+      if (top !== null && top > 0) floor = Math.max(floor, fy + top + 0.4);
     }
     const L = this.ledgeBed;
     if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
