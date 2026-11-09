@@ -1501,7 +1501,10 @@ export class Runner {
       this.rotate(b.spine, -0.1 * e, 0, 0);
       this.rotate(b.upper_armL, -0.2 * e, 0, 0.45 * e);
       this.rotate(b.upper_armR, -0.2 * e, 0, -0.45 * e);
-      lift += 0.8 * u * (1 - u) * (1 - smoothstep(0.85, 1, u) * 0.2);
+      // (The lift fades with the beat, eased, as its pose does: cut short by a crash mid-bound, it held its
+      // 17-20 cm until the fade ended and dropped in a frame, the hips with it: 20 cm/frame² at the fall's
+      // f4-5, fall_gate, fall_rock and fall_chasm alike.)
+      lift += 0.8 * u * (1 - u) * (1 - smoothstep(0.85, 1, u) * 0.2) * smoothstep(0, 1, G);
       if (t0 < T && this.hopT >= T) {
         this.step('L', 0.85);
         this.step('R', 0.85);
