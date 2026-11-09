@@ -50,7 +50,7 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
   jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
   leap_gap: { from: 0, to: 0.9725, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
-  slide: { from: 0, to: 0.45, duration: 29 / 30, takeoff: 6 / 30, land: 20 / 30 },
+  slide: { from: 0, to: 0.45, duration: 33 / 30, takeoff: 10 / 30, land: 24 / 30 },
   vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
   turn_cut_R: { from: 0.5, to: 0.5, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
@@ -58,6 +58,9 @@ export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: n
 };
 /** The stride cadence the moves were authored at (one stride cycle per ~0.51 s of clip time). */
 const OBST_CADENCE = 1.945;
+/** The bank into a turn: at most BANK_MAX (rad), reached softly (BANK_SOFT, rad of physical lean). */
+const BANK_MAX = (18 * Math.PI) / 180;
+const BANK_SOFT = (15 * Math.PI) / 180;
 /** The upper arm's twist about its length, at most (rad): the critic's range is 110°. */
 const ARM_TWIST_MAX = (100 * Math.PI) / 180;
 /** How fast the root's take of a clip's travel may change (m/s²): 4 cm/frame² at 30 fps. */
@@ -175,7 +178,7 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.967, 'R', 0.2], [2.167, 'L', 0.2], [2.367, 'R', 0.2], [2.567, 'L', 0.2], [3.5, 'L', 0.7], [3.51, 'R', 0.7], [4.07, 'L', 0.7], [4.08, 'R', 0.7]],
   jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
   leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.96, 'R', 0.9]],
-  slide: [[0.2, 'L', 0.6], [0.667, 'L', 0.6]],
+  slide: [[0.333, 'L', 0.6], [0.8, 'L', 0.6]],
   vault: [[0.167, 'L', 0.6], [0.4, 'R', 0.3], [0.7, 'L', 0.9]],
   turn_cut_L: [[0.267, 'R', 0.85]],
   turn_cut_R: [[0.267, 'L', 0.85]],
@@ -871,7 +874,8 @@ export class Runner {
       // skated 14-21 cm/frame out of a leap).
       // (leap_gap over two: its run-out is keyed on the run, and at the top tiers the gait it hands to
       // leans further; over 0.1 s the head swung 4 cm forward in a frame.)
-      const handFade = this.obst.name === 'leap_gap' ? 0.2 : 0.1;
+      // (And the slide: its run-out too; at the top tier the hands swung 34 cm in a frame.)
+      const handFade = this.obst.name === 'leap_gap' || this.obst.name === 'slide' ? 0.2 : 0.1;
       if (a.time >= O.duration - handFade * a.timeScale - 0.005) {
         this.obst = null;
         this.start('run', handFade, 0);
@@ -1101,8 +1105,14 @@ export class Runner {
     const omega = 0.5 * this.yawRate + 0.5 * (ahead / 0.45);
     const onFeet = this.current === 'run' || this.obst !== null || this.current === 'start';
     // (+ about the body's Z tips him to his left: into a left turn. The old roll had it the other way out.)
-    const bankTo = onFeet ? THREE.MathUtils.clamp(Math.atan((speed * omega) / 9.81) * 0.5, -0.4, 0.4) : this.roll;
-    this.bank += (bankTo - this.bank) * (1 - Math.exp(-dt * 7));
+    // From the lateral acceleration v·ω (v²/r): the physical lean atan(a/g), compressed so a gentle bend
+    // reads 8-12° and the sharpest cut at the top tier ~18°. (Half the physical lean, capped at 23°, tilted
+    // him like a skier on every bend.)
+    const phys = Math.atan(Math.abs(speed * omega) / 9.81);
+    // (A turn cut leans into the turn in its own keys (~8°): the layer adds less there.)
+    const cutK = this.current.startsWith('turn_cut') ? 0.5 : 1;
+    const bankTo = onFeet ? Math.sign(omega) * BANK_MAX * cutK * (1 - Math.exp(-phys / BANK_SOFT)) : this.roll;
+    this.bank += (bankTo - this.bank) * (1 - Math.exp(-dt * 5));
     this.body.rotation.z = this.bank;
     // (A turn cut keys its own lead.)
     const leadTo = onFeet && !this.current.startsWith('turn_cut') ? THREE.MathUtils.clamp(ahead, -1, 1) : 0;
