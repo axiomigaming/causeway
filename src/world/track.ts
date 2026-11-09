@@ -327,8 +327,8 @@ class TileSystem {
   }
 }
 
-/** World round 27: how far into a world (m) each of its two opening sections sets its hero feature. */
-const OPENING_HERO_S = [42, 64];
+/** World round 27: how far into a world (m) its two hero features stand (in its opening sections). */
+const OPENING_HERO_S = [44, 64];
 
 export class Track {
   readonly root = new THREE.Group();
@@ -551,9 +551,9 @@ export class Track {
     const k = r.int(0, 7);
     const ruin = r.range(0, 0.4);
     const seed = `${type}#${k}/open/${this.worldSeed}${nth ? `/${nth}` : ''}`;
-    // (World round 27: its hero feature ~42 m into the world for the first, ~64 m for the second: in a
-    // portrait frame from about 1 s to 5 s, and 5 s to 9 s, of the run.)
-    const opts = { heroAt: OPENING_HERO_S[Math.min(nth, OPENING_HERO_S.length - 1)]! - this.path.length };
+    // (World round 27: its hero feature aimed ~44 m into the world for the first, ~64 m for the second,
+    // or as near as the section reaches: the far end of each, mostly.)
+    const opts = { heroAt: [OPENING_HERO_S[Math.min(nth, OPENING_HERO_S.length - 1)]! - this.path.length] };
     const layout = buildLayout(type, seed, this.density, undefined, ruin, opts);
     const full = this.density.foliage >= 1 && this.density.scenery >= 1;
     const solidLayout = full ? layout : buildLayout(type, seed, { foliage: 1, scenery: 1 }, undefined, ruin, opts);

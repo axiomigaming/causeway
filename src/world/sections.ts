@@ -2063,19 +2063,20 @@ export const HERO_KINDS = ['statue', 'column', 'falls', 'tree', 'ruin'] as const
  * World round 27 (the owner: on a phone, held upright, the worlds' openings looked alike): a strong
  * feature on the near side of each of a world's two opening sections — a colossal guardian, a fallen
  * column, a ruined wall with a fall pouring off it into the water, a great tree, or a ruined wall end-on
- * to the way — `at` m into the section (Track.spawn puts the first ~42 m and the second ~64 m into the
- * world: in a portrait frame through the first ten seconds, the one then the other). Placed against the
+ * to the way — `at` m into the section (Track.spawn aims the first section's at ~44 m into the world
+ * and the second's at ~64 m, or as near as the section reaches — most stand ~30 m and ~45-55 m in: in a
+ * portrait frame through the first six seconds or so, the one then the other). Placed against the
  * route (a bend's arc, not the section's straight axis) and within ~5 m of it, where an upright frame
  * still holds it 10 m out. Which, on which side, from the world's own seed (a generator of its own: the
  * layout's stream is untouched). Returns the kind placed.
  */
-function openingHero(b: Builder, len: number, turn: number, at: number | undefined, ground?: GroundKind): (typeof HERO_KINDS)[number] {
-  const r = new Rng(`${b.seed}/hero`);
+function openingHero(b: Builder, len: number, turn: number, at: number | undefined, ground?: GroundKind, tag = ''): (typeof HERO_KINDS)[number] {
+  const r = new Rng(`${b.seed}/hero${tag}`);
   let kind = HERO_KINDS[r.int(0, HERO_KINDS.length - 1)]!;
   // (A fall pours into water: on land, the great tree instead.)
   if (kind === 'falls' && ground) kind = 'tree';
   const side = r.chance(0.5) ? -1 : 1;
-  const u0 = Math.min(len - 3, Math.max(7, at ?? len * r.range(0.4, 0.75)));
+  const u0 = at === undefined ? Math.min(len - 3, Math.max(7, len * r.range(0.4, 0.75))) : Math.min(len - 2, Math.max(2, at));
   // A point `x` m right of the route, `du` m past the hero's place along it, and the route's heading there.
   const f = { pos: new THREE.Vector3(), yaw: 0 };
   const P = (x: number, du = 0) => {
@@ -2099,7 +2100,7 @@ function openingHero(b: Builder, len: number, turn: number, at: number | undefin
     if (ground) b.place('column_fallen_0', q.x, g(q.x, q.z) + 0.2, q.z, ry, sc, slopeTilt(b, q.x, q.z, ry, ground, 2.5));
     else b.place('column_fallen_0', q.x, WL + 0.05, q.z, ry, sc, [0.08, 0]);
     const c = P(side * 4.4, 3.5);
-    b.place('column_lone_0', c.x, ground ? g(c.x, c.z) - 0.1 : WL - 0.3, c.z, r.range(0, 6.28), 0.55);
+    b.place('column_lone_0', c.x, ground ? g(c.x, c.z) - 0.1 : WL - 0.3, c.z, r.range(0, 6.28), 0.8);
   } else if (kind === 'falls') {
     // A tall ruined wall standing in the water beside the way, a fall pouring off its crest.
     const x = PATH_HALF + 2.4;
@@ -2158,7 +2159,7 @@ function ruinedSkyline(b: Builder, len: number, ruin: number, ground?: GroundKin
   }
 }
 
-export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0, opts: { heroAt?: number } = {}): Layout {
+export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0, opts: { heroAt?: number[] } = {}): Layout {
   const rng = new Rng(seed);
   const def = BUILDERS[type];
   const L = len ?? rng.pick(def.lengths);
@@ -2170,8 +2171,13 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   const r = def.build(b, L);
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin, r.ground);
-  // (World round 27: the opening's hero feature; not in a tunnel, nor on a corner or the stairs.)
-  const hero = b.opening && !['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown', 'start'].includes(type) ? openingHero(b, L, r.turn ?? 0, opts.heroAt, r.ground) : undefined;
+  // (World round 27: the opening's hero features — at the distances given, or as near them as the
+  // section reaches — not in a tunnel, nor on a corner or the stairs.)
+  let hero: string | undefined;
+  if (b.opening && !['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown', 'start'].includes(type)) {
+    const at = opts.heroAt ? opts.heroAt.map((u) => Math.min(L - 2, Math.max(2, u))) : [undefined];
+    hero = at.map((u, i) => openingHero(b, L, r.turn ?? 0, u, r.ground, i ? `/${i}` : '')).join('+') || undefined;
+  }
   return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, ramp: r.ramp, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: hero ? { ...r.features, hero } : r.features };
 }
 
