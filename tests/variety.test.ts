@@ -319,12 +319,14 @@ it('draws sections at the water level without a near/far split on the lightest t
         } else {
           lowered++;
           expect(isLand(sec.type)).toBe(false);
+          // (World round 26: a flight down as well, its far props raised to the water in the merge.)
+          expect(far, `${sec.type} a flight down`).toEqual([]);
         }
       }
     }
   }
   expect(level).toBeGreaterThan(20);
-  void lowered;
+  expect(lowered).toBeGreaterThan(0);
 }, 300000);
 
 /**
