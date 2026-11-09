@@ -13,6 +13,12 @@ export const foliageUniforms = {
   uLeafTrans: { value: 1 },
   /** 1: cards seen edge-on dissolve (0 for QA). */
   uLeafEdge: { value: 1 },
+  /**
+   * 1 (Low, no MSAA): the alpha test's hard cut becomes a coverage ramp about a pixel wide, dithered
+   * in screen space (a stable 4×4 ordered pattern), which the FXAA pass resolves into a soft edge.
+   * QA hunt: on phone Low the crowns' cut-outs stood as stair-stepped, blocky silhouettes.
+   */
+  uLeafSoft: { value: 0 },
 };
 if (import.meta.env.DEV) (globalThis as Record<string, unknown>).__foliage = foliageUniforms;
 
@@ -38,6 +44,7 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
     prev?.call(sm, shader, renderer);
     shader.uniforms.uLeafTrans = foliageUniforms.uLeafTrans;
     shader.uniforms.uLeafEdge = foliageUniforms.uLeafEdge;
+    shader.uniforms.uLeafSoft = foliageUniforms.uLeafSoft;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLeafW;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvLeafW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -48,6 +55,14 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
         varying vec3 vLeafW;
         uniform float uLeafTrans;
         uniform float uLeafEdge;
+        uniform float uLeafSoft;
+        float leafBayer(vec2 f) {
+          // 4×4 ordered dither, thresholds in (0, 1).
+          vec2 p = mod(floor(f), 4.0);
+          int i = int(p.x) + 4 * int(p.y);
+          float m[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+          return (m[i] + 0.5) / 16.0;
+        }
         float leafH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float leafN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(leafH(i), leafH(i + vec2(1, 0)), f.x), mix(leafH(i + vec2(0, 1)), leafH(i + vec2(1, 1)), f.x), f.y); }`,
@@ -87,7 +102,16 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
           diffuseColor.a = mix(diffuseColor.a, smoothstep(0.22, 0.55, diffuseColor.a), leafFar);
           diffuseColor.rgb *= mix(vec3(1.0), vec3(0.72, 0.82, 0.7), leafFar);
         }
+        #if defined(USE_ALPHATEST) && !defined(ALPHA_TO_COVERAGE)
+        if (uLeafSoft > 0.5) {
+          // Coverage from the alpha's distance to the cut, in pixels: a ~1 px ramp at the edge.
+          float aw = max(fwidth(diffuseColor.a), 1e-3);
+          float cov = clamp((diffuseColor.a - alphaTest) / aw + 0.5, 0.0, 1.0);
+          if (cov <= leafBayer(gl_FragCoord.xy)) discard;
+        } else if (diffuseColor.a < alphaTest) discard;
+        #else
         #include <alphatest_fragment>
+        #endif
         // Past the alpha test a leaf is opaque: the frame's alpha channel marks water for the
         // reflection pass, and a leaf left at its texel alpha (≤ 0.6 in the mips of a cluster)
         // was taken for water and painted over with the sky.

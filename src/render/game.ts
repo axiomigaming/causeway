@@ -19,6 +19,7 @@ import { isLand, PATH_HALF } from '../world/sections';
 import { Track, type TileSlot } from '../world/track';
 import type { Look } from '../world/look';
 import { WATER_Y, Water } from '../world/water';
+import { foliageUniforms } from '../world/foliage';
 import { Ambient } from './ambient';
 import { CameraRig } from './cameraRig';
 import { Motes, Particles } from './particles';
@@ -570,6 +571,8 @@ export class Game {
     this.ambient.setBudget(q.ambientLife);
     this.water.setDetail(q.waterDetail);
     this.water.setReflections(q.waterReflections > 0);
+    // No MSAA and the lowest resolution: leaf cut-outs take the dithered coverage edge (foliage.ts).
+    foliageUniforms.uLeafSoft.value = level === 'low' ? 1 : 0;
     this.motes.setBudget(q.motes);
     this.mistAmount = q.mist;
     this.shadowExtent = q.shadowExtent;
