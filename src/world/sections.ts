@@ -241,6 +241,8 @@ class Builder {
 const LOW_WALLS = ['wall_low_0', 'wall_low_1', 'wall_low_2', 'wall_low_3'];
 /** Their heights (blender/build_kit.py): where a bush on the crest sits. */
 const LOW_WALL_H: Record<string, number> = { wall_low_0: 1.3, wall_low_1: 1.6, wall_low_2: 1.15, wall_low_3: 1.8 };
+/** World round 26: the low walls' highest stones (kit bounds), for what is seated on their crests. */
+const WALL_TOP: Record<string, number> = { wall_low_0: 1.64, wall_low_1: 1.71, wall_low_2: 0.98, wall_low_3: 2.27 };
 /** Wall pieces modelled with an ivy companion (`<piece>_ivy`, the leaf atlas). */
 const IVY = new Set([...LOW_WALLS, 'wall_mid_0', 'wall_mid_1']);
 const FLOORS = ['floor_0', 'floor_1', 'floor_0', 'floor_1', 'floor_2'];
@@ -613,7 +615,7 @@ function lowWallRuns(b: Builder, z0: number, n: number, sides: number[], opts: {
         // opening shot, its carving read as a soft, mottled block.)
         if (!carvedRun && !(b.opening && z > -16)) b.place('serpent_0', side * (PATH_HALF + 0.36), 0, z + 0.45, 0);
         carvedRun = true;
-        if (b.foliage(0.3)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.7, z - 2, -side * Math.PI / 2, [0.55, b.rng.range(0.4, 0.6), 1]);
+        if (b.foliage(0.3)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.45, z - 2, -side * Math.PI / 2, [0.55, b.rng.range(0.4, 0.6), 1]);
         continue;
       }
       carvedRun = false;
@@ -621,7 +623,9 @@ function lowWallRuns(b: Builder, z0: number, n: number, sides: number[], opts: {
       const lw = b.density.scenery < 0.5 && b.rng.chance(0.7) ? b.rng.pick(['wall_low_1', 'wall_low_2']) : b.rng.pick(LOW_WALLS);
       b.wall(lw, side, PATH_HALF + 0.36, 0, z);
       // Round 11 detail: now and then roots creeping over the parapet and down its sides.
-      if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), 1.5, z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
+      // (World round 26: their crook on the wall's own crest — at a fixed 1.5 m the roots' hooks stood
+      // in the air over the low, ragged walls, black claws against the sky.)
+      if (b.rich && b.foliage(0.14)) b.place(`roots_${b.rng.int(0, 1)}`, side * (PATH_HALF + 0.75), Math.min(1.5, WALL_TOP[lw]! - 0.35), z - b.rng.range(1, 3), -side * Math.PI / 2, [0.5, b.rng.range(0.35, 0.5), 0.9]);
       // (World round 19: seated into the wall's crest by its own height; at a fixed 0.9–1.4 m one
       // floated over the low, ragged walls and their gaps.)
       // (Round 23: seated on the crest's outer half — the broad bush hung 0.7 m into the running line.)
