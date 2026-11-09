@@ -257,6 +257,17 @@ export class ObstacleDirector {
     return out;
   }
 
+  /** Camera round 2: the standing overhead pieces (the lintels he slides under) between s0 and s1. */
+  overheadPieces(s0: number, s1: number, out: THREE.Object3D[]): THREE.Object3D[] {
+    out.length = 0;
+    for (const l of this.live) {
+      if (!l.ceil || l.s < s0 || l.s > s1) continue;
+      for (const o of l.objs) out.push(o);
+      if (l.world) out.push(l.world.root);
+    }
+    return out;
+  }
+
   /**
    * Camera round 2: the highest top (m over the path) of a world piece he jumps (a fallen log, a
    * bough) whose span, widened by `pad` metres, takes in route distance `s`; else null. (Their

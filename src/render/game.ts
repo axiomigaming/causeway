@@ -1371,7 +1371,8 @@ export class Game {
   private debrisCrane(dt: number): void {
     let want = 0;
     if (this.stage === 'crash') {
-      const cam = this.rig.camera.position;
+      // (Tested from where the lens would be without the crane, so it holds while it helps.)
+      const cam = this.tmpCrane2.copy(this.rig.camera.position).setY(this.rig.camera.position.y - this.rig.craneUp);
       const rp = this.runner.root.position;
       const chest = this.tmpCrane.set(rp.x, rp.y + 1.1, rp.z);
       const o = this.occl;
@@ -1379,18 +1380,26 @@ export class Game {
       if (len > 0.5) {
         o.dir.divideScalar(len);
         o.ray.set(chest, o.dir);
+        // Debris and pieces on the ground: up over them. A lintel overhead: down, to look under it
+        // (craned up, the lens looked over it at nothing — he lay just beyond).
         const pieces = this.cranePieces;
         pieces.length = 0;
         for (const m of this.debris.root.children as THREE.Mesh[]) pieces.push(m);
-        for (const p of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp, true)) p.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
+        for (const p of this.obstacles.groundPieces(this.s - 25, this.s + 25, this.groundTmp)) p.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
         if (this.meshHit(pieces, chest, len - 0.3) !== null) want = 1;
+        else {
+          pieces.length = 0;
+          for (const p of this.obstacles.overheadPieces(this.s - 25, this.s + 25, this.groundTmp)) p.traverse((c) => (c as THREE.Mesh).isMesh && pieces.push(c as THREE.Mesh));
+          if (this.meshHit(pieces, chest, len - 0.3) !== null) want = -0.7;
+        }
       }
     }
-    this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (want > this.craneK ? 2.5 : 0.8)));
+    this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (Math.abs(want) > Math.abs(this.craneK) ? 2.5 : 0.8)));
     this.rig.craneUp = 1.0 * this.craneK;
   }
   private tmpCrane = new THREE.Vector3();
   private cranePieces: THREE.Mesh[] = [];
+  private tmpCrane2 = new THREE.Vector3();
 
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
