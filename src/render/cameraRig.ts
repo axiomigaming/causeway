@@ -1266,11 +1266,12 @@ export class CameraRig {
     const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
     const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
     // Camera round 3 (coordinator): "the way is gone". The lens stands at eye height on the intact
-    // causeway 4 m back from the break and looks along the way at its broken end, the water in the
-    // gap (where he went under; it keeps stirring, see the game) and the far side beyond, the
-    // horizon level. (From 3.6 m up, looking steeply down, the walls leaned every way and the foam
-    // read as pale blobs; lower and 2.6 m back, the paving under the lens filled the frame's foot.)
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -4).addScaledVector(side, 0.5 * (s || 1)).setY(L.pos.y + 1.7);
+    // causeway, 3 m back from the break on its centre line, and looks along the way at its broken
+    // end, the water in the gap (where he went under; it keeps stirring, see the game) and the far
+    // side beyond, the horizon level. (From 3.6 m up, looking steeply down, the walls leaned every
+    // way and the foam read as pale blobs; lower and 2.6 m back, the paving under the lens filled the
+    // frame's foot; 4 m back it stood under the gate's soffit.)
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -3).setY(L.pos.y + 1.7);
     const far = this.tmp3.copy(L.pos).addScaledVector(L.fwd, 6);
     this.gapAim.copy(splash).lerp(far, 0.5);
     this.targetPos.lerp(this.gapPos, k);
