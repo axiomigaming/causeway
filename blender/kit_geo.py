@@ -374,7 +374,7 @@ def arch(name, seed, span=6.8, pier_h=4.0, depth=1.3):
     z = pier_h
     inner = r
     while inner > 0.5:
-        h = rng.uniform(0.5, 0.6)
+        h = rng.uniform(0.4, 0.7)
         for side in (-1, 1):
             # Round 11: each course is laid in two or three stones of uneven length (staggered joints,
             # slightly different heights and depths), not one long slab per side: it read as Lego.
@@ -383,16 +383,23 @@ def arch(name, seed, span=6.8, pier_h=4.0, depth=1.3):
             # (World round 26: the mortar core behind the course's faces, as in the piers.)
             add_block(bm, (w - 0.16, depth - 0.16, h - 0.06), (side * (x0 + x1) / 2, 0, z + h / 2), bevel=0.0, rng=rng,
                       color=jitter_color(hexcol("#5b5043"), rng, 0.05, 0.02), jit=0.0)
-            n = max(1, min(3, round(w / rng.uniform(1.1, 1.7))))
-            cuts_x = sorted(x0 + w * (k + rng.uniform(-0.18, 0.18)) / n for k in range(1, n))
+            # (World round 26: still Lego — long, even stones in even courses. Now two to five stones of
+            # very uneven length, each its own height, set proud or back and off square, weathered each
+            # its own way, the arrises broken; a stone gone now and then from the outer end.)
+            n = max(2, min(5, round(w / rng.uniform(0.55, 1.1))))
+            cuts_x = sorted(x0 + w * (k + rng.uniform(-0.3, 0.3)) / n for k in range(1, n))
             edges = [x0] + cuts_x + [x1]
             for k, (a, b) in enumerate(zip(edges, edges[1:])):
+                if b - a < 0.2:
+                    continue
                 inner_most = k == 0
-                hh = h - 0.02 - rng.uniform(0.0, 0.05)
-                blk(bm, rng, (b - a - 0.025, depth * rng.uniform(0.9, 1.0), hh),
-                    (side * (a + b) / 2, rng.uniform(-0.05, 0.05), z + hh / 2 + 0.01),
-                    (rng.uniform(-0.02, 0.02), side * rng.uniform(-0.025, 0.01) if inner_most else 0.0, rng.uniform(-0.03, 0.03)),
-                    radius=0.25, erode=0.7 if inner_most else 0.5, cuts=1)
+                if k == len(edges) - 2 and k > 0 and rng.random() < 0.1:
+                    continue
+                hh = h - 0.03 - rng.uniform(0.0, 0.1)
+                blk(bm, rng, (b - a - 0.035, depth * rng.uniform(0.82, 1.0), hh),
+                    (side * (a + b) / 2, rng.uniform(-0.08, 0.08), z + hh / 2 + 0.015 + rng.uniform(-0.02, 0.02)),
+                    (rng.uniform(-0.05, 0.05), side * rng.uniform(-0.05, 0.02) if inner_most else rng.uniform(-0.03, 0.03), rng.uniform(-0.06, 0.06)),
+                    color=weathered(rng, 0.2), radius=rng.uniform(0.25, 0.5), erode=0.75 if inner_most else rng.uniform(0.5, 0.85), cuts=1)
         z += h
         inner -= r / 6.5
     blk(bm, rng, (2 * r + 2.6, depth * 1.06, 0.62), (0, 0, z + 0.31), radius=0.18, erode=0.35, cuts=1)

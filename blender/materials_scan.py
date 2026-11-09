@@ -35,7 +35,21 @@ def _inject(m, asset, scales, amount, bump, desat=0.8):
 def rock(name="rock"):
     # (World round 26: the scan's own colour kept more (desaturated 0.5, not 0.8), at a finer second
     # scale and a stronger bump: the boulder up close read as a low-detail sponge.)
-    return _inject(M.rock(name), "rock_face", (0.16, 0.9), 1.0, 1.2, desat=0.5)
+    # (Then a third of the way to grey: the scan is a red sandstone, and through it the boulders and the
+    # rockfall's rocks still baked rust-orange — mean albedo 109/72/48 against the cliffs' 76/59/48.)
+    return _desat(_inject(M.rock(name), "rock_face", (0.16, 0.9), 1.0, 1.2, desat=0.85), 0.4)
+
+
+def _desat(m, k):
+    """World round 26: the material's base colour drawn `k` of the way to its own grey."""
+    nt = m.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    base_in = bsdf.inputs["Base Color"]
+    col = base_in.links[0].from_socket
+    grey = N(nt, "ShaderNodeRGBToBW")
+    L(nt, col, grey.inputs[0])
+    L(nt, mix(nt, k, col, grey.outputs[0], "MIX"), base_in)
+    return m
 
 
 def cliff(name="cliff"):

@@ -820,6 +820,7 @@ export class Game {
     // (A 0.2 s blend: the runner eases cross-fades of 0.2 s or more, and the root's run-out matches.)
     if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.2);
     this.crashKind = st.kind;
+    this.crashClock = 0;
     this.staging = st;
     this.epic = st.epic;
     this.cine.bars.target = 0.06;
@@ -3127,12 +3128,27 @@ export class Game {
         }
         this.limbBones.forEach((o, i) => this.limbPts[i]!.setFromMatrixPosition(o.matrixWorld));
         this.rig.bodyPts = this.limbPts;
+        // World round 26: once he is down in a rockfall (a second in), the falling rocks keep out of his
+        // body (one came to rest through his head and shoulders). Not before: the side hit's stone strikes him.
+        if (this.stage === 'crash' && this.crashKind === 'rockfall' && this.crashClock > 1.0) {
+          const head = this.limbBones.find((o) => o.name === 'head');
+          if (this.debris.keepOut.length === 0) for (let k = 0; k < 3; k++) this.debris.keepOut.push({ c: new THREE.Vector3(), r: 0 });
+          const ko = this.debris.keepOut;
+          ko[0]!.c.setFromMatrixPosition(hips.matrixWorld);
+          ko[0]!.r = 0.32;
+          if (head) ko[1]!.c.setFromMatrixPosition(head.matrixWorld);
+          else ko[1]!.c.copy(ko[0]!.c);
+          ko[1]!.r = 0.28;
+          ko[2]!.c.lerpVectors(ko[0]!.c, ko[1]!.c, 0.5);
+          ko[2]!.r = 0.32;
+        } else if (this.debris.keepOut.length) this.debris.keepOut.length = 0;
       }
       subject = this.subjPos.copy(rp).add(this.subjOff);
     } else {
       this.subjOff.set(0, 0, 0);
       this.rig.bodyAt = null;
       this.rig.bodyPts = null;
+      if (this.debris.keepOut.length) this.debris.keepOut.length = 0;
     }
     // FX round 21: in the fall into the water the clip carries him off the root (which stays at the
     // lip): the rig frames his body there once the card is up.
@@ -3254,6 +3270,7 @@ export class Game {
         q.fn();
       }
     }
+    this.crashClock += dt;
     this.debris.update(dt);
     this.particles.update(dt);
     this.spray.update(dt, cam.aspect);
@@ -3410,6 +3427,8 @@ export class Game {
    * Round 18: the crown of a splash: droplets thrown from a ring round the entry point, outward and
    * up, falling back under gravity (cosmetic RNG). `k` scales it (1 = a body going in).
    */
+  /** World round 26: seconds since the fall began (game time). */
+  private crashClock = 0;
   /** Plain dressed stone for the ledge's trough (floor or wall), made once each. */
   private troughMats = new Map<string, THREE.Material>();
   private troughMat(kind: 'floor' | 'wall'): THREE.Material {

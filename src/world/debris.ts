@@ -381,7 +381,32 @@ export class Debris {
     return j;
   }
 
+  /**
+   * World round 26: volumes nothing may come to rest in or pass through — the fallen runner's head,
+   * chest and hips (set each frame by the game during a fall; empty otherwise). A loose piece that
+   * reaches one is pushed out and loses the velocity carrying it in: in the rockfall's end shot a
+   * large rock came to rest through his head and shoulders.
+   */
+  keepOut: { c: THREE.Vector3; r: number }[] = [];
+
   private step(dt: number): void {
+    for (const k of this.keepOut) {
+      for (const b of this.bodies) {
+        if (b.heavy || b.splashed) continue;
+        const d = this.tn.copy(b.x).sub(k.c);
+        const rr = k.r + b.radius * 0.8;
+        const dist = d.length();
+        if (dist >= rr) continue;
+        // Out sideways and up (never down into the floor).
+        if (dist < 1e-4) d.set(1, 0, 0);
+        d.y = Math.max(d.y, 0.15 * d.length());
+        d.normalize();
+        b.x.addScaledVector(d, rr - dist);
+        const vn = b.vel.dot(d);
+        if (vn < 0) b.vel.addScaledVector(d, -vn * 1.3);
+        b.rest = false;
+      }
+    }
     // Pieces knock into each other (spheres; a share of the impulse goes into spin).
     for (let i = 0; i < this.bodies.length; i++) {
       const a = this.bodies[i]!;
@@ -594,6 +619,7 @@ export class Debris {
   }
 
   clear(): void {
+    this.keepOut.length = 0;
     for (let i = this.bodies.length - 1; i >= 0; i--) this.remove(i);
     this.acc = 0;
   }
