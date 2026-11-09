@@ -1363,7 +1363,7 @@ export class Game {
    * Camera round 2 (coordinator: rockfall debris blocked the lens on desktop; QA: the lintel he had
    * just slid under filled the rockfall's held shot, only his legs under it): in a fall's settled
    * shot, while big broken pieces or a set piece still standing lie across the sight line from his
-   * chest to the lens, the lens cranes up over them (eased, up to 1 m). Never swings round them or
+   * chest to the lens, the lens cranes up over them (eased, up to 1.3 m; a lintel, down 0.7 m). Never swings round them or
    * pulls in past them: given to the occlusion swing, the orbit swung back and forth through him
    * every three seconds (the swing's straight path from one side to the other).
    */
@@ -1374,10 +1374,13 @@ export class Game {
       // (Tested from where the lens would be without the crane, so it holds while it helps.)
       const cam = this.tmpCrane2.copy(this.rig.camera.position).setY(this.rig.camera.position.y - this.rig.craneUp);
       const rp = this.runner.root.position;
-      const chest = this.tmpCrane.set(rp.x, rp.y + 1.1, rp.z);
       const o = this.occl;
-      const len = o.dir.copy(cam).sub(chest).length();
-      if (len > 0.5) {
+      // (From his chest and from his hips: debris low in front of him hid his legs, the chest clear.)
+      for (const hy of [1.1, 0.5]) {
+        if (want !== 0) break;
+        const chest = this.tmpCrane.set(rp.x, rp.y + hy, rp.z);
+        const len = o.dir.copy(cam).sub(chest).length();
+        if (len <= 0.5) continue;
         o.dir.divideScalar(len);
         o.ray.set(chest, o.dir);
         // Debris and pieces on the ground: up over them. A lintel overhead: down, to look under it
@@ -1395,7 +1398,7 @@ export class Game {
       }
     }
     this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (Math.abs(want) > Math.abs(this.craneK) ? 2.5 : 0.8)));
-    this.rig.craneUp = 1.0 * this.craneK;
+    this.rig.craneUp = this.craneK * (this.craneK > 0 ? 1.3 : 1);
   }
   private tmpCrane = new THREE.Vector3();
   private cranePieces: THREE.Mesh[] = [];

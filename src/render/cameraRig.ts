@@ -1407,6 +1407,7 @@ export class CameraRig {
     // The limbs' velocities about his body (world, per second of real time), for the lead in
     // measure(). (About the body only: the whole figure carried by a throw is the follow's to lead —
     // leading every limb by the throw's speed panned on past where he landed, off the frame.)
+    // (At most a metre ahead.)
     if (this.bodyPts) {
       const pts = this.bodyPts;
       const bv = this.bodyVel;
@@ -1421,7 +1422,7 @@ export class CameraRig {
         const prev = this.limbPrev[i];
         if (prev && ok) {
           const v = (this.limbVel[i] ??= new THREE.Vector3()).copy(b).sub(prev).divideScalar(rdt).sub(bv);
-          if (v.length() * LIMB_LEAD > 0.6) v.setLength(0.6 / LIMB_LEAD);
+          if (v.length() * LIMB_LEAD > 1.0) v.setLength(1.0 / LIMB_LEAD);
         } else this.limbVel[i] = null;
         (this.limbPrev[i] ??= new THREE.Vector3()).copy(b);
       });
