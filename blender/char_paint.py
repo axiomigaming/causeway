@@ -61,3 +61,67 @@ def vertex_hsv(mesh, albedo_path):
     d = mx - mn + 1e-6
     hue = np.where(mx == r, (g - b) / d % 6, np.where(mx == g, (b - r) / d + 2, (r - g) / d + 4)) * 60.0
     return hue, (mx - mn) / (mx + 1e-6), mx
+
+
+# Per-material surface response for the ORM map. The source's roughness map is one flat cloth value
+# (median 0.91) over skin, hair and leather alike, and its metallic map is noise (~0.1 everywhere): under
+# the game's sun the face and forearms read as matte cloth with a grey metallic cast, not skin. Each
+# texel's material is read off the mesh (by skin weight and colour) and its roughness re-centred there,
+# keeping the source's own variation; metallic goes to 0 (no metal on him but the buckles' few texels).
+ROUGH = {"skin": (0.5, 0.35), "hair": (0.58, 0.4), "leather": (0.5, 0.5)}
+
+
+def refine_orm(mesh, tex, hue, sat, val, leather):
+    """Rewrite tex["orm"] in place: roughness per material class (skin, hair, leather; cloth as supplied),
+    metallic to 0. Classes per vertex: skin = head, neck, hands and the bare forearms in the skin hue;
+    hair = the dark crown; leather = the kit mask. Rasterized into UV space per face and feathered."""
+    from PIL import Image, ImageDraw, ImageFilter
+    me = mesh.data
+    gid = {g.index: g.name for g in mesh.vertex_groups}
+    nv = len(me.vertices)
+    dom = [""] * nv
+    best = np.zeros(nv)
+    for v in me.vertices:
+        for g in v.groups:
+            if g.weight > best[v.index]:
+                best[v.index] = g.weight
+                dom[v.index] = gid.get(g.group, "")
+    z = np.array([v.co.z for v in me.vertices])
+    head_top = z.max()
+    skinhue = (hue > 4) & (hue < 34) & (sat > 0.25) & (sat < 0.7) & (val > 0.3)
+    cls = np.zeros(nv, np.int8)  # 0 cloth, 1 skin, 2 hair, 3 leather
+    for i in range(nv):
+        d = dom[i].split(".")[0]
+        if leather[i]:
+            cls[i] = 3
+        elif d in ("head", "neck"):
+            cls[i] = 2 if (val[i] < 0.3 and z[i] > head_top - 0.16) else 1 if skinhue[i] or val[i] >= 0.3 else 2
+        elif d in ("hand", "fingers") or (d == "forearm" and skinhue[i]):
+            cls[i] = 1
+    W, H = Image.open(tex["orm"]).size
+    masks = {c: Image.new("L", (W, H), 0) for c in (1, 2, 3)}
+    draws = {c: ImageDraw.Draw(m) for c, m in masks.items()}
+    uvl = me.uv_layers.active.data
+    for poly in me.polygons:
+        vs = [me.loops[li].vertex_index for li in poly.loop_indices]
+        cs = [int(cls[v]) for v in vs]
+        c = max(set(cs), key=cs.count)
+        if c == 0:
+            continue
+        pts = [(uvl[li].uv[0] * W, (1.0 - uvl[li].uv[1]) * H) for li in poly.loop_indices]
+        draws[c].polygon(pts, fill=255)
+    orm = np.asarray(Image.open(tex["orm"]).convert("RGB")).astype(np.float32) / 255.0
+    r = orm[..., 1].copy()
+    for c, name in ((1, "skin"), (2, "hair"), (3, "leather")):
+        # grow over the islands' padding, then feather the edge
+        m = masks[c].filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(2))
+        w = np.asarray(m).astype(np.float32) / 255.0
+        mid, k = ROUGH[name]
+        rc = np.clip(mid + k * (orm[..., 1] - 0.91), 0.3, 0.95)
+        r = r * (1 - w) + rc * w
+    orm[..., 1] = r
+    orm[..., 2] = 0.0
+    Image.fromarray((orm * 255 + 0.5).astype(np.uint8)).save(tex["orm"])
+    counts = {n: int((np.asarray(masks[c]) > 0).sum()) for c, n in ((1, "skin"), (2, "hair"), (3, "leather"))}
+    print("  orm: texels per class", counts, flush=True)
+    return masks
