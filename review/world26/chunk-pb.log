@@ -1,0 +1,14 @@
+servers 5195:200 5196:200
+  review/world26/proofs/title-b.png
+  review/world26/proofs/beam-b.png
+  review/world26/proofs/near-b.png
+  review/world26/proofs/arcade-b.png
+  review/world26/proofs/arcade-phone-b.png
+  review/world26/proofs/boulder-b.png
+  review/world26/proofs/ledge-phone-b.png
+  review/world26/proofs/cliff-b.png
+  review/world26/proofs/rockfall-b.png
+PROOFSDONE
+PERFDONE
+SERVEDONE
+CHUNKDONE

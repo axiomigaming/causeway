@@ -1,0 +1,13 @@
+servers 5195:200 5196:200
+  review/world26/proofs/title-a.png
+  review/world26/proofs/beam-a.png
+  review/world26/proofs/near-a.png
+  review/world26/proofs/arcade-a.png
+  review/world26/proofs/arcade-phone-a.png
+  review/world26/proofs/boulder-a.png
+  review/world26/proofs/ledge-phone-a.png
+  review/world26/proofs/cliff-a.png
+  review/world26/proofs/rockfall-a.png
+PROOFSDONE
+SERVEDONE
+CHUNKDONE
