@@ -313,17 +313,26 @@ def gear(mesh, J, leather, rig=None):
         b.head, b.tail = Vector((cx, cy, top)), Vector((cx, cy, bot))
         b.parent = eb["hips"]
         bpy.ops.object.mode_set(mode="OBJECT")
+    # The belt (the leather round the body's centre line, front and back) rides the pelvis alone, and so does
+    # every piece at its height: its loops, the holster's own loop over it. With the holster's 35 % of the
+    # thigh, and up to a third from bone heat elsewhere, the loops at the holster's hip stood off the belt
+    # in slivers whenever the thigh drove up (the dash, the log jump), and the holster's top folded out of
+    # the hip crease in the vault. Below the belt the thigh comes in.
+    mid = [co[i].z for i in pieces if abs(co[i].x) < 0.1 and co[i].z > 0.85]
+    belt_bot = float(np.percentile(mid, 5)) if len(mid) >= 8 else top - 0.05
+    print(f"  belt from z {belt_bot:.3f} (holster top {top:.3f})", flush=True)
     for i in pieces:
         s = "L" if co[i].x > 0 else "R"
-        th = min(0.33, W[i].get(f"thigh.{s}", 0.0))
+        below = smooth((belt_bot - co[i].z) / 0.05)
+        th = min(0.33, W[i].get(f"thigh.{s}", 0.0)) * below
         pk = 0.0
         if rig is not None and i in bigset:
             # A drop holster: it hangs from the belt and its leg strap ties its foot to the thigh. (Riding the
             # pelvis with at most a third of the thigh, its foot stayed back as the thigh drove up through the
-            # vault and the leap, and the jeans tore through it in shards.)
-            d = smooth((top - co[i].z) / 0.16)
-            th = 0.35 + 0.6 * d
-            pk = 0.05 + 0.1 * d
+            # vault and the leap, and the jeans tore through it in shards.) From nothing at the belt.
+            d = smooth((belt_bot - co[i].z) / 0.16)
+            th = 0.95 * d
+            pk = 0.15 * d
         W[i] = {"hips": (1 - th) * (1 - pk), f"thigh.{s}": th * (1 - pk)}
         if pk > 0:
             W[i]["pack"] = pk
@@ -344,8 +353,28 @@ def gear(mesh, J, leather, rig=None):
             W[j] = out
         done |= ring
         front = ring
+    # Nothing above the belt follows the thigh: the shirt's tail hangs over the belt, and bone heat gave it
+    # the thigh's weights near the hip, so in the dash and the log jump it smeared pale down over the
+    # holster's top as the thigh drove up. Faded out over the belt's lower edge (full 4 cm below it, none
+    # 1 cm above), into the hips.
+    waist = 0
+    for i, c in enumerate(co):
+        f = smooth((c.z - (belt_bot - 0.04)) / 0.05)
+        if f <= 0:
+            continue
+        w = W[i]
+        moved = 0.0
+        for n in ("thigh.L", "thigh.R"):
+            x = w.get(n, 0.0)
+            if x > 0:
+                w[n] = x * (1 - f)
+                moved += x * f
+        if moved > 0:
+            w["hips"] = w.get("hips", 0.0) + moved
+            waist += 1
     bm.free()
     _write(mesh, W)
+    print(f"  waist off the thighs above z {belt_bot:.3f}: {waist} verts", flush=True)
     print(f"  under-arm kit and flanks off the arm bones: {flank} verts; holster to the pelvis: {len(pieces)} (+{len(done) - len(pieces)} feathered)", flush=True)
 
 
@@ -651,6 +680,32 @@ def recap_texels(mesh, tex):
     print(f"  recapped: {n} caps and joint skins, {len(caps)} faces, on the final maps", flush=True)
 
 
+def _chain_order(edges):
+    """The vertices of a chain of edges in walking order (an open path or a closed loop); None if it
+    branches."""
+    adj = {}
+    for e in edges:
+        a, b = e.verts
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    if any(len(n) > 2 for n in adj.values()):
+        return None
+    ends = [v for v, n in adj.items() if len(n) == 1]
+    if len(ends) not in (0, 2):
+        return None
+    start = ends[0] if ends else next(iter(adj))
+    order, prev, cur = [start], None, start
+    while True:
+        nxt = [w for w in adj[cur] if w is not prev]
+        if not nxt or nxt[0] is start:
+            break
+        prev, cur = cur, nxt[0]
+        order.append(cur)
+        if len(order) > len(adj):
+            return None
+    return order if len(order) == len(adj) else None
+
+
 def unweld(mesh, rig, albedo=None, orm=None):
     """Cut the scan's webbing between parts that move apart. The source was scanned with the arms hanging
     against the flanks and the hands at the hips and the thighs touching: its surface runs straight across
@@ -722,31 +777,50 @@ def unweld(mesh, rig, albedo=None, orm=None):
         if len(comp) < 2:
             continue
         verts = list({v for e in comp for v in e.verts})
-        c = sum((v.co for v in verts), verts[0].co * 0) / len(verts)
-        cv = bm.verts.new(c)
-        # the centre takes the rim's weights (averaged) so it rides with its part
-        if dl is not None:
-            acc = {}
-            for v in verts:
-                for g, w in v[dl].items():
-                    acc[g] = acc.get(g, 0.0) + w / len(verts)
-            for g, w in acc.items():
-                cv[dl][g] = w
-        P[cv] = pp
         caps_faces = []
         rim_n = sum((v.normal for v in verts), verts[0].normal * 0)
-        for e in comp:
-            a, b = e.verts
+        # The rim itself, walked in order and filled as one polygon (beauty-triangulated): the cut leaves a
+        # long narrow slit along the flank, and this skin lies flush in it. A fan from the rim's centre (off
+        # the surface, for a curved slit) spanned it with long thin triangles that stood out of the flank
+        # as spikes behind the arm, toward the chase camera.
+        order = _chain_order(comp)
+        if order and len(order) >= 3:
             try:
-                f = bm.faces.new((a, b, cv))
+                f0 = bm.faces.new(order)
             except ValueError:
-                continue
-            # facing out, as the rim's own surface does (its vertex normals, from the faces that remain)
-            f.normal_update()
-            if f.normal.dot(rim_n) < 0:
-                f.normal_flip()
-            caps_faces.append(f)
-            caps += 1
+                order = None
+            else:
+                for f in bmesh.ops.triangulate(bm, faces=[f0], quad_method="BEAUTY", ngon_method="BEAUTY")["faces"]:
+                    f.normal_update()
+                    vn = sum((v.normal for v in f.verts), f.verts[0].normal * 0)
+                    if f.normal.dot(vn if vn.length > 1e-6 else rim_n) < 0:
+                        f.normal_flip()
+                    caps_faces.append(f)
+                    caps += 1
+        if not order or len(order) < 3:
+            c = sum((v.co for v in verts), verts[0].co * 0) / len(verts)
+            cv = bm.verts.new(c)
+            # the centre takes the rim's weights (averaged) so it rides with its part
+            if dl is not None:
+                acc = {}
+                for v in verts:
+                    for g, w in v[dl].items():
+                        acc[g] = acc.get(g, 0.0) + w / len(verts)
+                for g, w in acc.items():
+                    cv[dl][g] = w
+            P[cv] = pp
+            for e in comp:
+                a, b = e.verts
+                try:
+                    f = bm.faces.new((a, b, cv))
+                except ValueError:
+                    continue
+                # facing out, as the rim's own surface does (its vertex normals, from the faces that remain)
+                f.normal_update()
+                if f.normal.dot(rim_n) < 0:
+                    f.normal_flip()
+                caps_faces.append(f)
+                caps += 1
         # One texel for the whole cap, the rim's middle: the rim's UVs fanned across it read as a striped
         # sunburst on the flank.
         if uv is not None and caps_faces:
