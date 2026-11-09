@@ -294,6 +294,13 @@ def gear(mesh, J, leather, rig=None):
     # swings on a spring bone ("pack", driven in src/world/runner.ts), so it jiggles with each landing.
     pieces = {i for i in pieces if co[i].z < 1.0}
     big = [i for i in pieces if abs(co[i].x) > 0.15]
+    # (The holster's side only: with the kit on the other hip counted in, the spring bone sat on the body's
+    # centre line, and the holster swung about a point 20 cm away from it, its edge shearing into torn
+    # shards against the feathered ring in every landing and the vault.)
+    if big:
+        side = 1 if sum(1 for i in big if co[i].x > 0) > len(big) / 2 else -1
+        big = [i for i in big if co[i].x * side > 0]
+    bigset = set(big)
     top = max(co[i].z for i in big) if big else 0.0
     if rig is not None and big:
         cx = sum(co[i].x for i in big) / len(big)
@@ -309,7 +316,14 @@ def gear(mesh, J, leather, rig=None):
     for i in pieces:
         s = "L" if co[i].x > 0 else "R"
         th = min(0.33, W[i].get(f"thigh.{s}", 0.0))
-        pk = 0.55 * smooth((top - co[i].z) / 0.12) if (rig is not None and big and abs(co[i].x) > 0.15) else 0.0
+        pk = 0.0
+        if rig is not None and i in bigset:
+            # A drop holster: it hangs from the belt and its leg strap ties its foot to the thigh. (Riding the
+            # pelvis with at most a third of the thigh, its foot stayed back as the thigh drove up through the
+            # vault and the leap, and the jeans tore through it in shards.)
+            d = smooth((top - co[i].z) / 0.16)
+            th = 0.35 + 0.6 * d
+            pk = 0.05 + 0.1 * d
         W[i] = {"hips": (1 - th) * (1 - pk), f"thigh.{s}": th * (1 - pk)}
         if pk > 0:
             W[i]["pack"] = pk
@@ -521,3 +535,304 @@ def soft_bones(mesh, J, rig, key):
     bpy.ops.object.mode_set(mode="OBJECT")
     _write(mesh, W)
     print("  soft bones:", ", ".join(f"{nm} ({sum(1 for w in W if nm in w)} verts)" for nm in bones), flush=True)
+
+
+def _load_rgb(path):
+    if not path:
+        return None
+    im = bpy.data.images.load(path)
+    w, h = im.size
+    a = np.array(im.pixels[:], np.float32).reshape(h, w, 4)[..., :3]
+    bpy.data.images.remove(im)
+    return a
+
+
+def _texel(img, u, r=0):
+    """The texel under uv u (Blender's pixel rows run bottom-up, as uv v does); with r > 0, the
+    (2r+1)-square window round it."""
+    h, w = img.shape[:2]
+    y, x = min(h - 1, max(0, int(u.y * h))), min(w - 1, max(0, int(u.x * w)))
+    if not r:
+        return img[y, x]
+    return img[max(0, y - r):y + r + 1, max(0, x - r):x + r + 1].reshape(-1, img.shape[2])
+
+
+def _uvs_around(uv, vs, ok, skip):
+    """UVs of the surface within 5 cm of a rim (rings out from it, through vertices `ok` accepts), not
+    counting the faces in `skip`."""
+    vs = list(vs)
+    c = sum((v.co for v in vs), vs[0].co * 0) / len(vs)
+    lim = max((v.co - c).length for v in vs) + 0.05
+    seen, front = set(vs), set(vs)
+    for _ in range(12):
+        nxt = {e.other_vert(v) for v in front for e in v.link_edges}
+        nxt = {w for w in nxt if w not in seen and ok(w) and (w.co - c).length < lim}
+        if not nxt:
+            break
+        seen |= nxt
+        front = nxt
+    return [lo[uv].uv.copy() for v in seen for lo in v.link_loops if lo.face not in skip]
+
+
+def _pick_texel(px, rg, cands, win=0):
+    """The local cloth's texel for a cap: of the texels round its rim, the cloth ones (not the harness's
+    leather, by the build's own leather colour test, nor anything glossier than 0.6), and of those the one at
+    the 8th percentile of brightness: the crease tone the scan has baked in round the armpits and the crotch,
+    for the crease the cap closes. A flat plane with no wrinkle in its normals takes the sun whole: in the
+    vault's reach the cap behind the right shoulder faces the low sun square on, and with the rim's brightest
+    texel (glossy, 0.72), or any open-shirt tone (0.38-0.52), it read as a white patch. With win > 0 a texel
+    is judged by its window (its least rough texel, and an even window only, off the islands' edges and
+    their padding), so the filtering of the shipped, mipmapped maps cannot pull a strap's edge or the
+    padding onto the cap."""
+    if px is None:
+        return cands[len(cands) // 2]
+    LW = np.array([0.2126, 0.7152, 0.0722])
+    cols = np.array([_texel(px, u) for u in cands])
+    lum = cols @ LW
+    r = np.array([_texel(rg, u, win)[:, 1].min() if win else _texel(rg, u)[1] for u in cands]) if rg is not None else np.ones(len(cands))
+    mx, mn = cols.max(1), cols.min(1)
+    d = np.maximum(mx - mn, 1e-6)
+    R_, G_, B_ = cols[:, 0], cols[:, 1], cols[:, 2]
+    hue = np.where(mx == R_, (G_ - B_) / d % 6, np.where(mx == G_, (B_ - R_) / d + 2, (R_ - G_) / d + 4)) * 60.0
+    leather = (hue < 33) & ((mx - mn) / (mx + 1e-6) > 0.42) & (mx < 0.72)
+    keep = ~leather & (r >= 0.6)
+    if not keep.any():
+        keep = r >= np.percentile(r, 75)
+    if win:
+        wl = [_texel(px, u, win) @ LW for u in cands]
+        even = np.array([w.max() - w.min() < 0.12 for w in wl])
+        if (keep & even).any():
+            keep = keep & even
+    idx = np.where(keep)[0]
+    idx = idx[np.argsort(lum[idx])]
+    return cands[int(idx[int(0.08 * (len(idx) - 1))])]
+
+
+def recap_texels(mesh, tex):
+    """The caps and joint skins unweld added carry one texel each (every loop on one uv). Picked again here
+    from the final maps (refine_orm paints the leather's roughness over a feathered halo in uv space, and
+    delight_albedo shifts the colours), with a 5-texel window, so each stays matte cloth in the shipped game."""
+    import bmesh
+    px, rg = _load_rgb(tex["color"]), _load_rgb(tex["orm"])
+    bm = bmesh.new()
+    bm.from_mesh(mesh.data)
+    uv = bm.loops.layers.uv.active
+
+    def flat(f):
+        u0 = f.loops[0][uv].uv
+        return all((lo[uv].uv - u0).length < 1e-7 for lo in f.loops)
+    caps = {f for f in bm.faces if flat(f)}
+    done, n = set(), 0
+    for f0 in caps:
+        if f0 in done:
+            continue
+        key = f0.loops[0][uv].uv.copy()
+        comp, st = [], [f0]
+        done.add(f0)
+        while st:
+            f = st.pop()
+            comp.append(f)
+            for e in f.edges:
+                for f2 in e.link_faces:
+                    if f2 in caps and f2 not in done and (f2.loops[0][uv].uv - key).length < 1e-7:
+                        done.add(f2)
+                        st.append(f2)
+        cand = _uvs_around(uv, {v for f in comp for v in f.verts}, lambda w: True, caps)
+        if not cand:
+            continue
+        m = _pick_texel(px, rg, cand, win=2)
+        for f in comp:
+            for lo in f.loops:
+                lo[uv].uv = m
+        n += 1
+    bm.to_mesh(mesh.data)
+    bm.free()
+    mesh.data.update()
+    print(f"  recapped: {n} caps and joint skins, {len(caps)} faces, on the final maps", flush=True)
+
+
+def unweld(mesh, rig, albedo=None, orm=None):
+    """Cut the scan's webbing between parts that move apart. The source was scanned with the arms hanging
+    against the flanks and the hands at the hips and the thighs touching: its surface runs straight across
+    those contacts. Below the armpit (and below the crotch), a face with vertices on both the arm and the
+    torso (or a hand and a thigh, or both thighs) stretched into long torn shards whenever the arm drove or
+    a leg swung away: up to 32 cm at the right hip and flank, the 'torn holster'. Those faces go; the hole
+    each part is left with is capped from its own rim (a fan on its own vertices, so it moves with it), its
+    texture taken from the rim."""
+    import bmesh
+    names = {g.index: g.name for g in mesh.vertex_groups}
+    B = rig.data.bones
+    px, rg = _load_rgb(albedo), _load_rgb(orm)
+    pit = {s: B[f"upper_arm.{s}"].head_local.z - 0.09 for s in "LR"}
+    crotch = min(B["thigh.L"].head_local.z, B["thigh.R"].head_local.z) - 0.06
+    bm = bmesh.new()
+    bm.from_mesh(mesh.data)
+    dl = bm.verts.layers.deform.active
+    uv = bm.loops.layers.uv.active
+
+    def part(v):
+        if dl is None or not v[dl]:
+            return "torso"
+        g = max(v[dl].items(), key=lambda kv: kv[1])[0]
+        n = names[g]
+        b = n.split(".")[0]
+        s = n[-1] if n[-2:] in (".L", ".R") else ""
+        if b in ("upper_arm", "forearm", "hand", "fingers"):
+            return "arm" + s
+        if b in ("thigh", "shin", "foot", "toe"):
+            return "leg" + s
+        return "torso"
+    P = {v: part(v) for v in bm.verts}
+    kill = []
+    for f in bm.faces:
+        ps = {P[v] for v in f.verts}
+        z = sum(v.co.z for v in f.verts) / len(f.verts)
+        cut = False
+        for s in "LR":
+            if f"arm{s}" in ps and "torso" in ps and z < pit[s]:
+                cut = True
+            if f"arm{s}" in ps and ("legL" in ps or "legR" in ps):
+                cut = True
+        if "legL" in ps and "legR" in ps and z < crotch:
+            cut = True
+        if cut:
+            kill.append(f)
+    nkill = len(kill)
+    bmesh.ops.delete(bm, geom=kill, context="FACES_ONLY")
+    bm.normal_update()
+    # Each part's open rim, as chains of boundary edges whose ends are both that part's: capped by a fan.
+    caps = 0
+    capset = set()
+    rim = [e for e in bm.edges if e.is_boundary and P.get(e.verts[0]) == P.get(e.verts[1])]
+    seen = set()
+    for e0 in rim:
+        if e0 in seen:
+            continue
+        pp = P[e0.verts[0]]
+        comp, st = [], [e0]
+        seen.add(e0)
+        while st:
+            e = st.pop()
+            comp.append(e)
+            for v in e.verts:
+                for e2 in v.link_edges:
+                    if e2 not in seen and e2.is_boundary and P.get(e2.verts[0]) == pp and P.get(e2.verts[1]) == pp:
+                        seen.add(e2)
+                        st.append(e2)
+        if len(comp) < 2:
+            continue
+        verts = list({v for e in comp for v in e.verts})
+        c = sum((v.co for v in verts), verts[0].co * 0) / len(verts)
+        cv = bm.verts.new(c)
+        # the centre takes the rim's weights (averaged) so it rides with its part
+        if dl is not None:
+            acc = {}
+            for v in verts:
+                for g, w in v[dl].items():
+                    acc[g] = acc.get(g, 0.0) + w / len(verts)
+            for g, w in acc.items():
+                cv[dl][g] = w
+        P[cv] = pp
+        caps_faces = []
+        rim_n = sum((v.normal for v in verts), verts[0].normal * 0)
+        for e in comp:
+            a, b = e.verts
+            try:
+                f = bm.faces.new((a, b, cv))
+            except ValueError:
+                continue
+            # facing out, as the rim's own surface does (its vertex normals, from the faces that remain)
+            f.normal_update()
+            if f.normal.dot(rim_n) < 0:
+                f.normal_flip()
+            caps_faces.append(f)
+            caps += 1
+        # One texel for the whole cap, the rim's middle: the rim's UVs fanned across it read as a striped
+        # sunburst on the flank.
+        if uv is not None and caps_faces:
+            capset.update(caps_faces)
+            rim_uv = _uvs_around(uv, verts, lambda w, pp=pp: P.get(w) == pp, capset)
+            if rim_uv:
+                # the shirt the cap closes, not a strap, a pouch or the atlas's dark padding (the median of a
+                # rim round the pouches read as a dark leather membrane)
+                m = _pick_texel(px, rg, rim_uv)
+                for f in caps_faces:
+                    for lo in f.loops:
+                        lo[uv].uv = m
+    # Where the cut meets the armpit and the crotch, the rims change part and stay open: a skin of their own
+    # (it stretches with the joint, as the armpit does). Faces out, one texel of the rim's typical cloth.
+    rest = [e for e in bm.edges if e.is_boundary]
+    filled = bmesh.ops.holes_fill(bm, edges=rest, sides=0)["faces"]
+    filled = bmesh.ops.triangulate(bm, faces=filled)["faces"] if filled else []
+    bm.normal_update()
+    fset = set(filled)
+    for f in filled:
+        vs = list(f.verts)
+        n = sum((v.normal for v in vs), vs[0].normal * 0)
+        if f.normal.dot(n) < 0:
+            f.normal_flip()
+    # one texel per closed hole (its triangles joined by edges), not per triangle: a patchwork otherwise
+    done = set()
+    for f0 in filled if uv is not None else []:
+        if f0 in done:
+            continue
+        comp, st = [], [f0]
+        done.add(f0)
+        while st:
+            f = st.pop()
+            comp.append(f)
+            for e in f.edges:
+                for f2 in e.link_faces:
+                    if f2 in fset and f2 not in done:
+                        done.add(f2)
+                        st.append(f2)
+        vs = {v for f in comp for v in f.verts}
+        cand = _uvs_around(uv, vs, lambda w: True, fset | capset)
+        if cand:
+            m = _pick_texel(px, rg, cand)
+            for f in comp:
+                for lo in f.loops:
+                    lo[uv].uv = m
+    bm.to_mesh(mesh.data)
+    bm.free()
+    mesh.data.update()
+    print(f"  unwelded: {nkill} webbing faces cut, {caps} cap faces, {len(filled)} faces closing the joints", flush=True)
+
+
+def arm_clean(mesh, rig):
+    """Below the armpit an arm vertex follows the arm only, and a flank vertex the ribcage only. Bone heat
+    and the under-arm pass left the inner upper arm with up to half its weight on the spine and the chest:
+    when the arm drove forward or went up, that strip stayed with the body and the inner arm smeared 15-21 cm
+    between the two (the shredded look at the armpit and the flank in the cheers, the falls and the leap).
+    Mixed weights fade out over the 10 cm below the armpit; above it the joint keeps its blend."""
+    W = _weights(mesh)
+    B = rig.data.bones
+    pit = {s: B[f"upper_arm.{s}"].head_local.z - 0.05 for s in "LR"}
+    TORSO = ("spine", "chest", "hips", "pouch", "shoulder")
+    n = 0
+    for i, v in enumerate(mesh.data.vertices):
+        w = W[i]
+        if not w:
+            continue
+        s = "L" if v.co.x > 0 else "R"
+        f = smooth((v.co.z - (pit[s] - 0.1)) / 0.1)
+        if f >= 1.0:
+            continue
+        arm = {k: x for k, x in w.items() if k.startswith(ARM) or k.startswith("sleeve.")}
+        torso = {k: x for k, x in w.items() if k.split(".")[0] in TORSO}
+        if not arm or not torso:
+            continue
+        aw, tw = sum(arm.values()), sum(torso.values())
+        if aw >= tw:
+            keep, drop = arm, torso
+        else:
+            keep, drop = torso, arm
+        lost = sum(drop.values()) * (1 - f)
+        for k in drop:
+            w[k] *= f
+        tot = sum(keep.values())
+        for k in keep:
+            w[k] += lost * keep[k] / tot
+        n += 1
+    _write(mesh, W)
+    print(f"  arm/flank weights unmixed below the armpit: {n} verts", flush=True)
