@@ -69,7 +69,7 @@ def build_model():
     R.arm_clean(body, rig)
     # (On the final weights: cut where they now part the arm from the flank. The cut adds cap vertices, so the
     # per-vertex colours are taken again.)
-    R.unweld(body, rig)
+    R.unweld(body, rig, tex["color"])
     hue, sat, val = CP.vertex_hsv(body, tex["color"])
     R.bind(body, rig)
     CP.refine_orm(body, tex, hue, sat, val, (hue < 33) & (sat > 0.42) & (val < 0.72))

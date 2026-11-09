@@ -537,7 +537,7 @@ def soft_bones(mesh, J, rig, key):
     print("  soft bones:", ", ".join(f"{nm} ({sum(1 for w in W if nm in w)} verts)" for nm in bones), flush=True)
 
 
-def unweld(mesh, rig):
+def unweld(mesh, rig, albedo=None):
     """Cut the scan's webbing between parts that move apart. The source was scanned with the arms hanging
     against the flanks and the hands at the hips and the thighs touching: its surface runs straight across
     those contacts. Below the armpit (and below the crotch), a face with vertices on both the arm and the
@@ -548,6 +548,15 @@ def unweld(mesh, rig):
     import bmesh
     names = {g.index: g.name for g in mesh.vertex_groups}
     B = rig.data.bones
+    px = None
+    if albedo:
+        im = bpy.data.images.load(albedo)
+        tw, th = im.size
+        px = np.array(im.pixels[:], np.float32).reshape(th, tw, 4)[..., :3]
+        bpy.data.images.remove(im)
+
+    def texel(u):
+        return px[min(th - 1, max(0, int(u.y * th))), min(tw - 1, max(0, int(u.x * tw)))]
     pit = {s: B[f"upper_arm.{s}"].head_local.z - 0.09 for s in "LR"}
     crotch = min(B["thigh.L"].head_local.z, B["thigh.R"].head_local.z) - 0.06
     bm = bmesh.new()
@@ -584,6 +593,7 @@ def unweld(mesh, rig):
             kill.append(f)
     nkill = len(kill)
     bmesh.ops.delete(bm, geom=kill, context="FACES_ONLY")
+    bm.normal_update()
     # Each part's open rim, as chains of boundary edges whose ends are both that part's: capped by a fan.
     caps = 0
     rim = [e for e in bm.edges if e.is_boundary and P.get(e.verts[0]) == P.get(e.verts[1])]
@@ -617,21 +627,17 @@ def unweld(mesh, rig):
                 cv[dl][g] = w
         P[cv] = pp
         caps_faces = []
+        rim_n = sum((v.normal for v in verts), verts[0].normal * 0)
         for e in comp:
             a, b = e.verts
             try:
                 f = bm.faces.new((a, b, cv))
             except ValueError:
                 continue
-            # face the same way as the rim face it closes against: opposite winding along the shared edge
-            lf = e.link_faces[0] if len(e.link_faces) > 1 else None
-            other = [lf2 for lf2 in e.link_faces if lf2 is not f]
-            if other:
-                o = other[0]
-                for lo in o.loops:
-                    if lo.vert is a and lo.link_loop_next.vert is b:
-                        f.normal_flip()
-                        break
+            # facing out, as the rim's own surface does (its vertex normals, from the faces that remain)
+            f.normal_update()
+            if f.normal.dot(rim_n) < 0:
+                f.normal_flip()
             caps_faces.append(f)
             caps += 1
         # One texel for the whole cap, the rim's middle: the rim's UVs fanned across it read as a striped
@@ -639,14 +645,41 @@ def unweld(mesh, rig):
         if uv is not None and caps_faces:
             rim_uv = [l2[uv].uv.copy() for v in verts for l2 in v.link_loops if l2.face not in caps_faces]
             if rim_uv:
-                m = rim_uv[len(rim_uv) // 2]
+                # the rim's brightest texel: the shirt the cap closes, not a strap, a pouch or the atlas's
+                # dark padding (the median of a rim round the pouches read as a dark leather membrane)
+                if px is not None:
+                    cols = np.array([texel(u) for u in rim_uv])
+                    m = rim_uv[int(np.argmax(cols @ np.array([0.2126, 0.7152, 0.0722])))]
+                else:
+                    m = rim_uv[len(rim_uv) // 2]
                 for f in caps_faces:
                     for lo in f.loops:
                         lo[uv].uv = m
+    # Where the cut meets the armpit and the crotch, the rims change part and stay open: a skin of their own
+    # (it stretches with the joint, as the armpit does). Faces out, one texel of the rim's brightest colour.
+    rest = [e for e in bm.edges if e.is_boundary]
+    filled = bmesh.ops.holes_fill(bm, edges=rest, sides=0)["faces"]
+    filled = bmesh.ops.triangulate(bm, faces=filled)["faces"] if filled else []
+    bm.normal_update()
+    for f in filled:
+        vs = list(f.verts)
+        n = sum((v.normal for v in vs), vs[0].normal * 0)
+        if f.normal.dot(n) < 0:
+            f.normal_flip()
+        if uv is not None:
+            cand = [l2[uv].uv.copy() for v in vs for l2 in v.link_loops if l2.face not in filled]
+            if cand:
+                if px is not None:
+                    cols = np.array([texel(u) for u in cand])
+                    m = cand[int(np.argmax(cols @ np.array([0.2126, 0.7152, 0.0722])))]
+                else:
+                    m = cand[0]
+                for lo in f.loops:
+                    lo[uv].uv = m
     bm.to_mesh(mesh.data)
     bm.free()
     mesh.data.update()
-    print(f"  unwelded: {nkill} webbing faces cut, {caps} cap faces", flush=True)
+    print(f"  unwelded: {nkill} webbing faces cut, {caps} cap faces, {len(filled)} faces closing the joints", flush=True)
 
 
 def arm_clean(mesh, rig):
