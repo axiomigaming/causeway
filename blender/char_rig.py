@@ -680,6 +680,32 @@ def recap_texels(mesh, tex):
     print(f"  recapped: {n} caps and joint skins, {len(caps)} faces, on the final maps", flush=True)
 
 
+def _chain_order(edges):
+    """The vertices of a chain of edges in walking order (an open path or a closed loop); None if it
+    branches."""
+    adj = {}
+    for e in edges:
+        a, b = e.verts
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    if any(len(n) > 2 for n in adj.values()):
+        return None
+    ends = [v for v, n in adj.items() if len(n) == 1]
+    if len(ends) not in (0, 2):
+        return None
+    start = ends[0] if ends else next(iter(adj))
+    order, prev, cur = [start], None, start
+    while True:
+        nxt = [w for w in adj[cur] if w is not prev]
+        if not nxt or nxt[0] is start:
+            break
+        prev, cur = cur, nxt[0]
+        order.append(cur)
+        if len(order) > len(adj):
+            return None
+    return order if len(order) == len(adj) else None
+
+
 def unweld(mesh, rig, albedo=None, orm=None):
     """Cut the scan's webbing between parts that move apart. The source was scanned with the arms hanging
     against the flanks and the hands at the hips and the thighs touching: its surface runs straight across
@@ -751,31 +777,50 @@ def unweld(mesh, rig, albedo=None, orm=None):
         if len(comp) < 2:
             continue
         verts = list({v for e in comp for v in e.verts})
-        c = sum((v.co for v in verts), verts[0].co * 0) / len(verts)
-        cv = bm.verts.new(c)
-        # the centre takes the rim's weights (averaged) so it rides with its part
-        if dl is not None:
-            acc = {}
-            for v in verts:
-                for g, w in v[dl].items():
-                    acc[g] = acc.get(g, 0.0) + w / len(verts)
-            for g, w in acc.items():
-                cv[dl][g] = w
-        P[cv] = pp
         caps_faces = []
         rim_n = sum((v.normal for v in verts), verts[0].normal * 0)
-        for e in comp:
-            a, b = e.verts
+        # The rim itself, walked in order and filled as one polygon (beauty-triangulated): the cut leaves a
+        # long narrow slit along the flank, and this skin lies flush in it. A fan from the rim's centre (off
+        # the surface, for a curved slit) spanned it with long thin triangles that stood out of the flank
+        # as spikes behind the arm, toward the chase camera.
+        order = _chain_order(comp)
+        if order and len(order) >= 3:
             try:
-                f = bm.faces.new((a, b, cv))
+                f0 = bm.faces.new(order)
             except ValueError:
-                continue
-            # facing out, as the rim's own surface does (its vertex normals, from the faces that remain)
-            f.normal_update()
-            if f.normal.dot(rim_n) < 0:
-                f.normal_flip()
-            caps_faces.append(f)
-            caps += 1
+                order = None
+            else:
+                for f in bmesh.ops.triangulate(bm, faces=[f0], quad_method="BEAUTY", ngon_method="BEAUTY")["faces"]:
+                    f.normal_update()
+                    vn = sum((v.normal for v in f.verts), f.verts[0].normal * 0)
+                    if f.normal.dot(vn if vn.length > 1e-6 else rim_n) < 0:
+                        f.normal_flip()
+                    caps_faces.append(f)
+                    caps += 1
+        if not order or len(order) < 3:
+            c = sum((v.co for v in verts), verts[0].co * 0) / len(verts)
+            cv = bm.verts.new(c)
+            # the centre takes the rim's weights (averaged) so it rides with its part
+            if dl is not None:
+                acc = {}
+                for v in verts:
+                    for g, w in v[dl].items():
+                        acc[g] = acc.get(g, 0.0) + w / len(verts)
+                for g, w in acc.items():
+                    cv[dl][g] = w
+            P[cv] = pp
+            for e in comp:
+                a, b = e.verts
+                try:
+                    f = bm.faces.new((a, b, cv))
+                except ValueError:
+                    continue
+                # facing out, as the rim's own surface does (its vertex normals, from the faces that remain)
+                f.normal_update()
+                if f.normal.dot(rim_n) < 0:
+                    f.normal_flip()
+                caps_faces.append(f)
+                caps += 1
         # One texel for the whole cap, the rim's middle: the rim's UVs fanned across it read as a striped
         # sunburst on the flank.
         if uv is not None and caps_faces:
