@@ -1,0 +1,69 @@
+servers 5195:200 5196:200
+look w64 STATE {"t":4,"view":"H","s":23.6,"sec":"ruins"}
+look w64 STATE {"t":4,"view":"E","s":23.8,"sec":"ruins"}
+look w64 STATE {"t":4,"view":"F","s":24,"sec":"ruins"}
+look w64 STATE {"t":30,"view":"H","s":229.6,"sec":"approach"}
+look w64 STATE {"t":30,"view":"E","s":230,"sec":"approach"}
+look w64 STATE {"t":30,"view":"F","s":230.3,"sec":"approach"}
+look w105 STATE {"t":4,"view":"H","s":23.6,"sec":"bridge"}
+look w105 STATE {"t":4,"view":"E","s":23.8,"sec":"bridge"}
+look w105 STATE {"t":4,"view":"F","s":24,"sec":"bridge"}
+look w105 STATE {"t":30,"view":"H","s":224.5,"sec":"approach"}
+look w105 STATE {"t":30,"view":"E","s":224.8,"sec":"approach"}
+look w105 STATE {"t":30,"view":"F","s":225.1,"sec":"approach"}
+look w141 STATE {"t":4,"view":"H","s":23.6,"sec":"sunken"}
+look w141 STATE {"t":4,"view":"E","s":23.8,"sec":"sunken"}
+look w141 STATE {"t":4,"view":"F","s":24,"sec":"sunken"}
+look w141 STATE {"t":30,"view":"H","s":225.3,"sec":"approach"}
+look w141 STATE {"t":30,"view":"E","s":225.7,"sec":"approach"}
+look w141 STATE {"t":30,"view":"F","s":226,"sec":"approach"}
+LOOKDONE
+open w3 STATE {"t":5,"s":30.1,"sec":"corridor","calls":54,"tris":190828,"mult":1.37,"look":"afternoon","style":"lagoon"}
+open w3 STATE {"t":8,"s":48.7,"sec":"ravine","calls":59,"tris":208392,"mult":1.66,"look":"afternoon","style":"lagoon"}
+open w7 STATE {"t":5,"s":30.1,"sec":"forest","calls":58,"tris":199294,"mult":1.37,"look":"morning","style":"rainforest"}
+open w7 STATE {"t":8,"s":49.3,"sec":"forestWall","calls":62,"tris":207213,"mult":1.66,"look":"morning","style":"rainforest"}
+open w11 STATE {"t":5,"s":30.1,"sec":"sunken","calls":62,"tris":251560,"mult":1.37,"look":"storm","style":"lagoon"}
+open w11 STATE {"t":8,"s":48.7,"sec":"ravine","calls":66,"tris":262112,"mult":1.66,"look":"storm","style":"lagoon"}
+open w19 STATE {"t":5,"s":30.1,"sec":"avenue","calls":60,"tris":262255,"mult":1.37,"look":"golden","style":"dry"}
+open w19 STATE {"t":8,"s":49.3,"sec":"ravine","calls":60,"tris":259629,"mult":1.66,"look":"golden","style":"dry"}
+open w23 STATE {"t":5,"s":30.1,"sec":"sunken","calls":65,"tris":240887,"mult":1.37,"look":"afternoon","style":"rainforest"}
+open w23 STATE {"t":8,"s":48.7,"sec":"overgrown","calls":69,"tris":243579,"mult":1.66,"look":"afternoon","style":"rainforest"}
+open w31 STATE {"t":5,"s":30.1,"sec":"forest","calls":64,"tris":250972,"mult":1.37,"look":"morning","style":"dry"}
+open w31 STATE {"t":8,"s":48.7,"sec":"cutting","calls":65,"tris":284566,"mult":1.66,"look":"morning","style":"dry"}
+open w42 STATE {"t":5,"s":30.1,"sec":"corridor","calls":54,"tris":220290,"mult":1.37,"look":"morning","style":"jade"}
+open w42 STATE {"t":8,"s":49.3,"sec":"forest","calls":63,"tris":242084,"mult":1.66,"look":"morning","style":"jade"}
+open w58 STATE {"t":5,"s":30.1,"sec":"forest","calls":57,"tris":212844,"mult":1.37,"look":"storm","style":"lagoon"}
+open w58 STATE {"t":8,"s":48.7,"sec":"forestWall","calls":64,"tris":259160,"mult":1.66,"look":"storm","style":"lagoon"}
+open w64 STATE {"t":5,"s":30.1,"sec":"corridor","calls":54,"tris":235519,"mult":1.37,"look":"storm","style":"rainforest"}
+open w64 STATE {"t":8,"s":49.3,"sec":"corridor","calls":62,"tris":252863,"mult":1.66,"look":"storm","style":"rainforest"}
+open w77 STATE {"t":5,"s":30.1,"sec":"forest","calls":57,"tris":206767,"mult":1.37,"look":"afternoon","style":"jade"}
+open w77 STATE {"t":8,"s":49.3,"sec":"overgrown","calls":62,"tris":201310,"mult":1.66,"look":"afternoon","style":"jade"}
+open w83 STATE {"t":5,"s":30.1,"sec":"boardwalk","calls":59,"tris":220161,"mult":1.37,"look":"storm","style":"jade"}
+open w83 STATE {"t":8,"s":49.3,"sec":"cutting","calls":63,"tris":221225,"mult":1.66,"look":"storm","style":"jade"}
+open w97 STATE {"t":5,"s":30.1,"sec":"statues","calls":60,"tris":250616,"mult":1.37,"look":"golden","style":"rainforest"}
+open w97 STATE {"t":8,"s":49.3,"sec":"ravine","calls":66,"tris":255603,"mult":1.66,"look":"golden","style":"rainforest"}
+open w105 STATE {"t":5,"s":30.1,"sec":"bridge","calls":54,"tris":174075,"mult":1.37,"look":"morning","style":"dry"}
+open w105 STATE {"t":8,"s":48.7,"sec":"forest","calls":59,"tris":211066,"mult":1.66,"look":"morning","style":"dry"}
+open w118 STATE {"t":5,"s":30.1,"sec":"corridor","calls":53,"tris":186155,"mult":1.37,"look":"golden","style":"jade"}
+open w118 STATE {"t":8,"s":49.3,"sec":"forestWall","calls":64,"tris":212595,"mult":1.66,"look":"golden","style":"jade"}
+open w126 STATE {"t":5,"s":30.1,"sec":"sunken","calls":67,"tris":241019,"mult":1.37,"look":"morning","style":"jade"}
+open w126 STATE {"t":8,"s":49.3,"sec":"forest","calls":71,"tris":238831,"mult":1.66,"look":"morning","style":"jade"}
+open w141 STATE {"t":5,"s":30.1,"sec":"sunken","calls":66,"tris":250728,"mult":1.37,"look":"storm","style":"dry"}
+open w141 STATE {"t":8,"s":49.3,"sec":"forest","calls":67,"tris":244591,"mult":1.66,"look":"storm","style":"dry"}
+OPENDONE
+leaf a w7 STATE {"t":4,"s":23.6,"sec":"bridge","calls":61,"tris":196060,"mult":1.29,"look":"morning","style":"rainforest"}
+leaf a w7 STATE {"t":25,"s":181.7,"sec":"gate","calls":75,"tris":276190,"mult":4.83,"look":"morning","style":"rainforest"}
+leaf a w23 STATE {"t":4,"s":23.6,"sec":"sunken","calls":66,"tris":224472,"mult":1.29,"look":"afternoon","style":"rainforest"}
+leaf a w23 STATE {"t":25,"s":182.9,"sec":"forestWall","calls":59,"tris":205715,"mult":4.83,"look":"afternoon","style":"rainforest"}
+leaf a w77 STATE {"t":4,"s":23.6,"sec":"forest","calls":53,"tris":194673,"mult":1.29,"look":"afternoon","style":"jade"}
+leaf a w77 STATE {"t":25,"s":180.7,"sec":"corridor","calls":71,"tris":246996,"mult":4.83,"look":"afternoon","style":"jade"}
+leaf b w7 STATE {"t":4,"s":23.6,"sec":"bridge","calls":61,"tris":204424,"mult":1.29,"look":"morning","style":"rainforest"}
+leaf b w7 STATE {"t":25,"s":181.7,"sec":"tall","calls":73,"tris":249908,"mult":4.83,"look":"morning","style":"rainforest"}
+leaf b w23 STATE {"t":4,"s":23.6,"sec":"sunken","calls":66,"tris":243403,"mult":1.29,"look":"afternoon","style":"rainforest"}
+leaf b w23 STATE {"t":25,"s":182.9,"sec":"forestWall","calls":54,"tris":186233,"mult":4.83,"look":"afternoon","style":"rainforest"}
+leaf b w77 STATE {"t":4,"s":23.6,"sec":"forest","calls":60,"tris":211549,"mult":1.29,"look":"afternoon","style":"jade"}
+leaf b w77 STATE {"t":25,"s":180.7,"sec":"approach","calls":73,"tris":246247,"mult":4.83,"look":"afternoon","style":"jade"}
+LEAFDONE
+PARTB
+SERVEDONE
+CHUNKDONE

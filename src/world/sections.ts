@@ -62,6 +62,8 @@ export interface Layout {
   len: number;
   turn: number;
   dy: number;
+  /** How the climb `dy` is spread along the section (path.Segment.ramp; stairs only). */
+  ramp?: readonly (readonly [number, number])[];
   props: Placement[];
   tiles: Placement[];
   falls: Waterfall[];
@@ -78,7 +80,7 @@ export interface Layout {
    * topple across (topple), a fallen log or column beside the way (trip), rock faces close at the side
    * (rockfall), a lower stone level a drop down on side -1/1 (lower).
    */
-  features?: { topple?: boolean; trip?: boolean; rockfall?: boolean; lower?: number };
+  features?: { topple?: boolean; trip?: boolean; rockfall?: boolean; lower?: number; /** World round 27: the opening's hero feature (see openingHero). */ hero?: string };
 }
 
 export const PATH_HALF = 2.2;
@@ -578,6 +580,30 @@ function floorRun(b: Builder, z0: number, n: number, y = 0, broken = 0.12, medal
   }
 }
 
+/**
+ * The kit's flight (blender/kit_geo.py stairs()): 10 treads over its 4 m, 1.6 m from top to bottom, the
+ * top tread level with the floor it leaves. The route runs through the middle of every tread, at its
+ * top: going down, level over the first half tread, then one riser per tread to the lower floor; going
+ * up (the flight turned round), the first half tread climbs onto the lowest tread's top, then one riser
+ * per tread to the top. (World round 27: the climb was spread over the whole 12 m section, so on the
+ * flight the route ran up to 1.1 m under the treads — his legs sank into the steps — and the upper
+ * landing's floor stood a metre over him.)
+ */
+export const STAIR_RISE = 1.6;
+const STAIR_TREADS = 10;
+const STAIR_RUN = 4;
+const STAIR_HALF = STAIR_RUN / STAIR_TREADS / 2;
+export const STAIR_DOWN: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [STAIR_HALF, 0],
+  [STAIR_RUN + STAIR_HALF, 1],
+];
+export const STAIR_UP: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [STAIR_HALF, 1 / STAIR_TREADS],
+  [STAIR_RUN - STAIR_HALF, 1],
+];
+
 function lowWalls(b: Builder, z0: number, n: number, sides: number[] = [-1, 1], opts: { gaps?: number; foundation?: boolean; y?: number } = {}) {
   // World round 26: `y`, the floor's height they line (the stairs' landings: at 0 the upper landing's
   // slabs stood 1.6 m over their footings, the lower landing's parapets 1.6 m over its floor).
@@ -754,7 +780,7 @@ function scenery(b: Builder, len: number, opts: { minX?: number; sides?: number[
 }
 
 // ------------------------------------------------------------------ section builders
-type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number; ground?: GroundKind; features?: Layout['features'] };
+type Build = (b: Builder, len: number) => Pick<Layout, 'hazards' | 'walls'> & { turn?: number; dy?: number; ramp?: Layout['ramp']; ground?: GroundKind; features?: Layout['features'] };
 
 /**
  * Round 11: a real 90° corner, Temple Run style. The path is one quarter circle of radius TURN_R (≈ 7 m)
@@ -1519,6 +1545,7 @@ const BUILDERS = {
   },
   stairsDown: {
     lengths: [12],
+    // (World round 27: the route climbs the flight where it stands — see STAIR_DOWN.)
     build: (b) => {
       b.tile('stairs_0', 0, 0, 0, 0);
       floorRun(b, -4, 2, -1.6);
@@ -1530,7 +1557,7 @@ const BUILDERS = {
       jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -0.7, 0.45);
       canopy(b, b.rng.pick([-1, 1]), -6, -1.6, 0.3);
       scenery(b, 12);
-      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: -1.6 };
+      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: -STAIR_RISE, ramp: STAIR_DOWN };
     },
   },
   stairsUp: {
@@ -1546,7 +1573,7 @@ const BUILDERS = {
       jungleBank(b, b.rng.pick([-1, 1]), PATH_HALF + 2.2, -6, -0.7, 0.45); // (World round 26: banks follow the water, not the stairs: at 1.6 it hung 2.3 m over it.)
       canopy(b, b.rng.pick([-1, 1]), -6, 1.6, 0.3);
       scenery(b, 12);
-      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: 1.6 };
+      return { hazards: ['chasm', 'rockfall'], walls: 'low', dy: STAIR_RISE, ramp: STAIR_UP };
     },
   },
   cliff: {
@@ -2029,6 +2056,84 @@ const BUILDERS = {
  * Round 11 crescendo: in the ruined variants, towers in the distance lean and break, their fallen
  * blocks heaped at their feet: the world falling apart as the multiplier climbs.
  */
+/** World round 27: the opening's hero features (see openingHero). */
+export const HERO_KINDS = ['statue', 'column', 'falls', 'tree', 'ruin'] as const;
+
+/**
+ * World round 27 (the owner: on a phone, held upright, the worlds' openings looked alike): a strong
+ * feature on the near side of each of a world's two opening sections — a colossal guardian, a fallen
+ * column, a ruined wall with a fall pouring off it into the water, a great tree, or a ruined wall end-on
+ * to the way — `at` m into the section (Track.spawn aims the first section's at ~44 m into the world
+ * and the second's at ~64 m, or as near as the section reaches — most stand ~30 m and ~45-55 m in: in a
+ * portrait frame through the first six seconds or so, the one then the other). Placed against the
+ * route (a bend's arc, not the section's straight axis) and within ~5 m of it, where an upright frame
+ * still holds it 10 m out. Which, on which side, from the world's own seed (a generator of its own: the
+ * layout's stream is untouched). Returns the kind placed.
+ */
+function openingHero(b: Builder, len: number, turn: number, at: number | undefined, ground?: GroundKind, tag = ''): (typeof HERO_KINDS)[number] {
+  const r = new Rng(`${b.seed}/hero${tag}`);
+  let kind = HERO_KINDS[r.int(0, HERO_KINDS.length - 1)]!;
+  // (A fall pours into water: on land, the great tree instead.)
+  if (kind === 'falls' && ground) kind = 'tree';
+  const side = r.chance(0.5) ? -1 : 1;
+  const u0 = at === undefined ? Math.min(len - 3, Math.max(7, len * r.range(0.4, 0.75))) : Math.min(len - 2, Math.max(2, at));
+  // A point `x` m right of the route, `du` m past the hero's place along it, and the route's heading there.
+  const f = { pos: new THREE.Vector3(), yaw: 0 };
+  const P = (x: number, du = 0) => {
+    evalSeg({ s0: 0, len, p0: new THREE.Vector3(), yaw0: 0, turn, dy: 0 }, Math.min(len, u0 + du), f);
+    return { x: f.pos.x + Math.cos(f.yaw) * x, z: f.pos.z - Math.sin(f.yaw) * x, yaw: f.yaw };
+  };
+  const g = (x: number, zz: number) => (ground ? groundY(ground, x, zz, len, b.lower) : WL);
+  const across = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+  const save = b.lift;
+  b.lift = 0;
+  if (kind === 'statue') {
+    // A colossal guardian on the near side, turned to the way; over the water it stands in the shallows.
+    const q = P(side * 3.7);
+    b.place(r.chance(0.6) ? 'guardian_0' : 'guardian_1', q.x, ground ? g(q.x, q.z) - 0.06 : WL - 0.25, q.z, q.yaw + faceIn(side, 1.0), ground ? 0.95 : 1.15);
+  } else if (kind === 'column') {
+    // A great column fallen out from the way's edge, its drums broken, lying out over the ground or
+    // half sunk in the shallows; a lone standing one past it.
+    const q = P(side * 3.4);
+    const ry = q.yaw + across + side * r.range(0.35, 0.6);
+    const sc = r.range(0.95, 1.1);
+    if (ground) b.place('column_fallen_0', q.x, g(q.x, q.z) + 0.2, q.z, ry, sc, slopeTilt(b, q.x, q.z, ry, ground, 2.5));
+    else b.place('column_fallen_0', q.x, WL + 0.05, q.z, ry, sc, [0.08, 0]);
+    const c = P(side * 4.4, 3.5);
+    b.place('column_lone_0', c.x, ground ? g(c.x, c.z) - 0.1 : WL - 0.3, c.z, r.range(0, 6.28), 0.8);
+  } else if (kind === 'falls') {
+    // A tall ruined wall standing in the water beside the way, a fall pouring off its crest.
+    const x = PATH_HALF + 2.4;
+    const q = P(side * x, -2);
+    b.place('foundation_1', q.x, 0, q.z, q.yaw + (side > 0 ? 0 : Math.PI));
+    b.place(r.chance(0.5) ? 'wall_tall_0' : 'wall_tall_1', q.x, 0, q.z, q.yaw + (side > 0 ? 0 : Math.PI));
+    const m = P(side * (x - 0.55));
+    const fm = new THREE.Matrix4().compose(
+      new THREE.Vector3(m.x, 4.9, m.z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), m.yaw + (-side * Math.PI) / 2),
+      new THREE.Vector3(1, 1, 1),
+    );
+    b.falls.push({ m: fm, w: r.range(1.6, 2.2), h: 4.9 - WL, bow: 0.9 });
+    const fr = P(side * (x - 1.0));
+    b.foamRing(fr.x, fr.z, 1.6);
+  } else if (kind === 'tree') {
+    // A great tree rooted just past the way's edge, its crown over the way.
+    const q = P(side * 5.2);
+    const ry = r.range(0, 6.28);
+    const t = r.int(0, 1);
+    b.place(`tree_big_${t}_trunk`, q.x, ground ? g(q.x, q.z) - 0.2 : WL - 0.35, q.z, ry, 1.15);
+    b.place(`tree_big_${t}_crown`, q.x, ground ? g(q.x, q.z) - 0.2 : WL - 0.35, q.z, ry, 1.15);
+  } else {
+    // A ruined wall end-on to the way, running out from just past its edge.
+    const q = P(side * (PATH_HALF + 1.2));
+    const o = P(side * (PATH_HALF + 5.2));
+    if (!ground) b.place('foundation_1', q.x, 0, q.z, q.yaw + across);
+    b.place(r.chance(0.5) ? 'wall_tall_0' : 'wall_tall_1', q.x, ground ? Math.max(g(q.x, q.z), g(o.x, o.z)) - 0.1 : 0, q.z, q.yaw + across);
+  }
+  b.lift = save;
+  return kind;
+}
+
 function ruinedSkyline(b: Builder, len: number, ruin: number, ground?: GroundKind) {
   const n = ruin > 0.8 ? 2 : 1;
   for (let i = 0; i < n; i++) {
@@ -2054,7 +2159,7 @@ function ruinedSkyline(b: Builder, len: number, ruin: number, ground?: GroundKin
   }
 }
 
-export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0): Layout {
+export function buildLayout(type: SectionType, seed: string, density: { foliage: number; scenery: number }, len?: number, ruin = 0, opts: { heroAt?: number[] } = {}): Layout {
   const rng = new Rng(seed);
   const def = BUILDERS[type];
   const L = len ?? rng.pick(def.lengths);
@@ -2066,7 +2171,14 @@ export function buildLayout(type: SectionType, seed: string, density: { foliage:
   const r = def.build(b, L);
   // (Never on a corner: its towers 30–44 m out to the side stood on the exit leg of the bend.)
   if (ruin > 0.45 && b.rich && type !== 'start' && type !== 'tunnel' && type !== 'turnL' && type !== 'turnR') ruinedSkyline(b, L, ruin, r.ground);
-  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: r.features };
+  // (World round 27: the opening's hero features — at the distances given, or as near them as the
+  // section reaches — not in a tunnel, nor on a corner or the stairs.)
+  let hero: string | undefined;
+  if (b.opening && !['tunnel', 'turnL', 'turnR', 'stairsUp', 'stairsDown', 'start'].includes(type)) {
+    const at = opts.heroAt ? opts.heroAt.map((u) => Math.min(L - 2, Math.max(2, u))) : [undefined];
+    hero = at.map((u, i) => openingHero(b, L, r.turn ?? 0, u, r.ground, i ? `/${i}` : '')).join('+') || undefined;
+  }
+  return { type, len: L, turn: r.turn ?? 0, dy: r.dy ?? 0, ramp: r.ramp, props: b.props, tiles: b.tiles, falls: b.falls, hazards: r.hazards, walls: r.walls, ruin, ground: r.ground, features: hero ? { ...r.features, hero } : r.features };
 }
 
 export const SECTION_TYPES = Object.keys(BUILDERS) as SectionType[];

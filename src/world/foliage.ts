@@ -73,6 +73,10 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
         {
           float lv = leafN(vLeafW.xz * 0.11) * 0.65 + leafN(vLeafW.xz * 0.37 + 7.0) * 0.35;
           diffuseColor.rgb *= mix(vec3(0.7, 0.8, 0.72), vec3(0.95, 0.9, 0.66), lv);
+          // World round 27: and each plant its own (a ~1.3 m cell): side by side, two copies of one fern
+          // or grass tuft were the same green, leaf for leaf — older and darker, fresher and yellower.
+          float pc = leafH(floor(vLeafW.xz * 0.75) + 17.0);
+          diffuseColor.rgb *= mix(vec3(0.82, 0.88, 0.8), vec3(1.08, 1.06, 0.88), pc);
           // A leaf facing the sun takes the full low sun: pale texels (fern tips, young fronds) would
           // burn out to white. A gamma on the albedo keeps the lights green and deepens the greens.
           // The atlas is painted bright (it reads under Blender's soft sky); under a sun of 13 a fern

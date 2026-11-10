@@ -14,6 +14,13 @@ export interface Segment {
   turn: number;
   /** Elevation change across the segment. */
   dy: number;
+  /**
+   * How the climb is spread along a straight segment: knots (distance along it, share of `dy` climbed),
+   * linear between them and level past the last. Without it the climb is spread evenly over the whole
+   * length. (World round 27: a flight of stairs climbs its 1.6 m over its own 4 m and the landing beyond
+   * is level; spread over the section's 12 m the route ran up to a metre under the steps.)
+   */
+  ramp?: readonly (readonly [number, number])[];
 }
 
 export interface Frame {
@@ -44,8 +51,8 @@ export class Path {
   }
 
   /** Append a segment at the current end; returns its start frame. */
-  push(len: number, turn = 0, dy = 0): Segment {
-    const seg: Segment = { s0: this.endS, len, p0: this.end.pos.clone(), yaw0: this.end.yaw, turn, dy };
+  push(len: number, turn = 0, dy = 0, ramp?: Segment['ramp']): Segment {
+    const seg: Segment = { s0: this.endS, len, p0: this.end.pos.clone(), yaw0: this.end.yaw, turn, dy, ramp };
     this.segs.push(seg);
     const f = evalSeg(seg, len, { pos: new THREE.Vector3(), yaw: 0 });
     this.end = f;
@@ -86,7 +93,7 @@ export function evalSeg(seg: Segment, u: number, out: Frame): Frame {
   if (Math.abs(turn) < 1e-5) {
     forward(yaw0, _f);
     out.pos.copy(p0).addScaledVector(_f, u);
-    out.pos.y = p0.y + seg.dy * smoothRamp(t / len);
+    out.pos.y = p0.y + seg.dy * (seg.ramp ? rampAt(seg.ramp, t) : evenRamp(t / len));
     out.yaw = yaw0;
     return out;
   }
@@ -98,10 +105,21 @@ export function evalSeg(seg: Segment, u: number, out: Frame): Frame {
   return out;
 }
 
-/** Stairs read better with a gentle ease at each end. */
-function smoothRamp(x: number): number {
-  const c = Math.min(Math.max(x, 0), 1);
-  return c;
+function evenRamp(x: number): number {
+  return Math.min(Math.max(x, 0), 1);
+}
+
+/** The share of the climb made by `u` m along a segment with these knots (see Segment.ramp). */
+export function rampAt(knots: readonly (readonly [number, number])[], u: number): number {
+  let [u0, f0] = knots[0]!;
+  if (u <= u0) return f0;
+  for (let i = 1; i < knots.length; i++) {
+    const [u1, f1] = knots[i]!;
+    if (u <= u1) return f0 + (f1 - f0) * ((u - u0) / Math.max(u1 - u0, 1e-6));
+    u0 = u1;
+    f0 = f1;
+  }
+  return f0;
 }
 
 /** Local-to-world matrix for a frame (origin on the path, −Z forward). */

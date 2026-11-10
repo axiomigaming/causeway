@@ -159,12 +159,26 @@ if (uDetail > 0.0 && uDetailReady > 0.0) {
     vec4 b = dtTri(vWetPos * 2.9 + 0.37, w, wn);
     #endif
     vec3 dw = a.xyz * 1.5 + b.xyz * 0.8 * fine;
+    // World round 27 (the coordinator: a pier ~4 m from the lens still read blotchy and soft — the
+    // atlas magnified past its texels): within 6 m a third, finest octave of the scan (offset again,
+    // ~14 cm a tile): crisp grains, pits and hairline cracks in the normal and in the albedo, over the
+    // atlas's soft blotches. Faded out before it could shimmer.
+    float finest = 0.0;
+    vec4 c3 = vec4(0.0, 0.0, 0.0, 0.5);
+    #ifndef DETAIL_FAR
+    finest = 1.0 - smoothstep(2.5, 6.0, dist);
+    if (finest > 0.0) {
+      c3 = dtTri(vWetPos * 7.3 + 1.91, w, wn);
+      dw += c3.xyz * 0.6 * finest;
+    }
+    #endif
     vec3 dv = mat3(viewMatrix) * dw;
     vec3 bn = normal + dv * k;
     float bl = length(bn);
     // NaN guard (an exactly cancelling tilt would be normalize(0), which bloom smeared over the frame).
     if (bl > 1e-4) normal = bn / bl;
     float cav = mix(a.w, a.w * (0.6 + 0.8 * b.w), fine);
+    cav = mix(cav, cav * (0.7 + 0.6 * c3.w), finest);
     diffuseColor.rgb *= mix(1.0, 0.62 + 0.7 * cav, min(1.0, k * 1.2));
   }
 }
@@ -219,6 +233,27 @@ diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 float wetRough = mix(0.22, 0.45, abs(vWetN.y));
 wetRough = max(wetRough, mix(0.22, 0.42, smoothstep(10.0, 45.0, length(vViewPosition))));
 roughnessFactor = mix(roughnessFactor, wetRough, wetK);
+{
+  // World round 27 (the owner: where stone meets the water the line is hard, as if cut): the water laps
+  // the stone. A swash a few centimetres high rides up and down the face in slow waves, leaving a band
+  // of soaked, darkened stone and a broken line of foam at its edge; just under the surface the stone
+  // takes the water's own green, so the opaque water's edge has something to blend into.
+  float hW = vWetPos.y - (${WATER_Y.toFixed(3)});
+  if (hW > -0.2 && hW < 0.45) {
+    float lapT = uCausticTime;
+    float swash = 0.035 + 0.04 * sin(lapT * 1.1 + dot(vWetPos.xz, vec2(0.83, 0.57))) + 0.02 * sin(lapT * 2.3 + dot(vWetPos.xz, vec2(-1.7, 2.1)));
+    float soak = smoothstep(swash + 0.3, swash, hW);
+    diffuseColor.rgb *= mix(1.0, 0.58, soak);
+    roughnessFactor = mix(roughnessFactor, 0.28, soak * 0.8);
+    float lapN = pdN(vWetPos.xz * 2.6 + vec2(lapT * 0.32, -lapT * 0.21)) * 0.6 + pdN(vWetPos.xz * 8.0 + vWetPos.y * 3.0 - lapT * 0.5) * 0.4;
+    float line = smoothstep(swash + 0.08, swash + 0.02, hW) * smoothstep(swash - 0.07, swash - 0.015, hW);
+    // Foam clings to the faces the water runs along; a flat top at the swash's height would take it
+    // over its whole face (white tiles).
+    float foam = line * smoothstep(0.3, 0.7, lapN) * (1.0 - smoothstep(0.45, 0.8, abs(vWetN.y)));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.77, 0.73), foam * 0.6);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.11, 0.09), smoothstep(0.0, -0.12, hW) * 0.7);
+  }
+}
 #ifdef WET_EDGES
 if (vHalf > 0.0) {
   // World round 12: where the paving meets the parapets — grime and wear in the last ~0.7 m, moss
@@ -291,7 +326,7 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet19${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet27${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
   sm.needsUpdate = true;
 }
 

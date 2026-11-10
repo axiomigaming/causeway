@@ -82,9 +82,33 @@ def wall(name, seed, length=4.0, height=1.5, depth=0.7, ruin=0.4, tall=False):
     between them (some lean, some are stumps), loose blocks on the crests and fallen at the foot.
     """
     rng = random.Random(seed)
+    # World round 27 (the owner: the low walls' courses still read even, stacked bricks): stones split
+    # in two along a course, each its own height and depth, set proud or back, and a dark rubble-and-mortar
+    # core behind each column. Drawn from a generator of their own: the wall's columns, heights and crests
+    # (what the ivy and the crest planting are fitted to) stay exactly as they were.
+    r2 = random.Random(seed * 7919 + 13)
     bm = bmesh.new()
     crests = []
     k = 1.35 if tall else 1.0
+
+    def stone(size, loc, rot, **kw):
+        """A course stone: as it was (its draws from `rng`), or now and then two of uneven length."""
+        sx, sy, sz = size
+        if sy > 0.36 and r2.random() < 0.42:
+            f = r2.uniform(0.32, 0.68)
+            y0 = loc[1] - sy / 2
+            parts = ((y0, y0 + sy * f - 0.02), (y0 + sy * f + 0.015, y0 + sy))
+        else:
+            parts = ((loc[1] - sy / 2, loc[1] + sy / 2),)
+        for i, (a0, a1) in enumerate(parts):
+            h = sz * (r2.uniform(0.78, 1.0) if len(parts) > 1 or r2.random() < 0.4 else 1.0)
+            d = sx * r2.uniform(0.88, 1.06)
+            c = (loc[0] + r2.uniform(-0.05, 0.05), (a0 + a1) / 2, loc[2] - (sz - h) / 2 + r2.uniform(-0.01, 0.01))
+            rr = (rot[0] + r2.uniform(-0.03, 0.03), rot[1] + r2.uniform(-0.03, 0.03), rot[2] + r2.uniform(-0.05, 0.05))
+            if i == 0:
+                blk(bm, rng, (d, a1 - a0, h), c, rr, **kw)
+            else:
+                blk(bm, r2, (d, a1 - a0, h), c, rr, color=weathered(r2), **kw)
     base_h = height * (rng.uniform(0.28, 0.42) if not tall else rng.uniform(0.4, 0.55))
     back = {"bottom": 0.45 if tall else 0.9, "end": 0.55}
     z = -0.3
@@ -97,8 +121,8 @@ def wall(name, seed, length=4.0, height=1.5, depth=0.7, ruin=0.4, tall=False):
             if yc > length + 0.1:
                 break
             d = depth * rng.uniform(0.84, 1.0)
-            blk(bm, rng, (d, bl - 0.03, ch - 0.02), (rng.uniform(-0.05, 0.05), yc, z + ch / 2),
-                (rng.uniform(-0.03, 0.03), rng.uniform(-0.03, 0.03), rng.uniform(-0.06, 0.06)), cuts=1, uvshrink=back)
+            stone((d, bl - 0.03, ch - 0.02), (rng.uniform(-0.05, 0.05), yc, z + ch / 2),
+                  (rng.uniform(-0.03, 0.03), rng.uniform(-0.03, 0.03), rng.uniform(-0.06, 0.06)), cuts=1, uvshrink=back)
             y += bl + rng.uniform(0.0, 0.02)
         z += ch
     z_base = z
@@ -129,11 +153,15 @@ def wall(name, seed, length=4.0, height=1.5, depth=0.7, ruin=0.4, tall=False):
             d = depth * rng.uniform(0.72, 0.97)
             ox += rng.uniform(-0.035, 0.035) + lean[0] * ch
             oy += rng.uniform(-0.03, 0.03) + lean[1] * ch
-            blk(bm, rng, (d, bw - 0.03, ch - 0.015), (ox, yc + oy, zc + ch / 2),
-                (rng.uniform(-0.04, 0.04) + lean[1] * 0.6, rng.uniform(-0.04, 0.04) - lean[0] * 0.6, rng.uniform(-0.12, 0.12)),
-                erode=0.6 + 0.3 * (zc / max(prof, 0.5)), cuts=2 if zc + ch >= prof - 0.1 else 1, uvshrink={"bottom": 0.45 if tall else 0.9})
+            stone((d, bw - 0.03, ch - 0.015), (ox, yc + oy, zc + ch / 2),
+                  (rng.uniform(-0.04, 0.04) + lean[1] * 0.6, rng.uniform(-0.04, 0.04) - lean[0] * 0.6, rng.uniform(-0.12, 0.12)),
+                  erode=0.6 + 0.3 * (zc / max(prof, 0.5)), cuts=2 if zc + ch >= prof - 0.1 else 1, uvshrink={"bottom": 0.45 if tall else 0.9})
             zc += ch
             n += 1
+        # (The column's dark core: what the joints between its stones open onto.)
+        if zc - z_base > 0.2:
+            add_block(bm, (depth * 0.55, max(0.1, w - 0.22), zc - z_base - 0.08), (ox * 0.5, yc + oy * 0.5, (z_base + zc) / 2 - 0.04), bevel=0.0,
+                      rng=r2, color=jitter_color(hexcol("#4f463b"), r2, 0.05, 0.02), jit=0.0)
         # A cap: now and then a loose block lying askew on top.
         if n and rng.random() < 0.22:
             s = rng.uniform(0.22, 0.34)

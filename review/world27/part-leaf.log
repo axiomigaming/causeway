@@ -1,0 +1,22 @@
+servers 5195:200 5196:200
+leaf a w7 STATE {"t":4,"s":23.6,"sec":"bridge","calls":63,"tris":203118,"mult":1.29,"look":"morning","style":"rainforest"}
+leaf a w7 STATE {"t":12,"s":76.6,"sec":"overgrown","calls":61,"tris":218839,"mult":2.13,"look":"morning","style":"rainforest"}
+leaf a w7 STATE {"t":25,"s":181.7,"sec":"tall","calls":73,"tris":243768,"mult":4.83,"look":"morning","style":"rainforest"}
+leaf a w23 STATE {"t":4,"s":23.6,"sec":"sunken","calls":66,"tris":237244,"mult":1.29,"look":"afternoon","style":"rainforest"}
+leaf a w23 STATE {"t":12,"s":75.9,"sec":"ravine","calls":71,"tris":225816,"mult":2.13,"look":"afternoon","style":"rainforest"}
+leaf a w23 STATE {"t":25,"s":182.9,"sec":"forestWall","calls":54,"tris":186233,"mult":4.83,"look":"afternoon","style":"rainforest"}
+leaf a w77 STATE {"t":4,"s":23.6,"sec":"forest","calls":60,"tris":209742,"mult":1.29,"look":"afternoon","style":"jade"}
+leaf a w77 STATE {"t":12,"s":77,"sec":"forest","calls":61,"tris":198074,"mult":2.13,"look":"afternoon","style":"jade"}
+leaf a w77 STATE {"t":25,"s":180.7,"sec":"approach","calls":73,"tris":245037,"mult":4.83,"look":"afternoon","style":"jade"}
+leaf b w7 STATE {"t":4,"s":23.6,"sec":"bridge","calls":63,"tris":206993,"mult":1.29,"look":"morning","style":"rainforest"}
+leaf b w7 STATE {"t":12,"s":76.6,"sec":"overgrown","calls":61,"tris":221318,"mult":2.13,"look":"morning","style":"rainforest"}
+leaf b w7 STATE {"t":25,"s":181.7,"sec":"tall","calls":72,"tris":249896,"mult":4.83,"look":"morning","style":"rainforest"}
+leaf b w23 STATE {"t":4,"s":23.6,"sec":"sunken","calls":66,"tris":243759,"mult":1.29,"look":"afternoon","style":"rainforest"}
+leaf b w23 STATE {"t":12,"s":75.9,"sec":"ravine","calls":71,"tris":232798,"mult":2.13,"look":"afternoon","style":"rainforest"}
+leaf b w23 STATE {"t":25,"s":182.9,"sec":"forestWall","calls":54,"tris":186233,"mult":4.83,"look":"afternoon","style":"rainforest"}
+leaf b w77 STATE {"t":4,"s":23.6,"sec":"forest","calls":60,"tris":211613,"mult":1.29,"look":"afternoon","style":"jade"}
+leaf b w77 STATE {"t":12,"s":77,"sec":"forest","calls":61,"tris":201469,"mult":2.13,"look":"afternoon","style":"jade"}
+leaf b w77 STATE {"t":25,"s":180.7,"sec":"approach","calls":73,"tris":246247,"mult":4.83,"look":"afternoon","style":"jade"}
+LEAFDONE
+SERVEDONE
+CHUNKDONE

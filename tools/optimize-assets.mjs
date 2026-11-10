@@ -89,6 +89,11 @@ async function textures(doc, set, name) {
   // The runner's ORM carries his skin mask in R (blender/char_paint.py refine_orm; runner.ts reads it for
   // the skin's warmth and wrap): kept in colour, at the ORM's quality.
   const skinMask = name === 'runner';
+  // World round 27: the leaf atlases' cut-outs (alpha 0/1, cut at 0.45) stood as texel stair-steps on a
+  // palm frond a metre or two from the lens. Their alpha gets a soft ramp across each leaf's edge (a
+  // ~1.5 texel blur at the output size): bilinear filtering then puts the cut on a smooth contour through
+  // the middle of the ramp, where the leaf's edge was. The colour is untouched.
+  const leafTex = new Set(doc.getRoot().listMaterials().filter((m) => /leaf/i.test(m.getName())).map((m) => m.getBaseColorTexture()).filter(Boolean));
   for (const tex of doc.getRoot().listTextures()) {
     const name = tex.getName() || tex.getURI();
     const src = Buffer.from(tex.getImage());
@@ -102,8 +107,29 @@ async function textures(doc, set, name) {
       for (let i = 0; i < data.length; i += info.channels) data[i] = data[i + 2] = data[i + 1];
       pipe = sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } });
     }
+    if (kind === 'color' && leafTex.has(tex)) {
+      const { data, info } = await pipe.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { width: w, height: h, channels: c } = info;
+      const al = new Float32Array(w * h);
+      for (let i = 0; i < w * h; i++) al[i] = data[i * c + 3];
+      const tmp = new Float32Array(w * h);
+      const K = [0.06, 0.24, 0.4, 0.24, 0.06];
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          let v = 0;
+          for (let k = -2; k <= 2; k++) v += K[k + 2] * al[y * w + Math.min(w - 1, Math.max(0, x + k))];
+          tmp[y * w + x] = v;
+        }
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          let v = 0;
+          for (let k = -2; k <= 2; k++) v += K[k + 2] * tmp[Math.min(h - 1, Math.max(0, y + k)) * w + x];
+          data[(y * w + x) * c + 3] = Math.round(v);
+        }
+      pipe = sharp(data, { raw: { width: w, height: h, channels: c } });
+    }
     const out = await pipe.webp({ quality: cfg.quality[kind], alphaQuality: 90, effort: 6, smartSubsample: kind === 'color' }).toBuffer();
-    if (size < meta.width || kind === 'orm' || out.byteLength < src.byteLength) tex.setImage(new Uint8Array(out)).setMimeType('image/webp');
+    if (size < meta.width || kind === 'orm' || leafTex.has(tex) || out.byteLength < src.byteLength) tex.setImage(new Uint8Array(out)).setMimeType('image/webp');
   }
 }
 

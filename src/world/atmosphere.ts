@@ -182,8 +182,20 @@ function installSkyGrade(): void {
   bc.uniforms.skySun = { value: atmosphereUniforms.fogSunDir.value };
   bc.uniforms.skyLook = { value: atmosphereUniforms.skyLook.value };
   bc.uniforms.skyHaze = { value: atmosphereUniforms.skyHaze.value };
+  bc.uniforms.skyMist = { value: atmosphereUniforms.fogMist.value };
   bc.fragmentShader = bc.fragmentShader
-    .replace('uniform float backgroundIntensity;', 'uniform float backgroundIntensity;\nuniform vec3 skySun;\nuniform vec4 skyLook;\nuniform vec4 skyHaze;')
+    .replace(
+      'uniform float backgroundIntensity;',
+      `uniform float backgroundIntensity;
+uniform vec3 skySun;
+uniform vec4 skyLook;
+uniform vec4 skyHaze;
+uniform vec4 skyMist;
+float skyH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float skyN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(skyH(i), skyH(i + vec2(1, 0)), f.x), mix(skyH(i + vec2(0, 1)), skyH(i + vec2(1, 1)), f.x), f.y); }
+float skyF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { v += a * skyN(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return v; }`,
+    )
     .replace(
       'texColor.rgb *= backgroundIntensity;',
       `texColor.rgb *= backgroundIntensity;
@@ -217,6 +229,31 @@ function installSkyGrade(): void {
           vec3 texChroma = texColor.rgb - vec3(skyL);
           float hzA = max(hz, hzLand);
           texColor.rgb = mix(texColor.rgb, hzCol, hzA) + texChroma * hzLand * 0.55;
+        }
+        // World round 27 (the owner: the sky and the distance read as a cheap backdrop — a smooth gradient
+        // with faint wisps over flat, dark cut-out hills): clouds and mist.
+        {
+          float hzL2 = dot(skyHaze.rgb, vec3(0.2126, 0.7152, 0.0722));
+          float isSky = smoothstep(0.32, 0.6, skyL / max(hzL2, 1e-3));
+          // Mist lying at the foot of the far hills: their bases fade into the haze, their crowns stand
+          // out (they stood as one flat dark shape from crown to waterline).
+          float foot = smoothstep(0.1, 0.0, skyD.y) * smoothstep(-0.2, -0.02, skyD.y) * (1.0 - isSky);
+          texColor.rgb = mix(texColor.rgb, skyHaze.rgb * 1.02, foot * 0.35);
+          // A layer of fair-weather cloud, projected on a plane overhead and drifting: broken cumulus near
+          // the horizon thinning toward the zenith, lit on the side toward the sun and grey in its own
+          // shade, only over the sky's own texels (the hills keep their silhouettes).
+          if (skyD.y > 0.0 && isSky > 0.0) {
+            vec2 cp = skyD.xz / (skyD.y + 0.08) * 0.9 + vec2(skyMist.x * 0.006, skyMist.x * 0.0025);
+            float n = skyF(cp + skyF(cp * 0.6 + 3.1) * 0.9);
+            float cover = smoothstep(0.45, 0.6, n) * smoothstep(0.012, 0.08, skyD.y) * (1.0 - 0.5 * smoothstep(0.4, 0.9, skyD.y));
+            vec2 toS = normalize(skySun.xz + 1e-4) * 0.08;
+            float lit = clamp((n - skyF(cp + toS + skyF(cp * 0.6 + 3.1) * 0.9)) * 4.0 + 0.55, 0.0, 1.0);
+            float sunNear = pow(skyToSun, 4.0);
+            vec3 shade = skyHaze.rgb * vec3(0.66, 0.7, 0.8);
+            vec3 light = mix(vec3(0.93, 0.92, 0.88), vec3(1.05, 0.93, 0.76), sunNear) * max(skyL, hzL2) * 1.4;
+            vec3 cloud = mix(shade, light, lit);
+            texColor.rgb = mix(texColor.rgb, cloud, cover * isSky * 0.8);
+          }
         }
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
         float skyL2 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
