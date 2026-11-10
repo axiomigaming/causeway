@@ -576,14 +576,21 @@ export class CameraRig {
         // big soft blocks across the top of the frame. It rides above them instead.
         const tall = Math.min(1, Math.max(0, (1 - this.camera.aspect) / 0.5));
         fov = this.shot(runnerPos, {
-          along: lerp(-8.5, -2.3, c),
+          // (Camera round 3: and 1.4 m nearer him on a tall screen. The title keeps his boots in the
+          // band over its copy, which tilts the lens up as far as his depression angle asks; from
+          // nearer and as high, that angle is steeper, the horizon rides higher, the karst is small.)
+          along: lerp(-8.5 + 1.4 * tall, -2.3, c),
           lat: lerp(-0.5, -1.45, c) + drift,
           // (Round 9: on a wide screen too; at 5.4 m the desktop title looked through the stacked
           // stones of the arch beside the lens, a quarter of the frame each side.)
           up: lerp(9.0 + 0.8 * tall, 1.05, Math.pow(c, 1.5)),
           lAlong: lerp(22, 6, c),
           lLat: lerp(0.2, 0.95, c),
-          lUp: lerp(0.4, 1.55, c),
+          // (Camera round 3, coordinator: on a tall screen the high pass looks lower — level with the
+          // karst's face, its tall frame showed the cliff as one flat grey shape over two thirds of
+          // the sky. The horizon now sits nearer the top, the karst smaller on it, as on a desktop.
+          // Not at the low end of the move, which looks up past him at open sky.)
+          lUp: lerp(0.4, 1.55, c) - 2.4 * tall * (1 - c),
           focus: 0,
           fov: lerp(50, 44, c),
         });
@@ -1490,7 +1497,9 @@ export class CameraRig {
     const hiT = hi * tanV;
     let tilt = 0;
     if (m.feet < loT) tilt = -(Math.atan(loT) - Math.atan(m.feet));
-    else if (settled && m.head > hiT) tilt = Math.atan(m.head) - Math.atan(hiT);
+    // (Camera round 3, QA hunt: in the run too — at a flight's foot or head on a phone his head rose
+    // behind the multiplier. The boots still come first: the tilt up stops at the dock line.)
+    else if ((settled || this.mode === 'run') && m.head > hiT) tilt = Math.atan(m.head) - Math.atan(hiT);
     // (FX round 21: in a fall, while he is still too tall for the band — the stand-back eases in over
     // half a second — the boots come first and the crown may rise to the frame's own edge: the chase
     // now hands over from where it is composed, a metre nearer than when it trailed, and a fall that
