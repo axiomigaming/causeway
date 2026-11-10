@@ -55,6 +55,8 @@ export function App() {
       const t = window.setTimeout(() => setVeil(''), 900);
       return () => window.clearTimeout(t);
     }
+    // A run started before the dip has lifted (Space, Space): the run is never shown through it.
+    if (phase !== 'title' && phase !== 'setup') setVeil('');
     return undefined;
   }, [phase]);
   const inGame = phase !== 'title' && phase !== 'loading';
