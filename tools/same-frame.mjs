@@ -4,7 +4,7 @@
 // save a still for each. Run it against two servers (the old build and the new) for a before/after pair.
 //
 //   URL=http://localhost:5197 node tools/same-frame.mjs --view desktop --q high --w 7 --at run:6.0 \
-//       --out dir --name after [--variant 'name=js' ...] [--crop x,y,w,h] [--size 1280x720] [--dpr 3]
+//       --out dir --name after [--variant 'name=js' ...] [--crop x,y,w,h] [--size 1280x720] [--dpr 3] [--sections stairsDown,stairsUp]
 //
 // --at: run:<s> (the premium-hunt run scene, <s> seconds since the round was staged), title:<s>,
 //       crash:<kind>:<variant>:<mult>:<s after the fall>, cash:<mult>:<s after the cash-out>.
@@ -34,6 +34,7 @@ const OUT = arg('out', 'review/same-frame');
 const NAME = arg('name', 'shot');
 const CROP = arg('crop', '');
 const DPR = +arg('dpr', '1');
+const SECTIONS = arg('sections', '');
 const [VW, VH] = (arg('size', VIEW === 'phone' ? '390x844' : '1280x720')).split('x').map(Number);
 mkdirSync(OUT, { recursive: true });
 
@@ -49,7 +50,7 @@ await page.goto(`${URL}/?qa&q=${Q}&w=${W}&seed=hunt22`, { waitUntil: 'load' });
 await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
 const [kind, ...rest] = AT.split(':');
 const info = await page.evaluate(
-  async ({ kind, rest, name }) => {
+  async ({ kind, rest, name, sections }) => {
     const g = window.__game;
     const ctl = window.__ctl;
     const st = window.__store;
@@ -77,7 +78,7 @@ const info = await page.evaluate(
     }
     ctl.enter();
     await new Promise((r) => setTimeout(r, 800));
-    if (kind === 'run') g.track.forceNext = ['corridor', 'bridge', 'turnL', 'corridor', 'arcade', 'turnR', 'corridor', 'plaza'];
+    if (kind === 'run') g.track.forceNext = sections ? sections.split(',') : ['corridor', 'bridge', 'turnL', 'corridor', 'arcade', 'turnR', 'corridor', 'plaza'];
     g.newWorld('setup');
     await g.toSetup();
     g.debugStep(1);
@@ -127,7 +128,7 @@ const info = await page.evaluate(
     step(after);
     return { stage: g.stage, kind: g.debugState?.crashKind, mult: mm };
   },
-  { kind, rest, name: AT.startsWith('run') ? 'run' : AT },
+  { kind, rest, name: AT.startsWith('run') ? 'run' : AT, sections: SECTIONS },
 );
 console.log(NAME, AT, JSON.stringify(info));
 for (const [vn, js] of variants) {
