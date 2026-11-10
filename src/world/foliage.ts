@@ -14,8 +14,8 @@ export const foliageUniforms = {
   /** 1: cards seen edge-on dissolve (0 for QA). */
   uLeafEdge: { value: 1 },
   /**
-   * 1 (Low, no MSAA): the alpha test cuts on the pixel's coverage (four taps across its footprint),
-   * dithered in screen space (a stable 4×4 ordered pattern), which the FXAA pass resolves.
+   * 1 (Low, no MSAA): the alpha test cuts on the pixel's coverage, read from the atlas's soft edge
+   * ramp, dithered in screen space (a stable 4×4 ordered pattern), which the FXAA pass resolves.
    * QA hunt: on phone Low the crowns' cut-outs stood as stair-stepped, blocky silhouettes.
    */
   uLeafSoft: { value: 0 },
@@ -108,28 +108,14 @@ export function upgradeLeafMaterial(m: THREE.Material): void {
         }
         #if defined(USE_ALPHATEST) && !defined(ALPHA_TO_COVERAGE)
         if (uLeafSoft > 0.5) {
-          // The pixel's coverage, not one sample's verdict: four alpha taps on a rotated grid across
-          // the pixel's footprint (same mip, same far softening as above), each cut at the threshold.
-          // Under minification one tap per pixel jumps between leaf and gap from pixel to pixel (the
-          // crowns' stair-stepped, blocky outline on phones); the dithered coverage resolves through
-          // FXAA into a soft edge instead.
-          float cov = 0.0;
-          #ifdef USE_MAP
-          {
-            vec2 ts = vec2(textureSize(map, 0));
-            vec2 ddx = dFdx(vMapUv), ddy = dFdy(vMapUv);
-            float lodS = clamp(0.5 * log2(max(max(dot(ddx * ts, ddx * ts), dot(ddy * ts, ddy * ts)), 1e-8)), 0.0, 2.0);
-            float far = smoothstep(30.0, 90.0, length(vLeafW - cameraPosition));
-            vec2 o[4] = vec2[4](vec2(-0.125, -0.375), vec2(0.375, -0.125), vec2(0.125, 0.375), vec2(-0.375, 0.125));
-            for (int k = 0; k < 4; k++) {
-              float a = textureLod(map, vMapUv + ddx * o[k].x + ddy * o[k].y, lodS).a * opacity;
-              a = mix(a, smoothstep(0.22, 0.55, a), far);
-              cov += step(alphaTest, a) * 0.25;
-            }
-          }
-          #else
-          cov = step(alphaTest, diffuseColor.a);
-          #endif
+          // Round 28: the atlas now carries a soft alpha ramp at every leaf edge (world round 27), so the
+          // filtered alpha itself says how much of this pixel the leaf covers: its distance from the
+          // cut over its screen-space gradient, a ~1 px coverage ramp, dithered (stable 4x4) for FXAA to
+          // resolve. (The round-22 block took four taps and cut each at the threshold, which threw that
+          // ramp away and stippled every edge.) One fetch fewer than before, and the alpha is the one the
+          // far-crown softening above already shaped.
+          float aw = max(fwidth(diffuseColor.a), 0.02);
+          float cov = clamp((diffuseColor.a - alphaTest) / aw + 0.5, 0.0, 1.0);
           if (cov <= leafBayer(gl_FragCoord.xy)) discard;
         } else if (diffuseColor.a < alphaTest) discard;
         #else
