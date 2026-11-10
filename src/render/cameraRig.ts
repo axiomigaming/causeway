@@ -1490,7 +1490,9 @@ export class CameraRig {
     const hiT = hi * tanV;
     let tilt = 0;
     if (m.feet < loT) tilt = -(Math.atan(loT) - Math.atan(m.feet));
-    else if (settled && m.head > hiT) tilt = Math.atan(m.head) - Math.atan(hiT);
+    // (Camera round 3, QA hunt: in the run too — at a flight's foot or head on a phone his head rose
+    // behind the multiplier. The boots still come first: the tilt up stops at the dock line.)
+    else if ((settled || this.mode === 'run') && m.head > hiT) tilt = Math.atan(m.head) - Math.atan(hiT);
     // (FX round 21: in a fall, while he is still too tall for the band — the stand-back eases in over
     // half a second — the boots come first and the crown may rise to the frame's own edge: the chase
     // now hands over from where it is composed, a metre nearer than when it trailed, and a fall that
