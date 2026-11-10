@@ -21,7 +21,8 @@
 //   URL=http://localhost:5180 node tools/motion-audit.mjs [--seq start,log,...] [--out review/motion/base]
 //       [--w 7] [--q high] [--shots 14] [--compare review/motion/old/flags.json]
 //
-// Sequences: start, log, beam (lintel slide), pillar (vault), blocks (slabs: leaps), corner,
+// Sequences: start, log, beam (lintel slide), pillar (vault), blocks (slabs: leaps), each of those four
+// again at the sprint's and the dash's tier (log5 … blocks20: the run-outs keyed on those strides), corner,
 // cash1.5, cash5, cash20, cash60, fall_start, and each crash variant: chasm0/1, gate0/1, rock0/1/2,
 // pillar0/1, trip0, ledge0 (a kind the build does not have yet is staged as whatever the game falls back to).
 import { chromium } from 'playwright-core';
@@ -58,6 +59,12 @@ function seq(name) {
   if (name === 'start') return { name, events: [[45, 'lead']], from: 0, to: 45 + LEAD_F + 150 };
   if (['log', 'beam', 'pillar', 'blocks'].includes(name))
     return { name, events: [[L, 'lead'], [runAt + 90, `obstacle:${name}`]], from: runAt + 15, to: runAt + 300 };
+  // The obstacles at a higher tier (x5: the sprint, x20: the dash), set off once the run gets there.
+  const mo = /^(log|beam|pillar|blocks)(5|20)$/.exec(name);
+  if (mo) {
+    const at = runAt + runFrames(Number(mo[2]));
+    return { name, events: [[L, 'lead'], [at, `obstacle:${mo[1]}`]], from: at - 75, to: at + 210 };
+  }
   if (name === 'corner')
     return { name, sections: ['corridor', 'turnL', 'corridor', 'corridor', 'turnR', 'corridor', 'corridor'], events: [[L, 'lead']], from: runAt + 15, to: runAt + 300 };
   if (name.startsWith('cash')) {
@@ -73,7 +80,7 @@ function seq(name) {
   }
   throw new Error(`unknown sequence ${name}`);
 }
-const ALL = ['start', 'log', 'beam', 'pillar', 'blocks', 'corner', 'cash1.5', 'cash5', 'cash20', 'cash60', 'fall_start', 'chasm0', 'chasm1', 'gate0', 'gate1', 'rock0', 'rock1', 'rock2', 'pillar0', 'pillar1', 'trip0', 'ledge0'];
+const ALL = ['start', 'log', 'beam', 'pillar', 'blocks', 'log5', 'beam5', 'pillar5', 'blocks5', 'log20', 'beam20', 'pillar20', 'blocks20', 'corner', 'cash1.5', 'cash5', 'cash20', 'cash60', 'fall_start', 'chasm0', 'chasm1', 'gate0', 'gate1', 'rock0', 'rock1', 'rock2', 'pillar0', 'pillar1', 'trip0', 'ledge0'];
 const SEQS = (arg('seq', '') || ALL.join(',')).split(',').filter(Boolean);
 
 // ------------------------------------------------------------------ limits (degrees, from the bind pose)
