@@ -701,6 +701,10 @@ SIG_TOE = 18.0
 EDGE = 0.04  # share of the cycle over which the swing's filter fades in after toe-off and out before the strike
 
 _CYC = {}
+# The hips' height through a gait cycle is low-passed with this σ, in game frames at the gait's design speed
+# (_cycle). 0.5 keeps a 2.3-3.4 cm bob; 0.8 smoothed it to 1.6-2.9 cm and put more of the turn in the knee.
+Z_SIG = 0.5
+_ZRES = {}  # per cycle: the planted ankle's largest error after the stance leg's re-solve (m), for checks
 
 # A gait's thighs (its thigh_harm) kept to the stride's first harmonics, and its swing legs filtered wider
 # (sig_swing samples). The sprint's push-off ends in a turn back within a frame at its turnover, and what
@@ -801,7 +805,42 @@ def _cycle(G, k):
             for i in range(CYCLE_N):
                 out[i].setdefault(nm, [0.0, 0.0, 0.0])[a] = sm[i]
     xs = _wrap_smooth([R[1] for R in raw], SIG_BODY)
-    zs = [R[2] for R in raw]  # the vertical is analytic and C1 already
+    # The hips' height low-passed over Z_SIG of a game frame (σ). The stance's height is solved from the knee
+    # spring and falls through the last fifth of the contact (the leg trailing) while the flight launches
+    # rising; with the sprint's banded thighs taken up in it too, that met as a V in one game frame at every
+    # toe-off (5.6 cm/frame² in the dash, 8.4 in the sprint at their design speeds; a 2.5-3 cm hitch from
+    # the chase camera). Now C1 into the flight: 2.0 / 3.4 / 2.7 cm/frame² at most (run / sprint / dash).
+    zr = [R[2] for R in raw]
+    zs = _wrap_smooth(zr, Z_SIG * CYCLE_N / (30.0 * _cycle_time(_scaled(G, k))))
+    # The planted leg is solved again for the height it now hangs from (thigh and knee, the foot's pitch kept
+    # in the world), so the ankle stays exactly where the stance put it: the leg extends through the push-off
+    # as the hips carry on smoothly into the flight. Full through the contact, easing out within EDGE of its
+    # ends. (The knee alone left the ankle travelling 2.5-4.9 cm along the floor.)
+    Gs = _scaled(G, k)
+    hp = [_pelvis(i / CYCLE_N, Gs)[2] * (0.4 + 0.6 * k) for i in range(CYCLE_N)]
+    slip = 0.0
+    for s_ in "LR":
+        off = 0.0 if s_ == "L" else 0.5
+        for i in range(CYCLE_N):
+            t = (i / CYCLE_N + off) % 1.0
+            w = 1.0 if t < ts else 1.0 - ease(min(t - ts, 1.0 - t) / EDGE)
+            r = (zs[i] - zr[i]) * w
+            if w <= 0.0 or abs(r) < 1e-6:
+                continue
+            P = out[i]
+            at = THIGH0 - hp[i] - P[f"thigh.{s_}"][0]
+            kn = P[f"shin.{s_}"][0] + K0
+            ax = LT * math.sin(at) + LS * math.sin(at - kn)
+            az = -LT * math.cos(at) - LS * math.cos(at - kn)
+            at2, kn2 = _ik(ax, az - r)
+            P[f"thigh.{s_}"][0] = THIGH0 - hp[i] - at2
+            P[f"shin.{s_}"][0] = kn2 - K0
+            P[f"foot.{s_}"][0] -= (at2 - kn2) - (at - kn)
+            if t < ts:
+                ex = LT * math.sin(at2) + LS * math.sin(at2 - kn2) - ax
+                ez = -LT * math.cos(at2) - LS * math.cos(at2 - kn2) - (az - r)
+                slip = max(slip, math.hypot(ex, ez))
+    _ZRES[key_] = slip
     res = [({nm: tuple(v) for nm, v in out[i].items()}, xs[i], zs[i]) for i in range(CYCLE_N)]
     _CYC[key_] = res
     return res
