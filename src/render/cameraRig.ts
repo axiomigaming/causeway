@@ -576,10 +576,10 @@ export class CameraRig {
         // big soft blocks across the top of the frame. It rides above them instead.
         const tall = Math.min(1, Math.max(0, (1 - this.camera.aspect) / 0.5));
         fov = this.shot(runnerPos, {
-          // (Camera round 3: and 2.5 m nearer him on a tall screen. The title keeps his boots in the
+          // (Camera round 3: and 1.4 m nearer him on a tall screen. The title keeps his boots in the
           // band over its copy, which tilts the lens up as far as his depression angle asks; from
           // nearer and as high, that angle is steeper, the horizon rides higher, the karst is small.)
-          along: lerp(-8.5 + 2.5 * tall, -2.3, c),
+          along: lerp(-8.5 + 1.4 * tall, -2.3, c),
           lat: lerp(-0.5, -1.45, c) + drift,
           // (Round 9: on a wide screen too; at 5.4 m the desktop title looked through the stacked
           // stones of the arch beside the lens, a quarter of the frame each side.)
@@ -1278,9 +1278,12 @@ export class CameraRig {
     // side beyond, the horizon level. (From 3.6 m up, looking steeply down, the walls leaned every
     // way and the foam read as pale blobs; lower and 2.6 m back, the paving under the lens filled the
     // frame's foot; 4 m back it stood under the gate's soffit.)
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -3).setY(L.pos.y + 1.7);
+    // (On a wide screen, beside the card, 2.4 m back and aimed further down into the gap: from 3 m
+    // and level with the far side, the third beside the card held paving and a pier corner.)
+    const wide = this.camera.aspect > 1;
+    this.gapPos.copy(L.pos).addScaledVector(L.fwd, wide ? -2.4 : -3).setY(L.pos.y + 1.7);
     const far = this.tmp3.copy(L.pos).addScaledVector(L.fwd, 6);
-    this.gapAim.copy(splash).lerp(far, 0.5);
+    this.gapAim.copy(splash).lerp(far, wide ? 0.25 : 0.5);
     this.targetPos.lerp(this.gapPos, k);
     this.targetLook.lerp(this.gapAim, k);
     this.gapAimK = k;
