@@ -250,11 +250,13 @@ export class Game {
     this.renderer.info.autoReset = false;
     this.rig = new CameraRig(canvas.clientWidth / Math.max(1, canvas.clientHeight));
     this.rig.constrain = (p) => this.corridor(p);
-    this.rig.preOutput = (dt) => {
-      this.ceiling(dt);
-      this.guardCamera(dt);
-    };
+    // (Camera round 5: the ceiling and the duck act on the shot before it is framed — after it, the
+    // duck's drop and lean put his head behind the phone's multiplier — the guard after the framing.)
+    this.rig.preFrame = (dt) => this.ceiling(dt);
+    this.rig.preOutput = (dt) => this.guardCamera(dt);
     this.rig.occlude = (a, b) => this.occluder(a, b);
+    this.rig.holdSight = (a, b) => this.holdSight(a, b);
+    this.rig.holdBlocked = (p) => this.holdBlocked(p);
   }
 
   static async create(canvas: HTMLCanvasElement, quality: QualityLevel, onProgress: (p: number, label: string) => void): Promise<Game> {
@@ -1329,6 +1331,14 @@ export class Game {
       // one (the lens inside the rock for a second and a half).
       // (Settled shots only: the ground is thousands of triangles, and the chase never leaves the way.)
       if (sec.ground && (this.stage === 'cashout' || this.stage === 'crash')) {
+        // (Camera round 5: its box first. The chasm's hold tries its places with a few hundred sight
+        // lines, and every one walked the thousands of triangles of each land section in reach.)
+        let gb = this.groundBoxes.get(sec.ground);
+        if (!gb) {
+          gb = new THREE.Box3().setFromObject(sec.ground);
+          this.groundBoxes.set(sec.ground, gb);
+        }
+        if (!gb.containsPoint(from) && (!o.ray.intersectBox(gb, o.hit) || o.hit.distanceTo(from) > len)) continue;
         o.rc.set(from, o.dir);
         o.rc.far = len;
         o.hits.length = 0;
@@ -1338,6 +1348,8 @@ export class Game {
     }
     return best;
   }
+
+  private groundBoxes = new WeakMap<THREE.Object3D, THREE.Box3>();
 
   /** The nearest hit (distance) of the occluder's current ray on any of `meshes` (≥ ~0.7 m across). */
   private meshHit(meshes: THREE.Mesh[], from: THREE.Vector3, len: number): number | null {
@@ -1373,7 +1385,10 @@ export class Game {
   private craneK = 0;
   private debrisCrane(dt: number): void {
     let want = 0;
-    if (this.stage === 'crash') {
+    // (Camera round 5: not for the chasm's held shot, which chooses where it stands against the set
+    // pieces and debris itself: the lintel behind the broken edge craned that lens 0.7 m down.)
+    const held = this.crashKind === 'chasm' && this.rig.gapLip !== null && this.rig.revealK > 0.02;
+    if (this.stage === 'crash' && !held) {
       // (Tested from where the lens would be without the crane, so it holds while it helps.)
       const cam = this.tmpCrane2.copy(this.rig.camera.position).setY(this.rig.camera.position.y - this.rig.craneUp);
       const rp = this.runner.root.position;
@@ -1403,12 +1418,70 @@ export class Game {
     this.craneK += (want - this.craneK) * (1 - Math.exp(-dt * (Math.abs(want) > Math.abs(this.craneK) ? 2.5 : 0.8)));
     this.rig.craneUp = this.craneK * (this.craneK > 0 ? 1.3 : 1);
   }
+  /**
+   * Camera round 5: what a held shot's lens must keep clear of, besides the sections' props and
+   * ground — the set pieces still standing (the lintel he slid under: the chasm's hold stood inside
+   * one and the frame was a wall of stone) and the big fallen debris. Their meshes, world matrices
+   * current (QA steps the game without drawing it, and only a draw updates them).
+   */
+  private holdPieces(): THREE.Mesh[] {
+    const out = this.holdMeshes;
+    if (this.holdStamp === this.worldT && out.length) return out;
+    this.holdStamp = this.worldT;
+    out.length = 0;
+    const roots: THREE.Object3D[] = [...this.obstacles.groundPieces(this.s - 30, this.s + 30, this.groundTmp, true), ...this.debris.root.children];
+    for (const r of roots) {
+      r.updateWorldMatrix(true, true);
+      r.traverse((c) => {
+        const m = c as THREE.Mesh;
+        if (m.isMesh && m.visible && m.geometry) out.push(m);
+      });
+    }
+    return out;
+  }
+  private holdMeshes: THREE.Mesh[] = [];
+  private holdStamp = -1;
+  private holdBox = new THREE.Box3();
+  private holdDir = new THREE.Vector3();
+  private holdTo = new THREE.Vector3();
+
+  /** The first solid (props, ground, set pieces, debris) on the way from `a` to `b`, or null. */
+  private holdSight(a: THREE.Vector3, b: THREE.Vector3): number | null {
+    let best = this.occluder(a, b);
+    const o = this.occl;
+    const len = o.dir.copy(b).sub(a).length();
+    if (len < 1e-3) return best;
+    o.dir.divideScalar(len);
+    o.ray.set(a, o.dir);
+    const h = this.meshHit(this.holdPieces(), a, len);
+    if (h !== null && (best === null || h < best)) best = h;
+    return best;
+  }
+
+  /** Would a held lens at `p` stand in or right against something solid (within ~0.5 m)? */
+  private holdBlocked(p: THREE.Vector3): boolean {
+    if (this.insideSolid(p)) return true;
+    for (const m of this.holdPieces()) {
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      this.holdBox.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld).expandByScalar(0.45);
+      if (this.holdBox.containsPoint(p)) return true;
+    }
+    for (let i = 0; i < 5; i++) {
+      if (i < 4) this.holdDir.set(Math.cos((i * Math.PI) / 2), 0, Math.sin((i * Math.PI) / 2));
+      else this.holdDir.set(0, 1, 0);
+      // (Up, as far as the ceiling probe looks for a soffit to duck under.)
+      if (this.holdSight(p, this.holdTo.copy(p).addScaledVector(this.holdDir, i < 4 ? 0.5 : 0.85)) !== null) return true;
+    }
+    return false;
+  }
   private tmpCrane = new THREE.Vector3();
   private cranePieces: THREE.Mesh[] = [];
   private tmpCrane2 = new THREE.Vector3();
 
   /** FX round 21: the hips' running height over the ground (slow average), for the chase's lift. */
   private hipRest: number | null = null;
+  private headBone: THREE.Object3D | null = null;
+  private headPos = new THREE.Vector3();
   private cframeAhead = { pos: new THREE.Vector3(), yaw: 0 };
   private cframeFloor = { pos: new THREE.Vector3(), yaw: 0 };
   private groundTmp: THREE.Object3D[] = [];
@@ -2730,6 +2803,10 @@ export class Game {
     if (near) this.duckDepth = depth;
     this.duckT = near ? Math.min(1, this.duckT + dt * 2.8) : Math.max(0, this.duckT - dt * 1.6);
     const k = this.duckT * this.duckT * (3 - 2 * this.duckT);
+    // A tall screen's wide lens closes a little under the beam (the underside, a metre over the
+    // floor, filled 40 % of its frame as it passed over). (A tenth: at a quarter the beam's share did
+    // not fall further and the lens visibly zoomed.) (Camera round 5: the rig's, so the framing sees it.)
+    this.rig.fovK = 1 - (cam.aspect < 1 ? 0.1 : 0.04) * k;
     this.ceilDrop += (this.ceilWant - this.ceilDrop) * (1 - Math.exp(-dt * (this.ceilWant > this.ceilDrop ? 10 : 2.5)));
     const total = Math.max(this.ceilDrop, k * this.duckDepth);
     if (total < 1e-3 && k < 1e-3) return;
@@ -2746,14 +2823,12 @@ export class Game {
       p.x += rx * d;
       p.z += rz * d;
     }
-    // Lean the view down by the same amount so the runner keeps his place in frame.
+    // Lean the view down by the same amount so the runner keeps his place in frame. (Camera round 5:
+    // before the framing now, which keeps his crown under the band: after it, as he got up from the
+    // slide, this lean put his head behind the phone's multiplier for half a second.)
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
     look.y -= drop * (0.35 + 1.0 * k);
-    // A tall screen's wide lens closes a little under the beam (the underside, a metre over the
-    // floor, filled 40 % of its frame as it passed over). (A tenth: at a quarter the beam's share did
-    // not fall further and the lens visibly zoomed.)
-    if (k > 0) cam.fov *= 1 - (cam.aspect < 1 ? 0.1 : 0.04) * k;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -2808,7 +2883,12 @@ export class Game {
       if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 45) continue; // a settled lens can stand well back
       // (Round 20: under a land section's ground — inside a bank or an outcrop: a ray down from
       // high above meets the ground over the lens.)
-      if (sec.ground) {
+      let gb = sec.ground ? this.groundBoxes.get(sec.ground) : undefined;
+      if (sec.ground && !gb) {
+        gb = new THREE.Box3().setFromObject(sec.ground);
+        this.groundBoxes.set(sec.ground, gb);
+      }
+      if (sec.ground && gb && p.x >= gb.min.x && p.x <= gb.max.x && p.z >= gb.min.z && p.z <= gb.max.z && p.y <= gb.max.y) {
         const o = this.occl;
         o.rc.set(this.guardP.set(p.x, p.y + 60, p.z), DOWN);
         o.rc.far = 60;
@@ -3270,11 +3350,18 @@ export class Game {
         this.hipRest = this.hipRest === null ? hy : this.hipRest + (hy - this.hipRest) * (1 - Math.exp(-rawDt * 0.6));
         const d = hy - this.hipRest;
         this.rig.lift = Math.sign(d) * Math.max(0, Math.abs(d) - 0.08);
-      } else this.rig.lift = 0;
+        // (Camera round 5: his head as posed, for his crown in the frame: see CameraRig.headAt.)
+        const head = (this.headBone ??= this.runner.body.getObjectByName('head') ?? null);
+        this.rig.headAt = head ? this.headPos.setFromMatrixPosition(head.matrixWorld) : null;
+      } else {
+        this.rig.lift = 0;
+        this.rig.headAt = null;
+      }
     } else {
       this.rig.yawLead = 0;
       this.rig.aheadLat = 0;
       this.rig.lift = 0;
+      this.rig.headAt = null;
       this.hipRest = null;
     }
     // Round 18 (character audit, win_slide): the celebration clips carry him off the root (the
@@ -3404,9 +3491,15 @@ export class Game {
     const ry = this.runner.root.rotation.y;
     // Hold the sun ~30° off the route's axis on a wide screen (walls on its side throw their
     // shadows diagonally across the causeway, as in the references), nearer the axis on a tall one.
-    let dy = ry + (cam.aspect < 1 ? -0.1 : -0.3) - this.skyYaw;
+    // (Camera round 5, coordinator, world 3: the phone title's high pass looks straight down the way,
+    // and with the sun 6° off its axis the karst backlit beside the sun filled its sky band as one flat
+    // grey shape. On a tall screen the title holds the sun ~33° off the axis, as a wide screen nearly
+    // does: the range is low there, the sky open. Out of the title the sky eases back over the setup
+    // while the lens comes down — a new world still snaps it.)
+    const titleSky = this.stage === 'title' && cam.aspect < 1;
+    let dy = ry + (titleSky ? -0.57 : cam.aspect < 1 ? -0.1 : -0.3) - this.skyYaw;
     dy -= Math.round(dy / (2 * Math.PI)) * 2 * Math.PI;
-    const follow = this.stage === 'title' || this.stage === 'setup' ? 1 : 1 - Math.exp(-rawDt * 0.14);
+    const follow = this.stage === 'title' || (this.stage === 'setup' && Math.abs(dy) > 0.6) ? 1 : this.stage === 'setup' ? 1 - Math.exp(-rawDt * 1.5) : 1 - Math.exp(-rawDt * 0.14);
     this.skyYaw += dy * follow;
     this.sunDir.copy(this.sunBase).applyAxisAngle(UP, this.skyYaw);
     this.scene.backgroundRotation.y = this.skyYaw;
