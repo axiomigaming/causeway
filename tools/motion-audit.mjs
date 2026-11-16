@@ -19,14 +19,14 @@
 // worker, which software rendering cannot keep at 30 fps.
 //
 //   URL=http://localhost:5180 node tools/motion-audit.mjs [--seq start,log,...] [--out review/motion/base]
-//       [--w 7] [--q high] [--shots 14] [--compare review/motion/old/flags.json]
+//       [--w 7] [--q high] [--shots 14] [--compare review/motion/old/flags.json] [--strip slide,vault [--keep]]
 //
 // Sequences: start, log, beam (lintel slide), pillar (vault), blocks (slabs: leaps), each of those four
 // again at the sprint's and the dash's tier (log5 … blocks20: the run-outs keyed on those strides), corner,
 // cash1.5, cash5, cash20, cash60, fall_start, and each crash variant: chasm0/1, gate0/1, rock0/1/2,
 // pillar0/1, trip0, ledge0 (a kind the build does not have yet is staged as whatever the game falls back to).
 import { chromium } from 'playwright-core';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import * as THREE from 'three';
 import sharp from 'sharp';
 
@@ -40,6 +40,11 @@ const WORLD = arg('w', '7');
 const Q = arg('q', 'high');
 const MAX_SHOTS = +arg('shots', 18);
 const COMPARE = arg('compare', '');
+// --strip <clips>: an eye-check strip per sequence: every frame from the first that plays one of these clips
+// (comma-separated, e.g. slide,vault) to 4 frames after the last is drawn and laid out in order, numbered,
+// as strip-<sequence>.png (frames under --out/strip, deleted once the strip is made unless --keep).
+const STRIP = new Set(arg('strip', '').split(',').filter(Boolean));
+const KEEP = process.argv.includes('--keep');
 // --reanalyse: no filming; recompute the flags from the raw samples a previous run saved in --out.
 const REANALYSE = process.argv.includes('--reanalyse');
 const FPS = 30;
@@ -616,6 +621,8 @@ async function filmOn(page, name, S) {
   const low = { footL: 9, footR: 9 };
   let lastCount = 0;
   const actual = {};
+  const strip = [];
+  let stripTail = -1;
   for (let f = 0; f <= S.to; f++) {
     const ev = events.get(f);
     if (ev) {
@@ -646,12 +653,29 @@ async function filmOn(page, name, S) {
         },
         { ev, name },
       );
+      // A set piece the run's own director has crowded out (a move already planned within ~1.4 s) is tried
+      // again each frame for up to 3.3 s: the run's history before it depends on every move's length, so a
+      // retimed move could leave the obstacle sequences at a higher tier without their obstacle.
+      if (ev.startsWith('obstacle:') && !r.placed && (actual.tries ?? 0) < 100 && !events.has(f + 1)) {
+        events.set(f + 1, ev);
+        r.tries = (actual.tries ?? 0) + 1;
+      }
       Object.assign(actual, r);
     }
     await page.evaluate(() => window.__ma.step());
     if (f < S.from) continue;
     const smp = await page.evaluate((f) => window.__ma.sample(f), f);
     frames.push(smp);
+    if (STRIP.size) {
+      if (STRIP.has(smp.clip)) stripTail = 4;
+      if (stripTail-- > 0) {
+        mkdirSync(`${OUT}/strip`, { recursive: true });
+        await page.evaluate(() => window.__ma.draw());
+        const file = `${OUT}/strip/${name}-f${String(f).padStart(4, '0')}.jpg`;
+        writeFileSync(file, await page.screenshot({ timeout: 900000, type: 'jpeg', quality: 85 }));
+        strip.push({ f, file, clip: smp.clip });
+      }
+    }
     // Flags so far (the analysis is cheap; recomputed on the tail, with the planted height seen so far).
     for (const n of ['footL', 'footR']) if (smp.wp[n]) low[n] = Math.min(low[n], smp.wp[n][1] - smp.grp[1]);
     const tail = frames.slice(-12);
@@ -704,6 +728,20 @@ async function filmOn(page, name, S) {
       tiles.push({ input: await sharp(img).composite([{ input: svg }]).png().toBuffer(), left: (i % cols) * tw, top: Math.floor(i / cols) * th });
     }
     await sharp({ create: { width: tw * cols, height: th * rows, channels: 3, background: '#000' } }).composite(tiles).png().toFile(`${OUT}/sheet-${name}.png`);
+  }
+  // The eye-check strip: the move frame by frame, cropped to the runner's part of the chase shot.
+  if (strip.length) {
+    const cw = 640, ch = 540, cx = (W - cw) >> 1, cy = H - ch - 40;
+    const tw = 320, th = 270, cols = 8;
+    const tiles = [];
+    for (let i = 0; i < strip.length; i++) {
+      const s = strip[i];
+      const img = await sharp(s.file).extract({ left: cx, top: cy, width: cw, height: ch }).resize(tw, th).toBuffer();
+      const svg = Buffer.from(`<svg width="${tw}" height="${th}" xmlns="http://www.w3.org/2000/svg"><text x="6" y="18" font-family="monospace" font-size="14" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">${name} f${s.f} ${s.clip}</text></svg>`);
+      tiles.push({ input: await sharp(img).composite([{ input: svg }]).png().toBuffer(), left: (i % cols) * tw, top: Math.floor(i / cols) * th });
+    }
+    await sharp({ create: { width: tw * cols, height: th * Math.ceil(strip.length / cols), channels: 3, background: '#000' } }).composite(tiles).png().toFile(`${OUT}/strip-${name}.png`);
+    if (!KEEP) for (const s of strip) rmSync(s.file, { force: true });
   }
   const counts = {};
   for (const r of rg) counts[r.type] = (counts[r.type] ?? 0) + 1;
