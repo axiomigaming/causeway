@@ -15,6 +15,11 @@ const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 -
 const dampV = (a: THREE.Vector3, b: THREE.Vector3, k: number, dt: number) => a.lerp(b, 1 - Math.exp(-k * dt));
 /** Camera round 2: how far ahead (s) the framing reads a moving limb (about the output spring's lag). */
 const LIMB_LEAD = 0.16;
+/**
+ * Camera round 5: in the run, how much taller than the band his boots-to-crown may measure before the
+ * chase stands back (fitInBand composes 1.8 m; the frame measures his crown at ~1.85 m, ~3 % more).
+ */
+const RUN_FIT = 1.04;
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -158,6 +163,21 @@ export class CameraRig {
   motionScale = 1;
   /** Called on the raw shot each frame just before the output spring (set by the game). */
   preOutput: ((dt: number) => void) | null = null;
+  /**
+   * Camera round 5: called on the placed and aimed lens each frame BEFORE it is framed (set by the
+   * game: the low ceilings and the duck under a beam). Applied after the framing, as before, the
+   * duck's drop and lean put his head behind the phone's multiplier for half a second as he got up
+   * from the slide (on a climb most): keepInFrame never saw them.
+   */
+  preFrame: ((dt: number) => void) | null = null;
+  /** The lens's narrowing under a beam (its vertical angle times this; set by the game in preFrame). */
+  fovK = 1;
+  /** Run: his head as posed (world; set by the game while he runs), for his crown in the frame; or null. */
+  headAt: THREE.Vector3 | null = null;
+  /** Run: metres the chase stands back so his whole figure fits the band (eased; see keepInFrame). */
+  private runBack = 0;
+  private runBackV = 0;
+  private runBackWant = 0;
   /** Crash: > 0 once he is down (set by the game at the impact): the lens closes in on him. */
   closeIn = 0;
   /** Crash close-in: metres higher (the ledge: over the fragments lying round him in the trough). */
@@ -396,6 +416,7 @@ export class CameraRig {
     this.swing = this.swingTarget = 0;
     this.pull = this.pullTarget = 1;
     this.standBack = this.standBackV = 0;
+    this.runBack = this.runBackV = this.runBackWant = 0;
     this.zoom = 1;
     this.zoomV = 0;
     this.sideK = this.sideV = 0;
@@ -421,6 +442,7 @@ export class CameraRig {
     this.trauma = 0;
     this.joltX = this.joltY = 0;
     this.standBack = this.standBackV = 0;
+    this.runBack = this.runBackV = this.runBackWant = 0;
     this.zoom = 1;
     this.zoomV = 0;
     this.fovKick = 0;
@@ -690,6 +712,14 @@ export class CameraRig {
         // offset (×1.6-1.9 on a wide screen), so the shoulder's 0.72 m put the lens 1.3 m out.
         // (Landscape only: a portrait chase sits 0.24 m out, already in the middle of the way — and
         // easing that in moved the phone's hand-over into a fall: the pillar's recoil left the frame.)
+        // Camera round 5: the stand-back that fits his whole figure in the band when the shot as
+        // composed cannot (a climb: see keepInFrame).
+        if (this.runBack > 1e-3) {
+          const d0 = Math.max(0.5, -fr.along);
+          const d1 = d0 + this.runBack * (1 - k);
+          fr.lat *= d1 / d0;
+          fr.along = -d1;
+        }
         const room = Math.max(0.12, this.latRoom);
         if (fr.lat > room) fr.lat = lerp(room, fr.lat, Math.max(k, narrow));
         fov = this.shot(runnerPos, fr);
@@ -1140,7 +1170,9 @@ export class CameraRig {
     this.camera.position.addScaledVector(this.right, this.sway + hx);
     this.camera.position.y += breathe + hy;
     this.camera.lookAt(this.look);
-    this.camera.fov = this.fov;
+    // (Camera round 5: the ceiling and the duck under a beam, before the framing, so the band sees them.)
+    this.preFrame?.(dt);
+    this.camera.fov = this.fov * this.fovK;
     // Round 18: the title too (its high pass looked down the way ahead with him just under the
     // bottom edge): the boots tilt up into the band, never a stand-back (settled shots only).
     // (Round 20: the result card comes in on real time, so the composition beside it does too: on
@@ -1149,7 +1181,8 @@ export class CameraRig {
     this.keepInFrame(this.bodyAt ?? runnerPos, dt, rdt);
     this.rollKick *= Math.exp(-dt * 2.6);
     this.camera.rotateZ(this.dutch + hr + this.rollKick);
-    this.camera.fov = this.zoom > 1.001 ? (2 * Math.atan(Math.tan((this.fov * Math.PI) / 360) * this.zoom) * 180) / Math.PI : this.fov;
+    const lens = this.fov * this.fovK;
+    this.camera.fov = this.zoom > 1.001 ? (2 * Math.atan(Math.tan((lens * Math.PI) / 360) * this.zoom) * 180) / Math.PI : lens;
     this.revealK += ((this.revealed && (this.mode === 'crash' || this.mode === 'cashout') ? 1 : 0) - this.revealK) * (1 - Math.exp(-rdt * 2.5));
     // The title fly-over rides high over the causeway, level with the arch crowns: their stones
     // passed a metre or two above the lens and filled the top of a phone frame as huge, soft blocks.
@@ -1278,13 +1311,162 @@ export class CameraRig {
     // side beyond, the horizon level. (From 3.6 m up, looking steeply down, the walls leaned every
     // way and the foam read as pale blobs; lower and 2.6 m back, the paving under the lens filled the
     // frame's foot; 4 m back it stood under the gate's soffit.)
-    this.gapPos.copy(L.pos).addScaledVector(L.fwd, -3).setY(L.pos.y + 1.7);
     const far = this.tmp3.copy(L.pos).addScaledVector(L.fwd, 6);
     this.gapAim.copy(splash).lerp(far, 0.5);
+    // Camera round 5: where it stands is chosen against what is there (see pickHold), once for each
+    // way it is composed (centred, or beside the card's column on either side).
+    const phi = this.holdSideAngle();
+    if (this.holdLip !== L || this.holdPhi !== phi) {
+      this.pickHold(L, splash, phi);
+      this.holdLip = L;
+      this.holdPhi = phi;
+    }
+    this.gapPos.copy(this.holdPos);
+    // (Beside the card, aimed so the broken edge and the far side share the frame: see pickHold.)
+    if (this.holdDep !== null) {
+      const xs = this.tmp4.copy(splash).sub(L.pos).dot(L.fwd);
+      this.gapAim.copy(L.pos).addScaledVector(L.fwd, xs);
+      const dist = Math.hypot(this.gapAim.x - this.gapPos.x, this.gapAim.z - this.gapPos.z);
+      this.gapAim.y = this.gapPos.y - Math.tan(this.holdDep) * dist;
+    }
     this.targetPos.lerp(this.gapPos, k);
     this.targetLook.lerp(this.gapAim, k);
     this.gapAimK = k;
   }
+
+  /** Camera round 5: tests for the held shot's lens, against the scene's solids, the set pieces and debris (set by the game). */
+  holdSight: (a: THREE.Vector3, b: THREE.Vector3) => number | null = (a, b) => this.occlude(a, b);
+  holdBlocked: (p: THREE.Vector3) => boolean = () => false;
+  private holdLip: object | null = null;
+  private holdPhi = NaN;
+  private holdPos = new THREE.Vector3();
+  private hp = new THREE.Vector3();
+  private hq = new THREE.Vector3();
+  private hr = new THREE.Vector3();
+
+  /**
+   * Where the held result shot puts its subject across the frame, as the angle (rad, + to the right)
+   * from the lens's axis: 0 when centred (portrait, or no column), else on the third beside the
+   * result card's column, as keepInFrame composes it.
+   */
+  private holdSideAngle(): number {
+    const c = this.camera;
+    const col = this.uiCol;
+    if (!(c.aspect > 1.15 && col && col[1] - col[0] < 0.62)) return 0;
+    const [l, r] = col;
+    // (Either side of the column: pickHold chooses; this is the larger of the two.)
+    const x = Math.max(1 - l * 1.1, (r + (1 - r) * 0.45) * 2 - 1);
+    // (Rounded: the column is reported in pixels, and a pixel's change must not re-choose the hold.)
+    return Math.round(Math.atan(x * Math.tan((this.fov * Math.PI) / 360) * c.aspect) * 20) / 20;
+  }
+  /** The side of the card the chasm's hold sets its subject on (-1 left, 1 right; 0 as keepInFrame chooses). */
+  private holdSign = 0;
+  /** The held subject's place across the frame for that side (NDC x), for keepInFrame. */
+  private holdX(): number | null {
+    const col = this.uiCol;
+    if (!this.holdSign || !col || this.gapAimK <= 0) return null;
+    return this.holdSign < 0 ? col[0] * 0.55 * 2 - 1 : (col[1] + (1 - col[1]) * 0.45) * 2 - 1;
+  }
+
+  /**
+   * Camera round 5 (coordinator, the chasm's end shot on desktop): the hold's place, chosen against
+   * the geometry instead of fixed at 3 m back on the centre line. That place stood inside the lintel
+   * he had slid under (the frame a wall of stone); and beside the desktop's result card, where the
+   * subject sits on a third and the lens therefore looks ~30° off the way, it showed paving and the
+   * pier at the lip, the water in the gap hidden behind the edge from eye height. Candidates from
+   * 1.2 to 4.4 m back, up to 2.4 m across the way, from eye height to 2.3 m up, and (beside the card)
+   * the subject on either side of it, are scored: rejected where the lens would stand outside the
+   * corridor, in or against anything solid, lose sight of the broken edge or the splash, or not fit
+   * the edge and the far side in the frame; then the least cost of — the water in the gap hidden
+   * behind the edge (beside the card above all), the lens looking off the way, solids crowding the
+   * frame within 7 m, and the distance from the shot as composed (eye height, 3 m back, on the centre
+   * line: the phone's, which works).
+   */
+  private pickHold(L: { pos: THREE.Vector3; fwd: THREE.Vector3 }, splash: THREE.Vector3, phiMag: number): void {
+    const f = this.hq.set(L.fwd.x, 0, L.fwd.z).normalize();
+    const right = this.hr.set(-f.z, 0, f.x);
+    const aim = this.gapAim;
+    const dw = Math.max(0.5, L.pos.y - splash.y);
+    const xs = Math.max(0.5, this.tmp4.copy(splash).sub(L.pos).dot(f));
+    const tanV = Math.tan((this.fov * Math.PI) / 360);
+    const tanH = tanV * Math.max(1, this.camera.aspect);
+    const side = phiMag !== 0;
+    const lip = new THREE.Vector3().copy(L.pos).addScaledVector(f, 0.05).setY(L.pos.y + 0.08);
+    const wet = new THREE.Vector3().copy(splash).setY(splash.y + 0.3);
+    const farPt = new THREE.Vector3().copy(L.pos).addScaledVector(f, Math.max(6, xs + 1.5)).setY(L.pos.y + 0.6);
+    const p = this.hp;
+    const q = new THREE.Vector3();
+    const d = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const rt = new THREE.Vector3();
+    let best = Infinity;
+    this.holdPos.copy(L.pos).addScaledVector(f, -3).setY(L.pos.y + 1.7);
+    // The costs that need no sight lines first; the candidates then tried in their order, until the
+    // next one could not beat the best found even with nothing in its way (the sight lines are slow).
+    const cands: { b: number; lat: number; h: number; cost: number; axis: number; dep: number; sign: number }[] = [];
+    this.holdDep = null;
+    this.holdSign = 0;
+    for (const sign of side ? [-1, 1] : [0])
+    for (const b of [3, 2.6, 2.2, 1.8, 1.5, 1.2, 3.6, 4.4])
+      for (const lat of [0, 0.55, -0.55, 1.1, -1.1, 1.8, -1.8, 2.4, -2.4])
+        for (const h of [1.7, 2.0, 2.3]) {
+          const phi = sign * phiMag;
+          p.copy(L.pos).addScaledVector(f, -b).addScaledVector(right, lat).setY(L.pos.y + h);
+          // The water hidden behind the edge: from b back and h up, the first b·dw/h metres beyond it.
+          const seen = THREE.MathUtils.clamp(1 - (b * dw) / h / xs, 0, 1);
+          // The axis, once the subject is set at phi across the frame, off the way.
+          d.copy(aim).sub(p);
+          const axis = Math.atan2(d.dot(right), d.dot(f)) - phi;
+          const cost = (side ? 1.2 : 0.3) * (1 - seen) + 0.6 * Math.abs(axis) + 0.15 * (Math.abs(b - 3) + Math.abs(lat) + Math.abs(h - 1.7));
+          // The broken edge itself in the frame, and the far side. Centred (a phone), aimed at the gap
+          // as composed: the edge's line no lower than 90 % of the way to the frame's foot. Beside the
+          // card (a landscape frame, short), aimed between the edge and the far side's top, which
+          // must fit 85 % of its height. (Close over the edge, looking down, the edge went under it.)
+          const lipDep = Math.atan2(h, b);
+          const farDep = Math.atan2(h - 0.6, b + xs + 1.5);
+          const half = Math.atan(tanV);
+          const dep = side ? Math.max((lipDep + farDep) / 2, lipDep - 0.65 * half) : Math.atan2(-d.y, Math.hypot(d.dot(right), d.dot(f)));
+          if (side ? farDep < dep - 0.85 * half : lipDep - dep > 0.9 * half) continue;
+          cands.push({ b, lat, h, cost, axis, dep, sign });
+        }
+    cands.sort((x, y) => x.cost - y.cost);
+    const ax = new THREE.Vector3();
+    for (const cd of cands) {
+      if (cd.cost >= best) break;
+      const { b, lat, h, axis, dep, sign } = cd;
+      p.copy(L.pos).addScaledVector(f, -b).addScaledVector(right, lat).setY(L.pos.y + h);
+      // (Outside the corridor the result shot keeps to: the constraint would only move it.)
+      q.copy(p);
+      this.constrain(q);
+      if (q.distanceToSquared(p) > 0.01) continue;
+      if (this.holdBlocked(p)) continue;
+      if (this.holdSight(p, lip) !== null || this.holdSight(p, wet) !== null) continue;
+      let cost = cd.cost + (this.holdSight(p, farPt) !== null ? 0.5 : 0);
+      // Solids crowding the frame (a 4 x 2 grid of sight lines, 7 m out).
+      const pitch = -dep;
+      ax.copy(f).applyAxisAngle(WORLD_UP, -axis).multiplyScalar(Math.cos(pitch)).setY(Math.sin(pitch));
+      rt.crossVectors(ax, WORLD_UP).normalize();
+      up.crossVectors(rt, ax).normalize();
+      let hits = 0;
+      for (const gx of [-0.75, -0.25, 0.25, 0.75])
+        for (const gy of [-0.5, 0.5]) {
+          if (cost + 4 * (hits / 8) >= best) break;
+          d.copy(ax).addScaledVector(rt, gx * tanH).addScaledVector(up, gy * tanV).normalize();
+          // (Out to 7 m, the nearer the more: a gorge wall 5 m off filled half a desktop frame.)
+          const hit = this.holdSight(p, q.copy(p).addScaledVector(d, 7));
+          if (hit !== null) hits += Math.min(1, 1.4 - hit / 7);
+        }
+      cost += 4 * (hits / 8);
+      if (cost < best - 1e-6) {
+        best = cost;
+        this.holdPos.copy(p);
+        this.holdDep = side ? dep : null;
+        this.holdSign = sign;
+      }
+    }
+  }
+  /** The chosen hold's aim beside the card, as a depression (rad) along the gap's centre line; else null. */
+  private holdDep: number | null = null;
   private tmp4 = new THREE.Vector3();
 
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60, rdt = dt): void {
@@ -1311,6 +1493,10 @@ export class CameraRig {
         // The centre of the wider free side, in NDC x (a third of the way in from the edge).
         const target = leftRoom >= rightRoom ? l * 0.55 : r + (1 - r) * 0.45;
         if (this.sideK < 0.02) this.sideX = target * 2 - 1;
+        // (Camera round 5: the chasm's hold sets its subject on the side it chose for the place it
+        // stands — see pickHold.)
+        const hx = this.holdX();
+        if (hx !== null) this.sideX = hx;
       }
     }
     const ws = 5.5;
@@ -1328,7 +1514,7 @@ export class CameraRig {
     const head = this.mode === 'cashout' ? 0.14 : 0;
     const hi = Math.min(THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head, 1 - 2 * s - 2 * this.bars - 0.04 - head);
     if (hi - lo < 0.2) return;
-    const tanV = Math.tan((this.fov * Math.PI) / 360);
+    const tanV = Math.tan((this.fov * this.fovK * Math.PI) / 360);
     const tanH = tanV * c.aspect;
     if (inGap) {
       // FX round 21 (coordinator): the slabs gave and he went down into the water. While the lens
@@ -1372,6 +1558,10 @@ export class CameraRig {
       // the bottom of the frame: there the crown is his posed head's.)
       let crown = runnerPos.y + 1.85;
       if (this.mode === 'crash' && this.crashShot === 'ledge' && this.bodyPts?.length) crown = Math.max(...this.bodyPts.map((b) => b.y)) + 0.25;
+      // (Camera round 5, QA phone slide: in the run, his posed head's. Stood 1.85 m over his root
+      // while he slid under a beam, the crown held the look up as if he were standing, and the beam's
+      // dark underside came down into the top of the frame.)
+      else if (this.mode === 'run' && this.headAt) crown = Math.max(runnerPos.y + 0.6, this.headAt.y + 0.22);
       pts[1]!.copy(runnerPos).setY(crown);
       pts[2]!.copy(runnerPos).setY(runnerPos.y + 1.2).addScaledVector(this.right, -0.45);
       pts[3]!.copy(runnerPos).setY(runnerPos.y + 1.2).addScaledVector(this.right, 0.45);
@@ -1491,6 +1681,16 @@ export class CameraRig {
         c.position.addScaledVector(this.tmp, -this.standBack);
         if (!measure()) return;
       }
+      // Camera round 5 (QA, stairs): in the run, when boots to crown no longer fit the band (a climb,
+      // the lens under him), the boots won and his head rose behind the multiplier. The chase stands
+      // back instead (the composition, next frames, eased): to the depth he fits from, kept while he
+      // needs it. (He is ~4 % taller here than fitInBand composes for: only past that.)
+      if (this.mode === 'run') {
+        const fitD = (m.depth * (m.head - m.feet)) / ((hi - lo) * tanV * RUN_FIT);
+        this.runBackWant = THREE.MathUtils.clamp(this.runBack + fitD - m.depth, 0, 1.6);
+      } else this.runBackWant = 0;
+      this.runBackV += (16 * (this.runBackWant - this.runBack) - 8 * this.runBackV) * dt;
+      this.runBack = Math.max(0, this.runBack + this.runBackV * dt);
     }
     // Vertical: boots above the dock line first; then the crown under the top of the band.
     const loT = lo * tanV;
