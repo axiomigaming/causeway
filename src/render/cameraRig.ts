@@ -1302,7 +1302,6 @@ export class CameraRig {
     this.gapAimK = 0;
     if (this.crashShot !== 'chasm' || this.gap <= 0 || !L) return;
     const k = ease(this.revealK) * Math.min(1, this.gap);
-    if (k < 0.001) return;
     const side = this.tmp.set(-L.fwd.z, 0, L.fwd.x); // right of the heading (fwd × up)
     const splash = this.gapSplash ?? this.tmp2.copy(L.pos).addScaledVector(L.fwd, 1.6).setY(L.pos.y - 3);
     // Camera round 3 (coordinator): "the way is gone". The lens stands at eye height on the intact
@@ -1316,11 +1315,25 @@ export class CameraRig {
     // Camera round 5: where it stands is chosen against what is there (see pickHold), once for each
     // way it is composed (centred, or beside the card's column on either side).
     const phi = this.holdSideAngle();
-    if (this.holdLip !== L || this.holdPhi !== phi) {
-      this.pickHold(L, splash, phi);
+    // (Chosen from the moment he goes over the edge, a few milliseconds a frame, so it is ready by
+    // the time the card comes up: all at once it stalled the frame for some hundreds of ms.)
+    const known = this.gapSplash !== null;
+    if (this.holdLip !== L || this.holdPhi !== phi || this.holdKnown !== known) {
+      this.holdJob = this.pickHold(L, splash, phi);
       this.holdLip = L;
       this.holdPhi = phi;
+      this.holdKnown = known;
     }
+    if (this.holdJob) {
+      const t0 = performance.now();
+      do {
+        if (this.holdJob.next().done) {
+          this.holdJob = null;
+          break;
+        }
+      } while (performance.now() - t0 < 2.5);
+    }
+    if (k < 0.001) return;
     this.gapPos.copy(this.holdPos);
     // (Beside the card, aimed so the broken edge and the far side share the frame: see pickHold.)
     if (this.holdDep !== null) {
@@ -1338,11 +1351,10 @@ export class CameraRig {
   holdSight: (a: THREE.Vector3, b: THREE.Vector3) => number | null = (a, b) => this.occlude(a, b);
   holdBlocked: (p: THREE.Vector3) => boolean = () => false;
   private holdLip: object | null = null;
+  private holdJob: Generator<void> | null = null;
+  private holdKnown = false;
   private holdPhi = NaN;
   private holdPos = new THREE.Vector3();
-  private hp = new THREE.Vector3();
-  private hq = new THREE.Vector3();
-  private hr = new THREE.Vector3();
 
   /**
    * Where the held result shot puts its subject across the frame, as the angle (rad, + to the right)
@@ -1382,9 +1394,9 @@ export class CameraRig {
    * frame within 7 m, and the distance from the shot as composed (eye height, 3 m back, on the centre
    * line: the phone's, which works).
    */
-  private pickHold(L: { pos: THREE.Vector3; fwd: THREE.Vector3 }, splash: THREE.Vector3, phiMag: number): void {
-    const f = this.hq.set(L.fwd.x, 0, L.fwd.z).normalize();
-    const right = this.hr.set(-f.z, 0, f.x);
+  private *pickHold(L: { pos: THREE.Vector3; fwd: THREE.Vector3 }, splash: THREE.Vector3, phiMag: number): Generator<void> {
+    const f = new THREE.Vector3(L.fwd.x, 0, L.fwd.z).normalize();
+    const right = new THREE.Vector3(-f.z, 0, f.x);
     const aim = this.gapAim;
     const dw = Math.max(0.5, L.pos.y - splash.y);
     const xs = Math.max(0.5, this.tmp4.copy(splash).sub(L.pos).dot(f));
@@ -1394,7 +1406,7 @@ export class CameraRig {
     const lip = new THREE.Vector3().copy(L.pos).addScaledVector(f, 0.05).setY(L.pos.y + 0.08);
     const wet = new THREE.Vector3().copy(splash).setY(splash.y + 0.3);
     const farPt = new THREE.Vector3().copy(L.pos).addScaledVector(f, Math.max(6, xs + 1.5)).setY(L.pos.y + 0.6);
-    const p = this.hp;
+    const p = new THREE.Vector3();
     const q = new THREE.Vector3();
     const d = new THREE.Vector3();
     const up = new THREE.Vector3();
@@ -1432,6 +1444,7 @@ export class CameraRig {
     cands.sort((x, y) => x.cost - y.cost);
     const ax = new THREE.Vector3();
     for (const cd of cands) {
+      yield;
       if (cd.cost >= best) break;
       const { b, lat, h, axis, dep, sign } = cd;
       p.copy(L.pos).addScaledVector(f, -b).addScaledVector(right, lat).setY(L.pos.y + h);
