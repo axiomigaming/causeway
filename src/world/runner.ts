@@ -50,8 +50,8 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
   jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
   leap_gap: { from: 0, to: 0.9725, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
-  slide: { from: 0, to: 0.45, duration: 33 / 30, takeoff: 10 / 30, land: 24 / 30 },
-  vault: { from: 0, to: 0.5, duration: 29 / 30, takeoff: 5 / 30, land: 21 / 30 },
+  slide: { from: 0, to: 0.45, duration: 35 / 30, takeoff: 12 / 30, land: 26 / 30 },
+  vault: { from: 0, to: 0.5, duration: 31 / 30, takeoff: 5 / 30, land: 23 / 30 },
   turn_cut_L: { from: 0, to: 0, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
   turn_cut_R: { from: 0.5, to: 0.5, duration: 18 / 30, takeoff: 8 / 30, land: 8 / 30 },
   stumble_land: { from: -1, to: 0.6, duration: 19 / 30, takeoff: 0, land: 2 / 30 },
@@ -93,10 +93,11 @@ export function obstacleTiming(name: Obstacle, cadence: number, speed: number, d
 
 /**
  * The vault's palm is baked onto the pillar top with the floor going by at 5 m/s of clip time (clip
- * seconds 9/30–15/30). Through that window the clip plays at speed / 5, so at any speed the floor, and
- * the pillar on it, passes under the hand at the rate it was baked for: the palm stays put.
+ * seconds 11/30–17/30, centred on the move's apex). Through that window the clip plays at speed / 5, so
+ * at any speed the floor, and the pillar on it, passes under the hand at the rate it was baked for: the
+ * palm stays put.
  */
-export const VAULT_PLANT: readonly [number, number] = [9 / 30, 15 / 30];
+export const VAULT_PLANT: readonly [number, number] = [11 / 30, 17 / 30];
 export function vaultPlantRate(speed: number): number {
   return Math.min(2.6, Math.max(0.6, speed / 5));
 }
@@ -200,8 +201,8 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.967, 'R', 0.2], [2.167, 'L', 0.2], [2.367, 'R', 0.2], [2.567, 'L', 0.2], [3.5, 'L', 0.7], [3.51, 'R', 0.7], [4.07, 'L', 0.7], [4.08, 'R', 0.7]],
   jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
   leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.96, 'R', 0.9]],
-  slide: [[0.333, 'L', 0.6], [0.8, 'L', 0.6]],
-  vault: [[0.167, 'L', 0.6], [0.4, 'R', 0.3], [0.7, 'L', 0.9]],
+  slide: [[0.4, 'L', 0.6], [0.867, 'L', 0.6]],
+  vault: [[0.167, 'L', 0.6], [0.467, 'R', 0.3], [0.767, 'L', 0.9]],
   turn_cut_L: [[0.267, 'R', 0.85]],
   turn_cut_R: [[0.267, 'L', 0.85]],
   stumble_land: [[0.067, 'R', 1], [0.267, 'L', 0.8], [0.56, 'R', 0.5]],
@@ -370,8 +371,8 @@ function liftRunner(m: THREE.MeshStandardMaterial): void {
 export const AIR_SPANS: Record<string, { spans: [number, number][]; arms: number; legs: number; trunk: number }> = {
   jump_log: { spans: [[5 / 30, 23 / 30]], arms: 0.35, legs: 0.2, trunk: 0.45 },
   leap_gap: { spans: [[6 / 30, 21 / 30]], arms: 0.4, legs: 0.25, trunk: 0.45 },
-  // The vault's hand is on the pillar until 15/30: the layer starts as it leaves.
-  vault: { spans: [[15 / 30, 21 / 30]], arms: 0.3, legs: 0.2, trunk: 0.35 },
+  // The vault's hand is on the pillar until 17/30: the layer starts as it leaves.
+  vault: { spans: [[17 / 30, 23 / 30]], arms: 0.3, legs: 0.2, trunk: 0.35 },
   win_leap: { spans: [[10 / 30, 27 / 30]], arms: 0.35, legs: 0.35, trunk: 0.5 },
   // (The two jumping cheers come after the four-step turn to the lens.)
   win_cheer_big: { spans: [[96 / 30, 107 / 30], [113 / 30, 125 / 30]], arms: 0.2, legs: 0.3, trunk: 0.4 },

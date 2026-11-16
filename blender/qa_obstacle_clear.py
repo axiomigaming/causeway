@@ -117,8 +117,8 @@ def feet_at(action, t):
 OB = {  # clip seconds, mirrors runner.ts OBSTACLES
     "jump_log": (5 / 30, 23 / 30),
     "leap_gap": (6 / 30, 21 / 30),
-    "slide": (6 / 30, 20 / 30),
-    "vault": (5 / 30, 21 / 30),
+    "slide": (12 / 30, 26 / 30),
+    "vault": (5 / 30, 23 / 30),
 }
 for name, (tk, ld) in OB.items():
     if name in bpy.data.actions:
