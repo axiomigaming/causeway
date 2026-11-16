@@ -1422,7 +1422,7 @@ def build(rig):
             ease_hips(act, sigma=4.0 if act.name in ("fall_pillar", "fall_side_hit") else 1.5 if act.name == "fall_drop" else 3.0)
             # (the drop: not σ 4 through its impact, which slowed the fall before the stone into a soft landing)
         elif base == "slide":
-            ease_hips(act, upto=17)  # the drop only: the rise stays as keyed (head room under the bough)
+            ease_hips(act, upto=SLIDE_LIE + 4)  # the drop only: the rise stays as keyed (head room under the bough)
         elif act.name == "win_slide":
             # The hop down onto the seat, the landing, the knee coming down and the drive up onto his feet
             # each turned the hips in a frame (11-12 cm/frame², the critic's 60x hips jump); not the stand
@@ -1493,13 +1493,16 @@ def smooth_world_travel(act, f0, f1, sigma=3.0):
             wx, wy = world(t)
             # the world's response to the location's two horizontal channels (x and z), by finite difference
             J = []
+            # (Each key looked up afresh after the scene is evaluated: a key held across frame_set crashed
+            # Blender now and then.)
+            def at_t(k):
+                return next(p for p in fcs[k].keyframe_points if abs(p.co[0] - t) < 0.01)
             for k in (0, 2):
-                kp = next(p for p in fcs[k].keyframe_points if abs(p.co[0] - t) < 0.01)
-                kp.co[1] = base[k] + 0.01
+                at_t(k).co[1] = base[k] + 0.01
                 fcs[k].update()
                 ex, ey = world(t)
                 J.append(((ex - wx) / 0.01, (ey - wy) / 0.01))
-                kp.co[1] = base[k]
+                at_t(k).co[1] = base[k]
                 fcs[k].update()
             (a, c), (b_, d) = J
             det = a * d - b_ * c
@@ -2558,11 +2561,20 @@ def pose_path(stops, u, arrive=False):
     return dict(stops[-1][1])
 
 
-def air(f0, f1, stops, z0, z1, h, x0=0.0, x1=0.0, arrive=False):
+def pose_curve(stops, u):
+    """A smooth path through [(u, pose), ...]: each angle on a monotone cubic (PCHIP) through its stops, so
+    the limbs carry their speed through a stop instead of easing to rest on every pose and lurching off
+    it again, and never overshoot one (no joint swung past the range its poses keep to)."""
+    names = set().union(*(set(P) for _, P in stops))
+    return {nm: tuple(_pw([(us, P.get(nm, (0.0, 0.0, 0.0))[i]) for us, P in stops], u) for i in range(3)) for nm in names}
+
+
+def air(f0, f1, stops, z0, z1, h, x0=0.0, x1=0.0, arrive=False, smooth=False):
     """Key every frame of a flight: poses along `stops`, the hips on a parabola of apex h over the chord."""
     for f in range(f0, f1 + 1):
         u = (f - f0) / (f1 - f0)
-        key(f, pose_path(stops, u, arrive), z=z0 + (z1 - z0) * u + 4 * h * u * (1 - u), x=x0 + (x1 - x0) * u)
+        P = pose_curve(stops, u) if smooth else pose_path(stops, u, arrive)
+        key(f, P, z=z0 + (z1 - z0) * u + 4 * h * u * (1 - u), x=x0 + (x1 - x0) * u)
 
 
 def nudge(P, bone, dx=0.0, dy=0.0, dz=0.0):
@@ -2618,10 +2630,13 @@ def gkey(fr, ph, G=None, k=1.0, **mods):
     return P
 
 
-SLIDE_FOLD = 0.0
 JL_LAND, JL_H = 24, 0.52
-V_LAND, V_H = 22, 0.29
-V_PLANT = (10, 16)  # frames the palm is on the stone
+# The vault: take-off on frame 6, the palm on the stone 12-18, the left foot down on 24. (The plant came at
+# 10, and the legs swung up and round the hand from the take-off's last pose, at 8.7, to the plant's first in
+# one authored frame: 93 cm of foot, 81 cm in a game frame at the top tier. They now have 3 frames, through
+# a breakdown.) runner.ts OBSTACLES.vault and VAULT_PLANT move with these.
+V_LAND, V_H = 24, 0.29
+V_PLANT = (12, 18)  # frames the palm is on the stone
 VY = 1.75  # the legs swing round to his left
 # ... of which this share is the thighs turning in the hips (≤ ~50°, a natural range); the rest is the whole
 # body turning sideways over the planted hand, the pelvis leading (no femur wrung 100° in its socket).
@@ -2629,6 +2644,140 @@ VT = 0.45
 VL = (2.12, 2.18, 2.02)  # and up (thigh flexion) through the plant
 VA = (1.0, 0.85, 0.1, -0.65, -1.1)  # the support arm: reach, plant start, over it, plant end, shove
 SLIDE_Z = -0.55
+# The slide's drop: from the right foot's strike (frame 8.7) to the first lying key. Over 7 frames, not 5:
+# the run-up's last stride key (8) to the tuck (9) was one authored frame, 53 cm of right foot, and at the
+# top tier's 1.45x the foot jumped 54 cm in a game frame. runner.ts OBSTACLES.slide moves with it.
+SLIDE_LIE = 15
+TK_F = 0
+# The hips' share of the drop by frame (8 → SLIDE_LIE): ≤ 4 cm/frame² (≤ ~9 in game at the top tier).
+SLIDE_DROP = (0.0, 0.03, 0.12, 0.28, 0.48, 0.68, 0.86, 1.0)
+# The push-off toes bend at most this far (rad) as the heel comes up: bent to keep them flat, they flicked
+# ~30° up and back in two frames at the top tier as the foot left (the tips dip ~1 cm into the stone).
+SLIDE_TOE = 0.3
+
+
+def slide_stance(s, f, z, hp, hy, roll, foot=None, G=RUN):
+    """Leg s still on the stone at frame f of the slide (its strike on gait phase 0.5 at the moves' cadence),
+    the hip joint at root height z: the run's own stance (the anchor sliding back with the floor) solved by
+    sagittal IK under the dropping hips, so the knee takes the drop. With `foot` (the ankle's own bend, as
+    keyed on the foot bone) the heel comes up off the stone as the shin tilts over it, the ankle holding
+    that bend: on the run's foot roll the ankle flexed 25° in a frame as the knee gave and then snapped
+    back for the tuck. G is the tier's gait (OG): the anchor slides back at its stride × the moves'
+    cadence, the floor's own pace under the clip at that tier (the runtime does not pin a slide's feet:
+    on the run's stride the planted foot slid 12 cm a frame at the top tier)."""
+    fs = 1 + 0.5 * FPS / OBST_CADENCE
+    u = (f - fs) * OBST_CADENCE / FPS / G["ts"]
+    hx, hz = _hip_of(s, hy, roll)
+    af = _pw(G["af"], max(0.0, min(1.0, u)))
+    for _ in range(4 if foot is not None else 1):
+        ax, az = _ankle_from(G["xtd"] - G["D"] * u - hx, af, HIP_Z + z + hz)
+        at, knee = _ik(ax, az)
+        if foot is not None:
+            af = max(-1.0, min(0.06, (at - knee) - (A0 - foot)))
+    ankle = (at - knee) - af
+    return {f"thigh.{s}": (-(at + hp - THIGH0), hy * 0.8, -0.03 * sgn(s) + ROLL_COMP * roll),
+            f"shin.{s}": (knee - K0, 0.0, 0.0), f"foot.{s}": (-(ankle - A0), 0.0, 0.0),
+            f"toe.{s}": (min(SLIDE_TOE, max(0.0, -af)), 0.0, 0.0)}
+
+
+def slide_lie(fr):
+    """The slide's lying key at frame fr: down on the right hip, never still (the stone chatters under him,
+    the trunk rocks, the trailing hand skips, the lead heel bounces)."""
+    fo = fr - (SLIDE_LIE - 13)  # (the chatter's phase as first authored, lying from frame 13)
+    wob = 0.7 * math.sin((fo - 4) * 0.75)
+    P = {}
+    # Down on the right hip: the folded leg lies flat (thigh turned out), the trunk well back.
+    # (The lean back is mostly the pelvis rolling back; the spine itself arches no more than ~25°.)
+    torso(P, lean=-0.56 + 0.04 * wob, look=0.4 + 0.04 * math.sin((fo - 4) * 0.6), hp=-0.36, roll=0.05 + 0.04 * wob,
+          head_yaw=0.08 * math.sin((fo - 4) * 0.5))
+    # (The limbs' chatter at 1.8x: played at the slower rate of the longer stride, the slide lay still as
+    # a held pose, under a degree a frame.)
+    c = 1.0 + 0.8 * min(1.0, max(0.0, (21 - fo) / 3.0))  # (back to 1x by the last lying key: the rise starts from it)
+    # (The lead leg's bounce comes in over the first lying keys: at full chatter from the first, the heel,
+    # still rising off the swing through, was thrown back down 8 cm in a game frame.)
+    cl = c * min(1.0, (fr - SLIDE_LIE + 1) / 3.0)
+    leg(P, "L", hip=1.24 + cl * 0.04 * math.sin((fo - 4) * 1.1), knee=0.1 + cl * 0.08 * max(0.0, math.sin((fo - 4) * 1.1)), ankle=-0.3 + cl * 0.06 * math.sin((fo - 4) * 0.9))
+    leg(P, "R", hip=0.86 + c * 0.03 * math.sin((fo - 4) * 0.8 + 1.0), knee=2.4, ankle=0.3, out=0.9 + c * 0.04 * wob)
+    arm(P, "R", fwd=-0.5 + c * 0.06 * math.sin((fo - 4) * 0.9), elbow=0.2 + c * 0.06 * max(0.0, math.sin((fo - 4) * 0.9)), out=0.5, wrist=-0.6, curl=0.3)
+    arm(P, "L", fwd=0.3 + c * 0.08 * wob, elbow=0.45 + c * 0.06 * math.sin((fo - 4) * 0.6), out=0.45, curl=1.0)
+    return P
+
+
+def _thigh_world(P, s):
+    """A thigh's flexion in the world's sagittal plane (the leg's own angle less the pelvis tilt)."""
+    return -P[f"thigh.{s}"][0] + P.get("hips", (0.0, 0.0, 0.0))[0]
+
+
+def slide_drop():
+    """The slide's drop, keyed every frame from the run-up's stride (frame 8) into the first lying key.
+    Each part on its own clock, so the body does not change pose as one: the pelvis rolls back and the
+    trunk follows; the lead (left) thigh drives up through the stride's own swing and the knee unfolds
+    after it, the heel reaching out for the stone; the right foot keeps its strike, the knee giving
+    under the sinking hips, then comes off the stone behind, folds heel to seat and swings out to lie
+    flat under him; the arms go out and back for the fall."""
+    f0, f1 = 8, SLIDE_LIE
+    ph = lambda f: (f - 1) * OBST_CADENCE / FPS  # noqa: E731
+    L1 = slide_lie(f1)
+    z8 = gait_root(ph(f0), RUN)
+    groups = {
+        # (from, to) frames of each part's ease from the stride into the lying pose
+        "trunk": (8.5, 14.0), "head": (9.0, 14.5), "armR": (8.0, 14.0), "armL": (8.5, 14.5),
+        "thighL": (8.0, 13.5), "shinL": (9.5, 14.5), "footL": (9.5, 14.5),
+    }
+
+    def group(b):
+        n, s = (b.split(".") + [""])[:2]
+        if n in ("hips", "spine", "chest", "root"):
+            return "trunk"
+        if n in ("neck", "head"):
+            return "head"
+        if n in ("shoulder", "upper_arm", "forearm", "hand", "fingers"):
+            return "arm" + s
+        if s == "L":
+            return {"thigh": "thighL", "shin": "shinL"}.get(n, "footL")
+        return None
+    R_STANCE = (9, 10)  # the right foot on the stone (its strike at 8.7; off it before 11)
+    R_FOOT = (0.14, 0.42, 0.48)  # its ankle through them, flexing as the knee gives, the heel coming up
+    keys = {}
+    for f in range(9, f1):
+        G, xg = loco(ph(f), RUN)
+        zg = gait_root(ph(f), RUN)
+        d = SLIDE_DROP[f - f0]
+        z = zg + (SLIDE_Z - zg) * d
+        P = dict(G)
+        for b in set(G) | set(L1):
+            g = group(b)
+            if g is None:
+                continue
+            a, c = groups[g]
+            P[b] = lerp_pose({b: G.get(b, (0.0, 0.0, 0.0))}, {b: L1.get(b, (0.0, 0.0, 0.0))}, ease((f - a) / (c - a)))[b]
+        if f in R_STANCE:
+            hp = -P["hips"][0]
+            P.update(slide_stance("R", f, z, hp, P["hips"][1], P["hips"][2], foot=R_FOOT[f - R_STANCE[0]], G=OG))
+        keys[f] = (P, z, xg * (1.0 - ease((f - 8.5) / 5.5)))
+    # The right leg off the stone: from its last stance key, on its own momentum, through the tuck (heel to
+    # the seat, the knee coming forward under him, the thigh starting to turn out) into the lying fold.
+    # Hermite through the leg's world-frame flexion (so the pelvis rolling back does not swing it), the
+    # rest of its angles as keyed.
+    Tk = {}
+    torso(Tk, lean=-0.3, hp=-0.2)
+    leg(Tk, "R", hip=0.35, knee=2.3, ankle=-0.15, toe=0.3, out=0.45)  # (the instep still pointed off the push)
+    bones = ("thigh.R", "shin.R", "foot.R", "toe.R")
+
+    def vec(P):
+        return [_thigh_world(P, "R")] + list(P["thigh.R"][1:]) + [P[b][i] for b in bones[1:] for i in range(3)]
+    fa = R_STANCE[-1]
+    va, vb = vec(keys[fa][0]), vec(keys[fa - 1][0])
+    pts = [(fa, va, [x - y for x, y in zip(va, vb)])] + ([(TK_F, vec(Tk), None)] if TK_F else []) + [(f1, vec(L1), [0.0] * len(va))]
+    for f in range(fa + 1, f1):
+        v = _hermite(pts, f)
+        P = keys[f][0]
+        P["thigh.R"] = (-(v[0] - P["hips"][0]), v[1], v[2])
+        for i, b in enumerate(bones[1:]):
+            P[b] = tuple(v[3 + 3 * i:6 + 3 * i])
+    for f in range(9, f1):
+        P, z, x = keys[f]
+        key(f, P, z=max(z, floor_z(P, x, 0.0)), x=x)
 
 
 def plant_hand(action, side, f0, f1, where, ramp=1):
@@ -2822,42 +2971,18 @@ def obstacle_clips():
 
     # ---------------------------------------------------------- slide: under a low beam (head ≤ ~1.0 m), up running
     new_action("slide" + SFX)
-    # (The run-up is 8 frames, not 4: the drop now comes as the lead (left) leg is already swinging through,
+    # (The run-up is 8 frames, not 4: the drop comes as the lead (left) leg is already swinging through,
     # off the right foot's strike. Out of the left foot's stance it had to reach ~1 m forward in two
     # frames, and at the top tier's rate the foot jumped 75 cm in one.)
     run_up(8)
-    P = {}
-    torso(P, lean=-0.2, look=0.4, hp=-0.08)
-    leg(P, "L", hip=1.1, knee=0.8, ankle=-0.15)  # (still folding out: straight here, the lead heel swept through the stone from frame 5)
-    leg(P, "R", hip=0.15, knee=1.8, ankle=0.3, toe=0.4)
-    arm(P, "L", fwd=1.0, elbow=0.9, out=0.3, curl=0.9)
-    arm(P, "R", fwd=-0.3, elbow=0.6, out=0.4, curl=0.6)
-    key(10, P)
-    # (Frame 5 keyed between the stride and the drop, the lead foot over the stone: left to the curves it
-    # dipped ~7 cm into it.)
-    G5, x5 = loco(8 * OBST_CADENCE / FPS, RUN)
-    Q = lerp_pose(G5, P, 0.5)
-    # (The lead leg swings through folded, as a runner's does: halfway between the stride's and the
-    # slide's straight leg, its heel brushed the stone, the ankle down to 0.5 cm, 8 cm into it.)
-    Q["shin.L"] = (Q["shin.L"][0] + SLIDE_FOLD,) + tuple(Q["shin.L"][1:])
-    z5 = 0.5 * (gait_root(8 * OBST_CADENCE / FPS, RUN) + solve_root(P))
-    key(9, Q, z=max(z5, floor_z(Q)) + 0.07, x=0.5 * x5)  # (+5 cm: the hips smoothing pulls this key down toward the drop)
-    # (Keyed every frame and never still: the stone chatters under him, the trunk rocks, the trailing hand
-    # skips, the lead heel bounces; on three near-identical keys he slid along as a statue for 7 frames.)
-    for fr in range(13, 23):
-        wob = 0.7 * math.sin((fr - 4) * 0.75)
-        P = {}
-        # Down on the right hip: the folded leg lies flat (thigh turned out), the trunk well back.
-        # (The lean back is mostly the pelvis rolling back; the spine itself arches no more than ~25°.)
-        torso(P, lean=-0.56 + 0.04 * wob, look=0.4 + 0.04 * math.sin((fr - 4) * 0.6), hp=-0.36, roll=0.05 + 0.04 * wob,
-              head_yaw=0.08 * math.sin((fr - 4) * 0.5))
-        # (The limbs' chatter at 1.8x: played at the slower rate of the longer stride, the slide lay still as
-        # a held pose, under a degree a frame.)
-        c = 1.0 + 0.8 * min(1.0, max(0.0, (21 - fr) / 3.0))  # (back to 1x by the last lying key: the rise starts from it)
-        leg(P, "L", hip=1.24 + c * 0.04 * math.sin((fr - 4) * 1.1), knee=0.1 + c * 0.08 * max(0.0, math.sin((fr - 4) * 1.1)), ankle=-0.3 + c * 0.06 * math.sin((fr - 4) * 0.9))
-        leg(P, "R", hip=0.86 + c * 0.03 * math.sin((fr - 4) * 0.8 + 1.0), knee=2.4, ankle=0.3, out=0.9 + c * 0.04 * wob)
-        arm(P, "R", fwd=-0.5 + c * 0.06 * math.sin((fr - 4) * 0.9), elbow=0.2 + c * 0.06 * max(0.0, math.sin((fr - 4) * 0.9)), out=0.5, wrist=-0.6, curl=0.3)
-        arm(P, "L", fwd=0.3 + c * 0.08 * wob, elbow=0.45 + c * 0.06 * math.sin((fr - 4) * 0.6), out=0.45, curl=1.0)
+    # The drop over 7 frames into the first lying key (slide_drop). (Two keys between the stride and the
+    # lying pose, frames 9 and 10, put the right leg's whole tuck and the left leg's swing through in one
+    # authored frame: 53 cm of foot, a 54 cm jump in a game frame at the top tier.)
+    slide_drop()
+    dt = SLIDE_LIE - 13  # the lying stretch and the rise, later by the drop's two extra frames
+    # (Keyed every frame and never still: on three near-identical keys he slid along as a statue for 7 frames.)
+    for fr in range(SLIDE_LIE, 23 + dt):
+        P = slide_lie(fr)
         key(fr, P, z=SLIDE_Z)
     P_lie = P
     # Up: the folded right knee and the planted left heel lever him back over his feet. (Over 4 frames
@@ -2870,18 +2995,18 @@ def obstacle_clips():
     arm(P, "L", fwd=-0.4, elbow=1.1, out=0.3, curl=1.0)
     z_up = solve_root(P)
     # (Every frame on the way up, the left heel kept on the stone: between 20 and 22 it sank 4 cm into it.)
-    for fr, w, zw in ((24, 0.45, 0.35), (25, 0.72, 0.68)):
+    for fr, w, zw in ((24 + dt, 0.45, 0.35), (25 + dt, 0.72, 0.68)):
         Q = lerp_pose(P_lie, P, w)
         key(fr, Q, z=max(SLIDE_Z + (z_up - SLIDE_Z) * zw, floor_z(Q)))
-    key(26, P, z=z_up)
+    key(26 + dt, P, z=z_up)
     P = {}
     torso(P, lean=0.45, look=0.45, hp=0.18)
     leg(P, "L", hip=0.7, knee=0.8, ankle=-0.05)
     leg(P, "R", hip=-0.3, knee=1.0, ankle=0.6, toe=0.6)
     arm(P, "R", fwd=1.0, elbow=1.4, curl=1.0)
     arm(P, "L", fwd=-0.6, elbow=1.1, out=0.25, curl=1.0)
-    key(29, P)
-    hand_back(26, P, 0.45, 34, f_pose=29, k0=0.9, leg_n=4.0)
+    key(29 + dt, P)
+    hand_back(26 + dt, P, 0.45, 34 + dt, f_pose=29 + dt, k0=0.9, leg_n=4.0)
 
     # ---------------------------------------------------------- vault: a one-hand speed vault over the toppled pillar
     # (pillar_topple_0: Ø 0.95 m, top ~0.93 m). Off the left foot, the right hand plants on top; the body
@@ -2892,7 +3017,7 @@ def obstacle_clips():
     T = {}
     torso(T, lean=0.55, look=0.45, hp=0.2, yaw=-0.1)
     leg(T, "L", hip=-0.35, knee=0.5, ankle=0.6, toe=0.65)
-    leg(T, "R", hip=1.75, knee=2.15, ankle=-0.1)
+    leg(T, "R", hip=1.75, knee=2.0, ankle=-0.1)  # (the knee still folding: at 2.15 it stopped dead on the take-off, 17° to 4° a frame)
     arm(T, "R", fwd=VA[0], elbow=0.25, out=0.12, wrist=-0.9, curl=0.25)
     arm(T, "L", fwd=0.5, elbow=1.0, out=0.45, curl=0.4)
     # ... half-way there at the take-off from where the stride had it (all of it in 2 frames was a snap).
@@ -2914,7 +3039,7 @@ def obstacle_clips():
     # The push-off leg folds heel to seat at once, so it comes over the near face high.
     T2 = dict(T)
     torso(T2, lean=0.7, look=0.55, hp=0.2, yaw=0.0, hyaw=0.3, roll=-0.15)
-    leg(T2, "L", hip=0.9, knee=1.95, ankle=-0.2, yaw=VY * 0.55 * VT)
+    leg(T2, "L", hip=0.9, knee=1.95, ankle=-0.05, yaw=VY * 0.55 * VT)  # (the ankle on its way to the plant's, not there and stopped)
     leg(T2, "R", hip=2.05, knee=2.45, ankle=-0.45, yaw=VY * 0.7 * VT)
     standing_turned(T2, -VY * 0.6 * (1 - VT))
     arm(T2, "R", fwd=0.95, elbow=0.1, out=0.1, wrist=-1.1, curl=0.2)
@@ -2961,7 +3086,19 @@ def obstacle_clips():
     # (The push-off leg folds over ~3 frames, not between two: 20° to 93° in one frame was a snap.)
     T1 = lerp_pose(T, T2, 0.35)
     leg(T1, "L", hip=0.2, knee=1.15, ankle=0.4, toe=0.3, yaw=VY * 0.2 * VT)
-    air(6, V_LAND, [(0.0, T), (0.08, T1), (0.17, T2), (0.25, P1), (0.46, P2), (0.7, P3), (0.86, P4), (1.0, D)], zt, zl, V_H)
+    # The swing up and round the hand, between the take-off's last pose and the plant's first: the thighs
+    # lead (driven up off the push), the knees open after them, and the body turns over the hand last.
+    # (The right, near the stone, keeps its heel tucked longest: unfolding with the left, its boot clipped
+    # the pillar's near shoulder at the run's pace.)
+    lead = {"thigh": 0.7, "shin": 0.3, "foot": 0.4, "toe": 0.4, "root": 0.45, "thigh.R": 0.9, "shin.R": 0.5}
+    TB = {nm: lerp_pose({nm: T2.get(nm, (0.0, 0.0, 0.0))}, {nm: P1.get(nm, (0.0, 0.0, 0.0))}, lead.get(nm, lead.get(nm.split(".")[0], 0.5)))[nm]
+          for nm in set(T2) | set(P1)}
+    # Each pose on its frame (the flight is keyed 6 → V_LAND), the plant's from V_PLANT[0], and joined by
+    # monotone cubics: the limbs keep moving through the poses (eased to rest on each, they lurched off
+    # them again, the shins 27-32° in a frame).
+    fr = (6, 7.5, 9, 10.5, V_PLANT[0], V_PLANT[0] + 3.36, V_PLANT[0] + 7.2, V_PLANT[0] + 9.76, V_LAND)
+    poses = (T, T1, T2, TB, P1, P2, P3, P4, D)
+    air(6, V_LAND, [((f - 6) / (V_LAND - 6), Q) for f, Q in zip(fr, poses)], zt, zl, V_H, smooth=True)
     A = {}
     torso(A, lean=0.45, look=0.45, hp=0.2, hyaw=0.05)
     leg(A, "L", hip=0.45, knee=0.75, ankle=-0.15)
@@ -3701,8 +3838,8 @@ def previews(rig, which):
         for f in (1, 50, 90):
             shot(rig, "idle", f, (1.4, 3.2, 1.4))
     if which == "obst":
-        for name, frames in (("jump_log", (6, 12, 19, 21)), ("leap_gap", (7, 12, 18, 22, 27)), ("slide", (7, 14, 21, 24)),
-                             ("vault", (6, 9, 12, 15)), ("turn_cut_L", (9, 13)), ("stumble_land", (3, 6, 9))):
+        for name, frames in (("jump_log", (6, 12, 19, 21)), ("leap_gap", (7, 12, 18, 22, 27)), ("slide", (7, 12, 18, 26)),
+                             ("vault", (6, 10, 13, 16)), ("turn_cut_L", (9, 13)), ("stumble_land", (3, 6, 9))):
             for f in frames:
                 shot(rig, name, f, (2.6, 2.4, 1.3))
         for f in (9, 13):
