@@ -23,6 +23,13 @@ export const causticUniforms = {
   uDetailLite: { value: 0 },
   /** Rain: every surface wet (0..1), on top of the waterline and spray. */
   uRainWet: { value: 0 },
+  /**
+   * World round 28: the world's stone (style.ts STONES): rgb the family's colour (relative to the
+   * baked sandstone's own luminance), w how far the masonry is moved to it (0: the sandstone as baked).
+   */
+  uStoneFamily: { value: new THREE.Vector4(1, 1, 1, 0) },
+  /** World round 28: weathering across a wall (0..1): broad stains and streaks that break the atlas's repeat. */
+  uStoneVar: { value: 1 },
   /** xyz: foot of a waterfall (world), w: reach of its spray (m). w = 0: unused. */
   uFeet: { value: Array.from({ length: MAX_FEET }, () => new THREE.Vector4(0, -1e4, 0, 0)) },
 };
@@ -63,6 +70,8 @@ uniform float uCausticTime;
 uniform float uCausticStrength;
 uniform vec4 uFeet[${MAX_FEET}];
 uniform float uRainWet;
+uniform vec4 uStoneFamily;
+uniform float uStoneVar;
 // Iterated turbulence (after joltz0r's water shader): bright filaments that wander and merge.
 float causticAt(vec2 w, float t) {
   vec2 p = mod(w, 6.28318) - 250.0;
@@ -197,6 +206,38 @@ else if (uDetailLite > 0.0 && uDetailReady > 0.0) {
     diffuseColor.rgb *= mix(1.0, 0.62 + 0.7 * t.b, min(1.0, k * 1.2));
   }
 }
+#elif !defined(DETAIL_FAR)
+// World round 28, the lightest tier (the critic: a pier block and the collapse's blocks beside the lens
+// read as big blurry cubes): masonry within ~7-15 m of the lens takes one fetch of the scan, on the plane
+// its face is most turned to (~70 cm a tile, between the full tiers' two octaves): grains, pits and edges
+// where the atlas is magnified past its texels. Faded out before it could shimmer.
+else if (uDetailLite > 0.0 && uDetailReady > 0.0) {
+  float dist = length(vViewPosition);
+  float k = uDetailLite * DETAIL_AMP * (1.0 - smoothstep(7.0, 15.0, dist));
+  if (k > 0.0) {
+    vec3 an = abs(vWetN);
+    vec3 s = sign(vWetN);
+    vec3 t;
+    vec3 dw;
+    if (an.x >= an.y && an.x >= an.z) {
+      t = texture2D(uDetailMap, vWetPos.zy * 1.4 + 0.37).rgb;
+      vec2 a = t.rg * 2.0 - 1.0;
+      dw = vec3(0.0, a.y, a.x * s.x);
+    } else if (an.y >= an.z) {
+      t = texture2D(uDetailMap, vWetPos.xz * 1.4 + 0.37).rgb;
+      vec2 a = t.rg * 2.0 - 1.0;
+      dw = vec3(a.x * s.y, 0.0, a.y);
+    } else {
+      t = texture2D(uDetailMap, vWetPos.xy * 1.4 + 0.37).rgb;
+      vec2 a = t.rg * 2.0 - 1.0;
+      dw = vec3(a.x * s.z, a.y, 0.0);
+    }
+    vec3 bn = normal + (mat3(viewMatrix) * dw) * 1.3 * k;
+    float bl = length(bn);
+    if (bl > 1e-4) normal = bn / bl;
+    diffuseColor.rgb *= mix(1.0, 0.6 + 0.75 * t.b, min(1.0, k * 1.1));
+  }
+}
 #endif`;
 
 /**
@@ -299,8 +340,47 @@ const FRAG_CAUSTIC = /* glsl */ `
   }
 }`;
 
+/**
+ * World round 28. Two terms on the baked albedo, before any lighting:
+ *  - weathering (the critic: one brick wall, repeated tile after tile down a gorge): broad stains and
+ *    warm/cool patches a few metres across, and darker run-off streaks down vertical faces, all in world
+ *    space, so no two stretches of the same wall piece match;
+ *  - the world's stone family (the critic: worlds 3 and 7 the same sandstone causeway): the masonry is
+ *    moved toward the family's colour at the baked texel's own luminance, keeping a little of its chroma,
+ *    so a limestone, basalt or red tezontle world keeps every block's grain and wear.
+ * Four value-noise taps; no texture reads (every tier).
+ */
+/** How much of the baked texel's own chroma a stone family keeps (its grain and stains, not its hue). */
+export const FAMILY_CHROMA = 0.08;
+const FRAG_FAMILY = /* glsl */ `
+#if defined(WET_MOSS) && defined(USE_MAP)
+{
+  // The natural rock (the critic: a large outcrop beside the lens, its bake smeared into long streaks
+  // across a face its unwrap stretches): where the atlas runs several times sparser one way than the
+  // other, the albedo falls back to the atlas's own broad colour there (a coarse mip) and the scan's
+  // triplanar grain carries the surface (detail, below) instead of the smear.
+  vec2 dux = dFdx(vMapUv), duy = dFdy(vMapUv);
+  float sx = length(dux) / max(length(dFdx(vWetPos)), 1e-5), sy = length(duy) / max(length(dFdy(vWetPos)), 1e-5);
+  float ds = smoothstep(1.8, 3.6, max(sx, sy) / max(min(sx, sy), 1e-6)) * (1.0 - smoothstep(12.0, 25.0, length(vViewPosition)));
+  if (ds > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, diffuse * texture2D(map, vMapUv, 4.5).rgb, ds);
+}
+#endif
+{
+  vec3 sp = vWetPos;
+  float wA = pdN(sp.xz * 0.23 + sp.y * vec2(0.17, -0.11));
+  float wC = pdN(sp.xz * 0.9 - sp.y * 0.6 + 11.0);
+  float wB = pdN(vec2((sp.x + sp.z) * 1.7, sp.y * 0.3) + 5.3);
+  float vary = uStoneVar * STONE_VAR;
+  diffuseColor.rgb *= 1.0 + vary * ((wA - 0.5) * 0.38 + (wC - 0.5) * 0.16);
+  diffuseColor.rgb *= 1.0 - vary * (1.0 - abs(vWetN.y)) * smoothstep(0.55, 0.82, wB) * smoothstep(0.3, 0.7, wA) * 0.3;
+  diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(0.93, 0.98, 1.06), vec3(1.06, 1.0, 0.92), wA), 0.7 * vary);
+  float fl = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  vec3 fam = fl * uStoneFamily.rgb + (diffuseColor.rgb - vec3(fl)) * ${FAMILY_CHROMA.toFixed(3)};
+  diffuseColor.rgb = mix(diffuseColor.rgb, max(fam, vec3(0.0)), uStoneFamily.w * STONE_FAMILY);
+}`;
+
 /** Patch a standard material (once). Chains any existing onBeforeCompile. */
-export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false, edges = false, far = false): void {
+export function patchWetStone(m: THREE.Material, caustics = true, moss = false, detail = 0, puddles = false, edges = false, far = false, family = 1, vary = 1): void {
   const sm = m as THREE.MeshStandardMaterial;
   if (!sm.isMeshStandardMaterial || sm.userData.wetStone) return;
   sm.userData.wetStone = true;
@@ -317,16 +397,19 @@ export function patchWetStone(m: THREE.Material, caustics = true, moss = false, 
       shader.fragmentShader = '#define WET_EDGES\n' + shader.fragmentShader;
     }
     if (detail > 0) shader.fragmentShader = `#define DETAIL_AMP ${detail.toFixed(3)}\n` + shader.fragmentShader;
+    const fam = family > 0 || vary > 0;
+    if (fam) shader.fragmentShader = `#define STONE_FAMILY ${family.toFixed(3)}\n#define STONE_VAR ${vary.toFixed(3)}\n` + shader.fragmentShader;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
       .replace('#include <project_vertex>', `#include <project_vertex>\n${VERT}`);
     shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${fam ? FRAG_FAMILY : ''}`)
       .replace('#include <common>', `#include <common>\n${FRAG_PARS}\n${detail > 0 ? DETAIL_PARS : ''}`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${detail > 0 ? FRAG_DETAIL : ''}\n${FRAG_SPEC_AA}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n${FRAG_WET}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${caustics ? FRAG_CAUSTIC : ''}`);
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet27${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|wet28${caustics ? 'c' : ''}${moss ? 'm' : ''}${puddles ? 'p' : ''}${edges ? 'e' : ''}${far ? 'f' : ''}${detail}|${family}|${vary}`;
   sm.needsUpdate = true;
 }
 

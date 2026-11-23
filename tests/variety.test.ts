@@ -5,6 +5,9 @@ import { buildLayout, isLand, LAND_TYPES, SECTION_TYPES } from '../src/world/sec
 import { GEN_SPEED, genIntensity, Track, WALLED as WALLED_TYPES } from '../src/world/track';
 import { boundsKit } from './kitBounds';
 import { collectLayouts, corridorFindings, findingLines, kitPoints } from './worldGeom';
+import { LOOKS } from '../src/world/look';
+import { FAMILY_CHROMA } from '../src/world/caustics';
+import { STONES, STYLES, type StoneFamily } from '../src/world/style';
 
 /**
  * World round 23 (owner: "non deve essere sempre acqua ai lati, ma anche tipo foresta"): over twelve
@@ -366,3 +369,76 @@ it("gives every world's opening a hero feature, of varied kinds", async () => {
   expect(kinds.size).toBeGreaterThanOrEqual(28);
   expect(new Set(kinds.values()).size).toBeGreaterThanOrEqual(4);
 }, 300000);
+
+/**
+ * World round 28 (the critic: worlds 3 and 7 had almost the same title shot — the same sandstone
+ * causeway, arches, beams and palms, a slight colour shift between them). A world's identity at a glance
+ * is the colour of its stone (the way, the parapets, the piers: most of every frame), its water, its
+ * leaves and its air, under its light. Each is estimated here from the plan as the shaders apply it (a
+ * representative baked sandstone texel moved to the stone family, the look's stone tint and sun; the
+ * style's water, leaf season and sky; the look's haze) and compared in CIELAB (ΔE76).
+ */
+const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const hexLin = (h: string | number) => {
+  const c = new THREE.Color(h);
+  return [c.r, c.g, c.b] as [number, number, number];
+};
+function lab([r, g, b]: [number, number, number]): [number, number, number] {
+  const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, Y = 0.2126 * r + 0.7152 * g + 0.0722 * b, Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+}
+const dE = (a: [number, number, number], b: [number, number, number]) => {
+  const p = lab(a), q = lab(b);
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+};
+/** The baked sandstone of the way as the title shot shows it (sRGB 196, 140, 100). */
+const SAND: [number, number, number] = [lin(196 / 255), lin(140 / 255), lin(100 / 255)];
+function stoneLit(f: StoneFamily, look: (typeof LOOKS)[number]): [number, number, number] {
+  const l = 0.2126 * SAND[0] + 0.7152 * SAND[1] + 0.0722 * SAND[2];
+  const sun = hexLin(look.sun);
+  const sl = 0.2126 * sun[0] + 0.7152 * sun[1] + 0.0722 * sun[2];
+  return SAND.map((c, i) => {
+    const fam = Math.max(0, l * f.colour[i]! + (c - l) * FAMILY_CHROMA);
+    return (c + (fam - c) * f.k) * look.stoneTint[i]! * (sun[i]! / sl);
+  }) as [number, number, number];
+}
+function identity(seed: string) {
+  const p = Track.planOf(seed);
+  const look = LOOKS[p.look]!, style = STYLES[p.style]!, stone = STONES[p.stone]!;
+  const leaf: [number, number, number] = [0.08 * 0.84 * style.foliage[0], 0.16 * 0.9 * style.foliage[1], 0.04 * 0.76 * style.foliage[2]];
+  const air = hexLin(look.fog).map((c, i) => c * style.sky[i]!) as [number, number, number];
+  return { seed, stone: stoneLit(stone, look), water: hexLin(style.waterShallow), leaf, air, name: `${look.name}/${style.name}/${stone.name}` };
+}
+const apart = (a: ReturnType<typeof identity>, b: ReturnType<typeof identity>) => dE(a.stone, b.stone) + 0.6 * (dE(a.water, b.water) + dE(a.leaf, b.leaf) + dE(a.air, b.air));
+
+it('builds each world of a stone of its own, and no two worlds alike at a glance', async () => {
+  // The families are far apart (the same light on each).
+  for (let i = 0; i < STONES.length; i++)
+    for (let j = i + 1; j < STONES.length; j++) expect(dE(stoneLit(STONES[i]!, LOOKS[0]!), stoneLit(STONES[j]!, LOOKS[0]!)), `${STONES[i]!.name} / ${STONES[j]!.name}`).toBeGreaterThan(14);
+  // The critic's pair.
+  const w3 = identity('3-0.5'), w7 = identity('7-0.5');
+  expect(dE(w3.stone, w7.stone), `${w3.name} / ${w7.name}`).toBeGreaterThan(15);
+  expect(apart(w3, w7)).toBeGreaterThan(40);
+  // Worlds in a row (as the game picks them) share no stone, look, style or theme, and stand far apart.
+  const track = new Track(boundsKit());
+  await track.prepare({ foliage: 0.45, scenery: 0.4 });
+  let prev = '';
+  let worst = Infinity;
+  const used = new Set<string>();
+  for (let i = 0; i < 60; i++) {
+    const seed = prev ? (track as unknown as { vary(b: string): string }).vary(`row-${i}`) : `row-${i}`;
+    track.reset(seed);
+    if (prev) worst = Math.min(worst, apart(identity(prev), identity(seed)));
+    used.add(track.stone.name);
+    prev = seed;
+  }
+  expect(used.size).toBe(STONES.length);
+  expect(worst).toBeGreaterThan(22);
+  // Any two of the check worlds: at most a few pairs close (the sets are small; such a pair differs in its
+  // theme — its route and sections — and the light or the stone).
+  const ws = [3, 7, 11, 19, 23, 31, 42, 58, 64, 77, 83, 97, 105, 118, 126, 141].map((w) => identity(`${w}-0.5`));
+  const close: string[] = [];
+  for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) if (apart(ws[i]!, ws[j]!) < 15) close.push(`${ws[i]!.seed} ${ws[i]!.name} ~ ${ws[j]!.seed} ${ws[j]!.name}`);
+  expect(close.length, close.join('\n')).toBeLessThanOrEqual(3);
+}, 120_000);

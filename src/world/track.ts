@@ -5,8 +5,8 @@ import type { Kit } from './assets';
 import { Path, frameMatrix, type Frame, type Segment } from './path';
 import { Obstacles, type Obstacle, type ObstacleKind } from './obstacles';
 import { Landmarks } from './landmarks';
-import { STYLES, type LandmarkKind, type WorldStyle } from './style';
-import { TURN_R } from './sections';
+import { STONES, STYLES, type LandmarkKind, type StoneFamily, type WorldStyle } from './style';
+import { PATH_HALF, TURN_R } from './sections';
 import { buildLayout, isLand, isWaterPiece, LAND_TYPES, nextType, THEMES, type Layout, type SectionType } from './sections';
 import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
@@ -16,8 +16,8 @@ import { MeshoptSimplifier } from 'meshoptimizer/simplifier';
 import { causticUniforms, ensureDetailMap, patchBark, patchNearFade, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
 import { makeLilyMaterial, makeMossMaterial } from './moss';
-import { atmosphereUniforms } from './atmosphere';
-import { qaParam, qaWorldSeed } from './qa';
+import { atmosphereUniforms, setSkyDeep, setSkyStyle } from './atmosphere';
+import { qaHas, qaParam, qaWorldSeed } from './qa';
 import { intensityOf } from './choreo';
 import { GROWTH_PER_MS } from '../engine/config';
 
@@ -27,6 +27,43 @@ const QA_SEEDED = qaWorldSeed() !== null;
 const QA_RUIN = Number(qaParam('ruin') ?? NaN);
 // QA (dev builds only): ?style=<name> pins the world style.
 const QA_STYLE = STYLES.findIndex((st) => st.name === qaParam('style'));
+// QA: ?stone=<name> pins the stone family.
+const QA_STONE = STONES.findIndex((st) => st.name === qaParam('stone'));
+
+// QA: the world's shared uniforms, for the capture tools (to try values on a live frame).
+if (qaHas('qa')) (globalThis as Record<string, unknown>).__worldU = { causticUniforms, atmosphereUniforms };
+
+/**
+ * A prop's merge zone (see mergeProps): 'near' stays with the path when stairs lower a section; every
+ * other zone but 'grit' follows the water. Exported for the world checks (a section a flight down).
+ *
+ * World round 28 (the critic: a piece hanging in mid-air over the water): 'wnear' — near the way but
+ * off it, out in the water and laid relative to the water (an islet's rock, the palm, pier or stele on
+ * it, a guardian standing in the river). It casts shadows like the near props and follows the water
+ * like the far ones. Before, a flight down, the islet rocks sank with the path while the shrub masses
+ * and bananas on them (far: they throw no shadow) rose to the water: 0.5–1 m of air under each.
+ */
+export function propZone(piece: string, p: THREE.Vector3): 'lily' | 'water' | 'grit' | 'far' | 'near' | 'wnear' {
+  return piece.startsWith('lily_')
+    ? 'lily'
+    : isWaterPiece(piece)
+      ? 'water'
+      : piece.startsWith('scatter_')
+        ? 'grit'
+        : piece.startsWith('jungle_bank') || (/^(shrub_mass|banana)/.test(piece) && p.y < -1.5)
+          ? 'far'
+          : Math.abs(p.x) > 7.5
+            ? 'far'
+            : Math.abs(p.x) > PATH_HALF + 2 && p.y < WATER_REL + 0.8
+              ? 'wnear'
+              : 'near';
+}
+
+/** World round 28: the world's stone family and sky into the shared uniforms (no recompile). */
+function applyWorldStone(stone: StoneFamily, style: WorldStyle): void {
+  causticUniforms.uStoneFamily.value.set(stone.colour[0], stone.colour[1], stone.colour[2], stone.k);
+  setSkyStyle(style.sky);
+}
 /** World round 13: sections that make an open approach to a landmark (water in view, low or no walls). */
 const OPEN_APPROACH: SectionType[] = ['bridge', 'stepping', 'boardwalk', 'plaza', 'corridor', 'ruins', 'sunken'];
 const QA_OBS = (qaParam('obs') ?? '').split(',').filter(Boolean);
@@ -369,6 +406,11 @@ export class Track {
   get style(): WorldStyle {
     return STYLES[Math.max(0, this.styleIndex)]!;
   }
+  private stoneIndex = -1;
+  /** World round 28: the stone the current world's ruins are built of (style.ts STONES). */
+  get stone(): StoneFamily {
+    return STONES[Math.max(0, this.stoneIndex)]!;
+  }
   /** QA: force the next world's look (by name). */
   forceLook(name: string): void {
     const i = LOOKS.findIndex((l) => l.name === name);
@@ -413,6 +455,8 @@ export class Track {
     causticUniforms.uDetail.value = density.scenery >= 0.5 ? 1 : 0;
     // (It keeps one planar fetch on the near paving: one texture read on the pixels nearest the lens.)
     causticUniforms.uDetailLite.value = density.scenery >= 0.5 ? 0 : 1;
+    // (World round 28: and its deeper sky; see atmosphere.ts.)
+    setSkyDeep(density.scenery >= 0.5 ? 0 : 1);
     // (Phones fetch the scan after the first load, ~90 KB off the critical path; until it arrives the
     // term is off.)
     if (causticUniforms.uDetail.value > 0) ensureDetailMap();
@@ -465,23 +509,13 @@ export class Track {
       // ahead their masses would blanket the causeway in sky-lit grey): they join the far scenery's
       // draw call. Like it they follow the water when stairs lower a section, which they rise out of. The limbs over the way do cast, through holes (see leafDepth).
       // (Round 23: lily pads a zone of their own, drawn only near the runner like the pebbles.)
-      const zone = pl.piece.startsWith('lily_')
-        ? 'lily'
-        : isWaterPiece(pl.piece)
-        ? 'water'
-        : pl.piece.startsWith('scatter_')
-          ? 'grit'
-          : pl.piece.startsWith('jungle_bank') || (/^(shrub_mass|banana)/.test(pl.piece) && p.y < -1.5)
-            ? 'far'
-            : Math.abs(p.x) > 7.5
-              ? 'far'
-              : 'near';
+      const zone = propZone(pl.piece, p);
       // World round 25: on the lightest tier (no shadows) a land section's near and far props share a
       // draw call per material. The split is for shadows (only the near ones cast) and for the far ones to
       // follow the water when stairs lower a section; land is never lowered (it stands only at the
       // water's level), and on phones the split cost a call per material in every land section in view.
       // (`flat`: the same for any section, built for instances at the water's level — see spawn.)
-      const merged = zone === 'far' && (flat || (layout.ground !== undefined && this.density.scenery < 0.5)) ? 'near' : zone;
+      const merged = (zone === 'far' || zone === 'wnear') && (flat || (layout.ground !== undefined && this.density.scenery < 0.5)) ? 'near' : zone;
       const key = `${this.kit.matOf.get(pl.piece)!}|${merged}`;
       const c = g.clone().applyMatrix4(pl.m);
       // World round 24: the paving tiles' `aHalf` (TileSystem sets it on the kit's shared geometry) is
@@ -511,7 +545,7 @@ export class Track {
       const [mat, zone] = key.split('|') as [string, string];
       const mesh = new THREE.Mesh(merged, this.kit.mat.get(mat)!);
       mesh.name = key;
-      mesh.castShadow = zone === 'near' && mat !== 'flora';
+      mesh.castShadow = (zone === 'near' || zone === 'wnear') && mat !== 'flora';
       if (mesh.castShadow && mat === 'leaf') mesh.customDepthMaterial = leafDepth(this.kit);
       if (zone === 'water' || zone === 'lily') mesh.renderOrder = 1;
       mesh.receiveShadow = true;
@@ -526,9 +560,11 @@ export class Track {
   }
 
   /** A world's plan, a pure function of its seed. */
-  static planOf(seed: string): { theme: number; look: number; style: number } {
+  static planOf(seed: string): { theme: number; look: number; style: number; stone: number } {
     const plan = new Rng(`plan/${seed}`);
-    return { theme: plan.int(0, THEMES.length - 1), look: plan.int(0, LOOKS.length - 1), style: plan.int(0, STYLES.length - 1) };
+    const theme = plan.int(0, THEMES.length - 1), look = plan.int(0, LOOKS.length - 1), style = plan.int(0, STYLES.length - 1);
+    // (World round 28: the stone family, drawn after the others so they stay as they were.)
+    return { theme, look, style, stone: plan.int(0, STONES.length - 1) };
   }
 
   /**
@@ -540,7 +576,7 @@ export class Track {
     let seed = base;
     for (let k = 0; k < 64; k++, seed += '~') {
       const p = Track.planOf(seed);
-      if (p.theme !== this.themeIndex && p.look !== this.lookIndex && p.style !== this.styleIndex) return seed;
+      if (p.theme !== this.themeIndex && p.look !== this.lookIndex && p.style !== this.styleIndex && p.stone !== this.stoneIndex) return seed;
     }
     return seed;
   }
@@ -585,6 +621,8 @@ export class Track {
     this.themeIndex = plan.theme;
     this.lookIndex = plan.look;
     this.styleIndex = QA_STYLE >= 0 ? QA_STYLE : plan.style;
+    this.stoneIndex = QA_STONE >= 0 ? QA_STONE : plan.stone;
+    applyWorldStone(this.stone, this.style);
     this.lmRng = new Rng(`landmark/${seed}`);
     this.landmarks.clear();
     this.landmarkQueue = [...STYLES[this.styleIndex]!.landmarks];
@@ -1119,7 +1157,12 @@ function stageKit(kit: Kit): void {
     // (World round 26: the boulders too — the rolling boulder and the rockfall's rocks pass within a
     // metre or two of the lens and read as a low-detail sponge at 0.6.)
     const detail = key === 'floor' ? 1 : key === 'stoneA' || key === 'stoneB' || key === 'temple' || key === 'statue' || key === 'glyph' || key === 'rock' ? 0.9 : key === 'wood' ? 0.4 : 0.6;
-    if (m) patchWetStone(m, key !== 'floor', key === 'rock' || key === 'cliff', detail, key === 'floor', key === 'floor');
+    // (World round 28: the world's stone family on the masonry — half of it on the natural rock — and
+    // weathering on both; see caustics.ts FRAG_FAMILY.)
+    const natural = key === 'rock' || key === 'cliff';
+    const family = key === 'wood' ? 0 : natural ? 0.45 : 1;
+    const vary = key === 'wood' ? 0 : natural ? 0.6 : 1;
+    if (m) patchWetStone(m, key !== 'floor', natural, detail, key === 'floor', key === 'floor', false, family, vary);
   }
   // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):
   // in the shade of a canopy the giant roots and trunks went flat black. Lift it to ~0.065 (dark bark).

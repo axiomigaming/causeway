@@ -61,7 +61,9 @@ const KINDS: Record<LandmarkKind, Part[]> = {
     { piece: 'rubble_3', x: 14, y: WATER_Y - 0.8, z: 10, rotY: 0.6, s: 5.5, haze: 'light' },
     { piece: 'rubble_2', x: -18, y: WATER_Y - 0.8, z: 4, rotY: 2.1, s: 4.5, haze: 'light' },
     // A palm islet and a stele beside the approach.
-    { piece: 'rock_big_0', x: -23, y: WATER_Y - 4.2, z: 52, rotY: 1.1, s: 0.32, near: true },
+    // (World round 28: the rock lay a metre under the surface and the palm stood 1.2 m over the water on
+    // nothing; the islet's rock now breaks the water and the palm's foot is seated in it.)
+    { piece: 'rock_big_0', x: -23, y: WATER_Y - 1.92, z: 52, rotY: 1.1, s: 0.32, near: true },
     { piece: 'palm_1_trunk', x: -23, y: WATER_Y + 1.2, z: 52, rotY: 0.3, s: 0.9, near: true },
     { piece: 'palm_1_crown', x: -23, y: WATER_Y + 1.2, z: 52, rotY: 0.3, s: 0.9, near: true },
     { piece: 'stele_1', x: -1, y: WATER_Y - 0.8, z: 46, rotY: 0.5, tilt: [0.12, -0.1], s: 2.0, near: true },
@@ -169,7 +171,8 @@ export class Landmarks {
         c.emissive = HAZE.clone().multiplyScalar(0.11);
       }
       delete c.userData.wetStone;
-      if (STONE.has(key)) patchWetStone(c, false, false, 0.9, false, false, true);
+      // (World round 28: in the world's stone family, as the way's own masonry is.)
+      if (STONE.has(key)) patchWetStone(c, false, false, 0.9, false, false, true, key === 'rock' || key === 'cliff' ? 0.45 : 1, 0);
       this.hazed.set(id, c);
       m = c;
     }
