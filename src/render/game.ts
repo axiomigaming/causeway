@@ -926,6 +926,7 @@ export class Game {
     this.cine.sparkles.clear();
     this.cine.pool.clear();
     this.crashSound = st.kind;
+    this.chasmDrop = false;
     this.stageCrash(st, new Rng(`${roundId}/staging`), mult / 100);
     if (!this.rev) this.holdReveal(0.3);
     this.sounds.crash(this.crashSound);
@@ -934,6 +935,8 @@ export class Game {
   private crashKind = 'gate';
   /** The crash's sound cue (the kind, but the start's collapse sounds as a chasm, not a door). */
   private crashSound: CrashKind = 'gate';
+  /** The second chasm (the floor gives under him): framed on his body as it carries on, as on the ledge. */
+  private chasmDrop = false;
   private slowFloor = 0;
   private slowFloorV = 0;
   private slowFloorTarget = 0;
@@ -1994,6 +1997,7 @@ export class Game {
       // The lens holds at the lip and tilts down after him (the ledge's shot), onto the water.
       let sDrop = this.s + v * CHASM_RUN;
       this.setStop(sDrop + 60);
+      this.chasmDrop = true;
       const h0 = frameAt(sDrop);
       B.settleBelow = h0.pos.y - 0.4;
       this.cine.cracks.spawn(h0.pos.clone().setY(h0.pos.y + 0.05), h0.yaw, PATH_HALF * 2 + 0.2, 2.6 + 1.5 * e, CHASM_RUN * 0.8, 0.12);
@@ -2875,7 +2879,7 @@ export class Game {
   private toppleQ = new THREE.Quaternion();
   /** Crash round 6: the block that pins him in fall_rock_b (kinematic; see the rockfall). */
   private pinBlock: { mesh: THREE.Mesh; rest: THREE.Vector3; fall: number; t: number; T: number } | null = null;
-  /** Crash round 6: a body going under (the chasm): metres pushed down below the clip's own drop. */
+  /** Crash round 6: a body going under (the chasm): metres pushed down below the clip's own drop (`at`: its speed). */
   private sink: { t: number; at: number; depth: number; hideAt: number } | null = null;
   private rollQ = new THREE.Quaternion();
   private rollV = new THREE.Vector3();
@@ -3818,7 +3822,9 @@ export class Game {
     let subject = rp;
     // (Round 20: the crash too, except the chasm, where he goes under: the clips carry him metres
     // off the root, a slam, a trip, a fall onto the stone below.)
-    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'gate')) {
+    // (Crash round 6: the second chasm too — fall_drop carries him ~2 m on as he drops, as on the ledge,
+    // and a lens held on the root lost his legs and hips off the bottom of the frame.)
+    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && ((this.crashKind !== 'chasm' && this.crashKind !== 'gate') || this.chasmDrop))) {
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips) {
         // This frame's pose (the bones' world matrices otherwise update only at render).
@@ -3859,6 +3865,7 @@ export class Game {
         } else if (this.debris.keepOut.length) this.debris.keepOut.length = 0;
       }
       subject = this.subjPos.copy(rp).add(this.subjOff);
+      if (this.sink) subject.y += this.sink.depth;
     } else {
       this.subjOff.set(0, 0, 0);
       this.rig.bodyAt = null;
@@ -4033,10 +4040,12 @@ export class Game {
       }
     }
     if (this.sink) {
-      // In the water: on down at the entry speed, the water taking it off (τ 0.32 s), ~2 m in all.
+      // In the water: on down, the speed taken up over 0.2 s (no step in the root's motion) and the
+      // water taking it off again (τ 0.35 s), ~1.6 m in all.
       const S = this.sink;
       S.t += dt;
-      S.depth = 6.2 * 0.32 * (1 - Math.exp(-S.t / 0.32));
+      S.at = 6 * Math.min(1, S.t / 0.2) * Math.exp(-S.t / 0.35);
+      S.depth += S.at * dt;
       if (S.t >= S.hideAt && this.runner.root.visible) this.runner.root.visible = false;
     }
     this.particles.update(dt);
