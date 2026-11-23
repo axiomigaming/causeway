@@ -880,6 +880,15 @@ export class Game {
     // (Nor on land: a stretch of ground with a scatter of slabs over it has no course below to fall
     // onto, and the ground itself stays — he stood on bare earth where the floor had gone.)
     if (st.kind === 'ledge' && this.landIn(this.s - 0.5, this.s + this.speed * LEDGE_RUN + 8)) st.kind = 'rockfall';
+    // Camera round 7 (critic, ledge0 in world 3): nor where the causeway's own masonry stands under the
+    // floor (the foundation courses of some stretches): the trough opened into it, he lay walled in
+    // by blocks no lens could see past, and every frame of the fall was a wall of cubes. The trough's
+    // whole volume — from behind the cave-in to past where he comes to lie, across its width, down
+    // to just over its floor — must be open.
+    if (st.kind === 'ledge') {
+      const sd = this.s + this.speed * LEDGE_RUN;
+      if (this.solidUnder(sd - LEDGE_BACK - 0.3, sd + 7, LEDGE_DROP - 0.3, [0, -0.8, 0.8, -(LEDGE_HALF - 0.2), LEDGE_HALF - 0.2])) st.kind = 'rockfall';
+    }
     // Crash round 6: a chasm takes him into the water, so it needs water under the floor: over land the
     // hole showed the earth a metre down and he knelt at its edge (critic, chasm1 on phone).
     if (st.kind === 'chasm' && this.solidUnder(this.s + 0.5, this.s + this.speed * 0.6 + 6)) st.kind = 'rockfall';
@@ -1725,7 +1734,7 @@ export class Game {
    * water, a hole in the floor shows earth or blocks, and he cannot go under there: he dropped through
    * the masonry (chasm1, world 7) or knelt on the earth a metre down (chasm1, world 3).
    */
-  private solidUnder(s0: number, s1: number): boolean {
+  private solidUnder(s0: number, s1: number, depth: number | null = null, lats: readonly number[] = [0, -0.9, 0.9]): boolean {
     const rc = (this.underRay ??= new THREE.Raycaster());
     const roots = this.track.sections.filter((sec) => sec.s0 + sec.len >= s0 - 2 && sec.s0 <= s1 + 2).map((sec) => sec.root);
     if (!roots.length) return false;
@@ -1733,9 +1742,9 @@ export class Game {
     for (let s = s0; s <= s1 + 1e-3; s += 1) {
       const f = this.track.path.sample(s);
       const right = this.underR.set(Math.cos(f.yaw), 0, -Math.sin(f.yaw));
-      for (const lat of [0, -0.9, 0.9]) {
+      for (const lat of lats) {
         rc.set(this.underO.copy(f.pos).addScaledVector(right, lat).setY(f.pos.y - 0.12), DOWN);
-        rc.far = f.pos.y - 0.12 - (WATER_Y + 0.25);
+        rc.far = depth !== null ? depth - 0.12 : f.pos.y - 0.12 - (WATER_Y + 0.25);
         if (rc.far > 0 && rc.intersectObjects(roots, true).length) return true;
       }
     }
@@ -2667,7 +2676,10 @@ export class Game {
         // hand height read as white cards at his wrists.)
         B.puff(p.clone().setY(p.y - 0.6), { count: 1, spread: 0.5, jitter: 0.4, size: [0.3, 0.8], life: 1.1, alpha: 0.18, tint: DUST_T, rise: 0.05 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
-        this.rig.closeIn = 1;
+        // (Camera round 7: the pillar's a third nearer — seen from his head end, the figure lying
+        // away down the way measured a sixth of a desktop frame; the trip's drum needs the room, and a
+        // phone's close-in is near enough already — nearer, his flung hand left its frame.)
+        this.rig.closeIn = trip || this.rig.camera.aspect < 1 ? 1 : 1.45;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
       });
       if (trip) {
@@ -2935,6 +2947,8 @@ export class Game {
   private toppleQ = new THREE.Quaternion();
   /** Crash round 6: the block that pins him in fall_rock_b (kinematic; see the rockfall). */
   private pinBlock: { mesh: THREE.Mesh; rest: THREE.Vector3; fall: number; t: number; T: number } | null = null;
+  private pinBox = new THREE.Box3();
+  private pinPts: THREE.Vector3[] = [];
   /** Crash round 6: a body going under (the chasm): metres pushed down below the clip's own drop (`at`: its speed). */
   private sink: { t: number; at: number; depth: number; hideAt: number } | null = null;
   private rollQ = new THREE.Quaternion();
@@ -3934,6 +3948,26 @@ export class Game {
         }
         this.limbBones.forEach((o, i) => this.limbPts[i]!.setFromMatrixPosition(o.matrixWorld));
         this.rig.bodyPts = this.limbPts;
+        // Camera round 7 (critic, desktop trip): what pins him — the trip's drum across his calves, the
+        // rockfall's block across his shins — is part of the subject: its ends are framed with him,
+        // clear of the card and the dock (the drum lay in behind the dock).
+        const pin = this.stage === 'crash' ? (this.drumRoll?.mesh ?? this.pinBlock?.mesh ?? null) : null;
+        if (pin) {
+          const b = this.pinBox.setFromObject(pin);
+          if (!b.isEmpty()) {
+            const pts = this.pinPts;
+            while (pts.length < this.limbPts.length + 4) pts.push(new THREE.Vector3());
+            pts.length = this.limbPts.length + 4;
+            this.limbPts.forEach((v, i) => pts[i]!.copy(v));
+            const y = (b.min.y + b.max.y) / 2;
+            const n = this.limbPts.length;
+            pts[n]!.set(b.min.x, y, b.min.z);
+            pts[n + 1]!.set(b.max.x, y, b.min.z);
+            pts[n + 2]!.set(b.min.x, y, b.max.z);
+            pts[n + 3]!.set(b.max.x, y, b.max.z);
+            this.rig.bodyPts = pts;
+          }
+        }
         // World round 26: once he is down in a rockfall (a second in), the falling rocks keep out of his
         // body (one came to rest through his head and shoulders). Not before: the side hit's stone strikes him.
         if (this.stage === 'crash' && this.crashKind === 'rockfall' && this.crashClock > 1.0) {
