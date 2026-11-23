@@ -48,6 +48,8 @@ const KEEP = process.argv.includes('--keep');
 // --reanalyse: no filming; recompute the flags from the raw samples a previous run saved in --out.
 const REANALYSE = process.argv.includes('--reanalyse');
 const FPS = 30;
+/** The water's surface (src/world/water.ts WATER_Y). */
+const WATER_Y = -2.2;
 const W = 1280;
 const H = 720;
 mkdirSync(`${OUT}/frames`, { recursive: true });
@@ -219,6 +221,7 @@ const HELPER = () => {
       wp,
       cam: { p: v3(cam.getWorldPosition(tmp)), q: (() => { const q = cam.getWorldQuaternion(new Q4()); return [q.x, q.y, q.z, q.w].map(r6); })(), mode: r.mode },
       ndc,
+      vis: g.runner.root.visible,
       band: [r6(-1 + 2 * (r.insetBottom ?? 0)), r6(1 - 2 * (r.insetTop ?? 0))],
     };
   }
@@ -345,6 +348,21 @@ function analyse(name, frames, meta, signs, opts = {}) {
       }
       if ((f.stage === 'run' || f.stage === 'setup') && h < low[n] - TH.sink) flag(f, 'slide', `${n} sinks`, low[n] - h, `${((low[n] - h) * 100).toFixed(0)} cm below the floor`);
     }
+    // (Crash round 6: a body lying, sitting or kneeling on the floor is not in the air whatever its feet
+    // do: the feet of a man lying face down, on his back or kneeling with his feet flat behind him stand
+    // 10-15 cm over their lowest — the toes, a hand, the head or the hips on the floor say he is down.
+    // Points well below the floor, a body dropping into a gap, do not count.)
+    if (air) {
+      for (const nm of ['toeL', 'toeR', 'handL', 'handR', 'head', 'hips']) {
+        const w = f.wp[nm];
+        if (!w) continue;
+        const hh = w[1] - f.grp[1];
+        if (hh > -0.05 && hh < (nm === 'hips' ? 0.3 : 0.12)) {
+          air = false;
+          break;
+        }
+      }
+    }
     // Frozen in the air; statue while travelling.
     const limb = limbN ? limbSum / limbN : 0;
     const body = bodyN ? bodySum / bodyN : 0;
@@ -357,7 +375,9 @@ function analyse(name, frames, meta, signs, opts = {}) {
     if (statueRun >= TH.statueRun) flag(f, 'frozen', 'statue while travelling', body, `${body.toFixed(2)}°/frame body motion at ${travel.toFixed(1)} m/s`);
     // Framing.
     {
-      const pts = Object.entries(f.ndc).filter(([, v]) => v[2] < 1);
+      // (Crash round 6: a body gone under the water — hidden, or a point below the surface — cannot be
+      // clipped by the frame's edge.)
+      const pts = f.vis === false ? [] : Object.entries(f.ndc).filter(([k, v]) => v[2] < 1 && !(f.stage === 'crash' && f.wp[k] && f.wp[k][1] < WATER_Y - 0.05));
       const out = pts.filter(([, v]) => Math.abs(v[0]) > 0.98 || v[1] < -0.98 || v[1] > 0.98).map(([k]) => k);
       const vis = pts.filter(([, v]) => Math.abs(v[0]) <= 1 && Math.abs(v[1]) <= 1).length;
       if (vis === 0 && f.stage !== 'crash') flag(f, 'framing', 'runner out of frame', 1, 'no body point in the frame');

@@ -13,7 +13,7 @@ import { Rng } from '../engine/rng';
 
 /**
  * How the way falls (presentation only; the outcome is the server's). Round 20 (FX director):
- * - chasm: the floor gives way, into the water;
+ * - chasm: the floor gives way, into the water (he goes under);
  * - ledge: the top course caves in, he drops onto the stone below (no water);
  * - gate: a door slams down ahead;
  * - rockfall: blocks come down from the walls and knock him down;
@@ -100,7 +100,9 @@ export function epicOf(mult: number): number {
 
 /** Runner clip for each crash kind and variant. */
 export const CRASH_CLIPS: Record<CrashKind, readonly string[]> = {
-  chasm: ['fall_chasm', 'fall_chasm_b'],
+  // (Crash round 6: the second variant is the floor giving under him as he runs, into the water —
+  // fall_drop, sunk by the game — not a kneel at the lip: every chasm ends with him gone under.)
+  chasm: ['fall_chasm', 'fall_drop'],
   gate: ['fall_gate', 'fall_gate_b'],
   rockfall: ['fall_rock', 'fall_rock_b', 'fall_side_hit'],
   // (Until the runner GLB carries these, Runner.play falls back to fall_gate_b / fall_rock.)

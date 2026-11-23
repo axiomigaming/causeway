@@ -110,6 +110,30 @@ const LEDGE_BACK = 2.4;
  *  the masonry, the floor and his body ran together brown on brown). */
 const LEDGE_FILL = 0.25;
 /**
+ * Crash round 6, the trip: the hooked drum rolls after him and comes to rest across his calves at
+ * fall_trip's clip time TRIP_PIN_T (s), TRIP_PIN_AT m beyond where the clip starts (the calves'
+ * middle as he lies, blender/runner_anim.py PIN_Y), its centre TRIP_PIN_LIFT m higher than on the
+ * floor (it lies on his legs).
+ */
+/** Crash round 6, the second chasm: he runs on this long while the floor cracks, then it gives under him. */
+const CHASM_RUN = 0.4;
+const TRIP_PIN_T = 1.65;
+const TRIP_PIN_AT = 2.62;
+const TRIP_PIN_LIFT = 0.17;
+/**
+ * Crash round 6, the rockfall (fall_rock): the stone that drives him flat meets the top of his back at
+ * clip time ROCK_HIT_T (s), ROCK_HIT_Y m on from where he stops and (its centre) ROCK_HIT_Z m up
+ * (blender/runner_anim.py, fall_rock frame 17).
+ */
+const ROCK_HIT_T = 16 / 30;
+const ROCK_HIT_Y = 0.4;
+const ROCK_HIT_Z = 1.25;
+/** fall_rock_b: the block lands across his shins at ROCK_PIN_T (s), its middle ROCK_PIN_Y m on from where he
+ *  stops, its underside ROCK_PIN_TOP m up (on top of his shins as he lies; frames 28 on). */
+const ROCK_PIN_T = 27 / 30;
+const ROCK_PIN_Y = 0.02;
+const ROCK_PIN_TOP = 0.17;
+/**
  * Round 20 (character agent): the celebration clips' slowing steps (win_cheer, win_pump,
  * win_cheer_big, win_leap, win_salute) are keyed for the ground speed falling from run pace
  * (5.6 m/s) to a stand over the clip's first T s: 4.5 m/s at 0.17 s, 3.4 at 0.37, 2.3 at 0.6, 1.5
@@ -150,6 +174,9 @@ const BRAKE_AREA = BRAKE_KEYS.slice(1).reduce((a, [u1, v1], i) => a + ((u1 - BRA
 /** Tints for the lit dust clouds (multiplied by their sun and shade colours). */
 const DUST_T = new THREE.Color(0.92, 0.76, 0.6);
 const MIST_T = new THREE.Color(1.05, 1.08, 1.08);
+/** Crash round 6: white water (billows' shade is a warm brown; lifted and cooled toward water's grey-blue). */
+const WATER_T = new THREE.Color(1.95, 2.2, 2.3);
+const FOAM_T = new THREE.Color(1.7, 1.95, 2.0);
 /** Queue and cloud tag for run-time danger cues (cleared on an escape). */
 const CUE = 1;
 
@@ -716,6 +743,11 @@ export class Game {
     this.rippleAt = Infinity;
     this.clearEscapeGate();
     this.runner.root.visible = true;
+    this.drumRoll = null;
+    this.sink = null;
+    this.pierTopple = null;
+    if (this.pinBlock) this.scene.remove(this.pinBlock.mesh);
+    this.pinBlock = null;
     this.rig.gap = 0;
     this.queue.length = 0;
     this.escape = null;
@@ -848,11 +880,30 @@ export class Game {
     // (Nor on land: a stretch of ground with a scatter of slabs over it has no course below to fall
     // onto, and the ground itself stays — he stood on bare earth where the floor had gone.)
     if (st.kind === 'ledge' && this.landIn(this.s - 0.5, this.s + this.speed * LEDGE_RUN + 8)) st.kind = 'rockfall';
+    // Crash round 6: a chasm takes him into the water, so it needs water under the floor: over land the
+    // hole showed the earth a metre down and he knelt at its edge (critic, chasm1 on phone).
+    if (st.kind === 'chasm' && this.solidUnder(this.s + 0.5, this.s + this.speed * 0.6 + 6)) st.kind = 'rockfall';
+    // The second chasm: the floor gives under him as he runs (CHASM_RUN s on), so it must be floor that can
+    // go, from a metre behind him to a few ahead; else he skids to the lip and goes over it (the first).
+    if (st.kind === 'chasm') {
+      const sAt = this.s + this.speed * CHASM_RUN;
+      const canDrop = !!this.tileUnder(sAt + 0.2) && !this.solidFloorIn(sAt - 1.2, sAt + 4);
+      // (The first goes over the lip with the slab he skids onto: as stageCrash finds them.)
+      const want = this.s + (this.speed * 0.45) / 2 + 0.55;
+      const edge = this.tileEdge(Math.max(this.s + 1.4, want - 2.2), want + 4) ?? want;
+      const canTeeter = !!this.tileUnder(edge - 0.5);
+      if (st.variant % 2 === 1 && !canDrop) st.variant = 0;
+      if (st.variant % 2 === 0 && !canTeeter) {
+        if (canDrop) st.variant = 1;
+        else st.kind = 'rockfall';
+      }
+    }
     if (!standing) st.clip = CRASH_CLIPS[st.kind][st.variant % CRASH_CLIPS[st.kind].length]!;
     // A pier or a column coming down: he runs on toward it for most of a second, and the chase lens
     // stays with him (stageCrash switches to the crash shot as the clip starts). The settled crash
     // spring let him run 6 m out ahead of the lens before the trip.
-    if ((st.kind === 'pillar' || st.kind === 'trip' || st.kind === 'ledge') && !standing) {
+    const runsOn = (st.kind === 'pillar' || st.kind === 'trip' || st.kind === 'ledge' || (st.kind === 'chasm' && st.variant % 2 === 1)) && !standing;
+    if (runsOn) {
       this.stage = 'crash';
       this.stageT = 0;
     } else this.setStage('crash');
@@ -861,7 +912,7 @@ export class Game {
     // (The pier and the trip start their clip later, on its contact: he runs on until then. Playing
     // it now and switching back to the run restarted the stride: a hip jump.)
     // (The ledge too: he runs on while the floor cracks round him, then it gives.)
-    const deferred = (st.kind === 'pillar' || st.kind === 'trip' || st.kind === 'ledge') && !standing;
+    const deferred = runsOn;
     // (A 0.2 s blend: the runner eases cross-fades of 0.2 s or more, and the root's run-out matches.)
     if (!deferred) this.runner.play(st.clip as RunnerAnim, standing ? 0.08 : 0.2);
     this.crashKind = st.kind;
@@ -874,9 +925,11 @@ export class Game {
     this.cine.glory.clear();
     this.cine.sparkles.clear();
     this.cine.pool.clear();
+    this.crashSound = st.kind;
+    this.chasmDrop = false;
     this.stageCrash(st, new Rng(`${roundId}/staging`), mult / 100);
     if (!this.rev) this.holdReveal(0.3);
-    this.sounds.crash(st.kind);
+    this.sounds.crash(this.crashSound);
   }
 
   private crashKind = 'gate';
@@ -884,6 +937,10 @@ export class Game {
   get stagedCrashKind(): CrashKind {
     return this.crashKind as CrashKind;
   }
+  /** The crash's sound cue (the kind, but the start's collapse sounds as a chasm, not a door). */
+  private crashSound: CrashKind = 'gate';
+  /** The second chasm (the floor gives under him): framed on his body as it carries on, as on the ledge. */
+  private chasmDrop = false;
   private slowFloor = 0;
   private slowFloorV = 0;
   private slowFloorTarget = 0;
@@ -1608,6 +1665,34 @@ export class Game {
     return this.track.sections.some((sec) => (isLand(sec.type) || !!sec.ground) && sec.s0 + sec.len >= s0 && sec.s0 <= s1);
   }
 
+  /**
+   * Crash round 6: is there anything solid under the floor in [s0, s1] — a land section's ground, or the
+   * causeway's own built courses (some stretches stand on stepped masonry, not piers over water)? Cast
+   * down from just under the floor every metre, on the way's middle and a metre to each side, onto the
+   * sections' geometry (the floor slabs are drawn apart from it). Where it finds anything above the
+   * water, a hole in the floor shows earth or blocks, and he cannot go under there: he dropped through
+   * the masonry (chasm1, world 7) or knelt on the earth a metre down (chasm1, world 3).
+   */
+  private solidUnder(s0: number, s1: number): boolean {
+    const rc = (this.underRay ??= new THREE.Raycaster());
+    const roots = this.track.sections.filter((sec) => sec.s0 + sec.len >= s0 - 2 && sec.s0 <= s1 + 2).map((sec) => sec.root);
+    if (!roots.length) return false;
+    for (const g of roots) g.updateWorldMatrix(true, true);
+    for (let s = s0; s <= s1 + 1e-3; s += 1) {
+      const f = this.track.path.sample(s);
+      const right = this.underR.set(Math.cos(f.yaw), 0, -Math.sin(f.yaw));
+      for (const lat of [0, -0.9, 0.9]) {
+        rc.set(this.underO.copy(f.pos).addScaledVector(right, lat).setY(f.pos.y - 0.12), DOWN);
+        rc.far = f.pos.y - 0.12 - (WATER_Y + 0.25);
+        if (rc.far > 0 && rc.intersectObjects(roots, true).length) return true;
+      }
+    }
+    return false;
+  }
+  private underRay: THREE.Raycaster | null = null;
+  private underO = new THREE.Vector3();
+  private underR = new THREE.Vector3();
+
   private solidFloorIn(s0: number, s1: number): boolean {
     for (const sec of this.track.sections) {
       for (const t of sec.tiles) {
@@ -1674,11 +1759,21 @@ export class Game {
     this.timeScale = 1;
     // (Pillar and trip take the close over-the-shoulder chasm framing: the gate's and the rockfall's
     // pull wide and high, and he lies only a couple of metres from where the clip starts.)
-    const shot = kind === 'ledge' ? 'ledge' : kind === 'chasm' || kind === 'pillar' || kind === 'trip' ? 'chasm' : kind === 'rockfall' ? 'rockfall' : 'gate';
+    // (Crash round 6: the second chasm drops him with the floor, as the ledge does, into the water: the
+    // ledge's lens at the lip tilting down after him.)
+    const drops = kind === 'chasm' && st.variant % 2 === 1;
+    // Crash round 6 (critic: the 1.00x start and the gate "look identical"): the fall at the push-off is
+    // its own beat where the floor allows it — the way itself goes, from his toes out into the distance,
+    // before he has taken a step; no door. (Where it cannot — land under it, no seam in reach, a wide
+    // slab at his feet — the door still slams down in front of him.)
+    // (The start's own platform is one wide slab: the first seam that can go is ~4 m on.)
+    const startEdge = st.atStart ? this.tileEdge(this.s + 0.9, this.s + 4.6) : null;
+    const startFall = startEdge !== null && !this.solidUnder(startEdge, startEdge + 14) && !this.solidFloorIn(startEdge, startEdge + 5);
+    const shot = kind === 'ledge' || drops ? 'ledge' : kind === 'chasm' || kind === 'pillar' || kind === 'trip' || startFall ? 'chasm' : kind === 'rockfall' ? 'rockfall' : 'gate';
     // (Pillar and trip: he runs on while the column comes down, so the chase lens stays with him
     // until the clip starts; see there.)
     const crashCam = () => this.rig.setMode('crash', { side: st.variant ? -openSide : openSide, shot, variant: st.variant, epic: e });
-    if (kind !== 'pillar' && kind !== 'trip' && kind !== 'ledge') crashCam();
+    if (kind !== 'pillar' && kind !== 'trip' && kind !== 'ledge' && !drops) crashCam();
     const wallsOf = (s: number) => this.track.sectionAt(s)?.layout.walls ?? 'low';
     const frameAt = (s: number) => {
       const f = this.track.path.sample(s);
@@ -1897,6 +1992,107 @@ export class Game {
         }
       });
       this.holdReveal(LEDGE_RUN + LEDGE_LAND + 0.25);
+    } else if (drops) {
+      // Crash round 6, the second chasm (critic: "on phone he ends standing at the edge"): the floor
+      // gives under him as he runs. Cracks race across it round him for CHASM_RUN s, then the slabs
+      // under and round him go, he drops with them flailing (fall_drop) and goes into the water feet
+      // first: a white-water crown and a column after him, spray, the rings and the foam; the water
+      // takes him under (the game carries him on down after the clip's own drop: `sink`) and he is gone.
+      // The lens holds at the lip and tilts down after him (the ledge's shot), onto the water.
+      let sDrop = this.s + v * CHASM_RUN;
+      this.setStop(sDrop + 60);
+      this.chasmDrop = true;
+      const h0 = frameAt(sDrop);
+      B.settleBelow = h0.pos.y - 0.4;
+      this.cine.cracks.spawn(h0.pos.clone().setY(h0.pos.y + 0.05), h0.yaw, PATH_HALF * 2 + 0.2, 2.6 + 1.5 * e, CHASM_RUN * 0.8, 0.12);
+      this.cine.cracks.spawn(h0.pos.clone().setY(h0.pos.y + 0.05).addScaledVector(h0.fwd, 2.2), h0.yaw, PATH_HALF * 2 + 0.2, 1.8 + e, CHASM_RUN * 0.8, 0.12);
+      this.sounds.tremor(0.6 + 0.4 * e);
+      this.rig.addTrauma(0.1 + 0.08 * e);
+      for (let k = 0; k < 6; k++) {
+        this.later(0.03 + (k / 6) * (CHASM_RUN - 0.05), () => {
+          const f = frameAt(sDrop + r.range(-1, 3));
+          const p = f.pos.clone().addScaledVector(f.right, r.range(-PATH_HALF + 0.3, PATH_HALF - 0.3)).setY(f.pos.y + 0.05);
+          this.particles.burst(p, 5, { spread: 0.3, up: 1.6, speed: 0.6, size: 0.045, life: 0.6, color: DUST_DARK, alpha: 0.7, gravity: 9, drag: 0.4, grow: 0 });
+          if (k % 2 === 0) B.puff(p, { count: 1, spread: 0.4, jitter: 0.3, vel: new THREE.Vector3(0, 0.5, 0), size: [0.3, 0.9], life: 1.2, alpha: 0.26, tint: DUST_T, rise: 0.1, floor: f.pos.y });
+        });
+      }
+      // How long he falls to the water: fall_drop's free fall starts 0.13 s in, from the floor.
+      const depth = Math.max(0.6, h0.pos.y - WATER_Y);
+      const tIn = 4 / 30 + Math.sqrt((2 * depth) / 9.8);
+      let h = h0;
+      this.later(CHASM_RUN, () => {
+        sDrop = this.s;
+        h = frameAt(sDrop);
+        this.setStop(this.s + v * 0.1);
+        this.runner.play('fall_drop', 0.2);
+        crashCam();
+        this.sounds.event?.('fall_drop', 1);
+        // A held breath while he drops (shallow: a deep one froze his flailing in the air).
+        this.slowmo = { t: 0, dur: 2.0, min: 0.7 };
+        this.slowFloorTarget = 0;
+      });
+      // The floor goes (fall_drop's floor goes at 0.13 s): from a metre behind him to well ahead.
+      this.later(CHASM_RUN + 0.15, () => {
+        const under = this.tileUnder(sDrop + 0.1);
+        const from = (under ? this.tileSpan(under)[0] : sDrop - 0.5) - 1.0;
+        const tiles = this.collapseFrom(from, sDrop + F.span * 0.5 + 3);
+        const gorge = { origin: h.pos.clone(), right: h.right.clone(), half: PATH_HALF + 0.15, top: h.pos.y - 0.05 };
+        tiles.forEach((t, i) => {
+          const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
+          const along = tp.dot(h.fwd);
+          const out = Math.sign(tp.dot(h.right) || (r.chance(0.5) ? 1 : -1));
+          // (The slabs in his fall line drop fast and tip out to the sides: he never rides one down.)
+          const inLine = along > -1.5 && along < 3;
+          this.later(inLine ? 0 : 0.04 + i * 0.05, () => {
+            this.debris.spawn(
+              t.piece,
+              t.world,
+              inLine ? h.right.clone().multiplyScalar(out * r.range(2.2, 3.0)).setY(-r.range(3.2, 4.2)) : new THREE.Vector3(r.range(-0.5, 0.5), r.range(-1.2, 0), r.range(-0.5, 0.5)),
+              new THREE.Vector3(r.range(-1.2, 1.2), r.range(-0.3, 0.3), r.range(-1.2, 1.2)),
+              () => null,
+              { breakInto: 2, breakAfter: r.range(0.3, 0.55), walls: gorge, material: this.pierMaterial(t.piece) },
+            );
+            const p = new THREE.Vector3().setFromMatrixPosition(t.world);
+            this.particles.burst(p, 6, { spread: 0.6, up: 0.4, speed: 0.8, size: 0.04, life: 0.9, color: DUST_DARK, alpha: 0.6, gravity: 9, drag: 0.3, grow: 0 });
+            if (i % 2 === 0) B.puff(p, { count: 1, spread: 1.2, jitter: 0.6, vel: new THREE.Vector3(0, 1.1, 0).addScaledVector(h.fwd, -0.3), size: [0.8, 2.2 + e], life: 1.4, alpha: 0.2, tint: DUST_T, rise: 0.3 });
+          });
+        });
+        kick(0.6);
+        this.fx.flash = 0.12;
+        this.sounds.impact(0.6 + 0.3 * e, false);
+      });
+      // Grit and chips fall with him, streaking past.
+      const hips = this.runner.body.getObjectByName('hips');
+      for (let k = 0; k < 14; k++) {
+        this.later(CHASM_RUN + 0.15 + k * 0.045, () => {
+          for (let j = 0; j < 2; j++) {
+            const lip = h.pos.clone().addScaledVector(h.right, r.range(-PATH_HALF, PATH_HALF)).addScaledVector(h.fwd, r.range(-1, 2)).setY(h.pos.y - 0.05);
+            this.grit.emit({ pos: lip, vel: new THREE.Vector3(r.range(-0.3, 0.3), -r.range(0.5, 2), r.range(-0.3, 0.3)), size: r.range(0.008, 0.02), life: 1.5, alpha: 0.9, drag: 0.05 });
+          }
+        });
+      }
+      // Into the water, feet first.
+      this.later(CHASM_RUN + tIn, () => {
+        const p = new THREE.Vector3();
+        if (hips) hips.getWorldPosition(p);
+        else p.copy(this.runner.root.position);
+        p.setY(WATER_Y);
+        this.splashCrown(p, 1);
+        this.splashAt = p.clone();
+        this.water.splash(p.x, p.z, 1.2);
+        B.puff(p, { count: 2, spread: 1.0, jitter: 0.6, vel: new THREE.Vector3(0, 1.6, 0), size: [0.6, 1.8], life: 1.4, alpha: 0.2, tint: MIST_T, rise: 0.2, floor: WATER_Y });
+        this.later(0.16, () => this.splashColumn(p, 1));
+        for (let k = 1; k <= 9; k++) this.later(0.35 + k * 0.24, () => this.splashBubbles(p, 1.0 + k * 0.12, 1 - k * 0.07));
+        // Rings again where he went under, as the bubbles break.
+        this.later(1.2, () => this.water.splash(p.x, p.z, 0.45));
+        this.later(2.6, () => this.water.splash(p.x, p.z, 0.3));
+        this.sounds.impact(0.9, true);
+        this.rig.addTrauma(0.15);
+      });
+      // Under: once the clip's own drop ends (its landing, 0.93 s, now in the water) the water carries him
+      // on down, slowing; gone from sight once his head is well under.
+      this.later(CHASM_RUN + LEDGE_LAND - 0.02, () => (this.sink = { t: 0, at: 0, depth: 0, hideAt: 0.55 }));
+      this.holdReveal(CHASM_RUN + tIn + 0.1);
     } else if (kind === 'chasm') {
       const ledge = false;
       // Skid to the lip of a tile seam. Cracks race across the floor first; then the floor beyond
@@ -2089,6 +2285,60 @@ export class Game {
       } else this.holdReveal(F.pre);
       // Slow motion lands as the floor gives.
       slow(-Math.max(0, F.pre - 0.1));
+    } else if (startFall) {
+      // Crash round 6, the fall at the push-off: cracks shoot across the floor at his toes, and the way
+      // goes — the slabs in front of him drop, and the collapse races away from him down the causeway,
+      // slab after slab into the water, dust boiling up out of the gap. He is thrown back onto his
+      // seat (fall_start) at the new edge, the way gone before he ever set foot on it.
+      const edge = startEdge!;
+      const h = frameAt(edge);
+      const span = 14 + 6 * e;
+      this.crashSound = 'chasm';
+      this.rig.subjectAhead = 0;
+      this.rig.focus.copy(h.pos).addScaledVector(h.fwd, 4).setY(h.pos.y - 0.3);
+      B.settleBelow = h.pos.y - 0.4;
+      const gorge = { origin: h.pos.clone(), right: h.right.clone(), half: PATH_HALF + 0.15, top: h.pos.y - 0.05 };
+      this.cine.cracks.spawn(h.pos.clone().setY(h.pos.y + 0.05).addScaledVector(h.fwd, 0.15), h.yaw, PATH_HALF * 2 + 0.2, 2.8, 0.18, 0.06);
+      this.sounds.tremor(0.9);
+      this.rig.addTrauma(0.22);
+      for (let k = 0; k < 5; k++) {
+        this.later(k * 0.045, () => {
+          const p = h.pos.clone().addScaledVector(h.right, r.range(-PATH_HALF, PATH_HALF)).addScaledVector(h.fwd, r.range(0, 2)).setY(h.pos.y + 0.05);
+          this.particles.burst(p, 5, { spread: 0.3, up: 1.8, speed: 0.6, size: 0.05, life: 0.6, color: DUST_DARK, alpha: 0.7, gravity: 9, drag: 0.4, grow: 0 });
+        });
+      }
+      this.later(0.22, () => {
+        const tiles = this.collapseFrom(edge, edge + span);
+        tiles.forEach((t, i) => {
+          const tp = new THREE.Vector3().setFromMatrixPosition(t.world).sub(h.pos);
+          const along = Math.max(0, tp.dot(h.fwd));
+          this.later(0.02 + along * 0.05 + r.range(0, 0.04), () => {
+            this.debris.spawn(t.piece, t.world, new THREE.Vector3(r.range(-0.5, 0.5), -r.range(0.3, 1.4), r.range(-0.5, 0.5)), new THREE.Vector3(r.range(-1.2, 1.2), r.range(-0.3, 0.3), r.range(-1.2, 1.2)), () => null, {
+              breakInto: 2,
+              breakAfter: r.range(0.3, 0.6),
+              walls: gorge,
+              material: this.pierMaterial(t.piece),
+            });
+            const p = new THREE.Vector3().setFromMatrixPosition(t.world);
+            if (i % 2 === 0) B.puff(p, { count: 1 + Math.round(F.dust), spread: 2.5, jitter: 1, vel: new THREE.Vector3(0, 1.5 + e, 0).addScaledVector(h.fwd, -0.4), size: [1.0, 2.8 + 1.5 * e], life: 1.8 + e, alpha: 0.2, tint: DUST_T, rise: 0.35, drag: 1.1 });
+            this.particles.burst(p, 6, { spread: 1.5, up: 1.0, speed: 1.6, size: 0.4, life: 1.2, color: DUST, alpha: 0.22 });
+            if (along < 1.5 && i < 3) kick(0.7);
+          });
+        });
+        this.fx.flash = 0.12;
+        this.sounds.impact(0.85, false);
+      });
+      // Grit pours off the new edge at his feet.
+      for (let k = 0; k < 10; k++) {
+        this.later(0.45 + k * 0.2, () => {
+          const p = h.pos.clone().addScaledVector(h.right, r.range(-PATH_HALF, PATH_HALF)).setY(h.pos.y - 0.05);
+          this.particles.burst(p, 4, { spread: 0.4, up: 0.1, speed: 0.4, size: 0.16, life: 1.4, color: DUST_DARK, alpha: 0.45, gravity: 6 });
+        });
+      }
+      // The dust it throws up rolls back over the lip at him.
+      this.later(0.7, () => B.puff(h.pos.clone().addScaledVector(h.fwd, 1.2).setY(h.pos.y + 0.3), { count: 3, spread: 2.5, jitter: 0.6, vel: h.fwd.clone().multiplyScalar(-1.2).setY(0.4), size: [0.8, 2.6], life: 2.4, alpha: 0.26, tint: DUST_T, rise: 0.1, floor: h.pos.y }));
+      this.holdReveal(0.55);
+      slow(-0.1);
     } else if (kind === 'gate') {
       // Brake hard; the slab slams down a few metres ahead and the runner skids short of it, then
       // recoils back (the clip). At the push-off it drops right in front of the crouch.
@@ -2219,7 +2469,16 @@ export class Game {
       // stopped 1.1 m short of the pier's face at these distances. Put the face where his palms
       // meet it.)
       const PIER_PULL = 1.0;
-      const contactY = trip ? 1.3 : (palms ? 1.77 : 1.85) - PIER_PULL;
+      // (Crash round 6, measured in game at 3x and 6x: the palms' clip carries his hips to 1.1-1.4 m at
+      // the contact, the hands ~0.47 m beyond them; with the chest's pull the face lay at 0.77 m and he
+      // ran on into the pier, hands and shins inside it. Its face goes where his palms are.)
+      // Crash round 6: where his front meets the pier as the clips play in game (measured at 3x and 6x:
+      // the hips 1.1-1.4 m on at the contact; the chest ~0.25 m beyond them, the palms ~0.47 m). The
+      // pier now comes down on its own staged path (see pierTopple), so its face lies exactly there.
+      const contactY = trip ? 1.3 : palms ? 1.68 : 1.63;
+      void PIER_PULL;
+      // (Drawn before the pier's placement: its slant sets how far its face stands off its axis.)
+      const slant = trip ? 0 : r.range(0.18, 0.42) * (r.chance(0.5) ? 1 : -1);
       const side = r.chance(0.5) ? 1 : -1;
       // (The trip: the toppling pier piece, uniformly scaled to about 0.42 m across: a stout carved
       // drum, not a pole, and low enough for fall_trip's hooked toe and the leg that steps over.)
@@ -2234,10 +2493,12 @@ export class Game {
       // they can be seen (it rested on an invisible far footing at chest height: a floating beam).
       const reach = trip ? 2 * PATH_HALF + 1.4 : 2 * PATH_HALF - 0.5;
       const sc = trip ? 0.3234 : Math.min(1.7, Math.max(0.7, reach / Math.max(1, tall)));
-      const girth = 1;
+      // (The palms' pier stands a little taller lying down, ~1.5 m: his palms meet its face at 1.4 m, and
+      // a pier 1.06 m tall left them over its top, in the air.)
+      const girth = palms ? 1.35 : 1;
       const thick = (across * sc * girth) / 2;
       // It lands across the way about this long after it starts to go (measured on the step).
-      const tFall = trip ? 0.62 : 1.0; // (the pier now lies flat between the edges: down at ~0.97 s, measured by framing-check)
+      const tFall = trip ? 0.62 : palms ? 1.1 : 1.0; // (the pier now lies flat between the edges: down at ~0.97 s, measured by framing-check)
       // He keeps his speed until the clip starts, then the root halts there (the clip carries the
       // body on). The clip starts so its contact comes just after the column is down.
       // (Down and settling about 0.12 s before the contact; measured on the step.)
@@ -2248,7 +2509,7 @@ export class Game {
       // the root, fades in: their sum keeps his speed, with no stall at the handover.)
       const HALT = v * 0.125;
       const sPlay = this.s + v * tPlay + HALT;
-      const colS = sPlay + contactY + (trip ? 0 : thick);
+      const colS = sPlay + contactY + (trip ? 0 : thick / Math.cos(slant));
       // A point on the way, `ahead` m beyond where the clip starts, `up` m above the floor.
       const sPlayPoint = (ahead: number, up: number) => {
         const f = frameAt(sPlay + ahead);
@@ -2269,7 +2530,6 @@ export class Game {
       // (The trip's short drum stands on the floor near the edge, so it comes down across his line.)
       // Round 20 (coordinator): the pier falls at a slant across the way (10-25° off square), not as
       // a neat low wall: its line through the way's centre still crosses where he meets it.
-      const slant = trip ? 0 : r.range(0.18, 0.42) * (r.chance(0.5) ? 1 : -1);
       const acrossDir = at.right.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), slant);
       const foot = at.pos.clone().addScaledVector(acrossDir, side * (trip ? 1.4 : PATH_HALF - 0.3) / Math.cos(slant) * (trip ? 1 : 0.92));
       // Floor under it: the way (the trip's drum also has the footing at its foot).
@@ -2295,6 +2555,24 @@ export class Game {
       // into the water.)
       const edges = trip ? undefined : { origin: at.pos.clone(), right: at.right.clone(), half: PATH_HALF + 0.1, top: at.pos.y + 4 };
       const col = this.debris.spawn(piece, m, w0.clone().cross(comOff), w0, ground, { tag: 'column', restitution: trip ? 0.12 : 0.2, walls: edges, material: this.pierMaterial(piece) });
+      // Crash round 6 (critic: "his shins disappear into the tilted slab"; seen frame by frame: he ran
+      // on into the pier and through it, hands and shins inside): the simulated pier bounced and slid up
+      // to a metre off where it was aimed, so the contact missed it. The pier now topples on a staged
+      // path: about the bottom edge it falls toward, accelerating as a toppling column does, down flat
+      // across the way at tFall with a small rebound — its face lies where his hands or chest meet it.
+      if (col && !trip) {
+        const fallDir = acrossDir.clone().multiplyScalar(-side);
+        const base = foot.clone().setY(at.pos.y);
+        this.pierTopple = {
+          mesh: col,
+          pivot: base.clone().addScaledVector(fallDir, thick),
+          base,
+          axis: axis.clone(),
+          q0: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), at.yaw + slant),
+          t: 0,
+          T: tFall,
+        };
+      }
       this.later(0.05, () => this.sounds.event?.('pillar_topple', trip ? 0.6 : 1));
       // Grit streams off its head as it comes over.
       for (let k = 1; k <= 3; k++) {
@@ -2348,8 +2626,47 @@ export class Game {
           kick(0.6);
           this.sounds.event?.('trip_fall', 0.9);
         });
+        // Crash round 6 (critic: "he falls flat on intact paving"): the drum he hooked is knocked
+        // rolling after him and comes to rest across the backs of his calves as he lies there: he is
+        // pinned (fall_trip: the legs jolt under it at TRIP_PIN_T, the push up fails). Taken over from
+        // the simulation as his foot hooks it and rolled kinematically along the way (about its own
+        // axis, rolling without slipping), slow at first so it stays behind his legs while they are in
+        // the air, then onto his ankles and up onto the calves, losing its speed as it climbs.
+        if (col && bb) {
+          this.later(tHit, () => {
+            col.updateMatrixWorld(true);
+            const f0 = frameAt(sPlay);
+            const c0 = new THREE.Vector3();
+            bb.getCenter(c0).applyMatrix4(col.matrixWorld);
+            const along0 = c0.clone().sub(f0.pos).dot(f0.fwd);
+            this.drumRoll = {
+              mesh: col,
+              t: 0,
+              T: TRIP_PIN_T - contactT,
+              c0,
+              p0: col.position.clone(),
+              q0: col.quaternion.clone(),
+              fwd: f0.fwd.clone(),
+              axis: f0.right.clone().negate(),
+              along0,
+              dist: Math.max(0.3, TRIP_PIN_AT - along0),
+              r: thick,
+              floorY: f0.pos.y,
+              lift: TRIP_PIN_LIFT,
+              done: false,
+            };
+          });
+          this.later(tPlay + TRIP_PIN_T, () => {
+            const p = sPlayPoint(TRIP_PIN_AT, 0.15);
+            this.particles.burst(p, 8, { spread: 0.5, up: 0.6, speed: 1.2, size: 0.05, life: 0.8, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
+            B.puff(p.clone().setY(p.y - 0.1), { count: 2, spread: 0.6, jitter: 0.4, vel: at.fwd.clone().multiplyScalar(0.4).setY(0.1), size: [0.3, 1.0], life: 1.3, alpha: 0.24, tint: DUST_T, rise: 0.03, floor: at.pos.y });
+            kick(0.35);
+            this.sounds.event?.('debris_hit', 0.7);
+          });
+        }
       }
-      this.holdReveal(tHit + (trip ? 0.5 : 0.2));
+      // (The trip: the card waits for the drum to pin him.)
+      this.holdReveal(trip ? tPlay + TRIP_PIN_T : tHit + 0.2);
       slow(Math.max(0, tHit - 0.12), 0.8, 0.15);
     } else {
       // Rockfall. Pre-impact: grit and pebbles trickle from the wall tops; then the first block
@@ -2393,6 +2710,80 @@ export class Game {
           kick(0.4);
         });
       }
+      // Crash round 6 (critic: "the rock misses him and he ends crouching beside it, unhurt"): in
+      // fall_rock a stone comes down off the wall top onto his back as he crouches under the cover of
+      // his arms (ROCK_HIT_T, measured on the clip: the top of his back ROCK_HIT_Y on and ROCK_HIT_Z up
+      // from where he stops) and drives him flat onto the stone; it glances off and rolls away beside
+      // him, and the lens comes in on him lying there under the dust.
+      if (st.clip === 'fall_rock') {
+        const h0 = frameAt(stop);
+        const side = wallsOf(stop) === 'cliff' ? -openSide : r.chance(0.5) ? 1 : -1;
+        const target = h0.pos.clone().addScaledVector(h0.fwd, ROCK_HIT_Y).setY(h0.pos.y + ROCK_HIT_Z);
+        const tt = 0.48;
+        const from = target.clone().addScaledVector(h0.right, side * 1.0).addScaledVector(h0.fwd, 0.5).setY(target.y + 2.4);
+        const vel = target.clone().sub(from).divideScalar(tt).add(new THREE.Vector3(0, 4.905 * tt, 0));
+        this.later(ROCK_HIT_T - tt, () => {
+          const rock = this.debris.spawn('rock_mid_1', new THREE.Matrix4().compose(from, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(0.32, 0.32, 0.32)), vel, new THREE.Vector3(r.range(-5, 5), r.range(-3, 3), r.range(-5, 5)), onPath(h0), { restitution: 0.25 });
+          this.particles.burst(from, 6, { spread: 0.5, up: 0.2, speed: 0.8, size: 0.06, life: 0.9, color: DUST_DARK, alpha: 0.6, gravity: 9, grow: 0 });
+          B.puff(from, { count: 1, spread: 0.4, jitter: 0.3, vel: new THREE.Vector3(0, -1.5, 0), size: [0.4, 1.2], life: 1.0, alpha: 0.3, tint: DUST_T, rise: 0 });
+          this.later(tt, () => {
+            // It glances off his back and drops beside him, rolling on.
+            if (rock) this.debris.kick(rock, h0.right.clone().multiplyScalar(side * 1.6).addScaledVector(h0.fwd, 0.9).setY(1.0), new THREE.Vector3(r.range(-8, 8), r.range(-4, 4), r.range(-8, 8)));
+            this.particles.burst(target, 12, { spread: 0.35, up: 1.2, speed: 2.4, size: 0.05, life: 0.8, color: DUST_DARK, alpha: 0.7, gravity: 9, grow: 0 });
+            B.puff(target, { count: 2, spread: 0.4, jitter: 0.5, size: [0.4, 1.3], life: 1.3, alpha: 0.34, tint: DUST_T, rise: 0.1 });
+            kick(0.9);
+            this.sounds.event?.('rock_knock', 1);
+          });
+        });
+        // Chest on the stone (0.77 s): dust thrown out along the floor round him.
+        this.later(0.8, () => {
+          const p = h0.pos.clone().addScaledVector(h0.fwd, 0.8).setY(h0.pos.y + 0.05);
+          for (const d of [-1, 1]) B.puff(p, { count: 1, spread: 0.6, jitter: 0.5, vel: h0.right.clone().multiplyScalar(d * 1.4).setY(0.2), size: [0.4, 1.4], life: 1.4, alpha: 0.3, tint: DUST_T, rise: 0.03, floor: h0.pos.y });
+          kick(0.4);
+        });
+        // A few smaller stones come down round him as he lies there (kept out of his body: keepOut).
+        for (let k = 0; k < 3; k++) {
+          const sd = k % 2 ? side : -side;
+          this.later(1.15 + k * 0.28, () => {
+            const p = h0.pos.clone().addScaledVector(h0.fwd, r.range(0.2, 1.6)).addScaledVector(h0.right, sd * r.range(0.65, 0.95)).setY(h0.pos.y + r.range(3.5, 4.5));
+            this.debris.spawn(r.pick(['rock_mid_0', 'rock_mid_2', 'shard_3']), new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(r.range(0, 6), r.range(0, 6), 0)), new THREE.Vector3(1, 1, 1).multiplyScalar(r.range(0.22, 0.32))), new THREE.Vector3(0, -2, 0).addScaledVector(h0.right, sd * 0.3), new THREE.Vector3(r.range(-4, 4), r.range(-2, 2), r.range(-4, 4)), onPath(h0), { restitution: 0.2 });
+          });
+        }
+        this.later(1.25, () => (this.rig.closeIn = 1));
+      }
+      // Crash round 6: in fall_rock_b, thrown back onto his seat by the first block, a second comes down
+      // square across his shins (ROCK_PIN_T) and pins him there (kinematic: the simulation knows the
+      // floor, not his legs): it drops from the wall top, lands on them with a jolt of dust and settles.
+      if (st.clip === 'fall_rock_b') {
+        const geo = this.kit.geo.get('rubble_2') ?? this.kit.geo.get('rock_mid_0');
+        const mat = this.kit.mat.get(this.kit.matOf.get('rubble_2') ?? this.kit.matOf.get('rock_mid_0') ?? '');
+        if (geo && mat) {
+          if (!geo.boundingBox) geo.computeBoundingBox();
+          const gb = geo.boundingBox!;
+          const h0 = frameAt(stop + ROCK_PIN_Y);
+          const ext = Math.max(gb.max.x - gb.min.x, gb.max.z - gb.min.z, 0.1);
+          const sc = 0.62 / ext;
+          const m = new THREE.Mesh(geo, mat);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          m.scale.setScalar(sc);
+          m.rotation.set(0, h0.yaw + Math.PI / 2 + r.range(-0.2, 0.2), r.range(-0.08, 0.08));
+          const rest = h0.pos.clone().setY(h0.pos.y + ROCK_PIN_TOP - gb.min.y * sc);
+          const fall = 3.6;
+          const T = Math.sqrt((2 * fall) / 9.8);
+          m.visible = false;
+          this.scene.add(m);
+          this.pinBlock = { mesh: m, rest, fall, t: -(ROCK_PIN_T - T), T };
+          this.later(ROCK_PIN_T, () => {
+            const p = rest.clone().setY(h0.pos.y + 0.15);
+            this.particles.burst(p, 14, { spread: 0.5, up: 1.2, speed: 2.2, size: 0.05, life: 0.8, color: DUST_DARK, alpha: 0.7, gravity: 9, grow: 0 });
+            for (const d of [-1, 1]) B.puff(p, { count: 1, spread: 0.5, jitter: 0.4, vel: h0.right.clone().multiplyScalar(d * 1.5).setY(0.2), size: [0.4, 1.4], life: 1.4, alpha: 0.32, tint: DUST_T, rise: 0.04, floor: h0.pos.y });
+            kick(0.9);
+            this.sounds.event?.('rock_knock', 1);
+          });
+          this.later(1.3, () => (this.rig.closeIn = 1));
+        }
+      }
       this.rig.focus.copy(h.pos).setY(h.pos.y + 0.8);
       const pieces = ['rock_mid_0', 'rock_mid_1', 'rock_mid_2', 'rubble_3', 'rubble_2', 'drum_0'];
       const drop = (delay: number, along: number, lat: number, piece: string, sc: number, hStart: number, land: number, breakInto = 0) => {
@@ -2421,7 +2812,7 @@ export class Game {
         this.sounds.slam?.(0.5 + 0.3 * e);
         kick();
       });
-      this.holdReveal(0.32);
+      this.holdReveal(st.clip === 'fall_rock' ? ROCK_HIT_T : st.clip === 'fall_rock_b' ? ROCK_PIN_T : 0.32);
       for (let k = 0; k < n(8); k++) {
         const along = r.range(-1.5, 9 + 6 * e);
         // Never on the runner: anything near their mark lands well to the side.
@@ -2466,6 +2857,64 @@ export class Game {
   }
 
   private gateLand: { at: THREE.Vector3; done: boolean } | null = null;
+
+  /**
+   * Crash round 6: the trip's drum rolling after him onto his calves (kinematic; see the trip). The
+   * simulation keeps its body where it lay; the mesh is placed here after it each frame.
+   */
+  private drumRoll: {
+    mesh: THREE.Mesh;
+    t: number;
+    T: number;
+    c0: THREE.Vector3;
+    p0: THREE.Vector3;
+    q0: THREE.Quaternion;
+    fwd: THREE.Vector3;
+    axis: THREE.Vector3;
+    along0: number;
+    dist: number;
+    r: number;
+    floorY: number;
+    lift: number;
+    done: boolean;
+  } | null = null;
+  /** Crash round 6: the pier's staged topple (pillar crashes; see there). */
+  private pierTopple: { mesh: THREE.Mesh; pivot: THREE.Vector3; base: THREE.Vector3; axis: THREE.Vector3; q0: THREE.Quaternion; t: number; T: number } | null = null;
+  private toppleQ = new THREE.Quaternion();
+  /** Crash round 6: the block that pins him in fall_rock_b (kinematic; see the rockfall). */
+  private pinBlock: { mesh: THREE.Mesh; rest: THREE.Vector3; fall: number; t: number; T: number } | null = null;
+  /** Crash round 6: a body going under (the chasm): metres pushed down below the clip's own drop (`at`: its speed). */
+  private sink: { t: number; at: number; depth: number; hideAt: number } | null = null;
+  private rollQ = new THREE.Quaternion();
+  private rollV = new THREE.Vector3();
+  private rollC = new THREE.Vector3();
+  private rollDrum(dt: number): void {
+    const R = this.drumRoll!;
+    R.t = Math.min(R.T + 0.4, R.t + dt);
+    const u = Math.min(1, R.t / R.T);
+    // The pier's piece is square in section (side a): it tumbles, not rolls — over its leading bottom
+    // edge a quarter turn at a time, the centre rising over the edge and coming down a side further on
+    // (a clunk at each landing). A whole number of quarter turns takes it from where it lay to his
+    // calves; slow away from the kick (it trails his legs while they are in the air), then losing its
+    // speed as it goes up onto them (smoothstep in its turn: no step in its speed).
+    const a = 2 * R.r;
+    const n = Math.max(2, Math.round(R.dist / a));
+    const ss = u * u * (3 - 2 * u);
+    const turn = n * (Math.PI / 2) * (0.1 * u + 0.9 * ss);
+    const k = Math.min(n - 1, Math.floor(turn / (Math.PI / 2)));
+    const phi = turn - k * (Math.PI / 2);
+    const h = a / 2;
+    const x = k * a + h - h * Math.cos(phi) + h * Math.sin(phi);
+    // Up onto his legs over the last quarter turn, and a settle of 1.5 cm.
+    const climb = THREE.MathUtils.smoothstep(turn, (n - 1) * (Math.PI / 2), n * (Math.PI / 2));
+    const after = Math.max(0, R.t - R.T);
+    const settle = after > 0 ? -0.015 * Math.sin(Math.min(1, after / 0.25) * Math.PI) : 0;
+    const c = this.rollC.copy(R.c0).addScaledVector(R.fwd, x);
+    c.y = R.floorY + h * Math.sin(phi) + h * Math.cos(phi) + R.lift * climb + settle + (R.c0.y - R.floorY - h) * (1 - Math.min(1, u * 4));
+    this.rollQ.setFromAxisAngle(R.axis, turn);
+    R.mesh.quaternion.copy(R.q0).premultiply(this.rollQ);
+    R.mesh.position.copy(this.rollV.copy(R.p0).sub(R.c0).applyQuaternion(this.rollQ).add(c));
+  }
   private queue: { at: number; fn: () => void; tag?: number }[] = [];
   /** Run `fn` after `delay` seconds of presentation time (slow motion slows it too). */
   private later(delay: number, fn: () => void, tag?: number) {
@@ -2500,7 +2949,7 @@ export class Game {
       const heavy = Math.min(1.5, e.mass * Math.max(0.5, e.speed / 8));
       // Round 18: droplets in a crown (small, hard, falling back), not big soft sprites: those
       // piled up into a white cotton ball over the water seen from above.
-      this.splashCrown(e.pos.clone().setY(WATER_Y), Math.max(0.25, Math.min(1, heavy * 0.7)));
+      this.splashCrown(e.pos.clone().setY(WATER_Y), Math.max(0.2, Math.min(0.75, heavy * 0.55)));
       if (heavy > 0.25) {
         B.puff(e.pos, { count: 1 + Math.round(heavy), spread: 0.8 + heavy, jitter: 0.6, vel: new THREE.Vector3(0, 1.2 + heavy, 0), size: [0.5, 1.2 + 1.2 * heavy], life: 1.3, alpha: 0.18, tint: MIST_T, rise: 0.2, floor: WATER_Y });
         // Round 17: the shockwave is waves through the water's own normals and churned foam (a ring
@@ -3063,6 +3512,8 @@ export class Game {
       }
       this.runner.root.position.y = this.groundY;
     } else this.groundY = null;
+    // Crash round 6: going under (the second chasm): carried on down below the clip's own drop.
+    if (this.sink) this.runner.root.position.y -= this.sink.depth;
     // The turn for the runner's own bank and lead (Runner.turn): the path's turn rate now, and how far it
     // turns over the next ~0.45 s, so he leans and looks into a bend before it starts.
     if (dt > 0) this.runner.yawRate = (f.yaw - this.yawPrev) / dt;
@@ -3375,7 +3826,9 @@ export class Game {
     let subject = rp;
     // (Round 20: the crash too, except the chasm, where he goes under: the clips carry him metres
     // off the root, a slam, a trip, a fall onto the stone below.)
-    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && this.crashKind !== 'chasm' && this.crashKind !== 'gate')) {
+    // (Crash round 6: the second chasm too — fall_drop carries him ~2 m on as he drops, as on the ledge,
+    // and a lens held on the root lost his legs and hips off the bottom of the frame.)
+    if ((this.stage === 'cashout' && !this.runOn) || (this.stage === 'crash' && ((this.crashKind !== 'chasm' && this.crashKind !== 'gate') || this.chasmDrop))) {
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips) {
         // This frame's pose (the bones' world matrices otherwise update only at render).
@@ -3416,11 +3869,14 @@ export class Game {
         } else if (this.debris.keepOut.length) this.debris.keepOut.length = 0;
       }
       subject = this.subjPos.copy(rp).add(this.subjOff);
+      if (this.sink) subject.y += this.sink.depth;
     } else {
       this.subjOff.set(0, 0, 0);
       this.rig.bodyAt = null;
       this.rig.bodyPts = null;
       if (this.debris.keepOut.length) this.debris.keepOut.length = 0;
+      // (Crash round 6: the lens stays at the lip while the water takes him on down.)
+      if (this.sink) subject = this.subjPos.copy(rp).setY(rp.y + this.sink.depth);
     }
     // FX round 21: in the fall into the water the clip carries him off the root (which stays at the
     // lip): the rig frames his body there once the card is up.
@@ -3563,6 +4019,39 @@ export class Game {
     }
     this.crashClock += dt;
     this.debris.update(dt);
+    if (this.drumRoll) this.rollDrum(dt);
+    if (this.pierTopple) {
+      // Over its edge, accelerating (θ ∝ t²) from its 7° lean to flat at T, a 2.5° rebound, then still.
+      const P = this.pierTopple;
+      P.t += dt;
+      const u = Math.min(1, P.t / P.T);
+      const after = Math.max(0, P.t - P.T);
+      const th = 0.12 + (Math.PI / 2 - 0.12) * u * u - (after > 0 ? 0.045 * Math.sin(Math.min(1, after / 0.22) * Math.PI) : 0);
+      this.toppleQ.setFromAxisAngle(P.axis, th);
+      P.mesh.quaternion.copy(P.q0).premultiply(this.toppleQ);
+      P.mesh.position.copy(this.rollV.copy(P.base).sub(P.pivot).applyQuaternion(this.toppleQ).add(P.pivot));
+    }
+    if (this.pinBlock) {
+      // Free fall onto his shins, a 2 cm settle, then still.
+      const P = this.pinBlock;
+      P.t += dt;
+      if (P.t >= 0) {
+        P.mesh.visible = true;
+        const u = Math.min(P.t, P.T);
+        const after = Math.max(0, P.t - P.T);
+        P.mesh.position.copy(P.rest);
+        P.mesh.position.y += P.fall - 4.9 * u * u - (after > 0 ? 0.02 * Math.sin(Math.min(1, after / 0.2) * Math.PI) : 0);
+      }
+    }
+    if (this.sink) {
+      // In the water: on down, the speed taken up over 0.2 s (no step in the root's motion) and the
+      // water taking it off again (τ 0.35 s), ~1.6 m in all.
+      const S = this.sink;
+      S.t += dt;
+      S.at = 6 * Math.min(1, S.t / 0.2) * Math.exp(-S.t / 0.35);
+      S.depth += S.at * dt;
+      if (S.t >= S.hideAt && this.runner.root.visible) this.runner.root.visible = false;
+    }
     this.particles.update(dt);
     this.spray.update(dt, cam.aspect);
     this.grit.update(dt, cam.aspect);
@@ -3868,47 +4357,92 @@ export class Game {
     this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 1.7, halfL: len / 2 + 1.7 });
   }
 
+  /**
+   * Crash round 6 (critic: "splash rings drawn as flat white streak sprites"): a splash has a body.
+   * The crown is white water — lit, self-shadowed billow sprites (fxBillows) thrown up and out off
+   * the rim of the cavity under gravity, so it rises as a ragged wall, tops out and falls back into
+   * itself — with only a fine scatter of streaked droplets over it, and churned foam spreading low
+   * on the surface after it (with the water's own rings and foam, Water.splash). Cosmetic RNG only.
+   */
   private splashCrown(p: THREE.Vector3, k: number): void {
-    // Round 19: streaks (fxSpray), not soft dots. The crown: a ring of drops leaving the rim of the
-    // cavity steeply (60-75°), fanning out as they rise, then raining back; a few heavier blobs
-    // higher and slower; fine drops in between. Cosmetic RNG only.
+    const B = this.cine.billows;
+    const sk = Math.sqrt(k);
+    const at = this.splashV1;
+    const vel = this.splashV2;
+    // The wall of white water round the rim.
+    // (Small, dense and quick: sprites a metre or two across, lingering, read as cotton clouds over the
+    // water — the round 18 complaint — not as water thrown up and falling back.)
+    const ring = Math.max(5, Math.round(18 * k));
+    for (let i = 0; i < ring; i++) {
+      const a = (i / ring) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      const r0 = (0.2 + 0.25 * k) * (0.8 + Math.random() * 0.4);
+      at.set(p.x + Math.cos(a) * r0, WATER_Y + 0.08, p.z + Math.sin(a) * r0);
+      const out = (0.8 + 1.1 * k) * (0.8 + Math.random() * 0.5);
+      vel.set(Math.cos(a) * out, (2.6 + 2.4 * sk) * (0.8 + Math.random() * 0.35), Math.sin(a) * out);
+      B.puff(at, { count: 1, spread: 0.06, jitter: 0.2, vel, size: [0.07 + 0.07 * k, 0.2 + 0.24 * k], life: 0.5 + 0.3 * k, alpha: 0.9, tint: WATER_T, rise: -9.8, drag: 0.3, floor: WATER_Y });
+    }
+    // Fine droplets over it: few, small and faint (the crown itself is the white water above).
     const b = this.spray.budget;
-    const n = Math.round(90 * k * b);
-    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), size: 0.03, life: 1.2, alpha: 0.95, gravity: 9.8, drag: 0.2 };
+    const n = Math.round(34 * k * b);
+    const e = this.splashDrop;
+    e.gravity = 9.8;
+    e.drag = 0.3;
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.18;
-      const r0 = 0.5 + Math.random() * 0.25;
-      const el = (60 + Math.random() * 16) * (Math.PI / 180);
-      const sp = (4.2 + Math.random() * 2.6) * Math.sqrt(k);
-      e.pos.set(p.x + Math.cos(a) * r0, p.y + 0.04, p.z + Math.sin(a) * r0);
+      const a = Math.random() * Math.PI * 2;
+      const r0 = 0.35 + Math.random() * 0.3 * (0.5 + k);
+      const el = (58 + Math.random() * 22) * (Math.PI / 180);
+      const sp = (3.2 + Math.random() * 3) * sk;
+      e.pos.set(p.x + Math.cos(a) * r0, WATER_Y + 0.1, p.z + Math.sin(a) * r0);
       e.vel.set(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp);
-      e.size = 0.01 + Math.random() * 0.016;
-      e.life = 1.0 + Math.random() * 0.6;
+      e.size = 0.006 + Math.random() * 0.008;
+      e.life = 0.8 + Math.random() * 0.6;
+      e.alpha = 0.55;
       this.spray.emit(e);
     }
-    for (let i = 0; i < Math.round(10 * k * b); i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = (5.5 + Math.random() * 2) * Math.sqrt(k);
-      const el = (68 + Math.random() * 14) * (Math.PI / 180);
-      e.pos.set(p.x + Math.cos(a) * 0.55, p.y + 0.05, p.z + Math.sin(a) * 0.55);
-      e.vel.set(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp);
-      e.size = 0.025 + Math.random() * 0.015;
-      e.life = 1.6;
-      this.spray.emit(e);
+    // A low skirt of white water as the crown falls back into the cavity (the churned foam and the rings
+    // after it are the water's own: Water.splash).
+    const foam = Math.max(2, Math.round(6 * k));
+    for (let i = 0; i < foam; i++) {
+      const a = (i / foam) * Math.PI * 2 + Math.random();
+      at.set(p.x + Math.cos(a) * 0.3 * k, WATER_Y + 0.04, p.z + Math.sin(a) * 0.3 * k);
+      vel.set(Math.cos(a) * (0.6 + 0.8 * k), 0.6, Math.sin(a) * (0.6 + 0.8 * k));
+      B.puff(at, { count: 1, spread: 0.1, jitter: 0.15, vel, size: [0.12 + 0.1 * k, 0.3 + 0.3 * k], life: 0.7 + 0.3 * k, alpha: 0.6, tint: FOAM_T, rise: -3, drag: 1.5, floor: WATER_Y });
     }
     // A breath of fine mist at the impact, low and quickly gone.
-    this.particles.burst(p, Math.round(10 * k), { spread: 1.2, up: 1.5, speed: 1.5, size: 0.35, life: 0.7, color: SPRAY, alpha: 0.25, gravity: 2, drag: 1.5, grow: 1.2 });
+    this.particles.burst(p, Math.round(8 * k), { spread: 1.0, up: 1.2, speed: 1.2, size: 0.35, life: 0.7, color: SPRAY, alpha: 0.18, gravity: 2, drag: 1.5, grow: 1.2 });
   }
+  private splashV1 = new THREE.Vector3();
+  private splashV2 = new THREE.Vector3();
+  private splashDrop = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), size: 0.01, life: 1, alpha: 0.6, gravity: 9.8, drag: 0.3 };
 
-  /** Round 19: the column that follows a body down: fast, narrow, streaking straight up. */
+  /**
+   * The column that follows a body down (crash round 6): a narrow trunk of white water shooting up
+   * out of the cavity as it closes, topping out ~2 m up and collapsing back into the foam. Billow
+   * sprites under gravity (volume, light and shade), a few streaked droplets off its head.
+   */
   private splashColumn(p: THREE.Vector3, k: number): void {
-    const e = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), size: 0.03, life: 1.4, alpha: 0.95, gravity: 9.8, drag: 0.15 };
-    for (let i = 0; i < Math.round(28 * k * this.spray.budget); i++) {
+    const B = this.cine.billows;
+    const sk = Math.sqrt(k);
+    const at = this.splashV1;
+    const vel = this.splashV2;
+    const n = Math.max(4, Math.round(10 * k));
+    for (let i = 0; i < n; i++) {
+      // Stacked: the later sprites leave faster, so the trunk stretches up as one body.
+      const u = i / Math.max(1, n - 1);
+      at.set(p.x + (Math.random() - 0.5) * 0.2, WATER_Y + 0.1, p.z + (Math.random() - 0.5) * 0.2);
+      vel.set((Math.random() - 0.5) * 0.4, (3.6 + 3.2 * u) * sk, (Math.random() - 0.5) * 0.4);
+      B.puff(at, { count: 1, spread: 0.05, jitter: 0.1, vel, size: [0.09 + 0.05 * (1 - u), 0.22 + 0.12 * (1 - u)], life: 0.65 + 0.4 * u, alpha: 0.9, tint: WATER_T, rise: -9.8, drag: 0.2, floor: WATER_Y });
+    }
+    const e = this.splashDrop;
+    e.gravity = 9.8;
+    e.drag = 0.15;
+    for (let i = 0; i < Math.round(14 * k * this.spray.budget); i++) {
       const a = Math.random() * Math.PI * 2;
-      const r0 = Math.random() * 0.25;
-      e.pos.set(p.x + Math.cos(a) * r0, p.y + 0.05, p.z + Math.sin(a) * r0);
-      e.vel.set(Math.cos(a) * Math.random() * 0.7, (6 + Math.random() * 2.5) * Math.sqrt(k), Math.sin(a) * Math.random() * 0.7);
-      e.size = 0.012 + Math.random() * 0.02;
+      e.pos.set(p.x + Math.cos(a) * 0.12, WATER_Y + 0.1, p.z + Math.sin(a) * 0.12);
+      e.vel.set(Math.cos(a) * (0.3 + Math.random() * 0.8), (5.5 + Math.random() * 2) * sk, Math.sin(a) * (0.3 + Math.random() * 0.8));
+      e.size = 0.007 + Math.random() * 0.01;
+      e.life = 1.1 + Math.random() * 0.4;
+      e.alpha = 0.6;
       this.spray.emit(e);
     }
   }
