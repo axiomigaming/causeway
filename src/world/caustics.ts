@@ -353,18 +353,6 @@ const FRAG_CAUSTIC = /* glsl */ `
 /** How much of the baked texel's own chroma a stone family keeps (its grain and stains, not its hue). */
 export const FAMILY_CHROMA = 0.08;
 const FRAG_FAMILY = /* glsl */ `
-#if defined(WET_MOSS) && defined(USE_MAP)
-{
-  // The natural rock (the critic: a large outcrop beside the lens, its bake smeared into long streaks
-  // across a face its unwrap stretches): where the atlas runs several times sparser one way than the
-  // other, the albedo falls back to the atlas's own broad colour there (a coarse mip) and the scan's
-  // triplanar grain carries the surface (detail, below) instead of the smear.
-  vec2 dux = dFdx(vMapUv), duy = dFdy(vMapUv);
-  float sx = length(dux) / max(length(dFdx(vWetPos)), 1e-5), sy = length(duy) / max(length(dFdy(vWetPos)), 1e-5);
-  float ds = smoothstep(1.8, 3.6, max(sx, sy) / max(min(sx, sy), 1e-6)) * (1.0 - smoothstep(12.0, 25.0, length(vViewPosition)));
-  if (ds > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, diffuse * texture2D(map, vMapUv, 4.5).rgb, ds);
-}
-#endif
 {
   vec3 sp = vWetPos;
   float wA = pdN(sp.xz * 0.23 + sp.y * vec2(0.17, -0.11));
