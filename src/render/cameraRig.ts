@@ -767,6 +767,9 @@ export class CameraRig {
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         this.chasmHold(s);
         this.pitHold(s, runnerPos, T);
+        // (Camera round 6: once he is down, the ledge's hold — 4.5 m and more over him — narrows to
+        // a fifth less: a lying figure seen from there was a sixth of a phone frame.)
+        if (this.pitK > 0) fov *= 1 - 0.2 * Math.min(this.pitK, this.closeK);
         // (Camera round 2: up over the fall's debris lying across the sight line; set by the game.)
         this.targetPos.y += this.craneUp;
         break;
