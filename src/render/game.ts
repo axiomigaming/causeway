@@ -2676,9 +2676,10 @@ export class Game {
         // hand height read as white cards at his wrists.)
         B.puff(p.clone().setY(p.y - 0.6), { count: 1, spread: 0.5, jitter: 0.4, size: [0.3, 0.8], life: 1.1, alpha: 0.18, tint: DUST_T, rise: 0.05 });
         kick(trip ? 0.35 : palms ? 0.4 : 0.8);
-        // (Camera round 7: the pillar's a sixth nearer — seen from his head end, the figure lying away
-        // down the way measured a sixth of a desktop frame; the trip's drum needs the room.)
-        this.rig.closeIn = trip ? 1 : 1.2;
+        // (Camera round 7: the pillar's a third nearer — seen from his head end, the figure lying
+        // away down the way measured a sixth of a desktop frame; the trip's drum needs the room, and a
+        // phone's close-in is near enough already — nearer, his flung hand left its frame.)
+        this.rig.closeIn = trip || this.rig.camera.aspect < 1 ? 1 : 1.45;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
       });
       if (trip) {
