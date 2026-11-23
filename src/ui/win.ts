@@ -55,7 +55,7 @@ const RULE = [0.12, 0.24, 0.42, 0.68, 1] as const;
 const GLOW = [0, 0, 0.12, 0.2, 0.26] as const;
 const BLOOM = [0, 0, 0.14, 0.28, 0.38] as const;
 const RAYS = [0, 0, 0, 0.2, 0.32] as const;
-const TINT = [0, 0, 0.07, 0.13, 0.2] as const;
+const TINT = [0, 0, 0.07, 0.13, 0.26] as const;
 const EDGE = [0, 0, 0.26, 0.4, 0.56] as const;
 const FLASH = [0, 0, 0, 0.42, 0.6] as const;
 

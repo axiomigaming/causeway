@@ -154,12 +154,13 @@
   height: 120%;
   transform: translate(-50%, -50%);
   background: radial-gradient(closest-side, var(--win-flash), rgba(0, 0, 0, 0));
-  opacity: 0.4;
+  opacity: var(--flash-rest, 0.4);
   z-index: -1;
   pointer-events: none;
 }
 .result.anim .r-flash { animation: flash 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--land) - 100ms) both; }
-@keyframes flash { from { opacity: 0; scale: 0.55; } 22% { opacity: 1; scale: 1.04; } to { opacity: 0.4; scale: 1; } }
+@keyframes flash { from { opacity: 0; scale: 0.55; } 22% { opacity: 1; scale: 1.04; } to { opacity: var(--flash-rest, 0.4); scale: 1; } }
+.result.legend { --flash-rest: 0.7; }
 /* the landing beat: the figure takes a small weight as the count lands (none on the quiet tiers) */
 .result.won.anim[data-grade='2'] .big { --thump: 1.04; }
 .result.won.anim[data-grade='3'] .big { --thump: 1.07; }
