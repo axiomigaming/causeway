@@ -22,10 +22,13 @@ const LIMB_LEAD = 0.16;
 const RUN_FIT = 1.04;
 /**
  * Camera round 6 (critic, desktop cash-out): where a result shot sets him in the free side beside the
- * card's column, as a share of that side's width out from the column (0.45 had him near the frame's
- * outer edge, the dead jungle between him and the card).
+ * card's column, as a share of that side's width out from the column. (The outer edge the critic saw
+ * was the place latched on the card's estimate, see keepInFrame; camera round 7: 0.4, toward the free
+ * side's middle — at 0.3 the 30x cheer stood against the card.)
  */
-const HERO_FRAC = 0.3;
+const HERO_FRAC = 0.4;
+/** Camera round 7: a fallen figure (wide, lying, with what pins him) in the middle of the free side. */
+const FALLEN_FRAC = 0.5;
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -231,7 +234,7 @@ export class CameraRig {
   /**
    * Camera round 6 (critic, desktop cash-out): 0..1, how far past the grand escapes (epic saturates at
    * 10x) this one is — from ~8x to 25x and over. The result shot is then a hero's: lower, looking up
-   * at him, further out, the way he ran opening behind him.
+   * at him on a wider lens, the way he ran opening behind him.
    */
   private grand = 0;
 
@@ -553,7 +556,7 @@ export class CameraRig {
     // (closer or further), and let keepInFrame stand him on the third beside the column.
     const needBand = 1.95 / (0.75 * band * 2 * tanH);
     const g = this.mode === 'cashout' ? this.grand : 0;
-    const needSide = 1.95 / ((0.36 - 0.08 * g) * 2 * tanH);
+    const needSide = 1.95 / ((0.36 - 0.02 * g) * 2 * tanH);
     const dy = f.up - 1.0;
     const d0 = Math.max(0.3, Math.hypot(f.along, f.lat, dy));
     // Round 20: and never so far that he is a dot: pull in until he fills ~38 % of the band.
@@ -563,10 +566,14 @@ export class CameraRig {
     const lying = this.mode === 'crash' && this.closeK > 0.5;
     const mBand = d0 < needBand ? (lying ? 1 : needBand / d0) : d0 > needFar ? needFar / d0 : 1;
     // (With the card itself, not the early pan ahead of it: that stood the crash close-in back.)
-    const m = lerp(mBand, needSide / d0, Math.min(this.sideK, k * 1.5));
+    // (Camera round 7: beside the column, a fallen man from nearer than a standing one — at
+    // the standing distance the fallen pillar and trip were a sixth of the frame; from the close-in
+    // itself the rockfall's legs reached in behind the dock.)
+    const m = lerp(mBand, ((this.mode === 'crash' ? 0.72 : 1) * needSide) / d0, Math.min(this.sideK, k * 1.5));
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
     // Camera round 6: a grand escape's lens comes down to his waist and looks up at him, a little
-    // wider (the further stand-back is above: needSide).
+    // wider. (Camera round 7: at about the same size in the frame — stood further back as well, he
+    // was a fifth of its height at the far edge; the lens is what is grander, not the distance.)
     if (g > 0) {
       out.up = lerp(out.up, 0.85, 0.85 * g);
       out.lUp = lerp(out.lUp, 1.3, g);
@@ -1419,7 +1426,7 @@ export class CameraRig {
     const col = this.uiCol;
     if (!this.holdSign || !col || (this.gapAimK <= 0 && this.pitK <= 0)) return null;
     // (The ledge's hold frames him, a figure: on the third beside the card, as every result shot does.)
-    const fr = this.pitK > 0 ? HERO_FRAC : 0.45;
+    const fr = this.pitK > 0 ? FALLEN_FRAC : 0.45;
     return this.holdSign < 0 ? col[0] * (1 - fr) * 2 - 1 : (col[1] + (1 - col[1]) * fr) * 2 - 1;
   }
 
@@ -1584,7 +1591,7 @@ export class CameraRig {
       // (His body as it lies: head, feet and hands as posed — the game's limbs, head first — and his hips.)
       const pts = (this.bodyPts ?? []).filter((_, i) => i < 3 || i >= 5).map((b) => b.clone());
       pts.push(this.pitAim.clone());
-      this.pitJob = this.pickPit(L, this.pitAim.clone(), pts, this.holdSideAngle(HERO_FRAC), s || 1);
+      this.pitJob = this.pickPit(L, this.pitAim.clone(), pts, this.holdSideAngle(FALLEN_FRAC), s || 1);
     }
     if (this.pitJob) {
       const t0 = performance.now();
@@ -1746,7 +1753,8 @@ export class CameraRig {
         sideWant = 1;
         const leftRoom = l;
         const rightRoom = 1 - r;
-        // The wider free side, a third of the way out from the column (HERO_FRAC).
+        // The wider free side, part of the way out from the column (HERO_FRAC; a fallen figure in its
+        // middle, FALLEN_FRAC).
         // (Camera round 6, critic: in the escape, with the column centred, the side that keeps the
         // lens looking along the way — the causeway running on behind him — not across it into the
         // jungle beside it: set on the side he stands toward from the lens's place, off the way's
@@ -1761,7 +1769,8 @@ export class CameraRig {
           right = Math.abs(bearing) < Math.PI / 2 ? bearing > 0 : bearing < 0;
         }
         this.sideRight = right;
-        const target = right ? r + (1 - r) * HERO_FRAC : l * (1 - HERO_FRAC);
+        const fr = this.mode === 'crash' ? FALLEN_FRAC : HERO_FRAC;
+        const target = right ? r + (1 - r) * fr : l * (1 - fr);
         // (The side is kept once chosen; the place follows the column as the card's own replaces the
         // estimate taken ahead of it — latched there, he stood on the frame's outer edge.)
         if (this.sideK < 0.02) this.sideX = target * 2 - 1;
@@ -1830,14 +1839,19 @@ export class CameraRig {
       // measured over the root stood where he no longer was, holding the lens up while his boots left
       // the bottom of the frame: there the crown is his posed head's.)
       let crown = runnerPos.y + 1.85;
-      if (this.mode === 'crash' && this.crashShot === 'ledge' && this.bodyPts?.length) crown = Math.max(...this.bodyPts.map((b) => b.y)) + 0.25;
+      // (Camera round 7: and once any fall has him down — the close-in, or the card up — the figure
+      // as it lies or sits: measured as a man standing 1.85 m over his hips, the result shot centred
+      // that phantom and laid the fallen trip and pillar at the band's foot, against the dock.)
+      if (this.mode === 'crash' && this.bodyPts?.length && (this.crashShot === 'ledge' || this.closeK > 0.5 || this.revealK > 0.3)) crown = Math.max(...this.bodyPts.map((b) => b.y)) + 0.25;
       // (Camera round 5, QA phone slide: in the run, his posed head's. Stood 1.85 m over his root
       // while he slid under a beam, the crown held the look up as if he were standing, and the beam's
       // dark underside came down into the top of the frame.)
       else if (this.mode === 'run' && this.headAt) crown = Math.max(runnerPos.y + 0.6, this.headAt.y + 0.22);
       pts[1]!.copy(runnerPos).setY(crown);
-      pts[2]!.copy(runnerPos).setY(runnerPos.y + 1.2).addScaledVector(this.right, -0.45);
-      pts[3]!.copy(runnerPos).setY(runnerPos.y + 1.2).addScaledVector(this.right, 0.45);
+      const down = this.mode === 'crash' && this.bodyPts?.length && (this.closeK > 0.5 || this.revealK > 0.3);
+      const sh = down ? Math.min(runnerPos.y + 1.2, Math.max(runnerPos.y + 0.2, crown - 0.4)) : runnerPos.y + 1.2;
+      pts[2]!.copy(runnerPos).setY(sh).addScaledVector(this.right, -0.45);
+      pts[3]!.copy(runnerPos).setY(sh).addScaledVector(this.right, 0.45);
       const m = this.frameM;
       m.feet = m.head = m.left = m.right = 0;
       m.depth = 0;
@@ -1920,7 +1934,11 @@ export class CameraRig {
       let zoomWant = 1;
       if (settled) {
         const needV = (m.head - m.feet) / ((hi - lo) * tanV * 0.92);
-        const needH = (m.right - m.left) / ((side > 0.5 ? 0.6 : 2 * mx) * tanH * 0.92);
+        // (Camera round 7: beside the column, the width there is from the frame's margin to the
+        // column's, which the pan keeps clear: the trip's drum reached in behind the dock.)
+        const uc = this.uiCol;
+        const besideW = uc && uc[1] - uc[0] < 0.62 ? Math.max(0.3, this.sideX > 0 ? mx - (uc[1] * 2 - 1 + 0.04) : uc[0] * 2 - 1 - 0.04 + mx) : 0.6;
+        const needH = (m.right - m.left) / ((side > 0.5 ? besideW : 2 * mx) * tanH * 0.92);
         const k = Math.max(needV, needH);
         if (k > 1) want = Math.min(3.5, m.depth * (k - 1));
         // Round 20 (coordinator, cash-out review): the escape stands back a metre at most; the rest
@@ -1989,6 +2007,22 @@ export class CameraRig {
       const room = Math.max(0, Math.atan(m.feet) - Math.atan(-0.94 * tanV));
       tilt = Math.max(tilt, Math.min(need, room));
     }
+    // Camera round 7 (critic, desktop trip in world 7): once the result card is up, the fallen (or
+    // cheering) figure is held in the middle of the band it has, not wherever the two limits above
+    // leave it — the trip's lens drifted until he and the block across his calves lay at the band's
+    // foot, half behind the dock. (Within those limits, where he fits; the chasm's hold frames the
+    // water, not him. On a phone a fall sets him in the band's lower part: what brought him down —
+    // the gap of the 1.00x collapse, the column — lies beyond him, above him in the frame, and stood
+    // behind the card.)
+    const rk = (this.mode === 'crash' || this.mode === 'cashout') && this.gapAimK <= 0 ? Math.min(1, this.revealK * 1.5) : 0;
+    if (rk > 0.001) {
+      const tMin = Math.atan(m.head) - Math.atan(hiT);
+      const tMax = Math.atan(m.feet) - Math.atan(loT);
+      if (tMin <= tMax) {
+        const tc = THREE.MathUtils.clamp(Math.atan((m.feet + m.head) / 2) - Math.atan(lerp(loT, hiT, this.mode === 'crash' ? lerp(0.35, 0.53, side) : 0.47)), tMin, tMax);
+        tilt = lerp(tilt, tc, rk);
+      }
+    }
     // (Camera round 2, QA hunt: out of the title's high pass the setup does not drag him into the
     // band from 9.8 m up — that tilt pointed the first frames after ENTER down onto the crown of
     // the arch under the lens. The framing comes in as the lens descends, with the aim.)
@@ -2008,8 +2042,15 @@ export class CameraRig {
       pan = THREE.MathUtils.lerp(pan, want, this.sideK);
       // Round 18: the third never pushes a limb past the side margins (the 50x+ slide's turn
       // swings him a metre or two across the frame).
-      const pMin = Math.atan(-mT) - Math.atan(m.left);
-      const pMax = Math.atan(mT) - Math.atan(m.right);
+      let pMin = Math.atan(-mT) - Math.atan(m.left);
+      let pMax = Math.atan(mT) - Math.atan(m.right);
+      // Camera round 7: nor a limb in behind the card's column (card above, dock below: the trip's
+      // fallen runner lay half behind the dock).
+      const col = this.uiCol;
+      if (col && side > 0.5 && col[1] - col[0] < 0.62) {
+        if (this.sideX > 0) pMin = Math.max(pMin, Math.atan((col[1] * 2 - 1 + 0.04) * tanH) - Math.atan(m.left));
+        else pMax = Math.min(pMax, Math.atan((col[0] * 2 - 1 - 0.04) * tanH) - Math.atan(m.right));
+      }
       if (pMin <= pMax) pan = THREE.MathUtils.clamp(pan, pMin, pMax);
     }
     // (Round 20: about the world's vertical. About the lens's own Y, a pan on a shot looking down
