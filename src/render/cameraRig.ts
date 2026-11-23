@@ -20,6 +20,12 @@ const LIMB_LEAD = 0.16;
  * chase stands back (fitInBand composes 1.8 m; the frame measures his crown at ~1.85 m, ~3 % more).
  */
 const RUN_FIT = 1.04;
+/**
+ * Camera round 6 (critic, desktop cash-out): where a result shot sets him in the free side beside the
+ * card's column, as a share of that side's width out from the column (0.45 had him near the frame's
+ * outer edge, the dead jungle between him and the card).
+ */
+const HERO_FRAC = 0.3;
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -140,6 +146,12 @@ export class CameraRig {
   lift = 0;
   private liftK = 0;
   /**
+   * Camera round 6, run mode: 0..1 while the lens passes over a piece he jumps (the game sets it,
+   * eased): the look point rises, so the piece's top passes low through the frame, not across its
+   * lower third (the lens rising over it is the corridor's). The framing keeps his boots in.
+   */
+  overPiece = 0;
+  /**
    * Set by the game when the result card appears: the settled shot then keeps the whole runner in
    * the band between the card (reported as the top inset) and the dock.
    */
@@ -216,8 +228,17 @@ export class CameraRig {
     this.camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 2400);
   }
 
-  setMode(m: CamMode, opts: { side?: number; shot?: CrashShot; escape?: EscapeShot; variant?: number; epic?: number; reveal?: number } = {}): void {
+  /**
+   * Camera round 6 (critic, desktop cash-out): 0..1, how far past the grand escapes (epic saturates at
+   * 10x) this one is — from ~8x to 25x and over. The result shot is then a hero's: lower, looking up
+   * at him, further out, the way he ran opening behind him.
+   */
+  private grand = 0;
+
+  setMode(m: CamMode, opts: { side?: number; shot?: CrashShot; escape?: EscapeShot; variant?: number; epic?: number; reveal?: number; grand?: number } = {}): void {
     if (opts.side) this.side = opts.side;
+    if (opts.grand !== undefined) this.grand = opts.grand;
+    else if (m !== this.mode) this.grand = 0;
     if (opts.reveal !== undefined) this.reveal = opts.reveal;
     else if (m !== this.mode) this.reveal = 0;
     if (opts.shot) this.crashShot = opts.shot;
@@ -531,7 +552,8 @@ export class CameraRig {
     // band between card and dock: frame him at ~36 % of the frame height, at that distance exactly
     // (closer or further), and let keepInFrame stand him on the third beside the column.
     const needBand = 1.95 / (0.75 * band * 2 * tanH);
-    const needSide = 1.95 / (0.36 * 2 * tanH);
+    const g = this.mode === 'cashout' ? this.grand : 0;
+    const needSide = 1.95 / ((0.36 - 0.08 * g) * 2 * tanH);
     const dy = f.up - 1.0;
     const d0 = Math.max(0.3, Math.hypot(f.along, f.lat, dy));
     // Round 20: and never so far that he is a dot: pull in until he fills ~38 % of the band.
@@ -543,6 +565,13 @@ export class CameraRig {
     // (With the card itself, not the early pan ahead of it: that stood the crash close-in back.)
     const m = lerp(mBand, needSide / d0, Math.min(this.sideK, k * 1.5));
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
+    // Camera round 6: a grand escape's lens comes down to his waist and looks up at him, a little
+    // wider (the further stand-back is above: needSide).
+    if (g > 0) {
+      out.up = lerp(out.up, 0.85, 0.85 * g);
+      out.lUp = lerp(out.lUp, 1.3, g);
+      out.fov += 4 * g;
+    }
     return mixFrame(f, out, k);
   }
 
@@ -703,7 +732,7 @@ export class CameraRig {
               lerp(1.24 - 0.08 * I - 0.06 * hi, 1.1, k) + 0.25 * lift,
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
               lerp(lerp(0.6, 0.18, narrow) + drift * 0.4, lerp(0.2, -0.35, narrow * this.escapeWide), k) + 0.4 * wx * life + bend,
-              lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift,
+              lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift + 0.9 * this.overPiece * (1 - k),
               lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
             ),
           );
@@ -737,6 +766,7 @@ export class CameraRig {
         if (this.closeK > 0.001) cf = mixFrame(cf, { along: -2.2 * ck, lat: 1.35 * ck * this.closeSide * (s || 1), up: 0.35 + 1.4 * ck + this.closeUp, lAlong: 0.1, lLat: 0, lUp: 0.35, fov: cf.fov, focus: 0 }, this.closeK);
         fov = this.shot(runnerPos, this.resultFrame(this.settled(cf)));
         this.chasmHold(s);
+        this.pitHold(s, runnerPos, T);
         // (Camera round 2: up over the fall's debris lying across the sight line; set by the game.)
         this.targetPos.y += this.craneUp;
         break;
@@ -835,7 +865,14 @@ export class CameraRig {
   private clearance(dt: number): void {
     this.occT -= dt;
     const run = this.mode === 'run' || this.mode === 'lead';
-    if (this.occT <= 0 && this.mode !== 'title') {
+    // (Camera round 6: not the ledge's hold, whose place is chosen against the geometry with its sight
+    // lines to him lying on the trough's floor: tested from a standing man's chest there, the broken
+    // edge "blocked" it and the pull drew the lens down into the trough after him.)
+    if (this.pitK > 0.01) {
+      this.swingTarget = 0;
+      this.pullTarget = 1;
+      this.blockedT = 0;
+    } else if (this.occT <= 0 && this.mode !== 'title') {
       const step = run ? 0.25 : 0.1;
       this.occT = step;
       const cur = this.applyClearance(this.cand.copy(this.rawTarget), this.swingTarget, 1);
@@ -1271,6 +1308,7 @@ export class CameraRig {
   private sideK = 0;
   private sideV = 0;
   private sideX = 0;
+  private sideRight = false;
   /**
    * Round 18: where the figure actually is (ground height), when a clip carries him off the
    * composition's subject (the 50x+ slide turns about a point metres from his hips). The shot
@@ -1361,13 +1399,13 @@ export class CameraRig {
    * from the lens's axis: 0 when centred (portrait, or no column), else on the third beside the
    * result card's column, as keepInFrame composes it.
    */
-  private holdSideAngle(): number {
+  private holdSideAngle(frac = 0.45): number {
     const c = this.camera;
     const col = this.uiCol;
     if (!(c.aspect > 1.15 && col && col[1] - col[0] < 0.62)) return 0;
     const [l, r] = col;
     // (Either side of the column: pickHold chooses; this is the larger of the two.)
-    const x = Math.max(1 - l * 1.1, (r + (1 - r) * 0.45) * 2 - 1);
+    const x = Math.max(1 - l * (1 - frac) * 2, (r + (1 - r) * frac) * 2 - 1);
     // (Rounded: the column is reported in pixels, and a pixel's change must not re-choose the hold.)
     return Math.round(Math.atan(x * Math.tan((this.fov * Math.PI) / 360) * c.aspect) * 20) / 20;
   }
@@ -1376,8 +1414,10 @@ export class CameraRig {
   /** The held subject's place across the frame for that side (NDC x), for keepInFrame. */
   private holdX(): number | null {
     const col = this.uiCol;
-    if (!this.holdSign || !col || this.gapAimK <= 0) return null;
-    return this.holdSign < 0 ? col[0] * 0.55 * 2 - 1 : (col[1] + (1 - col[1]) * 0.45) * 2 - 1;
+    if (!this.holdSign || !col || (this.gapAimK <= 0 && this.pitK <= 0)) return null;
+    // (The ledge's hold frames him, a figure: on the third beside the card, as every result shot does.)
+    const fr = this.pitK > 0 ? HERO_FRAC : 0.45;
+    return this.holdSign < 0 ? col[0] * (1 - fr) * 2 - 1 : (col[1] + (1 - col[1]) * fr) * 2 - 1;
   }
 
   /**
@@ -1482,6 +1522,206 @@ export class CameraRig {
   private holdDep: number | null = null;
   private tmp4 = new THREE.Vector3();
 
+  /**
+   * Camera round 6: the ledge's cave-in (set by the game once the floor has given): the broken edge of
+   * the floor still standing behind him (on the way's centre line, at floor height), the way's
+   * heading, the trough's floor height and half its width; or null.
+   */
+  pitLip: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number } | null = null;
+  /** 0..1: how far the ledge's shot stands at its hold over the broken edge (read by the game). */
+  pitK = 0;
+  /** QA: how the ledge's last hold search went. */
+  pitDebug: { cands: number; tried: number; corridor: number; blocked: number; hidden: number; found: string } | null = null;
+  private pitFor: object | null = null;
+  private pitJob: Generator<void> | null = null;
+  private pitSearched = false;
+  private pitPos = new THREE.Vector3();
+  private pitAim = new THREE.Vector3();
+
+  /**
+   * Camera round 6 (critic, ledge0 in world 3): the floor gives and he drops 2.75 m into the trough
+   * under the causeway. The lens used to follow him down: it went on from the chase over the floor
+   * that was caving in (the slabs tipping away under it filled a phone frame as big soft blocks), and
+   * once he was down it came into the 3.2 m trough beside him, where the result shot's stand-back
+   * pressed it into a side wall (a stretched wall of stone on a desktop, no runner) and a phone saw
+   * him from the murk at the bottom. Now the collapse is seen from outside it: as the floor goes the
+   * lens backs out and rises to the floor still standing behind the broken edge and looks down after
+   * him; once he is down, where it holds is chosen against what is really there (as the chasm's
+   * hold is, a few milliseconds a frame): eye height to 3 m over the standing floor, at or a little
+   * behind the edge, the edge never between the lens and him, nothing solid against the lens or
+   * crowding the near frame, beside the desktop's card on whichever side keeps the view down the
+   * trough rather than into its wall.
+   */
+  private pitHold(s: number, subj: THREE.Vector3, T: number): void {
+    const L = this.pitLip;
+    if (this.crashShot !== 'ledge' || !L) {
+      this.pitK = 0;
+      if (!L) this.pitFor = null;
+      return;
+    }
+    const f = this.tmp4.copy(L.fwd).setY(0).normalize();
+    if (this.pitFor !== L) {
+      // (As composed until the search has run: a metre behind the edge, out on the open side, 2.2 m up.)
+      this.pitFor = L;
+      this.pitJob = null;
+      this.pitSearched = false;
+      this.holdSign = 0;
+      this.pitPos.copy(L.pos).addScaledVector(f, -1.0).add(this.tmp3.set(-f.z, 0, f.x).multiplyScalar(0.5 * (s || 1))).setY(L.pos.y + 2.2);
+    }
+    // His body: the limbs' centre as posed (he drops out from under the root), else the subject.
+    const body = this.tmp2.set(0, 0, 0);
+    if (this.bodyPts?.length) {
+      for (const b of this.bodyPts) body.add(b);
+      body.divideScalar(this.bodyPts.length);
+    } else body.copy(subj).setY(subj.y + 0.9);
+    // Once he is down (the debris has landed with him), the search, started once, a few ms a frame.
+    if (this.closeIn > 0 && !this.pitSearched) {
+      this.pitSearched = true;
+      this.pitAim.copy(subj).setY(L.bedY + 0.3);
+      // (His body as it lies: head, feet and hands as posed — the game's limbs, head first — and his hips.)
+      const pts = (this.bodyPts ?? []).filter((_, i) => i < 3 || i >= 5).map((b) => b.clone());
+      pts.push(this.pitAim.clone());
+      this.pitJob = this.pickPit(L, this.pitAim.clone(), pts, this.holdSideAngle(HERO_FRAC), s || 1);
+    }
+    if (this.pitJob) {
+      const t0 = performance.now();
+      do {
+        if (this.pitJob.next().done) {
+          this.pitJob = null;
+          break;
+        }
+      } while (performance.now() - t0 < 2.5);
+    }
+    const k = ease(T / 0.85);
+    this.pitK = k;
+    if (k < 0.001) return;
+    this.targetPos.lerp(this.pitPos, k);
+    this.targetLook.lerp(body, k);
+  }
+
+  /**
+   * Camera round 6: the ledge's hold, chosen against the geometry (see pitHold). Candidates from 2.6 m
+   * back of the broken edge to 1.6 m out over the hole (there only 2.2 m or more over the floor: the
+   * cave-in can take the floor back over the trough's end wall, whose ruined top then hides the
+   * trough from behind the edge), across the way, 1.7 to 3 m up; rejected where the lens would stand
+   * outside the corridor, in or against anything solid, or would see less than half of him (the
+   * trough's walls, the debris; where no place sees that much, the one that sees the most); then
+   * the least cost of — his distance off ~5 m
+   * (whole and readable on a phone, the trough round him), a steep look straight down into the hole,
+   * the view looking off the way (beside the desktop's card, on either side of it: into the trough's
+   * wall), solids crowding the near frame, and the distance from the place as composed.
+   */
+  private *pickPit(L: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number }, aim: THREE.Vector3, body: THREE.Vector3[], phiMag: number, s: number): Generator<void> {
+    const f = new THREE.Vector3(L.fwd.x, 0, L.fwd.z).normalize();
+    const right = new THREE.Vector3(-f.z, 0, f.x);
+    const floorY = L.pos.y;
+    const tanV = Math.tan((this.fov * Math.PI) / 360);
+    const tanH = tanV * Math.max(1, this.camera.aspect);
+    const side = phiMag !== 0;
+    const p = new THREE.Vector3();
+    const q = new THREE.Vector3();
+    const d = new THREE.Vector3();
+    const ax = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const rt = new THREE.Vector3();
+    const cands: { b: number; lat: number; h: number; cost: number; axis: number; dep: number; sign: number }[] = [];
+    for (const sign of side ? [-1, 1] : [0])
+      for (const b of [1.0, 0.6, 1.5, 0.25, -0.4, 2.0, -1.0, 2.6, -1.6, -2.3, -3.0])
+        for (const lat of [0.5, -0.5, 0, 1.0, -1.0, 1.5, -1.5])
+          for (const h of [2.2, 1.7, 2.6, 3.0]) {
+            // (Out over the hole only high over it: above the cave-in, never down in it.)
+            if (b < 0 && h < 2.2) continue;
+            p.copy(L.pos).addScaledVector(f, -b).addScaledVector(right, lat).setY(floorY + h);
+            d.copy(aim).sub(p);
+            const ahead = d.dot(f);
+            // (He lies beyond the edge, and the line to him clears it by 0.3 m.)
+            if (ahead < b + 0.4) continue;
+            if (p.y - ((p.y - aim.y) * b) / ahead < floorY + 0.3) continue;
+            const horiz = Math.hypot(d.x, d.z);
+            const dist = d.length();
+            const dep = Math.atan2(-d.y, horiz);
+            const axis = Math.atan2(d.dot(right), ahead) - sign * phiMag;
+            // (A depression past ~50°, looking straight down a pit, reads as a plan, not a place.)
+            const cost = 0.45 * Math.abs(dist - 5) + 1.2 * Math.max(0, dep - 0.85) + 0.3 * Math.max(0, 0.5 - dep) + (side ? 0.5 : 0.25) * Math.abs(axis) + 0.12 * (Math.abs(b - 1) + Math.abs(lat - 0.5 * s) + Math.abs(h - 2.2)) + (b < 0 ? 0.25 : 0);
+            cands.push({ b, lat, h, cost, axis, dep, sign });
+          }
+    cands.sort((x, y) => x.cost - y.cost);
+    let best = Infinity;
+    const dbg = (this.pitDebug = { cands: cands.length, tried: 0, corridor: 0, blocked: 0, hidden: 0, found: '' });
+    const seen = new Map<string, number>();
+    let fallHidden = Infinity;
+    let fallSign = 0;
+    const fallPos = new THREE.Vector3();
+    for (const cd of cands) {
+      yield;
+      if (cd.cost >= best) break;
+      dbg.tried++;
+      const { b, lat, h, axis, dep, sign } = cd;
+      p.copy(L.pos).addScaledVector(f, -b).addScaledVector(right, lat).setY(floorY + h);
+      q.copy(p);
+      this.constrain(q);
+      if (q.distanceToSquared(p) > 0.01) {
+        dbg.corridor++;
+        continue;
+      }
+      // How much of him it sees (head, hands, feet, hips; to just short of each: a fragment he lies
+      // against is no reason to stand elsewhere): most of him, or it is no place for this shot. Tested
+      // first (the cheapest way to turn a place down when the trough is cluttered), once a place: both
+      // sides of the card's column share it.
+      const key = `${b},${lat},${h}`;
+      let hidden = seen.get(key);
+      if (hidden === undefined) {
+        hidden = 0;
+        for (const pt of body) {
+          if (hidden > body.length * 0.5) break;
+          if (this.holdSight(p, q.copy(pt).lerp(p, 0.25 / Math.max(0.5, p.distanceTo(pt)))) !== null) hidden++;
+        }
+        if (hidden <= body.length * 0.5 && this.holdBlocked(p)) {
+          dbg.blocked++;
+          hidden = Infinity;
+        }
+        seen.set(key, hidden);
+      }
+      if (hidden > body.length * 0.5) {
+        dbg.hidden++;
+        // (Where nothing sees most of him — the world's own masonry can stand in the trough — the
+        // place that sees the most of him, of those the lens may stand in.)
+        if (hidden < fallHidden && Number.isFinite(hidden) && !this.holdBlocked(p)) {
+          fallHidden = hidden;
+          fallPos.copy(p);
+          fallSign = sign;
+        }
+        continue;
+      }
+      let cost = cd.cost + 2.5 * (hidden / body.length);
+      // Solids crowding the near frame (a 4 x 2 grid of sight lines, 2.5 m out; the floor under the
+      // lens is no crowding).
+      ax.copy(f).applyAxisAngle(WORLD_UP, -axis).multiplyScalar(Math.cos(dep)).setY(-Math.sin(dep));
+      rt.crossVectors(ax, WORLD_UP).normalize();
+      up.crossVectors(rt, ax).normalize();
+      let hits = 0;
+      for (const gx of [-0.75, -0.25, 0.25, 0.75])
+        for (const gy of [-0.5, 0.5]) {
+          if (cost + 3 * (hits / 8) >= best) break;
+          d.copy(ax).addScaledVector(rt, gx * tanH).addScaledVector(up, gy * tanV).normalize();
+          const hit = this.holdSight(p, q.copy(p).addScaledVector(d, 2.5));
+          if (hit !== null && p.y + d.y * hit > floorY + 0.15) hits += Math.min(1, 1.3 - hit / 2.5);
+        }
+      cost += 3 * (hits / 8);
+      if (cost < best - 1e-6) {
+        best = cost;
+        this.pitPos.copy(p);
+        this.holdSign = sign;
+        dbg.found = `b${b} lat${lat} h${h} s${sign} hid${hidden} cost${cost.toFixed(2)}`;
+      }
+    }
+    if (best === Infinity && fallHidden < Infinity) {
+      this.pitPos.copy(fallPos);
+      this.holdSign = fallSign;
+      dbg.found = `fallback hid${fallHidden}`;
+    }
+  }
+
   private keepInFrame(runnerPos: THREE.Vector3, dt = 1 / 60, rdt = dt): void {
     // (Looking down into the gap after him; once the lens has closed in on him lying on the ledge's
     // stone, he is framed again.)
@@ -1503,9 +1743,26 @@ export class CameraRig {
         sideWant = 1;
         const leftRoom = l;
         const rightRoom = 1 - r;
-        // The centre of the wider free side, in NDC x (a third of the way in from the edge).
-        const target = leftRoom >= rightRoom ? l * 0.55 : r + (1 - r) * 0.45;
+        // The wider free side, a third of the way out from the column (HERO_FRAC).
+        // (Camera round 6, critic: in the escape, with the column centred, the side that keeps the
+        // lens looking along the way — the causeway running on behind him — not across it into the
+        // jungle beside it: set on the side he stands toward from the lens's place, off the way's
+        // line, he is the near end of that line.)
+        let right = rightRoom > leftRoom;
+        if (this.sideK >= 0.02) right = this.sideRight;
+        else if (this.mode === 'cashout' && Math.abs(rightRoom - leftRoom) < 0.08) {
+          const dx = runnerPos.x - c.position.x;
+          const dz = runnerPos.z - c.position.z;
+          const bearing = Math.atan2(dx * this.right.x + dz * this.right.z, dx * this.fwd.x + dz * this.fwd.z);
+          // (Measured against the way either way along it: the lens may look back down it.)
+          right = Math.abs(bearing) < Math.PI / 2 ? bearing > 0 : bearing < 0;
+        }
+        this.sideRight = right;
+        const target = right ? r + (1 - r) * HERO_FRAC : l * (1 - HERO_FRAC);
+        // (The side is kept once chosen; the place follows the column as the card's own replaces the
+        // estimate taken ahead of it — latched there, he stood on the frame's outer edge.)
         if (this.sideK < 0.02) this.sideX = target * 2 - 1;
+        else this.sideX = damp(this.sideX, target * 2 - 1, 3, rdt);
         // (Camera round 5: the chasm's hold sets its subject on the side it chose for the place it
         // stands — see pickHold.)
         const hx = this.holdX();

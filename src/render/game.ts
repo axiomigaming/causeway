@@ -1154,7 +1154,8 @@ export class Game {
       if (this.brake) this.stopProf = null;
       this.fx.flash = 0.16 + 0.12 * E.g;
       // (On his right, where the run-on's close-in left the lens: see the rig's run shot.)
-      this.rig.setMode('cashout', { side: 1, escape: st.variant, epic: st.epic, reveal: 1 });
+      // (Camera round 6: from ~8x to 25x and over, a grander result shot: see the rig's `grand`.)
+      this.rig.setMode('cashout', { side: 1, escape: st.variant, epic: st.epic, reveal: 1, grand: THREE.MathUtils.clamp(Math.log(this.live.mult / 8) / Math.log(25 / 8), 0, 1) });
       // A held breath on the moment of escape, longer and deeper for a big one (the leap holds at its apex).
       if (this.speed > 3) this.slowmo = { t: st.variant === 'leap' ? -0.3 : 0, dur: E.slowDur, min: E.slowMin };
       this.stageEscape(E);
@@ -1387,7 +1388,8 @@ export class Game {
     let want = 0;
     // (Camera round 5: not for the chasm's held shot, which chooses where it stands against the set
     // pieces and debris itself: the lintel behind the broken edge craned that lens 0.7 m down.)
-    const held = this.crashKind === 'chasm' && this.rig.gapLip !== null && this.rig.revealK > 0.02;
+    // (Nor for the ledge's, chosen the same way over the broken edge: see CameraRig.pitHold.)
+    const held = (this.crashKind === 'chasm' && this.rig.gapLip !== null && this.rig.revealK > 0.02) || (this.crashKind === 'ledge' && this.rig.pitK > 0.5);
     if (this.stage === 'crash' && !held) {
       // (Tested from where the lens would be without the crane, so it holds while it helps.)
       const cam = this.tmpCrane2.copy(this.rig.camera.position).setY(this.rig.camera.position.y - this.rig.craneUp);
@@ -1430,6 +1432,9 @@ export class Game {
     this.holdStamp = this.worldT;
     out.length = 0;
     const roots: THREE.Object3D[] = [...this.obstacles.groundPieces(this.s - 30, this.s + 30, this.groundTmp, true), ...this.debris.root.children];
+    // (Camera round 6: and the ledge's trough, its walls' courses and their ruined tops — the
+    // ledge's hold looks down into it past them.)
+    if (this.ledgeBed) roots.push(this.ledgeBed);
     for (const r of roots) {
       r.updateWorldMatrix(true, true);
       r.traverse((c) => {
@@ -1474,6 +1479,43 @@ export class Game {
     }
     return false;
   }
+  /**
+   * Camera round 6: where the floor that still stands ends behind him in the ledge's cave-in — the
+   * near end of the nearest tile that went down (the cave-in takes whole tiles back to LEDGE_BACK
+   * behind where it gave, so that edge stands anywhere from there to a tile's length on) — on the
+   * way's centre line at floor height, with the way's heading, the trough's floor and half width.
+   * Until the slabs go (0.2 s after the floor gives), where the cave-in will reach.
+   */
+  private ledgeLip(bed: THREE.Object3D): { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number } {
+    if (this.lipBed !== bed) {
+      this.lipBed = bed;
+      this.lipExact = false;
+      this.lipS0 = this.s;
+      this.lipV = null;
+    }
+    if (!this.lipExact || !this.lipV) {
+      let lip: number | null = null;
+      for (const sec of this.track.sections)
+        for (const t of sec.tiles) {
+          if (t.alive) continue;
+          const n = this.tileSpan(t)[0];
+          if (n >= this.lipS0 - LEDGE_BACK - 0.6 && n <= this.lipS0 + 3 && (lip === null || n < lip)) lip = n;
+        }
+      this.lipExact = lip !== null;
+      const s = lip ?? this.lipS0 - LEDGE_BACK;
+      if (!this.lipV || Math.abs(s - this.lipS) > 0.05) {
+        const f = this.track.path.sample(s);
+        this.lipV = { pos: f.pos.clone(), fwd: forward(f.yaw), bedY: bed.position.y, half: LEDGE_HALF };
+        this.lipS = s;
+      }
+    }
+    return this.lipV;
+  }
+  private lipBed: THREE.Object3D | null = null;
+  private lipExact = false;
+  private lipS0 = 0;
+  private lipS = 0;
+  private lipV: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number } | null = null;
   private tmpCrane = new THREE.Vector3();
   private cranePieces: THREE.Mesh[] = [];
   private tmpCrane2 = new THREE.Vector3();
@@ -1550,8 +1592,18 @@ export class Game {
       }
       // (World pieces — the jump log of world 11 — by their span and height: the lens rises over the
       // 4 m before the near face and settles over the metre past the far one.)
-      const top = this.obstacles.jumpTopAt(s, 4);
-      if (top !== null && top > 0) floor = Math.max(floor, fy + top + 0.4);
+      // Camera round 6 (critic: the log he had just cleared swept across the bottom third of the frame
+      // as a blurred band, on every log jump): the chase rides well over a piece he jumps, 1.3 m over
+      // its top (its silhouette then passes under the frame's lower edge a metre sooner, and only a
+      // sliver of it is ever in the frame), rising from ~7 m before it (over the last 4 m the lens, on
+      // its springs, was still coming up as it passed over), and comes back down over the 3.5 m past
+      // it (the piece's own ease-out is a metre: from that height, a drop).
+      for (let k = 0; k <= 3; k += 0.5) {
+        const top = this.obstacles.jumpTopAt(s - k, 12);
+        // (The piece's height eases in over the 12 m before it; four times that, up to its full
+        // height and the margin, lifts the lens over the last 7.)
+        if (top !== null && top > 0) floor = Math.max(floor, fy + Math.min(4 * top, top + 1.3) * THREE.MathUtils.smoothstep(3.5 - k, 0, 3.5));
+      }
     }
     const L = this.ledgeBed;
     if (L && this.stage === 'crash' && this.crashKind === 'ledge' && this.rig.closeIn > 0) {
@@ -2797,7 +2849,11 @@ export class Game {
         // the view leans down further while under it. At 0.4 its dark, untextured underside filled
         // the top 40 % of a phone frame for half a second; ducking to 0.6 put the lens among the
         // floor tiles instead.)
-        depth = Math.max(depth, cam.position.y - (y - (cam.aspect < 1 ? 0.55 : 0.45)));
+        // (Camera round 6, critic: on a tall screen 0.3 m under it — about his head's height as he
+        // slides — with the close-in and the lean below. Lower, his head stood high in the frame and
+        // keeping it under the multiplier tilted the view up into the beam, and the paving came
+        // within a metre of the lens; at 0.2 the beam's own underside did.)
+        depth = Math.max(depth, cam.position.y - (y - (cam.aspect < 1 ? 0.3 : 0.45)));
       }
     }
     if (near) this.duckDepth = depth;
@@ -2822,6 +2878,22 @@ export class Game {
       const d = (THREE.MathUtils.clamp(lat, -0.15, 0.15) - lat) * k;
       p.x += rx * d;
       p.z += rz * d;
+      // Camera round 6 (critic: on a phone the beam's dark underside filled a third of the frame as
+      // he slid under it — the lens, 2.3 m behind him, reached the beam as he stood up, and keeping
+      // his head under the multiplier tilted the view up into it). On a tall screen the lens also
+      // closes in on him under the beam, so it passes beneath it while he is still down in the slide:
+      // by the time he stands it is through, the beam behind it. (15 cm, never nearer than 1.4 m:
+      // further in, he stood too tall for the band and his head rose into the multiplier.)
+      if (cam.aspect < 1) {
+        const r = this.runner.root.position;
+        const ry = this.runner.root.rotation.y;
+        const fx = -Math.sin(ry);
+        const fz = -Math.cos(ry);
+        const behind = -((p.x - r.x) * fx + (p.z - r.z) * fz);
+        const c = Math.min(0.15 * k, Math.max(0, behind - 1.4));
+        p.x += fx * c;
+        p.z += fz * c;
+      }
     }
     // Lean the view down by the same amount so the runner keeps his place in frame. (Camera round 5:
     // before the framing now, which keeps his crown under the band: after it, as he got up from the
@@ -2829,6 +2901,10 @@ export class Game {
     cam.updateMatrixWorld();
     const look = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(p);
     look.y -= drop * (0.35 + 1.0 * k);
+    // (Camera round 6: and a tall screen's view, pitched up over the way in the run, leans down under
+    // the beam as he slides, the beam's underside out over the top of the frame; he is low then. As
+    // he stands, past it, the framing tilts back up for his head.)
+    if (cam.aspect < 1) look.y -= 2.2 * k;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -3343,6 +3419,10 @@ export class Game {
       const wallR = w === 'low' || w === 'tall' || (w === 'cliff' && !sec?.mirror);
       const room = wallR && this.stage !== 'cashout' ? Math.max(0, PATH_HALF - 1.25 - rl) : 3;
       this.rig.latRoom += (room - this.rig.latRoom) * (1 - Math.exp(-rawDt * 2.5));
+      // Camera round 6: over a piece he jumps the chase also looks up a little (see the rig's
+      // `overPiece`; the lift itself is the corridor's).
+      const over = this.stage === 'run' ? Math.min(1, (this.obstacles.jumpTopAt(this.s - this.lensAlong(), 12) ?? 0) / 0.6) : 0;
+      this.rig.overPiece += (over - this.rig.overPiece) * (1 - Math.exp(-rawDt * (over > this.rig.overPiece ? 6 : 2.5)));
       const hips = (this.hipsBone ??= this.runner.body.getObjectByName('hips') ?? null);
       if (hips && this.stage === 'run') {
         this.runner.body.updateWorldMatrix(true, true);
@@ -3360,6 +3440,7 @@ export class Game {
     } else {
       this.rig.yawLead = 0;
       this.rig.aheadLat = 0;
+      this.rig.overPiece = 0;
       this.rig.lift = 0;
       this.rig.headAt = null;
       this.hipRest = null;
@@ -3440,6 +3521,8 @@ export class Game {
       this.rippleBubbles(this.splashAt);
     }
     this.rig.gapSplash = this.rig.gapLip ? this.splashAt : null;
+    // Camera round 6: the ledge's broken edge, for the rig's hold over it (see CameraRig.pitHold).
+    this.rig.pitLip = this.stage === 'crash' && this.crashKind === 'ledge' && this.ledgeDown && this.ledgeBed ? this.ledgeLip(this.ledgeBed) : null;
     this.debrisCrane(rawDt);
     this.rig.realDt = rawDt;
     // Round 20 (coordinator): the escape's orbit ends in front of his face (the clip turns him).
