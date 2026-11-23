@@ -1272,25 +1272,48 @@ def build(rig):
     arm(P, "R", fwd=0.22, elbow=0.6, out=0.32, curl=0.4)
     key(27, P, y=-0.38)
     # The fight goes out of him: hands drop, the shoulders round and sag, the head goes down.
-    for fr, slump, br in ((36, 0.5, 0.0), (46, 1.0, 1.0), (56, 1.0, 0.0)):
+    for fr, slump, br in ((34, 0.5, 0.0), (40, 1.0, 1.0)):
         P = {}
         torso(P, lean=0.12 + 0.2 * slump, look=-0.15 - 0.3 * slump, hp=0.04, breath=0.03 * br)
-        standing(P, wide=0.1, bend=0.14)
+        standing(P, wide=0.1, bend=0.14 + 0.1 * slump)
         arm(P, "L", fwd=0.08, elbow=0.2, out=0.12, curl=0.3)
         arm(P, "R", fwd=0.05, elbow=0.18, out=0.12, curl=0.3)
         P["shoulder.L"] = (-0.1 * slump, 0, 0.16 * slump)
         P["shoulder.R"] = (-0.1 * slump, 0, 0.16 * slump)
         key(fr, P, y=-0.4)
-    # Bent over, hands on the knees, breathing hard, a slow shake of the head.
-    for fr, br, hy in ((68, 1.0, 0.0), (78, 0.0, 0.22), (86, 1.0, -0.22), (96, 0.0, 0.0)):
+    # Crash round 6 (critic: "he stands in front of a closed door"): shut out, he does not stand there.
+    # The knees go (1.5 s): down onto both knees on the stone, then he sinks back onto his heels, the
+    # hands dropping onto his thighs, the head bowed; a long breath, a slow shake of the head, and the
+    # head sinks lower. Kneeling keyed on the floor (fkey: knees, shins and feet on the stone).
+    # (Half way down: the knees bend over the feet, the trunk leaning out over them to balance.)
+    P = {}
+    torso(P, lean=0.35, look=-0.45, hp=0.1)
+    leg(P, "L", hip=0.85, knee=1.35, ankle=0.35, toe=0.3)
+    leg(P, "R", hip=0.75, knee=1.45, ankle=0.4, toe=0.35, out=0.08)
+    arm(P, "L", fwd=0.35, elbow=0.3, out=0.18, curl=0.3)
+    arm(P, "R", fwd=0.3, elbow=0.32, out=0.18, curl=0.3)
+    fkey(46, P, y=-0.4)
+    def heels(fr, t, br, hy=0.0, low=0.0):
+        """Sat back on the heels (t: how far down), hands on the thighs, the head bowed."""
         P = {}
-        torso(P, lean=0.62 - 0.05 * br, look=-0.25, hp=0.2, head_yaw=hy, breath=0.045 * br)
-        standing(P, wide=0.12, bend=0.3)
-        arm(P, "L", fwd=0.7, elbow=0.22, out=0.12, wrist=-0.35, curl=0.5)
-        arm(P, "R", fwd=0.68, elbow=0.25, out=0.12, wrist=-0.35, curl=0.5)
-        P["shoulder.L"] = (-0.06, 0, 0.12)
-        P["shoulder.R"] = (-0.06, 0, 0.12)
-        key(fr, P, y=-0.4)
+        torso(P, lean=0.3 + 0.12 * low - 0.04 * br, look=-0.5 - 0.15 * low, hp=0.12 - 0.25 * t, head_yaw=hy, breath=0.05 * br)
+        u = min(1.0, t / 0.6)
+        leg(P, "L", hip=0.1 + 0.55 * t, knee=1.75 + 0.6 * t, ankle=-0.5 + 1.6 * u, toe=0.5 * (1 - u))
+        leg(P, "R", hip=0.15 + 0.55 * t, knee=1.8 + 0.6 * t, ankle=-0.5 + 1.6 * u, toe=0.5 * (1 - u), out=0.08)
+        arm(P, "L", fwd=0.15 + 0.45 * t, elbow=0.2 + 0.35 * t, out=0.15, wrist=-0.2 * t, curl=0.4)
+        arm(P, "R", fwd=0.12 + 0.45 * t, elbow=0.22 + 0.35 * t, out=0.15, wrist=-0.2 * t, curl=0.4)
+        P["shoulder.L"] = (-0.08, 0, 0.14)
+        P["shoulder.R"] = (-0.08, 0, 0.14)
+        fkey(fr, P, y=-0.4)
+    # (Down onto the knees and straight on back onto the heels: kneeling upright on tucked toes held the
+    # knees off the stone.)
+    for fr, t in ((52, 0.12), (55, 0.3), (58, 0.6), (62, 0.85), (66, 1.0)):
+        heels(fr, t, 0.0)
+    for fr in range(69, LIVE_END + 1, 3):
+        tt = (fr - 66) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * tt / (0.9 + 0.4 * min(1.0, tt / 5)))
+        shake = math.sin(tt * 2.2) * ease((tt - 1.2) / 0.6) * (1 - ease((tt - 3.2) / 0.6))
+        heels(fr, 1.0, br, hy=0.25 * shake, low=ease((tt - 3.6) / 1.2))
 
     # ---------------------------------------------------------- rockfall: flinch, cover the head, drop to a crouch
     new_action("fall_rock")
@@ -1332,27 +1355,72 @@ def build(rig):
     # (and on the floor every frame between: the joints' in-betweens lifted both feet ~10 cm)
     for fr in range(9, 14):
         fkey(fr, lerp_pose(P8r, P, ease((fr - 8) / 6.0)))
-    for fr, lean, sh in ((22, 0.75, 0.25), (28, 0.92, 0.35), (36, 0.8, 0.25), (52, 0.78, 0.22), (72, 0.7, 0.18), (95, 0.68, 0.15)):
+    # Crash round 6 (critic: "the rock misses him and he ends crouching beside it, unhurt"): a stone
+    # comes down on his back as he crouches (ROCK_HIT, 0.53 s; the game throws it there: game.ts
+    # ROCK_HIT_*), and drives him flat onto the stone: the back caves under it, the knees skid out
+    # behind, the chest goes down with the hands still clasped over his head (0.77 s). He lies there,
+    # face down, the breath knocked out of him; once he tries to lift his head and get a hand under him,
+    # and it gives; the hands stay over his head to the end of the shot.
+    # The blow (frame 17): the back pushed down and forward, the head down between the arms.
+    P = {}
+    torso(P, lean=0.95, look=-0.6, hp=0.42, roll=0.06)
+    leg(P, "L", hip=1.25, knee=1.75, ankle=-0.6)
+    leg(P, "R", hip=0.85, knee=2.05, ankle=0.3, toe=0.5)
+    c = dict(cover, shrug=0.4)
+    arm(P, "L", **c)
+    arm(P, "R", **c)
+    for fr in (15, 16):
+        fkey(fr, lerp_pose(P14r, P, ease((fr - 14) / 3.0)))
+    fkey(17, P, y=0.04)
+    P17 = P
+    # Pitching forward: the knees slide back and out from under him, the trunk going down flat.
+    P = {}
+    torso(P, lean=0.55, look=-0.2, hp=0.95, roll=0.05)
+    leg(P, "L", hip=0.7, knee=1.25, ankle=0.2, toe=0.3)
+    leg(P, "R", hip=0.5, knee=1.4, ankle=0.3, toe=0.4)
+    arm(P, "L", **c)
+    arm(P, "R", **c)
+    fkey(18, lerp_pose(P17, P, 0.4), y=0.12)
+    fkey(20, P, y=0.3)
+    P20 = P
+    # Chest on the stone (0.77 s), the head turned to the side under the clasped arms, the legs out.
+    PRONE_COVER = dict(fwd=2.3, elbow=2.2, out=0.85, twist=-0.45, curl=0.9, shrug=0.3)
+
+    def prone(look, hy, br=0.0, kn=0.25, kh=0.15, sh=0.3, la=None, ra=None, hroll=0.08, hp=1.55):
         P = {}
-        torso(P, lean=lean * 0.75 + 0.1, look=-0.55 + 0.15 * (fr >= 72), hp=0.25, head_yaw=0.12 * (fr >= 72))
-        # Down on the left knee, the right foot planted: the soles and the knee share the ground.
-        leg(P, "L", hip=0.25, knee=1.8, ankle=0.3, toe=0.6)
-        leg(P, "R", hip=1.95, knee=1.7, ankle=0.0, out=0.14)
-        c = dict(cover)
-        c["shrug"] = sh
-        if fr >= 72:
-            # It is over: one hand down on the stone, the other on the knee.
-            arm(P, "L", fwd=1.0, elbow=0.2, out=0.25, wrist=-0.7, curl=0.1)
-            arm(P, "R", fwd=0.85, elbow=0.65, out=0.2, curl=0.5)
-        else:
-            arm(P, "L", **c)
-            arm(P, "R", **c)
-        key(fr, P, z=floor_z(P))  # (on the knee and the foot by forward kinematics: the sagittal solve left him ~6 cm up)
-        if fr == 22:
-            # Down onto the knee on the floor every frame (the toes dug 9 cm into the stone on the way).
-            for f_ in range(15, 22):
-                Q = lerp_pose(P14r, P, ease((f_ - 14) / 8.0))
-                key(f_, Q, z=floor_z(Q))
+        # (The small of the back sags, the pelvis down on the stone: propped on the elbows the chest
+        # rides ~25 cm up, and a straight back held the hips and legs that far off the stone.)
+        torso(P, lean=-0.18, look=look + 0.12, hp=hp, hroll=hroll, head_yaw=hy, breath=0.07 * br)
+        leg(P, "L", hip=kh, knee=kn, ankle=0.95, out=0.12, yaw=-0.55)
+        leg(P, "R", hip=kh - 0.05, knee=kn - 0.08, ankle=0.95, out=0.1, yaw=0.55)
+        # (Lying, the clasp over the head lies forward along the stone, the elbows out to the sides: the
+        # standing cover's elbows went down into the floor and propped him 20 cm off it.)
+        arm(P, "L", **(la or dict(PRONE_COVER, shrug=sh)))
+        arm(P, "R", **(ra or dict(PRONE_COVER, shrug=sh)))
+        return P
+    P = prone(0.15, 0.7, kn=0.55, kh=0.3, sh=0.4, hp=1.45)
+    fkey(22, lerp_pose(P20, P, 0.55), y=0.46)
+    fkey(24, P, y=0.55)
+    # (A bounce as the legs come down.)
+    fkey(26, prone(0.1, 0.75, kn=0.3, kh=0.2, sh=0.35), y=0.58)
+    fkey(28, prone(0.12, 0.8, kn=0.22, kh=0.15, sh=0.32), y=0.6)
+
+    def bump(t, a, b, r=0.5):
+        return ease((t - a) / r) * (1 - ease((t - b) / r))
+    for fr in range(31, LIVE_END + 1, 3):
+        t = (fr - 28) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.7 + 0.35 * min(1.0, t / 5)))
+        lift = bump(t, 2.2, 3.4, 0.55)  # the head up, a hand out from over it onto the stone, a push that fails
+        stir = bump(t, 4.6, 5.8, 0.6)  # the knee drawn up a little and let go
+        quiver = lift * math.sin(t * 10.0)
+        la = dict(PRONE_COVER, shrug=0.32 - 0.08 * t / 8)
+        if lift > 0.01:
+            # The L hand comes off the head and out onto the stone by his face, the elbow under him.
+            la = dict(fwd=lerp(2.3, 1.35, lift), elbow=lerp(2.2, 1.5, lift) + 0.12 * quiver, out=lerp(0.85, 0.6, lift),
+                      twist=lerp(-0.45, 0.0, lift), wrist=-0.6 * lift, curl=lerp(0.9, 0.2, lift), shrug=0.3)
+        P = prone(0.12 + 0.35 * lift + 0.04 * math.sin(t * 0.8), 0.8 - 0.5 * lift + 0.1 * math.sin(t * 0.6), br,
+                  kn=0.22 + 0.5 * stir, kh=0.15 + 0.25 * stir, la=la, hp=1.55 - 0.07 * lift)
+        fkey(fr, P, y=0.6)
 
     # ---------------------------------------------------------- win: run out of it, look back, catch breath, fist raised
     new_action("win")
@@ -1869,10 +1937,29 @@ def extra_clips():
     arm(P, "L", fwd=-0.6, elbow=0.2, out=0.4, wrist=-0.5, curl=0.1)
     arm(P, "R", fwd=-0.55, elbow=0.25, out=0.4, wrist=-0.5, curl=0.1)
     key(28, P, z=sit_ground(P), y=-0.6)  # lands on the seat
-    for fr, look, br in ((34, -0.3, 0.0), (46, -0.25, 1.0), (58, -0.1, 0.0), (76, -0.35, 1.0), (92, -0.4, 0.0)):
+    for fr, look, br in ((34, -0.3, 0.0), (46, -0.25, 1.0), (58, -0.1, 0.0)):
         P = {}
         sit_look_up(P, look, br)
         key(fr, P, z=sit_ground(P), y=-0.62)  # on the seat on the floor, legs out (not on an invisible chair)
+    # Crash round 6: the way gone before he took a step (or the door down in his face), the fight goes
+    # out of him where he sits: the knees come up, the elbows go onto them and the head drops into his
+    # hands (from ~2.3 s), rocking a little with the breath, to the end of the shot.
+    def despair(P, d, br, rock=0.0):
+        sit_look_up(P, -0.1 - 0.45 * d, br)
+        torso(P, lean=0.23 + 0.5 * d + 0.03 * rock, look=-0.1 - 0.5 * d, hp=-0.2 + 0.08 * d, breath=0.04 * br, head_yaw=0.05 * (1 - d))
+        leg(P, "L", hip=1.5 + 0.35 * d, knee=1.65, ankle=-0.2, out=0.1 + 0.04 * d)
+        leg(P, "R", hip=1.6 + 0.3 * d, knee=1.0, ankle=0.0, out=0.14)
+        # The hands up to the face (elbows on the knees): the R comes up off the stone, the L off the knee.
+        arm(P, "L", fwd=0.9 + 0.45 * d, elbow=1.3 + 0.9 * d, out=0.2 - 0.05 * d, twist=-0.3 * d, curl=0.4 + 0.2 * d)
+        arm(P, "R", fwd=-0.4 + 1.75 * d, elbow=0.3 + 1.9 * d, out=0.25 - 0.08 * d, wrist=-0.7 * (1 - d), twist=-0.3 * d, curl=0.2 + 0.4 * d,
+            shrug=-0.3 * (1 - d))
+    for fr in range(64, LIVE_END + 1, 3):
+        t = (fr - 58) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.9 + 0.3 * min(1.0, t / 5)))
+        d = ease((t - 1.3) / 1.0)
+        P = {}
+        despair(P, d, br, rock=math.sin(t * 1.4) * d)
+        key(fr, P, z=sit_ground(P), y=-0.62)
 
     # ---------------------------------------------------------- fall_gate_b: turn away from the slam, drop to a knee
     new_action("fall_gate_b")
@@ -1903,12 +1990,46 @@ def extra_clips():
     arm(P, "R", fwd=2.0, elbow=1.9, out=0.5, twist=-0.3, curl=0.9)
     arm(P, "L", fwd=0.9, elbow=0.1, out=0.25, wrist=-0.8, curl=0.1)
     key(24, P, y=-0.35)
-    for fr, t in ((36, 0.0), (52, 0.4), (70, 1.0), (95, 1.0)):
+    P = {}
+    kneel_one(P, lean=0.5, look=-0.3, head_yaw=-0.4)
+    arm(P, "R", fwd=2.0, elbow=1.9, out=0.5, twist=-0.3, curl=0.9)
+    arm(P, "L", fwd=0.9, elbow=0.1, out=0.25, wrist=-0.8, curl=0.1)
+    key(34, P, y=-0.35)
+    P34 = P
+    # Crash round 6 (critic: "he stands in front of a closed door"): shut out, he goes down. The guard
+    # comes down, the other knee goes to the stone (1.4 s) and he folds forward over his knees onto
+    # both hands, the head hanging between his arms; a fist comes down on the stone, once, then the
+    # forehead sinks toward it. Keyed on the floor (fkey).
+    def fold(t, br=0.0, fist=0.0, low=0.0, hy=0.0):
+        """On both knees folded forward over them (t: how far), hands on the stone before the knees."""
         P = {}
-        kneel_one(P, lean=0.5 + 0.1 * t, look=-0.3 - 0.15 * t, head_yaw=-0.4 * (1 - t))
-        arm(P, "R", fwd=2.0 - 1.2 * t, elbow=1.9 - 1.5 * t, out=0.5 - 0.3 * t, curl=0.9 - 0.4 * t)
-        arm(P, "L", fwd=0.9 - 0.4 * t, elbow=0.1 + 0.3 * t, out=0.25, wrist=-0.8 * (1 - t), curl=0.2)
-        key(fr, P, y=-0.35)
+        torso(P, lean=0.55 + 0.4 * t + 0.15 * low - 0.04 * br, look=-0.45 - 0.25 * t - 0.15 * low, hp=0.15 + 0.25 * t,
+              head_yaw=hy, breath=0.05 * br)
+        leg(P, "L", hip=0.15 + 0.5 * t, knee=1.75 + 0.45 * t, ankle=0.4 - 0.9 * t, toe=0.5 * (1 - t))
+        leg(P, "R", hip=0.2 + 0.5 * t, knee=1.8 + 0.45 * t, ankle=0.4 - 0.9 * t, toe=0.5 * (1 - t), out=0.08)
+        # The hands down on the stone in front of the knees, the elbows giving as he sinks; the R fist
+        # lifts and comes down.
+        arm(P, "L", fwd=0.75 + 0.15 * t, elbow=0.25 + 0.25 * low, out=0.22, wrist=-0.8, curl=0.15)
+        arm(P, "R", fwd=0.72 + 0.15 * t + 0.55 * fist, elbow=0.27 + 0.25 * low + 0.9 * fist, out=0.24, wrist=-0.8 * (1 - fist),
+            curl=0.15 + 0.95 * max(fist, low))
+        return P
+    for fr, t in ((40, 0.0), (44, 0.35), (48, 0.7), (52, 1.0)):
+        P = fold(t)
+        if fr == 40:
+            P = lerp_pose(P34, P, 0.55)
+        fkey(fr, P, y=-0.35)
+    for fr in range(55, LIVE_END + 1, 3):
+        tt = (fr - 52) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * tt / (0.8 + 0.4 * min(1.0, tt / 5)))
+        # The fist: up over 0.35 s, down hard in 0.12 s, resting there.
+        up = ease((tt - 1.6) / 0.35) * (1 - ease((tt - 1.98) / 0.14))
+        fkey(fr, fold(1.0, br, fist=up, low=ease((tt - 2.6) / 1.4), hy=0.15 * math.sin(tt * 0.7)), y=-0.35)
+    # (The fist's fall keyed every frame: on 3-frame keys it floated down.)
+    for fr in range(108, 119):
+        tt = (fr - 52) / FPS
+        up = ease((tt - 1.6) / 0.35) * (1 - ease((tt - 1.98) / 0.14))
+        fkey(fr, fold(1.0, 0.5 - 0.5 * math.cos(2 * math.pi * tt / (0.8 + 0.4 * min(1.0, tt / 5))), fist=up,
+                       low=ease((tt - 2.6) / 1.4), hy=0.15 * math.sin(tt * 0.7)), y=-0.35)
 
     # ---------------------------------------------------------- fall_rock_b: thrown back onto the seat, arm up against the dust
     new_action("fall_rock_b")
@@ -1949,14 +2070,48 @@ def extra_clips():
     arm(P, "R", fwd=-0.75, elbow=0.15, out=0.4, wrist=-0.75, curl=0.1, shrug=-0.3)
     # Down on the seat on the stone (legs out along it), the hand behind propping him up.
     key(22, P, z=sit_ground(P), y=-0.58)
-    for fr, t, br in ((28, 0.0, 0.0), (44, 0.3, 1.0), (62, 0.7, 0.0), (80, 1.0, 1.0), (95, 1.0, 0.0)):
+    # Crash round 6 (critic: "he ends crouching beside it, unhurt"): a block comes down across his shins
+    # as he sits there (ROCK_PIN_T, 0.9 s: the game drops it there, game.ts ROCK_PIN_*). The jolt throws
+    # him back flat on the stone; he lifts his head to it, reaches for it, gets up on his elbows and
+    # heaves at his legs; they do not come; he sinks back, the arm over his eyes. The legs lie still
+    # and straight under it from the moment it lands.
+    P = {}
+    torso(P, lean=-0.18, look=0.3, hp=-0.28, head_yaw=0.1)
+    leg(P, "L", hip=1.45, out=0.09)
+    leg(P, "R", hip=1.6, out=0.12)
+    arm(P, "L", fwd=1.9, elbow=1.25, out=0.55, curl=0.6)
+    arm(P, "R", fwd=-0.75, elbow=0.12, out=0.38, wrist=-0.8, curl=0.1, shrug=-0.3)
+    key(26, P, z=sit_ground(P), y=-0.6)
+
+    def lie(hp, lean=0.0, look=0.0, la=(-0.12, 0.35, 0.75), ra=(-0.12, 0.4, 0.7), br=0.0, hy=0.0, jolt=0.0):
+        """Thrown back on the stone, the legs straight out under the block (hips taking the pelvis's pitch)."""
         P = {}
-        torso(P, lean=-0.2 + 0.4 * t, look=0.35 - 0.6 * t, hp=-0.28, head_yaw=0.35 * math.sin(t * 3), breath=0.02 * br)
-        leg(P, "L", hip=1.4 + 0.3 * t, out=0.09)
-        leg(P, "R", hip=1.6, out=0.12)
-        arm(P, "L", fwd=1.9 - 1.3 * t, elbow=1.3 - 0.4 * t, out=0.5, curl=0.6)
-        arm(P, "R", fwd=-0.75, elbow=0.1 + 0.15 * t, out=0.4 - 0.1 * t, wrist=-0.8, curl=0.1, shrug=-0.3)  # the prop, on the stone
-        key(fr, P, z=sit_ground(P), y=-0.6)
+        torso(P, lean=lean, look=look, hp=hp, head_yaw=hy, breath=0.08 * br)
+        leg(P, "L", hip=math.pi / 2 + hp - 0.05 + 0.08 * jolt, knee=0.02 + 0.12 * jolt, ankle=0.15, out=0.09)
+        leg(P, "R", hip=math.pi / 2 + hp - 0.05 + 0.1 * jolt, knee=0.02 + 0.15 * jolt, ankle=0.2, out=0.12)
+        arm(P, "L", fwd=la[0], elbow=la[1], out=la[2], curl=0.5)
+        arm(P, "R", fwd=ra[0], elbow=ra[1], out=ra[2], curl=0.5)
+        return P
+    # The block lands (frame 28): the knees jerk, the trunk thrown back, the arms flung up.
+    fkey(28, lie(-0.6, lean=-0.2, look=0.45, la=(1.2, 0.9, 0.6), ra=(0.2, 0.6, 0.6), jolt=1.0), y=-0.6)
+    fkey(30, lie(-1.05, lean=-0.1, look=0.5, la=(0.9, 0.7, 0.7), ra=(0.4, 0.6, 0.65), jolt=0.6), y=-0.6)
+    fkey(33, lie(-1.45, look=0.3, la=(0.3, 0.5, 0.75), ra=(0.2, 0.5, 0.7), jolt=0.2), y=-0.6)
+    fkey(36, lie(-1.5, look=0.15), y=-0.6)
+
+    def bump(t, a, b, r=0.5):
+        return ease((t - a) / r) * (1 - ease((t - b) / r))
+    for fr in range(39, LIVE_END + 1, 3):
+        t = (fr - 36) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.75 + 0.35 * min(1.0, t / 5)))
+        look = bump(t, 0.3, 1.5, 0.45)  # the head up to look at his legs
+        heave = bump(t, 1.9, 3.3, 0.55)  # up on the elbows, heaving
+        cover = ease((t - 3.9) / 0.8)  # the R forearm over his eyes
+        quiver = heave * math.sin(t * 10.0)
+        P = lie(-1.5 + 0.35 * heave + 0.08 * look, lean=-0.4 * heave - 0.15 * look, look=0.15 + 0.55 * look + 0.35 * heave - 0.1 * cover, br=br,
+                la=(-0.12 - 0.55 * heave, 0.35 + 1.3 * heave + 0.1 * quiver, 0.75 - 0.4 * heave),
+                ra=(-0.12 - 0.55 * heave + 1.6 * cover, 0.4 + 1.3 * heave + 1.6 * cover, 0.7 - 0.4 * heave - 0.45 * cover),
+                hy=0.12 * math.sin(t * 0.8) * (1 - look))
+        fkey(fr, P, y=-0.6)
 
     # ---------------------------------------------------------- fall_chasm_b: skid down onto the knees at the lip
     new_action("fall_chasm_b")
@@ -3399,23 +3554,42 @@ def crash_clips():
     # shoulder) and sinks back; then the head rolls to the other cheek, and the breath slows.
     def bump(t, a, b, r=0.5):
         return ease((t - a) / r) * (1 - ease((t - b) / r))
-    for fr in range(45, LIVE_END + 1, 3):
+    # Crash round 6 (critic: "he falls flat on intact paving"): the drum he hooked rolls after him and
+    # comes to rest across his calves at PIN_T (the game rolls it there: src/render/game.ts TRIP_PIN_T,
+    # TRIP_PIN_AT = the calves' middle as he lies, ~2.62 m on). He is pinned: the legs are pressed flat
+    # and jolt under it, he twists up to look back at it over his R shoulder, the R hand reaching back
+    # toward his legs; then he pushes up on his arms to drag them free (they do not come), and sinks
+    # back, the head down on the stone, the R hand closing into a fist. The legs never draw up (the drum
+    # lies on them).
+    PIN_T = 1.65
+    frames = list(range(45, 64)) + list(range(66, LIVE_END + 1, 3))
+    for fr in frames:
         t = (fr - 45) / FPS
+        tp = (fr - 1) / FPS - PIN_T  # since the drum came to rest on his legs
         br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.75 + 0.35 * min(1.0, t / 5)))
-        rise = bump(t, 2.3, 3.6, 0.6)
-        turn = ease((t - 4.4) / 0.8)
-        shift = bump(t, 4.1, 5.3, 0.5)  # rolling the head over, he shifts: a hand drawn up
+        # The jolt as it lands on him: a quick flinch up through the back and shoulders, eased both ways.
+        jolt = math.sin(math.pi * min(1.0, max(0.0, tp / 0.42))) if tp > 0 else 0.0
+        back = bump(tp, 0.35, 1.75, 0.45)  # twisting up to look back at it, reaching for his legs
+        rise = bump(tp, 2.0, 3.4, 0.6)  # the push up and the drag that fails
+        down = ease((tp - 3.9) / 0.9)  # sunk back: the head down, a fist
+        turn = ease((t - 4.6) / 0.8)
         quiver = 1.6 * rise * math.sin(t * 11.0)
-        look = 0.3 + 0.35 * rise + 0.05 * math.sin(t * 0.8)
+        strain = rise * math.sin(t * 7.0)  # the hips heaving against the weight on the legs
+        look = 0.3 + 0.3 * jolt + 0.25 * back + 0.35 * rise - 0.2 * down + 0.05 * math.sin(t * 0.8)
         P = {}
-        torso(P, lean=0.15 - 0.1 * rise, look=look, hp=1.55 - 0.06 * rise, hroll=ROLLED, head_yaw=(0.9 - 1.6 * turn) * (1 - 0.6 * rise),
-              breath=0.07 * br)
-        # (The feet fall out to the sides, lying on their edges, as they do lying face down.)
-        leg(P, "L", hip=0.2 + 0.35 * rise, knee=0.2 + 0.9 * rise + 0.12 * quiver, ankle=1.0 - 0.3 * rise, out=0.12 + 0.3 * rise, yaw=-0.6)
-        leg(P, "R", hip=0.15, knee=0.1 + 0.04 * math.sin(t * 0.45 + 1), ankle=0.97 + 0.04 * math.sin(t * 0.7), out=0.1, yaw=0.6)
-        # (The push shakes with the effort; the R hand only slides a little: propped on it, he rose off the stone.)
-        arm(P, "L", fwd=0.0 + 0.5 * rise + 0.06 * quiver, elbow=0.3 + 0.9 * rise + 0.1 * br + 0.18 * quiver, out=0.6 - 0.15 * rise, curl=0.5 + 0.25 * br)
-        arm(P, "R", fwd=-0.2 + 0.2 * shift + 0.08 * math.sin(t * 0.55 + 2) + 0.12 * quiver, elbow=0.3 + 0.35 * shift + 0.12 * math.sin(t * 0.9) - 0.15 * quiver, out=0.5, curl=0.5 + 0.25 * br)
+        torso(P, lean=0.15 - 0.1 * rise, look=look, yaw=0.35 * back, hp=1.55 - 0.08 * rise - 0.04 * jolt + 0.02 * strain,
+              hroll=ROLLED + 0.35 * back + 0.06 * jolt,
+              head_yaw=(0.9 - 1.6 * turn) * (1 - 0.6 * rise) + 0.55 * back, breath=0.07 * br)
+        # Pinned: legs long on the stone, the feet on their tops (out to the sides), only a strain at the hips.
+        leg(P, "L", hip=0.2 + 0.03 * strain, knee=0.2 + 0.03 * jolt, ankle=1.0, out=0.12, yaw=-0.6)
+        leg(P, "R", hip=0.15 - 0.03 * strain, knee=0.12 + 0.03 * jolt + 0.03 * math.sin(t * 0.45 + 1), ankle=0.97 + 0.04 * math.sin(t * 0.7), out=0.1, yaw=0.6)
+        # (The push shakes with the effort; the L hand only slides a little: propped on it, he rose off the stone.)
+        arm(P, "L", fwd=0.0 + 0.5 * rise + 0.1 * jolt + 0.06 * quiver, elbow=0.3 + 0.9 * rise + 0.3 * jolt + 0.1 * br + 0.18 * quiver,
+            out=0.6 - 0.15 * rise, curl=0.5 + 0.25 * br)
+        # The R arm reaches back along his side toward the drum, then comes forward to push, then a fist.
+        arm(P, "R", fwd=-0.2 - 0.55 * back + 0.45 * rise + 0.08 * math.sin(t * 0.55 + 2) + 0.12 * quiver,
+            elbow=0.3 + 0.25 * jolt - 0.1 * back + 0.5 * rise + 0.12 * math.sin(t * 0.9) - 0.15 * quiver,
+            out=0.5 + 0.15 * back, curl=0.5 + 0.25 * br + 0.6 * down)
         fkey(fr, P, y=3.32)
 
     # ---------------------------------------------------------- fall_pillar: a toppled pier across the way; he
@@ -3511,26 +3685,47 @@ def crash_clips():
     for fr, lean, look, hp in ((28, -0.15, 0.3, -0.3), (31, -0.5, 0.5, -0.45)):
         P = pillar_sit(lean, look, hp)
         key(fr, P, z=sit_ground(P), y=0.6)
-    # … then curls in over it: the R hand to his chest, the L still propping, breathing hard and ragged; he
-    # keeps shifting (a knee drawn up, rocking, the head down and up); at ~3.5 s a dazed try at getting up
-    # (forward onto the L hand, the seat lifting off the stone) that fails, and he sinks back, the hand
-    # still on his chest, to the end of the shot.
+    # Crash round 6 (critic: "he sits next to rubble"): the blow takes him all the way down. Thrown back
+    # off his seat, the propping hands give (1.1 s) and he goes over onto his back on the stone (1.25 s),
+    # the head knocked back. He lies there winded at the pier's foot: the R hand to his chest where the
+    # stone hit, the chest heaving; a knee draws up with the pain and lets go; once (~3.3 s) he lifts his
+    # head and shoulders on the L elbow to look at what stopped him, and sinks back; the head rolls aside.
+    def supine(hp=-1.5, lean=0.0, look=0.05, br=0.0, kl=0.0, kr=0.0, la=None, ra=None, hy=0.0, hroll=0.0):
+        P = {}
+        torso(P, lean=lean, look=look, hp=hp, hroll=hroll, head_yaw=hy, breath=0.08 * br)
+        # (The thighs along the stone however far the pelvis has gone back: the hip takes the pitch.)
+        leg(P, "L", hip=math.pi / 2 + hp - 0.05 + 0.9 * kl, knee=0.02 + 1.5 * kl, ankle=0.15 - 0.3 * kl, out=0.1)
+        leg(P, "R", hip=math.pi / 2 + hp - 0.08 + 0.9 * kr, knee=0.0 + 1.5 * kr, ankle=0.2 - 0.3 * kr, out=0.12)
+        # (Out along the stone: lying back, "forward" lifts an arm off it.)
+        a = la or (-0.12, 0.35, 0.75)
+        arm(P, "L", fwd=a[0], elbow=a[1], out=a[2], curl=0.5)
+        b = ra or (-0.12, 0.4, 0.7)
+        arm(P, "R", fwd=b[0], elbow=b[1], out=b[2], curl=0.6)
+        return P
+    # The hands give: going over backward, the knees coming up as the seat rocks, the head last.
+    P = pillar_sit(-0.6, 0.55, -0.75)
+    P["thigh.L"] = (P["thigh.L"][0] - 0.25, P["thigh.L"][1], P["thigh.L"][2])
+    P["thigh.R"] = (P["thigh.R"][0] - 0.3, P["thigh.R"][1], P["thigh.R"][2])
+    fkey(34, P, y=0.55)
+    fkey(37, supine(hp=-1.2, lean=-0.1, look=0.45, kl=0.25, kr=0.3, la=(0.6, 0.6, 0.6), ra=(0.5, 0.6, 0.6)), y=0.45)
+    # Down: the back and then the head on the stone (1.25 s), a bounce of the legs.
+    fkey(39, supine(look=0.25, kl=0.2, kr=0.18, la=(0.4, 0.5, 0.75), ra=(0.35, 0.5, 0.7)), y=0.38)
+    fkey(42, supine(look=0.0, kl=0.08, kr=0.1), y=0.36)
+
     def bump(t, a, b, r):
         return ease((t - a) / r) * (1 - ease((t - b) / r))
-    for fr in range(35, LIVE_END + 1, 4):
-        t = (fr - 35) / FPS
-        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.7 + 0.3 * min(1.0, t / 5)))
-        up = bump(t, 2.6, 3.9, 0.6)
-        rock = math.sin(t * 1.3) + 0.4 * math.sin(t * 2.9 + 1)
-        lean = 0.3 + 0.16 * rock - 0.1 * br + 0.75 * up
-        P = pillar_sit(lean, -0.25 + 0.2 * br + 0.15 * math.sin(t * 0.9) + 0.3 * up, -0.25 + 0.25 * up, br,
-                       la=(0.4 + 0.9 * up, 0.2, 0.3) if up > 0.05 else None,
-                       ra=CHEST, hy=0.35 * math.sin(t * 0.7), kr=1.6 + 0.4 * max(0.0, math.sin(t * 0.8)) + 0.3 * up,
-                       kl=1.4 + 0.25 * up + 0.2 * max(0.0, math.sin(t * 0.6 + 2)))
-        # (the clutching arm heaves with each breath and presses in)
-        P["upper_arm.R"] = (P["upper_arm.R"][0] + 0.12 * br, P["upper_arm.R"][1], P["upper_arm.R"][2])
-        P["forearm.R"] = (P["forearm.R"][0] + 0.15 * br * math.sin(t * 3.1), P["forearm.R"][1], P["forearm.R"][2])
-        key(fr, P, z=sit_ground(P), y=0.6)
+    for fr in range(45, LIVE_END + 1, 3):
+        t = (fr - 42) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * t / (0.75 + 0.35 * min(1.0, t / 5)))
+        chest = ease((t - 0.2) / 0.5)  # the R hand comes up to his chest
+        knee = bump(t, 1.0, 2.4, 0.6)
+        up = bump(t, 3.0, 4.3, 0.55)  # up on the L elbow, to look
+        roll = ease((t - 5.0) / 0.9)  # the head rolls aside
+        ra = (-0.12 + 0.55 * chest + 0.1 * br * chest, 0.4 + 1.55 * chest, 0.7 - 0.75 * chest)
+        la = (-0.12 - 0.4 * up, 0.35 + 1.2 * up, 0.75 - 0.35 * up)
+        P = supine(lean=-0.35 * up, look=0.05 + 0.55 * up - 0.05 * br, br=br, kl=0.08 + 0.5 * knee + 0.05 * math.sin(t * 0.7),
+                   kr=0.1 + 0.04 * max(0.0, math.sin(t * 0.5)), la=la, ra=ra, hy=(0.15 * math.sin(t * 0.8) + 0.7 * roll) * (1 - up))
+        fkey(fr, P, y=0.36)
 
     # ---------------------------------------------------------- fall_pillar_b: skids to a stop with both hands
     # on the fallen pier, hangs his head, then turns and looks back the way he came (it is cut off).
@@ -3569,24 +3764,41 @@ def crash_clips():
         arm(P, "L", fwd=1.45, elbow=el, out=0.28, wrist=-0.9, curl=0.1)
         arm(P, "R", fwd=1.42, elbow=el + 0.05, out=0.3, wrist=-0.9, curl=0.1)
         fkey(fr, P, y=y)
-    # Pushes off it, square on his feet, the hands dropping …
-    P = {}
-    torso(P, lean=0.2, look=0.0, hp=0.0, head_yaw=0.3)
-    standing(P, wide=0.11, bend=0.12)
-    arm(P, "L", fwd=0.8, elbow=0.6, out=0.3, curl=0.5)
-    arm(P, "R", fwd=0.6, elbow=0.6, out=0.3, curl=0.5)
-    key(21, P, y=1.1)
-    # … and turns to look back the way he came: two real steps round (a pivot on the ball, then a step).
-    BACK = dict(fwd=0.3, elbow=0.6, out=0.3, curl=0.6)
-    turn_to(21, 1.0, arms=BACK, y=1.1)
-    for fr, br, hy in ((40, 1.0, 0.95), (52, 0.0, 1.0), (66, 1.0, 0.9), (82, 0.0, 1.0), (98, 1.0, 0.95)):
+    # Crash round 6 (critic: "he stands next to rubble"): the way is shut and he does not turn away from
+    # it standing. The knees give under him and he slides down the pier's face onto his knees, the hands
+    # dragging down the stone (0.8 s); he sags against it, the forearms on its face and the head bowed
+    # to them; a fist comes up and down on the stone once (~2.3 s), then he sinks back on his heels, the
+    # head hanging. (The hands stay as far out as on the contact, so they stay on the face; the body
+    # comes no nearer it than it was standing.)
+    P17 = P
+    def sag(t, back=0.0, br=0.0, fist=0.0, hy=0.0):
+        """Kneeling against the pier (t: how far down), sitting back onto the heels by `back`."""
         P = {}
-        torso(P, lean=0.1, look=0.15, yaw=0.35, head_yaw=hy, breath=0.04 * br)
-        standing(P, wide=0.11, bend=0.08)
-        arm(P, "L", **BACK)
-        arm(P, "R", fwd=0.25, elbow=0.5, out=0.25, curl=0.6)
-        standing_turned(P, 1.0)
-        key(fr, P, y=1.1)
+        torso(P, lean=0.42 + 0.15 * t + 0.12 * back - 0.03 * br, look=-0.45 - 0.2 * t - 0.12 * back, hp=0.1 + 0.05 * t,
+              head_yaw=hy, breath=0.05 * br)
+        # (On the knees with the toes tucked under, the shins rising to the heels: with the shins flat and
+        # the feet at a stance's angle the feet stood on their toes and held the knees 20 cm off the stone.)
+        leg(P, "L", hip=0.35 + 0.05 * t, knee=0.4 + 1.75 * t, ankle=0.1 - 0.7 * t, toe=0.5 * t)
+        leg(P, "R", hip=0.3 + 0.1 * t, knee=0.45 + 1.75 * t, ankle=0.15 - 0.75 * t, toe=0.5 * t, out=0.08)
+        # The forearms up against the stone, hands at about the height of his face; the R fist beats once.
+        arm(P, "L", fwd=1.45 - 0.2 * t, elbow=0.75 + 0.85 * t, out=0.3, wrist=-0.9 + 0.5 * t, curl=0.1 + 0.4 * t)
+        arm(P, "R", fwd=1.42 - 0.2 * t + 0.35 * fist, elbow=0.8 + 0.85 * t + 0.5 * fist, out=0.3, wrist=-0.9 + 0.5 * t + 0.4 * fist,
+            curl=0.1 + 0.4 * t + 0.6 * fist)
+        return P
+    for fr, t in ((19, 0.15), (21, 0.35), (23, 0.6), (25, 0.85), (27, 1.0)):
+        fkey(fr, lerp_pose(P17, sag(t), min(1.0, 0.4 + t)) if fr == 19 else sag(t), y=1.15 + 0.07 * t)
+    for fr in range(30, LIVE_END + 1, 3):
+        tt = (fr - 27) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * tt / (0.8 + 0.4 * min(1.0, tt / 5)))
+        fist = ease((tt - 1.25) / 0.3) * (1 - ease((tt - 1.6) / 0.12))
+        back = ease((tt - 2.4) / 1.1)
+        # (The hands held on the face as he sinks: the body comes in under them.)
+        fkey(fr, sag(1.0, back=back, br=br, fist=fist, hy=0.12 * math.sin(tt * 0.6)), y=1.22 + 0.22 * back)
+    for fr in range(63, 76):  # (the fist's fall, every frame)
+        tt = (fr - 27) / FPS
+        br = 0.5 - 0.5 * math.cos(2 * math.pi * tt / (0.8 + 0.4 * min(1.0, tt / 5)))
+        fist = ease((tt - 1.25) / 0.3) * (1 - ease((tt - 1.6) / 0.12))
+        fkey(fr, sag(1.0, br=br, fist=fist, hy=0.12 * math.sin(tt * 0.6)), y=1.22)
 
     # ---------------------------------------------------------- fall_side_hit: rockfall from his R side: the stone
     # takes the R shoulder (0.23 s), he spins round toward it and goes down on his L side.
