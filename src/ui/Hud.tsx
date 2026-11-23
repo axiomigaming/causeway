@@ -7,7 +7,7 @@ import { useCtl } from './context';
 import { useHold } from './hold';
 import { css, heroInk } from './heat';
 import { Stair } from './icons';
-import { heroStep, raysImage, winLook, winTiming } from './win';
+import { fallWords, heroStep, markCardClock, raysImage, winLook, winTiming } from './win';
 import './hud.css';
 
 const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
@@ -244,17 +244,20 @@ export function ResultPlate() {
       Verify this run
     </button>
   );
-  if (result.won) return <WonPlate key={r.id} stake={r.stake} payout={r.payout} mult={r.cashoutMult ?? 100} auto={r.auto} full={full} verify={verify} />;
+  if (result.won) return <WonPlate key={r.id} id={r.id} stake={r.stake} payout={r.payout} mult={r.cashoutMult ?? 100} auto={r.auto} full={full} verify={verify} />;
   const m = formatMult(r.crash);
+  // What the world staged, in a few words (the instant 1.00× fall has its own).
+  const words = fallWords(result.fall);
   // The fall, told quietly: the escape card's structure in muted tones. No accent, no count, no glow.
+  // Its frame and its words come in as one (no line arrives after an empty frame).
   return (
-    <div className={`result lost${full ? ' anim' : ''}`} role="status" key={r.id} data-grade={tierOf(r.crash)}>
+    <div className={`result lost${full ? ' anim' : ''}`} role="status" key={r.id} data-grade={tierOf(r.crash)} data-fall={result.fall ?? ''}>
       <span className="sr">
-        The way fell at {m}×. Stake lost {formatCredits(r.stake)}.
+        {words.title}, at {m}×. Stake lost {formatCredits(r.stake)}.
       </span>
       <div className="r-head" aria-hidden="true">
         <Stair />
-        <span className="r-k">The way fell</span>
+        <span className="r-k">{words.title}</span>
       </div>
       <div className="r-label" aria-hidden="true">
         Fell at
@@ -274,7 +277,7 @@ export function ResultPlate() {
   );
 }
 
-function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; payout: number; mult: number; auto: boolean; full: boolean; verify: ReactNode }) {
+function WonPlate({ id, stake, payout, mult, auto, full, verify }: { id: string; stake: number; payout: number; mult: number; auto: boolean; full: boolean; verify: ReactNode }) {
   const ctl = useCtl();
   const bigRef = useRef<HTMLSpanElement>(null);
   const profit = payout - stake;
@@ -292,6 +295,8 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
     // amount. Timed on the document timeline (the clock the card's CSS entrance runs on), so the
     // figure, the rule and the profit stay in step.
     const now = () => Number(document.timeline.currentTime ?? performance.now());
+    // (the header balance counts on this same origin: see markCardClock)
+    markCardClock(id, now());
     const t0 = now() + count0;
     const k = () => (now() - t0) / count;
     let raf = 0;
@@ -317,7 +322,7 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
       clearTimeout(stampT);
       clearTimeout(guard);
     };
-  }, [ctl, full, payout, stake, count0, count, land]);
+  }, [ctl, full, payout, stake, count0, count, land, id]);
 
   const style = {
     '--win-ink': look.ink,
@@ -326,16 +331,21 @@ function WonPlate({ stake, payout, mult, auto, full, verify }: { stake: number; 
     '--win-bloom': look.bloom,
     '--win-rays-img': raysImage(mult),
     '--win-rule': look.rule,
+    '--win-tint': look.tint,
+    '--win-edge': look.edge,
+    '--win-flash': look.flash,
     '--land': `${land}ms`,
   } as CSSProperties;
   return (
-    <div className={`result won${full ? ' anim' : ''}${look.grand ? ' grand' : ''}`} role="status" data-grade={grade} style={style}>
+    <div className={`result won${full ? ' anim' : ''}${look.grand ? ' grand' : ''}${grade === 4 ? ' legend' : ''}`} role="status" data-grade={grade} style={style}>
       <span className="sr">
-        Escaped at {formatMult(mult)}×. Paid {shown}, profit {formatCredits(profit)}.
+        {look.title} at {formatMult(mult)}×. Paid {shown}, profit {formatCredits(profit)}.
       </span>
       {/* behind the card: a warm bloom from 5x, a fan of rays from 10x; the card's own surface over them */}
       {grade >= 2 && <span className="r-aura" aria-hidden="true" />}
       <span className="r-panel" aria-hidden="true" />
+      {/* an event: a light that blooms behind the figure as the count lands */}
+      {look.grand && <span className="r-flash" aria-hidden="true" />}
       {grade === 4 && <span className="r-sheen" aria-hidden="true" />}
       <div className="r-head" aria-hidden="true">
         <Stair />

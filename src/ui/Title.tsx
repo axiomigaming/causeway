@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
-import { Divider } from './icons';
 import { Logo } from './Logo';
 
 export function Title({ onLeave }: { onLeave?: () => void }) {
@@ -33,14 +32,16 @@ export function Title({ onLeave }: { onLeave?: () => void }) {
 
   return (
     <>
+      {/* the copy's backing: a deep shade from the left (from below on phones) and a low band under
+          the footer facts, so the type never sits on bright paving, the bridge or a pillar */}
       <div className="scrim-left" />
+      <div className="scrim-foot" />
       <section className={`title${leaving ? ' leaving' : ''}`} aria-labelledby="wordmark">
         <div className="title-inner">
           <div className="eyebrow">A crash game in the sunken ruins</div>
           <h1 className="wordmark" id="wordmark" aria-label="Causeway">
             <Logo />
           </h1>
-          <Divider className="rule" />
           <p className="tagline">The old road is coming apart beneath you. Every step deeper raises the multiplier — leave with it before the way falls.</p>
           {fatal ? (
             <div className="notice" role="alert">

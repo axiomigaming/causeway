@@ -178,6 +178,10 @@ export class Controller {
       this.buzz('cashout');
     } else {
       this.game.crash(round.crash, round.id);
+      // The card names the fall the world just staged (words only; nothing waits on it).
+      const kind = round.crash <= 100 ? 'start' : this.game.stagedCrashKind;
+      const cur = useStore.getState().result;
+      if (kind && cur?.round.id === round.id) useStore.getState().set({ result: { ...cur, fall: kind } });
       this.audio.setScene('fallen');
       this.buzz('crash');
     }

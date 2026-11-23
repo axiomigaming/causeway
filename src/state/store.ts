@@ -15,10 +15,18 @@ export type Phase =
 
 export type Modal = null | 'fair' | 'settings' | 'menu' | 'how' | 'history';
 
+/**
+ * How the way fell, as the world staged it (presentation only: words on the result card and the
+ * plate). 'start' is the instant fall at 1.00×, before he has taken a stride.
+ */
+export type FallKind = 'start' | 'chasm' | 'gate' | 'rockfall' | 'pillar' | 'trip' | 'ledge';
+
 export interface Result {
   round: SettledRound;
   /** Did the player leave in time? */
   won: boolean;
+  /** A fall only: what the world staged (absent before the world has staged it, or if it cannot say). */
+  fall?: FallKind;
 }
 
 export interface Toast {

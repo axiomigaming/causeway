@@ -880,6 +880,10 @@ export class Game {
   }
 
   private crashKind = 'gate';
+  /** The fall last staged by crash() (read by the interface for the result card's words). */
+  get stagedCrashKind(): CrashKind {
+    return this.crashKind as CrashKind;
+  }
   private slowFloor = 0;
   private slowFloorV = 0;
   private slowFloorTarget = 0;
