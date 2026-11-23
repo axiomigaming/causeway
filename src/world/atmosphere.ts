@@ -45,7 +45,25 @@ export const atmosphereUniforms = {
   skyLook: { value: { x: 1, y: 1, z: 1, w: 0 } },
   /** World round 19: the scene fog's colour (xyz) and density (w), for the backdrop's own haze. */
   skyHaze: { value: { x: 0.55, y: 0.7, z: 0.73, w: 0.0022 } },
+  /**
+   * World round 28: the world style's sky tint (xyz), and w: the lightest tier's deeper sky (0..1; the
+   * critic: phone Low's sky a milky haze that flattened the frame's contrast).
+   */
+  skyStyle: { value: { x: 1, y: 1, z: 1, w: 0 } },
 };
+
+/** World round 28: the world style's tint on the sky (after the look's). */
+export function setSkyStyle(tint: readonly [number, number, number]): void {
+  const v = atmosphereUniforms.skyStyle.value;
+  [v.x, v.y, v.z] = tint;
+}
+
+/** World round 28: the lightest tier's deeper sky and clearer air (0 off .. 1). */
+export function setSkyDeep(k: number): void {
+  atmosphereUniforms.skyStyle.value.w = k;
+  // (fogMist.z, unused before: the haze and the mist thinned on that tier; see the fog chunk.)
+  atmosphereUniforms.fogMist.value.z = k;
+}
 
 export function setSkyLook(tint: readonly [number, number, number], desat: number, overcast = 0): void {
   const v = atmosphereUniforms.skyLook.value;
@@ -62,6 +80,7 @@ export function patchFogUniforms(m: THREE.Material): void {
   if (!sm.isShaderMaterial || !sm.fog || !sm.uniforms) return;
   sm.uniforms.fogSunDir ??= { value: atmosphereUniforms.fogSunDir.value };
   sm.uniforms.fogMist ??= { value: atmosphereUniforms.fogMist.value };
+  sm.uniforms.fogStyle ??= { value: atmosphereUniforms.skyStyle.value };
 }
 
 export function setAtmosphereSun(dir: THREE.Vector3): void {
@@ -90,10 +109,11 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
   if (installed) return;
   installed = true;
   // Every built-in program and every ShaderMaterial merged from UniformsLib.fog from now on.
-  const shared = { fogSunDir: atmosphereUniforms.fogSunDir, fogMist: atmosphereUniforms.fogMist };
+  // (World round 28: fogStyle — the world style's tint on the haze too, its xyz the sky's; see skyStyle.)
+  const shared = { fogSunDir: atmosphereUniforms.fogSunDir, fogMist: atmosphereUniforms.fogMist, fogStyle: atmosphereUniforms.skyStyle };
   Object.assign(THREE.UniformsLib.fog, shared);
   for (const lib of Object.values(THREE.ShaderLib)) {
-    if (lib.uniforms && 'fogColor' in lib.uniforms) Object.assign(lib.uniforms, { fogSunDir: { value: shared.fogSunDir.value }, fogMist: { value: shared.fogMist.value } });
+    if (lib.uniforms && 'fogColor' in lib.uniforms) Object.assign(lib.uniforms, { fogSunDir: { value: shared.fogSunDir.value }, fogMist: { value: shared.fogMist.value }, fogStyle: { value: shared.fogStyle.value } });
   }
   installSkyGrade();
   const sun = new THREE.Color(o.sunColor);
@@ -113,6 +133,7 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
   uniform vec3 fogColor;
   uniform vec3 fogSunDir;
   uniform vec4 fogMist;
+  uniform vec4 fogStyle;
   varying float vFogDepth;
   varying vec3 vFogView;
   #ifdef FOG_EXP2
@@ -139,11 +160,16 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
     // camera only greyed the whole frame); the haze builds beyond it, so distance keeps its depth.
     float fogNearClear = smoothstep(14.0, 70.0, fogDist); // round 10: a clear near field (crash results)
     float fogOpt = fogDensity * fogDist * fogNearClear * exp(-${o.falloff.toFixed(4)} * fogH0) * fogLayer(${o.falloff.toFixed(4)}, fogDy);
+    // World round 28: the lightest tier's air a little clearer (fogMist.z): without bloom, shafts and
+    // AO to give the depth layers their separation, the same haze laid a flat milky veil over a phone's
+    // frame. The far layers still fade, from further off.
+    fogOpt *= 1.0 - 0.3 * fogMist.z;
     float fogFactor = 1.0 - exp(-fogOpt);
     float fogSun = max(dot(fogDir, fogSunDir), 0.0);
     // Warm only close around the sun: a broad warm in-scatter laid a milky veil over every
     // sun-facing frame (round 5).
-    vec3 fogCol = mix(fogColor, ${glslVec3(sun)}, pow(fogSun, 18.0) * 0.35 * (1.0 - fogMist.w));
+    // (World round 28: in the world style's air — the far layers take its tint, as the sky does.)
+    vec3 fogCol = mix(fogColor * fogStyle.xyz, ${glslVec3(sun)}, pow(fogSun, 18.0) * 0.35 * (1.0 - fogMist.w));
     // Far away the haze thickens to the sky's own horizon colour.
     gl_FragColor.rgb = mix(gl_FragColor.rgb, fogCol, clamp(fogFactor, 0.0, 0.86));
     if (fogMist.y > 0.0) {
@@ -154,9 +180,9 @@ export function installAtmosphere(scene: THREE.Scene, sunDir: THREE.Vector3, o: 
       vec3 fogP = cameraPosition + fogW;
       float bank = 0.55 + 0.45 * sin(fogP.x * 0.07 + fogMist.x * 0.11) * sin(fogP.z * 0.05 - fogMist.x * 0.07 + 1.3);
       // (Round 19: at most 0.38 — at 0.5 a ruin 100 m out turned milky white, a ghost on the water.)
-      float mist = (1.0 - exp(-mOpt * bank)) * 0.38;
+      float mist = (1.0 - exp(-mOpt * bank)) * 0.38 * (1.0 - 0.35 * fogMist.z);
       vec3 mistCol = mix(mix(vec3(0.84, 0.89, 0.87), ${glslVec3(sun)} * 1.05, pow(fogSun, 6.0) * 0.5 * (1.0 - fogMist.w)), fogColor * 1.25, fogMist.w * 0.7);
-      gl_FragColor.rgb = mix(gl_FragColor.rgb, mistCol, mist);
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, mistCol * fogStyle.xyz, mist);
     }
   #else
     float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
@@ -183,6 +209,7 @@ function installSkyGrade(): void {
   bc.uniforms.skyLook = { value: atmosphereUniforms.skyLook.value };
   bc.uniforms.skyHaze = { value: atmosphereUniforms.skyHaze.value };
   bc.uniforms.skyMist = { value: atmosphereUniforms.fogMist.value };
+  bc.uniforms.skyStyle = { value: atmosphereUniforms.skyStyle.value };
   bc.fragmentShader = bc.fragmentShader
     .replace(
       'uniform float backgroundIntensity;',
@@ -191,6 +218,7 @@ uniform vec3 skySun;
 uniform vec4 skyLook;
 uniform vec4 skyHaze;
 uniform vec4 skyMist;
+uniform vec4 skyStyle;
 float skyH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float skyN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(skyH(i), skyH(i + vec2(1, 0)), f.x), mix(skyH(i + vec2(0, 1)), skyH(i + vec2(1, 1)), f.x), f.y); }
@@ -258,6 +286,22 @@ float skyF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 5; k++) { v += 
         // Round 11 looks (a storm's overcast): drain and tint; the warm glow round the sun goes too.
         float skyL2 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         texColor.rgb = mix(texColor.rgb, vec3(skyL2), skyLook.w) * skyLook.xyz;
+        // World round 28: the world's own air (its style), and on the lightest tier a deeper, clearer
+        // sky: no bloom or shafts there, but the frame is lifted a stop and the glare is wider, and the
+        // pale sky above the horizon went to a flat milky veil after the tone curve. Above the horizon
+        // and away from the sun the sky keeps more of its colour and sits a little lower; the clouds'
+        // lit sides keep their value, so they stand off it.
+        texColor.rgb *= skyStyle.xyz;
+        if (skyStyle.w > 0.0) {
+          float l3 = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+          float up = smoothstep(-0.02, 0.3, skyD.y) * (1.0 - pow(skyToSun, 5.0));
+          // (A pale overcast texel keeps little chroma to boost: it also leans to the zenith's blue.)
+          float cl = smoothstep(0.75, 1.05, l3 / max(dot(skyHaze.rgb, vec3(0.2126, 0.7152, 0.0722)), 1e-3));
+          vec3 deep = vec3(l3) + (texColor.rgb - vec3(l3)) * 2.0;
+          deep = mix(deep, l3 * vec3(0.62, 0.88, 1.32), 0.35 * (1.0 - cl) * smoothstep(0.05, 0.45, skyD.y));
+          deep *= mix(0.74, 0.97, cl);
+          texColor.rgb = mix(texColor.rgb, max(deep, vec3(0.0)), up * skyStyle.w);
+        }
       }`,
     );
 }

@@ -4,6 +4,7 @@ import { MeshoptDecoder } from 'meshoptimizer';
 import * as THREE from 'three';
 import { groundY } from '../src/world/land';
 import { evalSeg } from '../src/world/path';
+import type { Kit } from '../src/world/assets';
 import { isWaterPiece, type Layout } from '../src/world/sections';
 import { Track } from '../src/world/track';
 import { boundsKit } from './kitBounds';
@@ -55,6 +56,20 @@ export async function kitPoints(): Promise<Map<string, Float32Array>> {
   }
   kit = out;
   return out;
+}
+
+/**
+ * The kit as point clouds wrapped as geometry (positions only): enough for code that bounds, clones and
+ * bakes kit pieces (the obstacle builder), with the real shapes.
+ */
+export function pointsKit(pts: Map<string, Float32Array>): Kit {
+  const geo = new Map<string, THREE.BufferGeometry>();
+  const matOf = new Map<string, string>();
+  for (const [n, p] of pts) {
+    geo.set(n, new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(p.slice(), 3)));
+    matOf.set(n, 'any');
+  }
+  return { geo, mat: new Map([['any', new THREE.MeshBasicMaterial()]]), matOf } as unknown as Kit;
 }
 
 /** The water surface in a layout's own frame. */
@@ -140,7 +155,7 @@ export interface Finding {
  * than `gap` flies (or floats, when what is under it is only water); one with more than `bury` of its
  * height under the ground at its centre is half sunk.
  */
-export function groundingFindings(layout: Layout, pts: Map<string, Float32Array>, gap = 0.05, bury = 0.3): Finding[] {
+export function groundingFindings(layout: Layout, pts: Map<string, Float32Array>, gap = 0.05, bury = 0.3, wl = WL): Finding[] {
   const out: Finding[] = [];
   const field = new SupportField();
   const placed: { piece: string; p: Float32Array; k: number; hangs: boolean }[] = [];
@@ -181,13 +196,13 @@ export function groundingFindings(layout: Layout, pts: Map<string, Float32Array>
       const i = contact[k]!;
       const x = p[i]!, y = p[i + 1]!, z = p[i + 2]!;
       // Under the water's surface: it reaches the bed (the water hides how far).
-      if (y < WL - 0.05 && !layout.ground) {
+      if (y < wl - 0.05 && !layout.ground) {
         minGap = -1;
         break;
       }
       const s = Math.max(ground(x, z), field.at(x, z, 0.3, self));
       if (s === -Infinity) {
-        if (y < WL + 0.3) inWater = true;
+        if (y < wl + 0.3) inWater = true;
         continue;
       }
       minGap = Math.min(minGap, y - s);
@@ -209,6 +224,81 @@ export function groundingFindings(layout: Layout, pts: Map<string, Float32Array>
       if (sunk > bury && !/^(rock_|cliff_wall_|foundation_|jungle_bank_|shrub_mass_|root_giant_|roots_|tree_|palm_|jungle_\d_trunk|wall_)/.test(piece)) out.push({ piece, at: [+cx.toFixed(1), +lo.toFixed(2), +cz.toFixed(1)], what: `${(sunk * 100).toFixed(0)} % sunk` });
     }
   }
+  return out;
+}
+
+/** Overhead members that must bear on something at both ends (lintels, beams). */
+export const BEAMS = /^(beam_lintel_\d+)$/;
+
+/**
+ * World round 28 (the critic: a lintel held by a statue at one end, its other end hanging a foot above a
+ * stump): a member is carried at both ends. Its points `p` (placed) are cut into 0.25 m stations along
+ * `axis` (its long direction) and each station's lowest point is a possible bearing; on each side of
+ * its middle at least one bearing in the outer 60 % of that half must rest on something (`rests(x, y,
+ * z)`: a support reaching up to within 5 cm of it, the ground, the bed under the water). A beam with
+ * one end on a pier and the other in the air fails; so does one whose supports both crowd its middle.
+ */
+export function carriedFindings(piece: string, p: Float32Array, axis: THREE.Vector3, rests: (x: number, y: number, z: number) => boolean): Finding[] {
+  let cx = 0, cy = 0, cz = 0;
+  const n = p.length / 3;
+  for (let i = 0; i < p.length; i += 3) {
+    cx += p[i]!;
+    cy += p[i + 1]!;
+    cz += p[i + 2]!;
+  }
+  cx /= n;
+  cy /= n;
+  cz /= n;
+  const a = axis.clone().normalize();
+  let umin = Infinity, umax = -Infinity;
+  const st = new Map<number, number>();
+  for (let i = 0; i < p.length; i += 3) {
+    const u = (p[i]! - cx) * a.x + (p[i + 1]! - cy) * a.y + (p[i + 2]! - cz) * a.z;
+    umin = Math.min(umin, u);
+    umax = Math.max(umax, u);
+    const k = Math.round(u / 0.25);
+    const j = st.get(k);
+    if (j === undefined || p[i + 1]! < p[j + 1]!) st.set(k, i);
+  }
+  const out: Finding[] = [];
+  for (const [sd, lim] of [[-1, umin], [1, umax]] as const) {
+    let ok = false;
+    for (const [k, i] of st) {
+      const u = k * 0.25;
+      if (u * sd < 0.4 * Math.abs(lim)) continue;
+      if (rests(p[i]!, p[i + 1]!, p[i + 2]!)) {
+        ok = true;
+        break;
+      }
+    }
+    if (!ok) out.push({ piece, at: [+(cx + a.x * lim).toFixed(1), +(cy + a.y * lim).toFixed(2), +(cz + a.z * lim).toFixed(1)], what: `${sd < 0 ? 'one' : 'the other'} end carried by nothing` });
+  }
+  return out;
+}
+
+/** Every beam a layout lays, carried at both ends (see carriedFindings). */
+export function beamFindings(layout: Layout, pts: Map<string, Float32Array>, gap = 0.05): Finding[] {
+  if (!layout.props.some((pl) => BEAMS.test(pl.piece))) return [];
+  const field = new SupportField();
+  layout.tiles.forEach((pl, k) => {
+    const g = pts.get(pl.piece);
+    if (g) field.add(placedPoints(g, pl.m, 2), -1 - k);
+  });
+  layout.props.forEach((pl, k) => {
+    if (FOLIAGE.test(pl.piece) || HANGING.test(pl.piece) || isWaterPiece(pl.piece)) return;
+    const g = pts.get(pl.piece);
+    if (g) field.add(placedPoints(g, pl.m, 1), k);
+  });
+  const ground = (x: number, z: number) => (layout.ground ? groundY(layout.ground, x, z, layout.len, layout.features?.lower ?? 0) : -Infinity);
+  const out: Finding[] = [];
+  layout.props.forEach((pl, k) => {
+    if (!BEAMS.test(pl.piece)) return;
+    const g = pts.get(pl.piece);
+    if (!g) return;
+    const axis = new THREE.Vector3(1, 0, 0).transformDirection(pl.m);
+    const rests = (x: number, y: number, z: number) => (y < WL - 0.05 && !layout.ground) || Math.max(ground(x, z), field.at(x, z, 0.25, k)) >= y - gap;
+    out.push(...carriedFindings(pl.piece, placedPoints(g, pl.m, 1), axis, rests));
+  });
   return out;
 }
 
@@ -311,6 +401,9 @@ export async function collectLayouts(len = 1200, seeds = CHECK_SEEDS, tiers = CH
     const track = new Track(boundsKit());
     await track.prepare(tier.density);
     track.viewDistance = tier.view;
+    // (World round 28: every prepared variant too — the route of the first 1.2 km of these worlds left
+    // some out, and a forced or later section sequence lays them.)
+    for (const [type, list] of (track as unknown as { variants: Map<string, { layout: Layout; key: string }[]> }).variants) for (const v of list) if (!layouts.has(v.layout)) layouts.set(v.layout, `${tier.name} ${v.key} ${type}`);
     for (const w of seeds) {
       track.reset(`${w}-0.5`);
       for (let s = 0; s < len; s += 20) {

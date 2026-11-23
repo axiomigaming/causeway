@@ -422,7 +422,12 @@ function edgeMoss(b: Builder, x: number, y: number, z: number, crest = false) {
 function rootDress(b: Builder, side: number, z0: number, y = 0, crest = 1.3) {
   const zc = z0 - b.rng.range(1, 3);
   if (b.foliage(0.9)) edgeMoss(b, side * (PATH_HALF + 0.5), y + crest + 0.05, zc);
-  if (b.foliage(0.7)) b.place(`vines_${b.rng.int(0, 2)}`, side * (PATH_HALF + 0.1), y + crest + 0.2, zc + b.rng.range(-0.6, 0.6), side * Math.PI / 2, [0.55, b.rng.range(0.35, 0.5), 1]);
+  if (b.foliage(0.7)) {
+    const piece = `vines_${b.rng.int(0, 2)}`, z = zc + b.rng.range(-0.6, 0.6), sy = b.rng.range(0.35, 0.5);
+    // (World round 28: no curtain off a root that runs low along the ground: it hung into the soil. The
+    // draws are made all the same.)
+    if (crest >= 0.8) b.place(piece, side * (PATH_HALF + 0.1), y + crest + 0.2, z, side * Math.PI / 2, [0.55, sy, 1]);
+  }
   // (World round 26: on the ground beside the paving, not inside its edge — seated at y − 0.05 at the
   // paving's edge, most of it was under the stone.)
   if (b.foliage(0.6)) {
@@ -507,7 +512,10 @@ function vista(b: Builder, len: number, kinds: Vista[], p = 0.7) {
         const sd = vr.chance(0.5) ? -1 : 1;
         b.place('pillar_0', sd * 3.4, 0, z, vr.range(0, 6.28));
         b.place('pillar_2', -sd * 3.4, 0, z, vr.range(0, 6.28));
-        b.place('beam_lintel_0', -sd * 5.6, WL + 0.1, z + 1.2, Math.PI / 2 + vr.range(-0.3, 0.3), 1, [0, vr.range(0.15, 0.3)]);
+        // (World round 28: it lay with its underside at the surface, one end dipped to the bed and the
+        // other propped on nothing a metre over the water. It lies on the bed of the shallows now, its
+        // top course out of the water, a little canted along its length and rolled.)
+        b.place('beam_lintel_0', -sd * 5.6, WL - 0.45, z + 1.2, Math.PI / 2 + vr.range(-0.3, 0.3), 1, [vr.range(-0.1, 0.1), vr.range(0.03, 0.09)]);
       }
       // Its piers stand out past the causeway's edge: boulders heaped under them.
       for (const sd of [-1, 1]) {
@@ -1056,11 +1064,16 @@ const LAND_BUILDERS: Partial<Record<SectionType, { lengths: number[]; build: Bui
           const x = side * b.rng.range(4.2, 5.6);
           landTree(b, x, z, b.rng.range(1.1, 1.35));
           // Buttress roots running from the trunk to the causeway's edge.
+          // (World round 28, the critic: here, with no wall for them to climb, the roots modelled to arch
+          // over a parapet's crest stood as metre-high hoops over bare ground — green spider legs along the
+          // way. Out of a trunk on the forest floor they run low: snaking surface roots a knee high at most,
+          // hugging the ground from the trunk's foot to the paving.)
           if (b.foliage(0.9)) {
             const k = b.rng.int(0, 1);
-            if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, gy(b, 3, z), z + 2, 0, [0.9, 0.8, 0.9]);
-            else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), gy(b, -3, z), z - 2, Math.PI, [0.9, 0.8, 0.9]);
-            rootDress(b, side, z + 2, gy(b, 3 * side, z), (k === 1 ? 1.3 : 1.2) * 0.8);
+            const sy = 0.36;
+            if (side > 0) b.place(`root_giant_${k}`, PATH_HALF + 0.36, gy(b, 3, z), z + 2, 0, [0.9, sy, 0.9]);
+            else b.place(`root_giant_${k}`, -(PATH_HALF + 0.36), gy(b, -3, z), z - 2, Math.PI, [0.9, sy, 0.9]);
+            rootDress(b, side, z + 2, gy(b, 3 * side, z), (k === 1 ? 1.3 : 1.2) * sy);
           }
         }
         forestSide(b, side, len, 1.2);

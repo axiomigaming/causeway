@@ -63,7 +63,7 @@ export class Obstacles {
   }
 
   /** A kit piece as its own mesh, its long axis (`axis` of its geometry) laid along local x. */
-  private lay(root: THREE.Group, piece: string, axis: 'x' | 'y' | 'z', length: number, thick: number, at: THREE.Vector3, tilt = 0, spin = 0): THREE.Mesh | null {
+  private lay(root: THREE.Group, piece: string, axis: 'x' | 'y' | 'z', length: number, thick: number, at: THREE.Vector3, tilt = 0, spin = 0, flip = false): THREE.Mesh | null {
     const g = this.kit.geo.get(piece);
     const b = this.box(piece);
     if (!g || !b) return null;
@@ -77,7 +77,8 @@ export class Obstacles {
     scale[axis] = sl;
     // Rotate the long axis onto x, then tilt about z (one end up) and spin about it (vary the face).
     const q = new THREE.Quaternion();
-    if (axis === 'y') q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
+    // (`flip`: the piece's +y end toward −x.)
+    if (axis === 'y') q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), flip ? Math.PI / 2 : -Math.PI / 2);
     else if (axis === 'z') q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
     const qa = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), spin);
     const qt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), tilt);
@@ -101,6 +102,33 @@ export class Obstacles {
     const mesh = this.mesh(piece, g, m);
     root.add(mesh);
     return mesh;
+  }
+
+  /**
+   * World round 28: a jamb under an overhead member at `x` across the way — the kit's whole square pier
+   * (pillar_0: dressed courses, a flat top), squared to the member (a quarter turn and a hair of
+   * jitter), standing on the way's edge and rising until its top meets the member's underside over its
+   * footprint. Its foot runs on down past the deck (into the water or the ground, where it is never
+   * seen). Not part of the gameplay envelope (`laid`).
+   */
+  private bearer(root: THREE.Group, member: THREE.Mesh | null, x: number, rnd: number): void {
+    const piece = ['pillar_0', 'pillar_1', 'pillar_2'].find((p) => this.kit.geo.has(p));
+    const b = piece ? this.box(piece) : null;
+    if (!member || !piece || !b) return;
+    const sc = 0.8;
+    const half = 0.5 * Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * sc * 0.75;
+    const pos = member.geometry.getAttribute('position') as THREE.BufferAttribute;
+    // The member's underside over the pier's top (widened until it finds the member's vertices).
+    let under = Infinity;
+    for (let w = half; under === Infinity && w < 3; w += 0.4)
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        if (Math.abs(vx - x) <= w && Math.abs(pos.getZ(i)) <= half + 0.1) under = Math.min(under, pos.getY(i));
+      }
+    if (!Number.isFinite(under)) return;
+    const turn = Math.floor(rnd * 4) * (Math.PI / 2) + (rnd * 4 - Math.floor(rnd * 4) - 0.5) * 0.08;
+    // (1 cm into the member: contact, not a hairline of sky between them.)
+    this.piece(root, piece, x, under + 0.01 - b.max.y, 0, turn, [sc, 1, sc]);
   }
 
   /**
@@ -154,26 +182,34 @@ export class Obstacles {
         break;
       }
       case 'beam': {
-        // Two broken posts at the parapets and a cracked lintel fallen across them: 1.3 m under it.
+        // A cracked lintel still lying on its two jambs at the parapets: 1.3 m under it.
         action = 'slide';
-        for (const sd of [-1, 1]) this.piece(root, 'pillar_2', sd * (PATH_HALF + 0.45), 0, 0, r(1 + sd) * 6.28, [0.9, 0.5, 0.9]);
+        let member: THREE.Mesh | null;
         if (this.kit.geo.has('beam_lintel_0')) {
           // The carved lintel (beam_lintel_0, 0.62 m deep, underside at its origin) across the posts.
           const tilt = (r(4) - 0.5) * 0.06;
           const m = new THREE.Matrix4().compose(new THREE.Vector3(0, 1.32, 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), tilt), new THREE.Vector3(1, 1, 1));
-          root.add(this.mesh('beam_lintel_0', this.kit.geo.get('beam_lintel_0')!, m));
+          member = this.mesh('beam_lintel_0', this.kit.geo.get('beam_lintel_0')!, m);
+          root.add(member);
           this.laid.push({ y: 1.32 + 0.38, thick: 0.76, tilt });
-        } else this.lay(root, 'column_fallen_1', 'z', W + 0.8, 0.6, _v.set(0, 1.62, 0), (r(4) - 0.5) * 0.08, r(5) * 6.28);
+        } else member = this.lay(root, 'column_fallen_1', 'z', W + 0.8, 0.6, _v.set(0, 1.62, 0), (r(4) - 0.5) * 0.08, r(5) * 6.28);
+        // (World round 28, the critic: a statue held one end, the other hung well above a squat stump
+        // under it. The jambs are whole piers standing on the way's edge up to the lintel's underside,
+        // squared to it, so each end visibly bears on one.)
+        for (const sd of [-1, 1]) this.bearer(root, member, sd * (PATH_HALF + 0.45), r(1 + sd));
         this.piece(root, 'vines_2', 0.4, 1.4, 0, 0, [0.6, 0.35, 0.6]);
         break;
       }
       case 'bough': {
-        // A whole trunk fallen across from one parapet to the far side, leaning: 1.2 m under its
-        // low end, its crown spilling over the parapet.
+        // A whole trunk fallen across the way and caught on two ruined piers at the parapets, leaning:
+        // 1.2 m under its low side, its crown spilling over the far parapet.
         action = 'slide';
         const side = r(1) < 0.5 ? -1 : 1;
         const tilt = side * 0.16;
-        this.lay(root, 'jungle_1_trunk', 'y', W + 3, 0.7, _v.set(0, 1.95, 0), tilt, r(2) * 6.28);
+        // (Its crown end on the crown's side: on the left its root flare lay under the leaves.)
+        const trunk = this.lay(root, 'jungle_1_trunk', 'y', W + 3, 0.7, _v.set(0, 1.95, 0), tilt, r(2) * 6.28, side < 0);
+        // (World round 28: it lay on nothing — both ends in the air past the parapets.)
+        for (const sd of [-1, 1]) this.bearer(root, trunk, sd * (PATH_HALF + 0.45), r(6 + sd));
         this.piece(root, `bush_${Math.floor(r(3) * 4)}`, side * (PATH_HALF + 2.2), 2.4, 0, r(4) * 6.28, 1.1);
         this.piece(root, 'vines_1', -side * 0.6, 1.9, 0, 0, [0.6, 0.4, 0.6]);
         break;
