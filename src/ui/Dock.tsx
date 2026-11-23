@@ -6,6 +6,7 @@ import { useCtl } from './context';
 import { css, plateFill } from './heat';
 import { useHold } from './hold';
 import { IconMinus, IconPlus } from './icons';
+import { fallWords } from './win';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -53,6 +54,7 @@ export function Dock() {
   const phase = useStore((s) => s.phase);
   const hold = useHold();
   const revealed = useStore((s) => s.revealed);
+  const modal = useStore((s) => s.modal);
   const ctl = useCtl();
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -108,8 +110,10 @@ export function Dock() {
   if (phase === 'title' || phase === 'loading') return null;
   // While a settled round is held on screen, the plate stays (frozen at the outcome).
   const live = phase === 'lead' || phase === 'running' || phase === 'cashing' || (phase === 'result' && hold);
+  // Under an open panel (phones: a bottom sheet) the dock steps back, so its top edge never shows
+  // above a short sheet as a second layer.
   return (
-    <div className={`dock${live ? ' live' : ''}`} ref={ref}>
+    <div className={`dock${live ? ' live' : ''}${modal ? ' under' : ''}`} ref={ref}>
       {live ? <CashOut held={phase === 'result'} /> : <Setup />}
     </div>
   );
@@ -359,7 +363,7 @@ function CashOut({ held }: { held: boolean }) {
   const stake = live?.stake ?? round?.stake ?? 0;
   const auto = live?.autoCashout ?? null;
   const lead = phase === 'lead';
-  const label = held ? (won ? 'Secured' : 'Fallen') : lead ? 'Get set' : phase === 'cashing' ? 'Securing' : 'Cash out';
+  const label = held ? (won ? 'Secured' : fallWords(result?.fall).plate) : lead ? 'Get set' : phase === 'cashing' ? 'Securing' : 'Cash out';
   const amount = held ? formatCredits(won ? (round?.payout ?? 0) : 0) : formatCredits(stake);
   // The live figure is written by the frame loop (it owns the text node); the held one is set here.
   useEffect(() => {

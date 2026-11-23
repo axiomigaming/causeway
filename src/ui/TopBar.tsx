@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { formatCredits, formatMult } from '../engine/money';
-import { countUp } from '../audio/feedback';
+import { countUp, tierOf as winTier } from '../audio/feedback';
+import { balanceShown, cardClockOf, winTiming } from './win';
 import { useStore } from '../state/store';
 import { useCtl } from './context';
 import { IconMenu, IconShield, IconSliders, IconSound } from './icons';
@@ -17,49 +18,118 @@ export function TopBar() {
   const set = useStore((s) => s.set);
   const setSettings = useStore((s) => s.setSettings);
   const ctl = useCtl();
+  const revealed = useStore((s) => s.revealed);
   const [bump, setBump] = useState(false);
-  const prev = useRef(balance);
+  // What the figure shows now (cents). The balance in state is always the settled one; only this
+  // figure waits, so an escape's card is never spoiled by the header.
+  const shownRef = useRef(balance);
   const figRef = useRef<HTMLSpanElement>(null);
+  const won = phase === 'result' && result?.won ? result.round : null;
+  const wonId = won?.id ?? null;
+  const wonGrade = won ? winTier(won.cashoutMult ?? 100) : 0;
   useLayoutEffect(() => {
     const el = figRef.current;
-    const from = prev.current;
-    prev.current = balance;
     if (!el) return;
+    const from = shownRef.current;
+    const full = settings.motion === 'full';
     const final = formatCredits(balance);
-    if (balance <= from || settings.motion !== 'full') {
-      el.textContent = final;
+    const write = (v: number) => {
+      shownRef.current = v;
+      el.textContent = formatCredits(v);
+    };
+    if (balance <= from) {
+      write(balance);
       el.style.minWidth = '';
       return;
     }
-    // A win counts up from the old balance (tabular digits; the box is held at the final width,
-    // so nothing beside it moves while it counts).
-    setBump(true);
+    // Tabular digits, and the box held at the final width, so nothing beside it moves while it counts.
     el.textContent = final;
     el.style.minWidth = `${el.getBoundingClientRect().width}px`;
-    const t0 = performance.now();
-    const dur = 600;
     let raf = 0;
+    let guard = 0;
+    let bumpT = 0;
     const finish = () => {
       cancelAnimationFrame(raf);
-      el.textContent = final;
+      window.clearTimeout(guard);
+      write(balance);
       el.style.minWidth = '';
-      setBump(false);
     };
+    // An escape: the old figure holds through the escape's beat; when the card comes, the balance
+    // rises on the card's clock and curve (ui/win.ts) and lands with its Return, then a small bump.
+    if (wonId) {
+      if (!revealed) {
+        write(from);
+        return;
+      }
+      const now = () => Number(document.timeline.currentTime ?? performance.now());
+      const revealedAt = now();
+      const { land } = winTiming(wonGrade);
+      // Wait this long for the card to start its clock; past it (no card drawn), count on our own.
+      const WAIT = 1000;
+      const landed = () => {
+        finish();
+        if (!full) return;
+        setBump(true);
+        bumpT = window.setTimeout(() => setBump(false), 650);
+      };
+      const step = () => {
+        // The card's own origin (it marks it as its count is armed), so both figures move as one.
+        const t0 = cardClockOf(wonId) ?? (now() - revealedAt > WAIT ? revealedAt : null);
+        const since = t0 === null ? null : now() - t0;
+        if (since !== null && since >= land) return landed();
+        write(balanceShown(from, balance, since, wonGrade, full));
+        raf = requestAnimationFrame(step);
+      };
+      write(from);
+      if (!full) landed();
+      else {
+        step();
+        // Frames can stall (a hidden tab, a starved device): the settled figure lands on the card's
+        // schedule regardless (as the card's own figure does), never left part-way.
+        const arm = (ms: number) => {
+          guard = window.setTimeout(() => {
+            const t0 = cardClockOf(wonId) ?? revealedAt;
+            const left = land - (now() - t0);
+            if (left > 0) return arm(left + 50);
+            landed();
+          }, ms);
+        };
+        arm(WAIT + land + 80);
+      }
+      return () => {
+        window.clearTimeout(bumpT);
+        finish();
+      };
+    }
+    // Any other rise (a refill): a short count from the old figure.
+    if (!full) {
+      finish();
+      return;
+    }
+    setBump(true);
+    const t0 = performance.now();
+    const dur = 600;
     const step = () => {
       const k = (performance.now() - t0) / dur;
-      if (k >= 1) return finish();
-      el.textContent = formatCredits(countUp(from, balance, k));
+      if (k >= 1) {
+        finish();
+        setBump(false);
+        return;
+      }
+      write(countUp(from, balance, k));
       raf = requestAnimationFrame(step);
     };
-    el.textContent = formatCredits(from);
+    write(from);
     raf = requestAnimationFrame(step);
-    // frames can stall (a hidden tab, a starved device): the settled figure lands on time regardless
-    const guard = window.setTimeout(finish, dur + 50);
-    return () => {
-      window.clearTimeout(guard);
+    guard = window.setTimeout(() => {
       finish();
+      setBump(false);
+    }, dur + 50);
+    return () => {
+      finish();
+      setBump(false);
     };
-  }, [balance, settings.motion]);
+  }, [balance, settings.motion, wonId, wonGrade, revealed]);
   const open = (m: 'fair' | 'settings' | 'menu' | 'history') => {
     ctl?.audio.ui('open');
     set({ modal: m });
@@ -112,9 +182,8 @@ export function TopBar() {
         )}
       </button>
       <div className={`balance${bump ? ' bump' : ''}`} aria-live="polite">
-        <div className="k">
-          <span className="wide-only">Demo </span>Balance
-        </div>
+        {/* demo status on every screen size (phones drop the brand's DEMO tag, never this) */}
+        <div className="k">Demo balance</div>
         <div className="v num">
           {/* the figure's text is written only by the effect above (never by React), so a count
               in progress and React can't disagree */}

@@ -90,7 +90,9 @@ sup { font-size: 0.7em; line-height: 0; }
 /* soft shade at the edges, so type reads over sky and stone without a box */
 .scrim-top { position: fixed; inset: 0 0 auto 0; height: 160px; background: linear-gradient(to bottom, rgba(8, 6, 4, 0.62), rgba(8, 6, 4, 0.28) 55%, rgba(8, 6, 4, 0)); pointer-events: none; }
 .scrim-bottom { position: fixed; inset: auto 0 0 0; height: 280px; background: linear-gradient(to top, rgba(8, 6, 4, 0.56), rgba(8, 6, 4, 0)); pointer-events: none; transition: opacity 0.8s; }
-.scrim-left { position: fixed; inset: 0 auto 0 0; width: min(760px, 70vw); background: linear-gradient(to right, rgba(8, 6, 4, 0.78), rgba(8, 6, 4, 0.36) 60%, rgba(8, 6, 4, 0)); pointer-events: none; transition: opacity 1s var(--ease); }
+/* the title copy's backing: deep and even under the copy's column (to ~640 px), then a long fall-off,
+   so the headline and the tagline never sit on the lit bridge, a pillar or bright paving */
+.scrim-left { position: fixed; inset: 0 auto 0 0; width: min(1040px, 82vw); background: linear-gradient(to right, rgba(8, 6, 4, 0.84), rgba(8, 6, 4, 0.72) 42%, rgba(8, 6, 4, 0.34) 70%, rgba(8, 6, 4, 0)); pointer-events: none; transition: opacity 1s var(--ease); }
 /* title → setup: a dip through dark over the copy's exit and the lens's first move (App.tsx) */
 .dip { position: fixed; inset: 0; background: #070504; pointer-events: none; opacity: 0; }
 .dip.in { animation: dipIn 0.48s var(--ease) both; }
@@ -184,8 +186,9 @@ sup { font-size: 0.7em; line-height: 0; }
 .btn-cta:active:not(:disabled):not([aria-disabled='true']) { --sc: 0.98; --lift: 0px; --fill: var(--amber-press); transition: transform 0.09s var(--ease), filter 0.09s; }
 .btn-cta:disabled { --fill: rgba(246, 239, 228, 0.16); --edge: rgba(255, 255, 255, 0.06); color: rgba(246, 239, 228, 0.6); filter: none; }
 .btn-cta .cta-word { display: inline-block; animation: wordIn 0.18s var(--ease); }
-/* the crossfade starts part-visible, so a stalled first frame never shows an empty button */
-@keyframes wordIn { from { opacity: 0.35; transform: translateY(6px); } }
+/* the new word slides in at full ink: a part-faded word on the amber fill read pale (below AA) for
+   as long as a frame stalled */
+@keyframes wordIn { from { transform: translateY(6px); } }
 .btn-cta.busy { cursor: progress; }
 .spinner { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -250,16 +253,17 @@ sup { font-size: 0.7em; line-height: 0; }
 .title .eyebrow { display: block; opacity: 0; animation: rise 0.9s var(--ease) 0.1s forwards; }
 .wordmark { margin: 16px 0 0; font-size: inherit; font-weight: inherit; opacity: 0; animation: rise 1s var(--ease) 0.2s forwards; }
 .rule { margin: 24px 0; opacity: 0; animation: rise 1s var(--ease) 0.35s forwards; }
-.tagline { margin: 0; max-width: 28em; font-size: var(--t16); line-height: 24px; font-weight: 450; color: var(--text-2); opacity: 0; animation: rise 1s var(--ease) 0.45s forwards; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5); }
+.tagline { margin: 24px 0 0; max-width: 28em; font-size: var(--t16); line-height: 24px; font-weight: 450; color: var(--text-2); opacity: 0; animation: rise 1s var(--ease) 0.45s forwards; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5); }
 .title-actions { display: flex; gap: 16px; margin-top: 40px; flex-wrap: wrap; align-items: center; opacity: 0; animation: rise 1s var(--ease) 0.6s forwards; }
 .title-actions .btn-cta { min-width: 280px; }
-.title-foot { position: fixed; left: clamp(24px, 7vw, 120px); bottom: calc(24px + var(--safe-b)); display: flex; gap: 8px 24px; flex-wrap: wrap; font-size: var(--t12); line-height: 16px; color: var(--label); opacity: 0; animation: rise 1s var(--ease) 0.8s forwards; }
+.title-foot { position: fixed; left: clamp(24px, 7vw, 120px); bottom: calc(24px + var(--safe-b)); display: flex; gap: 8px 32px; flex-wrap: wrap; font-size: var(--t14); line-height: 20px; color: var(--text-2); opacity: 0; animation: rise 1s var(--ease) 0.8s forwards; }
 .title-foot span { display: inline-flex; align-items: center; gap: 8px; }
 .title-foot span::before { content: ''; width: 4px; height: 4px; background: var(--amber); flex: none; }
-.title-foot b { color: var(--text-2); font-weight: 600; }
-/* the foot runs past the left scrim onto the lit causeway (pale stone under 0.62 white): a halo and the
-   top bar's stronger label tone keep it legible there */
-.title-foot { color: rgba(246, 239, 228, 0.78); text-shadow: 0 1px 2px rgba(8, 6, 4, 0.7), 0 0 14px rgba(8, 6, 4, 0.75); }
+.title-foot b { color: var(--text); font-weight: 600; }
+/* the facts stand on their own low band of shade (.scrim-foot), never on the lit paving; the halo is
+   only a last guard */
+.title-foot { text-shadow: 0 1px 2px rgba(8, 6, 4, 0.6); }
+.scrim-foot { position: fixed; inset: auto 0 0 0; height: 140px; background: linear-gradient(to top, rgba(8, 6, 4, 0.82), rgba(8, 6, 4, 0.5) 50%, rgba(8, 6, 4, 0)); pointer-events: none; transition: opacity 1s var(--ease); }
 .loadbar { margin-top: 40px; width: min(320px, 80vw); }
 .loadbar .track { height: 2px; background: var(--hair-2); overflow: hidden; }
 .loadbar .fill { height: 100%; background: var(--amber); transition: width 0.35s var(--ease); }
@@ -275,7 +279,7 @@ sup { font-size: 0.7em; line-height: 0; }
 .logo-word { font-weight: 800; font-stretch: 125%; text-transform: uppercase; letter-spacing: 0.14em; margin-right: -0.14em; }
 /* hero: the stair stands on the cap line above the word, flush left with it */
 .logo-title { flex-direction: column; align-items: flex-start; gap: 12px; }
-.logo-title .logo-word { font-size: var(--t72); letter-spacing: 0.06em; margin-right: -0.06em; line-height: 0.9; }
+.logo-title .logo-word { text-shadow: 0 2px 28px rgba(8, 6, 4, 0.55); font-size: var(--t72); letter-spacing: 0.06em; margin-right: -0.06em; line-height: 0.9; }
 .logo-title .logo-stair { width: 45px; height: 27px; margin: 0; }
 .logo-compact .logo-word { font-size: var(--t14); }
 .logo-compact .logo-stair { width: 15px; height: 9px; }
@@ -418,11 +422,15 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .cash .amt { font-size: var(--t28); line-height: 32px; font-weight: 800; font-stretch: 100%; letter-spacing: -0.01em; white-space: nowrap; color: var(--on-amber); }
 .cash .amt[data-len='12'], .cash .amt[data-len='13'], .cash .amt[data-len='14'] { font-size: var(--t20); }
 .cash .amt[data-len='15'], .cash .amt[data-len='16'], .cash .amt[data-len='17'] { font-size: var(--t16); }
-/* get set: not yet live */
-.cash.lead { --fill: rgba(246, 239, 228, 0.22); color: var(--text); cursor: default; }
-.cash.lead .label small { color: var(--label); }
-.cash.lead .label small b { color: var(--text-2); } /* (the live plate's dark ink read as a hole in the lead's glass) */
-.cash.lead .amt { color: var(--text-2); }
+/* get set: not yet live. A dark plate with an amber hairline and light ink, from its first frame (it
+   used to morph in from RUN's amber under light ink: pale on yellow). Ink on the plate: #ffd890 and
+   #f6efe4 on ~#16120d, both above 12:1. When the run goes, the plate turns cream with dark ink. */
+.cash.lead { --fill: rgba(20, 16, 12, 0.92); --edge: rgba(244, 183, 64, 0.55); color: var(--text); cursor: default; }
+.cash.lead::before { animation: none; box-shadow: inset 0 0 0 1px var(--edge); }
+.cash.lead .btn-label { color: var(--amber-hi); }
+.cash.lead .label small { color: var(--text-2); }
+.cash.lead .label small b { color: var(--text); } /* (the live plate's dark ink read as a hole in the lead's glass) */
+.cash.lead .amt { color: var(--text); }
 .cash.pressed { --sc: 0.98; }
 /* held at the outcome: secured in amber, or fallen to a muted grey */
 .cash.held { cursor: default; }
@@ -431,6 +439,11 @@ kbd { font-family: var(--f); font-size: var(--t12); line-height: 16px; font-weig
 .cash.held.fell .amt { color: rgba(26, 18, 6, 0.92); }
 .cash-meta { display: flex; justify-content: center; gap: 4px; margin-top: 12px; font-size: var(--t12); line-height: 16px; color: var(--label); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); }
 .cash-meta.gone { visibility: hidden; }
+/* under an open panel the dock steps back (phones: the bottom sheet covers its place; a short sheet
+   left the dock's top edge showing above it) */
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .dock.under { visibility: hidden; opacity: 0; transition: opacity 0.15s, visibility 0s 0.15s; }
+}
 
 /* ================================================================== panels */
 /* modal panels: the page behind dims to 55 % (blurred on the High tiers only); the sheet itself is
@@ -563,8 +576,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .brand .tag { display: none; }
   .balance { grid-column: 3; grid-row: 1; }
   .tools { grid-column: 4; grid-row: 1; }
-  .history { grid-column: 1 / -1; grid-row: 2; min-height: 32px; gap: 12px; align-self: center; align-items: center; padding-bottom: 0; }
-  .chip { font-size: var(--t12); }
+  /* the strip on its own row reads over open scene: a quiet dark capsule behind it, so the label and
+     the figures hold their contrast over sky or sunlit stone */
+  .history { grid-column: 1 / -1; grid-row: 2; min-height: 32px; height: 32px; gap: 12px; align-self: center; align-items: center; padding: 0 14px; border: 1px solid var(--hair); border-radius: 999px; background: rgba(14, 11, 8, 0.62); }
+  .history.quiet { opacity: 0.8; }
+  .chip { font-size: var(--t12); color: rgba(246, 239, 228, 0.86); }
 
   .dock { left: 0; right: 0; transform: none; width: auto; bottom: 0; padding: 0 calc(16px + var(--safe-r)) max(16px, calc(var(--safe-b) + 8px)) calc(16px + var(--safe-l)); }
   .setup { padding: 8px 16px 16px; }
@@ -579,7 +595,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
   .title-actions .btn { width: 100%; }
   .title-actions .btn-cta { min-width: 0; }
   .scrim-left { width: 100%; background: linear-gradient(to top, rgba(8, 6, 4, 0.9), rgba(8, 6, 4, 0.5) 55%, rgba(8, 6, 4, 0.08)); }
-  .title-foot { left: 24px; right: 24px; gap: 8px 16px; }
+  .title-foot { left: 24px; right: 24px; gap: 8px 16px; font-size: var(--t12); line-height: 16px; }
 }
 /* shorter phones (up to 780 tall: 360×740, 375×667…): a tighter dock, so the world keeps two thirds */
 @media (max-width: 760px) and (max-height: 780px) {

@@ -1,4 +1,5 @@
-import { heatOf, tierOf, type Tier } from '../audio/feedback';
+import { countUp, heatOf, tierOf, type Tier } from '../audio/feedback';
+import type { FallKind } from '../state/store';
 import { css, heroInk, plateFill, type RGB } from './heat';
 
 /**
@@ -13,6 +14,13 @@ import { css, heroInk, plateFill, type RGB } from './heat';
  *                   to 28, the multiplier is struck in the plate colour, a fan of rays opens behind
  *                   the card, an accent runs along its top edge
  *   tier 4 (25×+)   "Legendary escape": all of it at full warmth, plus one slow sheen across the card
+ *
+ * The tiers escalate unmistakably, never the low one. From 5× the card's plate takes a warm wash
+ * from its top edge and a warmer hairline; an event (10×+) is a wider card on desktop with the Return
+ * at 72, a longer count with a held beat before it starts, a light that blooms behind the figure as
+ * it lands, and the head's words a step up; a legend (25×+) adds a heavier figure, stronger rays that
+ * turn slowly, and a double edge. On phones the card keeps its compact height: the tiers speak there
+ * through the plate, the light and the count, not the figure's size.
  */
 export interface WinLook {
   grade: Tier;
@@ -34,13 +42,22 @@ export interface WinLook {
   struck: boolean;
   /** An event: the larger figures and the rays. */
   grand: boolean;
+  /** The warm wash down from the plate's top edge, as rgba() (transparent below tier 2). */
+  tint: string;
+  /** The plate's hairline, as rgba() (the system hairline below tier 2). */
+  edge: string;
+  /** The landing light behind the figure, as rgba() (transparent below tier 3). */
+  flash: string;
 }
 
 export const TITLES = ['Escaped', 'Clean escape', 'Bold escape', 'Daring escape', 'Legendary escape'] as const;
 const RULE = [0.12, 0.24, 0.42, 0.68, 1] as const;
 const GLOW = [0, 0, 0.12, 0.2, 0.26] as const;
 const BLOOM = [0, 0, 0.14, 0.28, 0.38] as const;
-const RAYS = [0, 0, 0, 0.16, 0.24] as const;
+const RAYS = [0, 0, 0, 0.2, 0.32] as const;
+const TINT = [0, 0, 0.07, 0.13, 0.26] as const;
+const EDGE = [0, 0, 0.26, 0.4, 0.56] as const;
+const FLASH = [0, 0, 0, 0.42, 0.6] as const;
 
 export const rgba = ([r, g, b]: RGB, a: number) => `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0, a)).toFixed(2)})`;
 
@@ -59,6 +76,9 @@ export function winLook(mult: number): WinLook {
     rule: RULE[grade],
     struck: grade >= 3,
     grand: grade >= 3,
+    tint: rgba(plate, TINT[grade]),
+    edge: grade >= 2 ? rgba(plate, EDGE[grade]) : 'rgba(255, 236, 210, 0.10)',
+    flash: rgba(plate, FLASH[grade]),
   };
 }
 
@@ -94,18 +114,64 @@ export function raysImage(mult: number): string {
 
 /**
  * Entrance timing (ms on the document timeline). The card settles first, the Return then counts from
- * the stake to the payout, and the profit lands with the rule. A bigger escape counts a little longer.
+ * the stake to the payout, and the profit lands with the rule. The low tier is a quick, quiet count;
+ * every tier up counts longer, and an event waits a held beat before it starts (the card has settled,
+ * the room goes still), so the landing is the moment.
  */
+const COUNT0 = [180, 180, 240, 380, 480] as const;
+const COUNT = [560, 760, 1040, 1560, 2200] as const;
 export function winTiming(grade: Tier): { count0: number; count: number; land: number } {
-  const count0 = 180;
-  const count = 560 + grade * 160;
+  const count0 = COUNT0[grade];
+  const count = COUNT[grade];
   return { count0, count, land: count0 + count };
 }
 
 /**
- * The Return figure's size step on the type scale: 72 for an event when the amount is short enough
- * to sit in the card at 72 ("999.99" and under, 6 characters), else the card's usual 44.
+ * The header balance while an escape is shown: it holds the old figure until the card comes, then
+ * rises on the card's own clock and curve and lands with the card's Return (presentation only: the
+ * balance in state is already the new one). `since` is ms since the card came (null: not yet);
+ * with reduced motion it lands as the card comes.
+ */
+export function balanceShown(from: number, to: number, since: number | null, grade: Tier, full: boolean): number {
+  if (since === null) return from;
+  if (!full) return to;
+  const { count0, count } = winTiming(grade);
+  return countUp(from, to, Math.max(0, (since - count0) / count));
+}
+
+/**
+ * The shown escape card's clock: when (document timeline ms) its entrance began, by round id. The card
+ * marks it as its count is armed; the header balance reads it, so the two share one origin even when
+ * the card's effect runs a few frames after the reveal (a stalled frame, a slow device).
+ */
+let cardClock: { id: string; t0: number } | null = null;
+export function markCardClock(id: string, t0: number): void {
+  cardClock = { id, t0 };
+}
+export function cardClockOf(id: string): number | null {
+  return cardClock?.id === id ? cardClock.t0 : null;
+}
+
+/** The words for a fall: the card's head and the held plate's label, in the game's voice. */
+export const FALL_WORDS: Record<FallKind, { title: string; plate: string }> = {
+  start: { title: 'The way fell at once', plate: 'Fallen' },
+  chasm: { title: 'The floor gave way', plate: 'Fallen' },
+  ledge: { title: 'The floor dropped away', plate: 'Fallen' },
+  gate: { title: 'The gate came down', plate: 'Shut out' },
+  rockfall: { title: 'The rocks came down', plate: 'Cut off' },
+  pillar: { title: 'The pillar came down', plate: 'Cut off' },
+  trip: { title: 'He lost his footing', plate: 'Tripped' },
+};
+const FELL = { title: 'The way fell', plate: 'Fallen' } as const;
+export function fallWords(kind: FallKind | undefined): { title: string; plate: string } {
+  return (kind && FALL_WORDS[kind]) || FELL;
+}
+
+/**
+ * The Return figure's size step on the type scale: 72 for an event when the amount fits the (wider)
+ * event card at 72 — up to "99,999.99", 9 characters — else the card's usual 44. Phones hold it at 44
+ * in CSS whatever this says, so the card never grows into the runner's band.
  */
 export function heroStep(grand: boolean, text: string): 72 | 44 {
-  return grand && text.length <= 6 ? 72 : 44;
+  return grand && text.length <= 9 ? 72 : 44;
 }

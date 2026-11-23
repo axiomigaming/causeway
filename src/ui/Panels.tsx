@@ -326,7 +326,7 @@ function Settings({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
-      <div className="sect">
+      <div className="sect kbd-hint">
         <h3>Controls</h3>
         <div className="keys">
           <kbd>Space</kbd>
@@ -366,7 +366,8 @@ function Menu({ onClose }: { onClose: () => void }) {
     <Sheet title="Menu" eyebrow="Causeway" onClose={onClose}>
       <nav className="menu">
         <button onClick={onClose}>
-          Back to the game <span>Esc</span>
+          {/* the key only where there is a keyboard (no key hints on touch screens) */}
+          Back to the game <span className="kbd-hint">Esc</span>
         </button>
         <button onClick={() => go('how')}>
           How it works <span>The rules in a minute</span>
