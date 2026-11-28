@@ -3979,7 +3979,7 @@ export class Game {
         const rn = this.runner as unknown as { current: string; actions: Map<string, THREE.AnimationAction> };
         const sl = rn.current === 'slide' ? rn.actions.get('slide') : undefined;
         const dur = sl?.getClip().duration ?? 0;
-        this.rig.standSoon = sl && dur > 0 ? THREE.MathUtils.smoothstep(sl.time / dur, 0.58, 0.76) : 0;
+        this.rig.standSoon = sl && dur > 0 ? THREE.MathUtils.smoothstep(sl.time / dur, 0.62, 0.79) : 0;
       } else {
         this.rig.lift = 0;
         this.rig.headAt = null;

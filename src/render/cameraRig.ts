@@ -30,7 +30,7 @@ const HERO_FRAC = 0.4;
 /** Camera round 7: a fallen figure (wide, lying, with what pins him) in the middle of the free side. */
 const FALLEN_FRAC = 0.5;
 /** Camera round 7: how far under the band's top (NDC) the duck's lean leaves his crown (see duckLean). */
-const DUCK_MARGIN = 0.08;
+const DUCK_MARGIN = 0.05;
 /** Camera round 7: the stake/return line's height on a tall screen (px; hud.css .hud-sub, 20 px tall, 8-12 px under the figure). */
 const STAKE_LINE_PX = 24;
 /** Camera round 7: the ledge hold's cost for looking straight down the shaft of sun onto him (see pickPit). */
