@@ -347,7 +347,7 @@ export class Water {
    * Round 20: keep the water out of a rectangle (centre x, z; yaw; half width across, half length
    * along), the dry stone pit of a ledge crash. Null clears it.
    */
-  setDry(r: { x: number; z: number; yaw: number; halfW: number; halfL: number } | null): void {
+  setDry(r: { x: number; z: number; yaw: number; halfW: number; halfL: number; top?: number } | null): void {
     const a = this.uniforms.uDryA!.value as THREE.Vector4;
     const b = this.uniforms.uDryB!.value as THREE.Vector4;
     if (!r) {
@@ -356,7 +356,8 @@ export class Water {
     }
     // Local frame: x across the way, y along it (the path's right and forward).
     a.set(r.x, r.z, Math.cos(r.yaw), Math.sin(r.yaw));
-    b.set(r.halfW, r.halfL, 1, 0);
+    // (World round 29: w, the height under which the plants at its rim go too: see patchDryClip.)
+    b.set(r.halfW, r.halfL, 1, r.top ?? -1e4);
   }
 
   setPath(pts: { x: number; z: number }[]): void {
@@ -426,6 +427,49 @@ export const foamTime = { value: 0 };
 
 /** (FX round 20) The ledge trough's dry rectangle, shared by the water and the foam strips. */
 export const DRY = { uDryA: { value: new THREE.Vector4(0, 0, 1, 0) }, uDryB: { value: new THREE.Vector4(0, 0, 0, 0) } };
+
+/**
+ * World round 29 (the critic: a dark plant across the corner of the ledge's end shot): the ferns, grass
+ * and bushes that stood on the floor's edge and the parapets over a cave-in go with the floor. Plant
+ * fragments inside the trough's dry rectangle and under its height (DRY.uDryB.w: a little over the way)
+ * are dropped; crowns overhead stay. No cost but a compare while no trough is open.
+ */
+export function patchDryClip(m: THREE.Material): void {
+  const sm = m as THREE.MeshStandardMaterial;
+  if (sm.userData.dryClip) return;
+  sm.userData.dryClip = true;
+  const prev = sm.onBeforeCompile;
+  const prevKey = sm.customProgramCacheKey?.bind(sm);
+  sm.onBeforeCompile = (shader, renderer) => {
+    prev?.call(sm, shader, renderer);
+    shader.uniforms.uDryA = DRY.uDryA;
+    shader.uniforms.uDryB = DRY.uDryB;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDryW;')
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+        {
+          vec4 dw = vec4(transformed, 1.0);
+          #ifdef USE_INSTANCING
+            dw = instanceMatrix * dw;
+          #endif
+          vDryW = (modelMatrix * dw).xyz;
+        }`,
+      );
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vDryW;\nuniform vec4 uDryA;\nuniform vec4 uDryB;').replace(
+      '#include <clipping_planes_fragment>',
+      `#include <clipping_planes_fragment>
+      if (uDryB.z > 0.5 && vDryW.y < uDryB.w) {
+        vec2 dq = vDryW.xz - uDryA.xy;
+        vec2 lq = vec2(dq.x * uDryA.z - dq.y * uDryA.w, dq.x * uDryA.w + dq.y * uDryA.z);
+        if (abs(lq.x) < uDryB.x && abs(lq.y) < uDryB.y) discard;
+      }`,
+    );
+  };
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|dry29`;
+  sm.needsUpdate = true;
+}
 
 export function makeFoamMaterial(): THREE.ShaderMaterial {
   const m = new THREE.ShaderMaterial({
