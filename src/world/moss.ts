@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WATER_Y } from './water';
+import { DRY, WATER_Y } from './water';
 
 /**
  * World round 17: moss that reads as moss, not smooth green plastic. The cushions keep their geometry
@@ -101,13 +101,16 @@ export function makeLilyMaterial(flora: THREE.Material, time: { value: number })
   m.name = 'lily';
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uLilyTime = time;
+    sh.uniforms.uDryA = DRY.uDryA;
+    sh.uniforms.uDryB = DRY.uDryB;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uLilyTime;\nvarying float vLilyDisc;')
+      .replace('#include <common>', '#include <common>\nuniform float uLilyTime;\nvarying float vLilyDisc;\nvarying vec2 vLilyW;')
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
   {
     vec4 lw = modelMatrix * vec4(transformed, 1.0);
+    vLilyW = lw.xz;
     // The contact disc under each pad lies at the water line (the pads >= 1.6 cm above it).
     vLilyDisc = 1.0 - step(${WATER_Y.toFixed(3)} + 0.031, lw.y); // (rafts are set 2 cm up)
     float ph = lw.x * 0.9 + lw.z * 0.7;
@@ -117,7 +120,18 @@ export function makeLilyMaterial(flora: THREE.Material, time: { value: number })
     sh.fragmentShader = sh.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying float vLilyDisc;',
+        '#include <common>\nvarying float vLilyDisc;\nvarying vec2 vLilyW;\nuniform vec4 uDryA;\nuniform vec4 uDryB;',
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+  // (World round 29: none inside a ledge trough's dry footprint, as the water and the foam: the
+  // pads stood in the air over the trough's floor.)
+  if (uDryB.z > 0.5) {
+    vec2 dq = vLilyW - uDryA.xy;
+    vec2 lq = vec2(dq.x * uDryA.z - dq.y * uDryA.w, dq.x * uDryA.w + dq.y * uDryA.z);
+    if (abs(lq.x) < uDryB.x && abs(lq.y) < uDryB.y) discard;
+  }`,
       )
       .replace(
         '#include <color_fragment>',
@@ -151,6 +165,6 @@ export function makeLilyMaterial(flora: THREE.Material, time: { value: number })
   }`,
       );
   };
-  m.customProgramCacheKey = () => 'lily20';
+  m.customProgramCacheKey = () => 'lily29';
   return m;
 }

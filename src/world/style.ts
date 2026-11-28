@@ -32,6 +32,11 @@ export interface StoneFamily {
   name: string;
   colour: [number, number, number];
   k: number;
+  /**
+   * World round 29: what the family adds over its colour (caustics.ts FRAG_FAMILY): value contrast about
+   * its middle tone (an exponent: 0 none), lichen, moss and wet edges (0..1).
+   */
+  rich?: { contrast: number; lichen: number; moss: number; wet: number };
 }
 
 export const STONES: StoneFamily[] = [
@@ -43,8 +48,10 @@ export const STONES: StoneFamily[] = [
   { name: 'greenstone', colour: [0.6, 0.86, 0.68], k: 0.95 },
   // Red volcanic tezontle (Tenochtitlan's): oxblood and rust.
   { name: 'tezontle', colour: [1.42, 0.46, 0.4], k: 0.9 },
-  // Dark grey basalt.
-  { name: 'basalt', colour: [0.42, 0.44, 0.5], k: 0.95 },
+  // Dark volcanic basalt. (World round 29, the critic: cold grey and dull beside the other worlds — a
+  // warm charcoal now, with more value between the dressed faces and the joints, moss in the joints,
+  // lichen on the faces and wet, glossy edges: still the darkest stone, never a desaturated sandstone.)
+  { name: 'basalt', colour: [0.47, 0.42, 0.39], k: 0.95, rich: { contrast: 0.55, lichen: 0.8, moss: 0.5, wet: 0.8 } },
 ];
 
 export const STYLES: WorldStyle[] = [

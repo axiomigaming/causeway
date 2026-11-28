@@ -10,11 +10,12 @@ import { PATH_HALF, TURN_R } from './sections';
 import { buildLayout, isLand, isWaterPiece, LAND_TYPES, nextType, THEMES, type Layout, type SectionType } from './sections';
 import { makeGroundGeometry, makeGroundMaterial } from './land';
 import { LOOKS, type Look } from './look';
-import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip } from './water';
+import { foamTime, makeFoamMaterial, makeFoamRing, makeFoamStrip, patchDryClip } from './water';
 import { fallFeet, makeFallsGeometry, makeWaterfallMaterial } from './waterfall';
 import { MeshoptSimplifier } from 'meshoptimizer/simplifier';
-import { causticUniforms, ensureDetailMap, patchBark, patchNearFade, patchWetStone, updateCaustics } from './caustics';
+import { causticUniforms, ensureDetailMap, patchBark, patchCliff, patchNearFade, patchWetStone, updateCaustics } from './caustics';
 import { upgradeLeafMaterial } from './foliage';
+import { bakeGrain, placeGrain } from './grain';
 import { makeLilyMaterial, makeMossMaterial } from './moss';
 import { atmosphereUniforms, setSkyDeep, setSkyStyle } from './atmosphere';
 import { qaHas, qaParam, qaWorldSeed } from './qa';
@@ -62,6 +63,8 @@ export function propZone(piece: string, p: THREE.Vector3): 'lily' | 'water' | 'g
 /** World round 28: the world's stone family and sky into the shared uniforms (no recompile). */
 function applyWorldStone(stone: StoneFamily, style: WorldStyle): void {
   causticUniforms.uStoneFamily.value.set(stone.colour[0], stone.colour[1], stone.colour[2], stone.k);
+  const r = stone.rich;
+  causticUniforms.uStoneRich.value.set(r?.contrast ?? 0, r?.lichen ?? 0, r?.moss ?? 0, r?.wet ?? 0);
   setSkyStyle(style.sky);
 }
 /** World round 13: sections that make an open approach to a landmark (water in view, low or no walls). */
@@ -241,6 +244,10 @@ export interface SectionInstance {
   root: THREE.Object3D;
   mirror: boolean;
   tiles: TileSlot[];
+  /** World round 29: its piers under the way (see UNDER_CAPACITY), each with its own span along the route. */
+  under: TileSlot[];
+  /** World round 29: its piers are drawn (from UNDER_AHEAD m out). */
+  underOn?: boolean;
   falls: THREE.Mesh[];
   /** World-space feet of this section's waterfalls (xyz) and the reach of their spray (w). */
   feet: THREE.Vector4[];
@@ -288,6 +295,33 @@ const TILE_CAPACITY: Record<string, number> = {
 };
 
 /**
+ * World round 29 (the ledge: the floor caves in onto a stone trough under the way): masonry standing
+ * under the walkable way — the piers across the way under the slabs of the stepping stretches and the
+ * landmarks' run-ups — is not merged into its section's masonry but drawn like the paving, one instanced
+ * mesh per piece, so a cave-in takes the piers in its footprint with the slabs (Track.hideUnder). Merged,
+ * they could not go: the trough opened into a wall of pier blocks, and the ledge was given up wherever
+ * one stood (in most worlds). Room for every pier standing at once (two per 4 m slab over ~260 m).
+ */
+const UNDER_CAPACITY: Record<string, number> = {
+  foundation_0: 128,
+  foundation_1: 128,
+};
+/** How far ahead (m) a section's piers under the way start to be drawn. */
+const UNDER_AHEAD = 80;
+/** Half the width (m) of the way's middle a piece under the floor must reach into to count as under it. */
+export const UNDER_HALF = 1.5;
+
+/**
+ * Whether a placed piece (its kit bounds `bb` placed in its section's frame) stands under the walkable way:
+ * wholly below the floor, reaching into the way's middle, on a straight level section. (The parapets'
+ * footings stand outside the way, 2.1 m and more from its middle, and stay merged.)
+ */
+export function isUnderWay(layout: Pick<Layout, 'turn' | 'dy'>, piece: string, bb: THREE.Box3): boolean {
+  if (!(piece in UNDER_CAPACITY) || layout.turn !== 0 || layout.dy !== 0) return false;
+  return bb.max.y < 0.02 && bb.min.y < -0.5 && bb.min.x < UNDER_HALF && bb.max.x > -UNDER_HALF;
+}
+
+/**
  * Walkable tiles, drawn as one InstancedMesh per piece so any tile can be removed on its own.
  * Instances stay densely packed (swap-remove), so the GPU draws exactly the live tiles.
  */
@@ -296,8 +330,8 @@ class TileSystem {
   private owners = new Map<string, TileSlot[]>();
   private static ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
-  constructor(kit: Kit, parent: THREE.Object3D) {
-    for (const [piece, cap] of Object.entries(TILE_CAPACITY)) {
+  constructor(kit: Kit, parent: THREE.Object3D, caps: Record<string, number> = TILE_CAPACITY, label = 'tiles') {
+    for (const [piece, cap] of Object.entries(caps)) {
       const geo = kit.geo.get(piece);
       if (!geo) continue;
       // World round 12: paving slabs carry their half-width, so the floor shader can grime, moss and
@@ -308,11 +342,12 @@ class TileSystem {
         geo.setAttribute('aHalf', new THREE.Float32BufferAttribute(new Float32Array(geo.getAttribute('position').count).fill(half), 1));
       }
       const m = new THREE.InstancedMesh(geo, kit.mat.get(kit.matOf.get(piece)!)!, cap);
-      m.name = `tiles:${piece}`;
+      m.name = `${label}:${piece}`;
       m.receiveShadow = true;
       // Paving lies flat on the causeway: its shadow falls only on itself. Planks neither: in the low
       // sun their warped boards shadowed each other edge to edge, and the boardwalk read grey-green
       // (sky light only) instead of sun-bleached wood. Stairs stand over water and keep theirs.
+      // (The piers under the way cast, as the near masonry they were merged with did.)
       m.castShadow = !piece.startsWith('floor_') && !piece.startsWith('planks_');
       m.frustumCulled = false;
       m.count = 0;
@@ -373,6 +408,8 @@ export class Track {
   readonly sections: SectionInstance[] = [];
   private variants = new Map<SectionType, Variant[]>();
   private tiles: TileSystem;
+  /** World round 29: the masonry under the way (see UNDER_CAPACITY). */
+  private under: TileSystem;
   private rng = new Rng(1);
   private elevation = 0;
   private lastType: SectionType = 'start';
@@ -435,6 +472,7 @@ export class Track {
   constructor(private kit: Kit) {
     this.root.name = 'track';
     this.tiles = new TileSystem(kit, this.root);
+    this.under = new TileSystem(kit, this.root, UNDER_CAPACITY, 'under');
     this.obstacles = new Obstacles(kit, this.root, this.path);
     this.landmarks = new Landmarks(kit, this.root);
     // Foam is generated here rather than in Blender: it is a shader, not a texture.
@@ -490,6 +528,23 @@ export class Track {
   /** The variants of this world's last ten sections (spreads the repeats; never follows the despawn). */
   private recent: string[] = [];
 
+  /** World round 29: a layout's placements standing under the walkable way (see isUnderWay), in order. */
+  private underOf(layout: Layout): Layout['props'] {
+    let list = this.underCache.get(layout);
+    if (list) return list;
+    list = [];
+    const bb = new THREE.Box3();
+    for (const pl of layout.props) {
+      const g = this.kit.geo.get(pl.piece);
+      if (!g || !(pl.piece in UNDER_CAPACITY)) continue;
+      if (!g.boundingBox) g.computeBoundingBox();
+      if (isUnderWay(layout, pl.piece, bb.copy(g.boundingBox!).applyMatrix4(pl.m))) list.push(pl);
+    }
+    this.underCache.set(layout, list);
+    return list;
+  }
+  private underCache = new WeakMap<Layout, Layout['props']>();
+
   private mergeProps(layout: Layout, flat = false, farDy = 0): THREE.Group {
     // Near the path (walls, pillars, arches) casts shadows; scenery out over the water does not,
     // and is merged separately so both halves cull on their own tighter bounds. Things that float
@@ -497,10 +552,20 @@ export class Track {
     // to the water, so a section lowered by stairs moves them back up to the surface.
     const byKey = new Map<string, THREE.BufferGeometry[]>();
     const p = new THREE.Vector3();
+    const under = new Set(this.underOf(layout));
     for (const pl of layout.props) {
       const g = this.kit.geo.get(pl.piece);
       if (!g) {
         if (import.meta.env.DEV) console.warn('missing piece', pl.piece);
+        continue;
+      }
+      // World round 29: the piers under the way are drawn instanced (see UNDER_CAPACITY); here they make
+      // an undrawn copy, so what probes the sections' geometry (a chasm's water under the floor, the
+      // lens's guards) still finds them.
+      if (under.has(pl)) {
+        const key = `${this.kit.matOf.get(pl.piece)!}|under`;
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key)!.push(g.clone().applyMatrix4(pl.m));
         continue;
       }
       p.setFromMatrixPosition(pl.m);
@@ -518,6 +583,7 @@ export class Track {
       const merged = (zone === 'far' || zone === 'wnear') && (flat || (layout.ground !== undefined && this.density.scenery < 0.5)) ? 'near' : zone;
       const key = `${this.kit.matOf.get(pl.piece)!}|${merged}`;
       const c = g.clone().applyMatrix4(pl.m);
+      placeGrain(c, pl.m);
       // World round 24: the paving tiles' `aHalf` (TileSystem sets it on the kit's shared geometry) is
       // meaningful only in a tile's own frame. On a slab placed as a prop (the overgrown plaza's court,
       // the lower terrace) the position is the section's, |x| ≥ 4 m, so the parapet strip's grime, moss
@@ -545,6 +611,12 @@ export class Track {
       const [mat, zone] = key.split('|') as [string, string];
       const mesh = new THREE.Mesh(merged, this.kit.mat.get(mat)!);
       mesh.name = key;
+      if (zone === 'under') {
+        mesh.visible = false;
+        mesh.userData.underWay = true;
+        group.add(mesh);
+        continue;
+      }
       mesh.castShadow = (zone === 'near' || zone === 'wnear') && mat !== 'flora';
       if (mesh.castShadow && mat === 'leaf') mesh.customDepthMaterial = leafDepth(this.kit);
       if (zone === 'water' || zone === 'lily') mesh.renderOrder = 1;
@@ -810,6 +882,16 @@ export class Track {
       if (!sec.tilesGone && sec.s0 + sec.len < s - TILES_BEHIND) {
         sec.tilesGone = true;
         for (const t of sec.tiles) this.tiles.release(t);
+        if (sec.underOn) for (const t of sec.under) this.under.release(t);
+      }
+      // World round 29: the piers under the way are drawn (instanced, never culled) once their section
+      // comes within UNDER_AHEAD m: further out they are a pixel or two under the slabs.
+      if (!sec.underOn && !sec.tilesGone && sec.s0 < s + UNDER_AHEAD) {
+        sec.underOn = true;
+        for (const t of sec.under) {
+          this.under.alloc(t);
+          if (!t.alive) this.under.hide(t);
+        }
       }
       if (sec.lods) {
         // Far masonry: the simplified version once the section starts LOD_AT m ahead (or lies as far
@@ -945,6 +1027,13 @@ export class Track {
       inst.renderOrder = m.renderOrder;
       inst.customDepthMaterial = m.customDepthMaterial;
       inst.name = m.name;
+      if (m.userData.underWay) {
+        inst.visible = false;
+        inst.userData.underWay = true;
+      }
+      // (World round 29: what lies on the water — foam, lily pads — is clipped out of a ledge trough's
+      // dry footprint by its shaders: the trough's probe passes through it.)
+      if (m.name.endsWith('|water') || m.name.endsWith('|lily')) inst.userData.onWater = true;
       if (m.userData.lod) {
         inst.userData.full = m.geometry;
         inst.userData.lod = m.userData.lod;
@@ -980,7 +1069,7 @@ export class Track {
     }
     this.root.add(root);
 
-    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground, grit, lods };
+    const inst: SectionInstance = { type, layout, s0: seg.s0, len: layout.len, seg, root, mirror, tiles: [], under: [], falls, feet, variant, solid: this.footprints(variant.solidLayout, world), ground, grit, lods };
     const tmp = new THREE.Matrix4();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -1005,6 +1094,16 @@ export class Track {
       this.tiles.alloc(slot);
       inst.tiles.push(slot);
     }
+    // World round 29: the piers under the way, each spanning what its footprint covers along the route.
+    const ub = new THREE.Box3();
+    for (const pl of this.underOf(layout)) {
+      tmp.copy(world).multiply(pl.m);
+      // (Mirrored back about its own axis, as the tiles: see above.)
+      if (mirror) tmp.multiply(MIRROR_X);
+      ub.copy(this.kit.geo.get(pl.piece)!.boundingBox!).applyMatrix4(pl.m);
+      // (Drawn from UNDER_AHEAD m out: see update.)
+      inst.under.push({ piece: pl.piece, index: -1, world: tmp.clone(), sNear: seg.s0 - ub.max.z, sFar: seg.s0 - ub.min.z, alive: true });
+    }
     this.sections.push(inst);
   }
 
@@ -1013,6 +1112,7 @@ export class Track {
     s.ground?.geometry.dispose();
     for (const f of s.falls) f.geometry.dispose();
     for (const t of s.tiles) this.tiles.release(t);
+    if (!s.tilesGone && s.underOn) for (const t of s.under) this.under.release(t);
     s.variant.inUse--;
   }
 
@@ -1073,6 +1173,23 @@ export class Track {
     return undefined;
   }
 
+  /**
+   * World round 29: hide the masonry under the way (the slabs' piers) overlapping [sFrom, sTo] — a
+   * cave-in's footprint, so its trough is open from end to end. Returns how many went.
+   */
+  hideUnder(sFrom: number, sTo: number): number {
+    let n = 0;
+    for (const sec of this.sections) {
+      for (const t of sec.under) {
+        if (!t.alive || t.sFar <= sFrom || t.sNear >= sTo) continue;
+        t.alive = false;
+        this.under.hide(t);
+        n++;
+      }
+    }
+    return n;
+  }
+
   /** Hide one walkable tile (it stays allocated until its section despawns). */
   hideTile(t: TileSlot): void {
     if (!t.alive) return;
@@ -1099,7 +1216,7 @@ export class Track {
   }
 
   get tileMeshes(): THREE.InstancedMesh[] {
-    return [...this.tiles['meshes'].values()];
+    return [...this.tiles['meshes'].values(), ...this.under['meshes'].values()];
   }
 }
 
@@ -1138,10 +1255,13 @@ function stageKit(kit: Kit): void {
   // World round 23: leaves and plants dissolve at the lens (crash and fall cameras swing close past them).
   if (leaf) patchNearFade(leaf);
   if (kit.mat.get('flora')) patchNearFade(kit.mat.get('flora')!);
+  // (World round 29: and the plants over a ledge's cave-in go with the floor: see water.ts patchDryClip.)
+  if (leaf) patchDryClip(leaf);
   // World round 17: the moss cushions get their own material (fibre normal, colour breakup, fuzz).
   const flora = kit.mat.get('flora');
   if (flora && !kit.mat.has('moss')) {
     kit.mat.set('moss', makeMossMaterial(flora));
+    patchDryClip(kit.mat.get('moss')!);
     for (const n of ['moss_0', 'moss_1', 'moss_2']) if (kit.matOf.has(n)) kit.matOf.set(n, 'moss');
   }
   // World round 20: lily pads get their own material (deep waxy green, sheen, bob).
@@ -1163,6 +1283,8 @@ function stageKit(kit: Kit): void {
     const family = key === 'wood' ? 0 : natural ? 0.45 : 1;
     const vary = key === 'wood' ? 0 : natural ? 0.6 : 1;
     if (m) patchWetStone(m, key !== 'floor', natural, detail, key === 'floor', key === 'floor', false, family, vary);
+    // (World round 29: the cliff faces re-textured near the lens: see caustics.ts FRAG_CLIFF.)
+    if (m && key === 'cliff') patchCliff(m);
   }
   // World round 16: the bark scan bakes very dark (mean albedo ≈ 0.016 linear, a quarter of real bark):
   // in the shade of a canopy the giant roots and trunks went flat black. Lift it to ~0.065 (dark bark).
@@ -1172,6 +1294,8 @@ function stageKit(kit: Kit): void {
     bark.color.multiplyScalar(4);
   }
   // World round 23: real furrows on the near bark (the giant roots arch right beside the camera).
+  // (World round 29: along each root, log and limb: see grain.ts.)
+  bakeGrain(kit);
   if (bark) patchBark(bark);
   const gold = kit.mat.get('gold') as THREE.MeshStandardMaterial | undefined;
   if (gold && !gold.userData.staged) {

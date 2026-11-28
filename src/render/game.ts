@@ -107,8 +107,10 @@ const LEDGE_RUN = 0.5;
  *  trough there, not under floor that still stands. */
 const LEDGE_BACK = 2.4;
 /** Fill light in the undercroft: the stone's albedo added as emission (out of the sun down there,
- *  the masonry, the floor and his body ran together brown on brown). */
-const LEDGE_FILL = 0.25;
+ *  the masonry, the floor and his body ran together brown on brown). (World round 29: the bounce of
+ *  the sun shaft off the floor and walls, stronger — the desktop end shot in a dark stone world was
+ *  murky.) */
+const LEDGE_FILL = 0.65;
 /**
  * Crash round 6, the trip: the hooked drum rolls after him and comes to rest across his calves at
  * fall_trip's clip time TRIP_PIN_T (s), TRIP_PIN_AT m beyond where the clip starts (the calves'
@@ -886,9 +888,11 @@ export class Game {
     // by blocks no lens could see past, and every frame of the fall was a wall of cubes. The trough's
     // whole volume — from behind the cave-in to past where he comes to lie, across its width, down
     // to just over its floor — must be open.
+    // (World round 29: but for the piers under the slabs, which go with the floor — Track.hideUnder —
+    // and the foam and lily pads on the water, which the trough's dry footprint clips.)
     if (st.kind === 'ledge') {
       const sd = this.s + this.speed * LEDGE_RUN;
-      if (this.solidUnder(sd - LEDGE_BACK - 0.3, sd + 7, LEDGE_DROP - 0.3, [0, -0.8, 0.8, -(LEDGE_HALF - 0.2), LEDGE_HALF - 0.2])) st.kind = 'rockfall';
+      if (this.solidUnder(sd - LEDGE_BACK - 0.3, sd + 7, LEDGE_DROP - 0.3, [0, -0.8, 0.8, -(LEDGE_HALF - 0.2), LEDGE_HALF - 0.2], true)) st.kind = 'rockfall';
     }
     // Crash round 6: a chasm takes him into the water, so it needs water under the floor: over land the
     // hole showed the earth a metre down and he knelt at its edge (critic, chasm1 on phone).
@@ -1797,7 +1801,7 @@ export class Game {
    * water, a hole in the floor shows earth or blocks, and he cannot go under there: he dropped through
    * the masonry (chasm1, world 7) or knelt on the earth a metre down (chasm1, world 3).
    */
-  private solidUnder(s0: number, s1: number, depth: number | null = null, lats: readonly number[] = [0, -0.9, 0.9]): boolean {
+  private solidUnder(s0: number, s1: number, depth: number | null = null, lats: readonly number[] = [0, -0.9, 0.9], skipUnderWay = false): boolean {
     const rc = (this.underRay ??= new THREE.Raycaster());
     const roots = this.track.sections.filter((sec) => sec.s0 + sec.len >= s0 - 2 && sec.s0 <= s1 + 2).map((sec) => sec.root);
     if (!roots.length) return false;
@@ -1808,7 +1812,7 @@ export class Game {
       for (const lat of lats) {
         rc.set(this.underO.copy(f.pos).addScaledVector(right, lat).setY(f.pos.y - 0.12), DOWN);
         rc.far = depth !== null ? depth - 0.12 : f.pos.y - 0.12 - (WATER_Y + 0.25);
-        if (rc.far > 0 && rc.intersectObjects(roots, true).length) return true;
+        if (rc.far > 0 && rc.intersectObjects(roots, true).some((h) => !skipUnderWay || !(h.object.userData.underWay || h.object.userData.onWater))) return true;
       }
     }
     return false;
@@ -1997,6 +2001,8 @@ export class Game {
         // (The undercroft's walls stand just inside the way's edge, in front of the world's own
         // foundations, whose damp lower course read as camouflage: see placeLedgeBed.)
         this.placeLedgeBed(frameAt(sDrop - LEDGE_BACK - 0.4), bedY, span + LEDGE_BACK + 4.0);
+        // (World round 29: the piers under the slabs in its footprint go with them: the trough open end to end.)
+        this.track.hideUnder(sDrop - LEDGE_BACK - 0.4, sDrop + span + 4.0);
         pit = { origin: h.pos.clone(), right: h.right.clone(), half: LEDGE_HALF - 0.05, top: h.pos.y - 0.05 };
         this.setStop(this.s + halt);
         this.runner.play('fall_drop', 0.2);
@@ -4602,7 +4608,9 @@ export class Game {
     this.ledgeDims = [W, len];
     g.updateMatrixWorld(true);
     // (Over its walls too: water showed in the seam at their feet.)
-    this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 1.7, halfL: len / 2 + 1.7 });
+    // (World round 29: `top` — the plants on its rim go with the floor, and the strands hanging over it up
+    // to the lens's height as it looks down into it: water.ts patchDryClip.)
+    this.water.setDry({ x: c.x, z: c.z, yaw: h.yaw, halfW: W / 2 + 1.7, halfL: len / 2 + 1.7, top: h.pos.y + 6 });
   }
 
   /**
