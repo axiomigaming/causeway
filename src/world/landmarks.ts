@@ -5,6 +5,7 @@ import type { LandmarkKind } from './style';
 import { patchWetStone } from './caustics';
 import { WATER_Y } from './water';
 import { qaHas, qaParam } from './qa';
+import { placeGrain } from './grain';
 
 /**
  * World rounds 12–14: hero landmarks that only some worlds show (style.ts picks them), staged where the
@@ -209,6 +210,7 @@ export class Landmarks {
         typeof sc === 'number' ? new THREE.Vector3(sc, sc, sc) : new THREE.Vector3(...sc),
       );
       const gg = g.clone().applyMatrix4(m);
+      placeGrain(gg, m);
       gg.computeBoundingSphere();
       const mesh = new THREE.Mesh(gg, mat);
       mesh.name = `landmark|${p.piece}`;

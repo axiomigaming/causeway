@@ -28,6 +28,11 @@ export const causticUniforms = {
    * baked sandstone's own luminance), w how far the masonry is moved to it (0: the sandstone as baked).
    */
   uStoneFamily: { value: new THREE.Vector4(1, 1, 1, 0) },
+  /**
+   * World round 29: what a family adds over its colour (style.ts StoneFamily.rich): x value contrast,
+   * y lichen, z moss, w wet edges (0: none, the families before round 29).
+   */
+  uStoneRich: { value: new THREE.Vector4(0, 0, 0, 0) },
   /** World round 28: weathering across a wall (0..1): broad stains and streaks that break the atlas's repeat. */
   uStoneVar: { value: 1 },
   /** xyz: foot of a waterfall (world), w: reach of its spray (m). w = 0: unused. */
@@ -71,7 +76,10 @@ uniform float uCausticStrength;
 uniform vec4 uFeet[${MAX_FEET}];
 uniform float uRainWet;
 uniform vec4 uStoneFamily;
+uniform vec4 uStoneRich;
 uniform float uStoneVar;
+// World round 29: a stone family's wet edges (set with its colour, read by the wet term's roughness).
+float famWet = 0.0;
 // Iterated turbulence (after joltz0r's water shader): bright filaments that wander and merge.
 float causticAt(vec2 w, float t) {
   vec2 p = mod(w, 6.28318) - 250.0;
@@ -274,6 +282,8 @@ diffuseColor.rgb *= mix(1.0, 0.66, wetK);
 float wetRough = mix(0.22, 0.45, abs(vWetN.y));
 wetRough = max(wetRough, mix(0.22, 0.42, smoothstep(10.0, 45.0, length(vViewPosition))));
 roughnessFactor = mix(roughnessFactor, wetRough, wetK);
+// (World round 29: a stone family's wet edges, see FRAG_FAMILY.)
+roughnessFactor = mix(roughnessFactor, 0.3, famWet);
 {
   // World round 27 (the owner: where stone meets the water the line is hard, as if cut): the water laps
   // the stone. A swash a few centimetres high rides up and down the face in slow waves, leaving a band
@@ -365,6 +375,34 @@ const FRAG_FAMILY = /* glsl */ `
   float fl = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
   vec3 fam = fl * uStoneFamily.rgb + (diffuseColor.rgb - vec3(fl)) * ${FAMILY_CHROMA.toFixed(3)};
   diffuseColor.rgb = mix(diffuseColor.rgb, max(fam, vec3(0.0)), uStoneFamily.w * STONE_FAMILY);
+  // World round 29 (the critic: world 7's basalt cold, grey and dull beside the others): a family may
+  // add value contrast about its own middle tone (the joints and the bake's shade deeper, the dressed
+  // faces brighter), moss in the joints and on the tops, lichen on the open faces (grey-green crusts,
+  // rust-orange spots) and wet edges (water held in the joints and running down the faces: darker and
+  // glossy, see FRAG_WET). In world space, so no two blocks match.
+  float famK = uStoneFamily.w * STONE_FAMILY;
+  if (famK > 0.0 && uStoneRich.x + uStoneRich.y + uStoneRich.z + uStoneRich.w > 0.0) {
+    vec3 c = diffuseColor.rgb;
+    float l = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    float mid = 0.26 * max(dot(uStoneFamily.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.05);
+    float r = l / mid;
+    c *= mix(1.0, pow(r, uStoneRich.x), famK);
+    float crev = 1.0 - smoothstep(0.45, 0.95, r);
+    float up = smoothstep(0.5, 0.85, vWetN.y);
+    float n1 = pdN(sp.xz * 1.7 + sp.y * 0.9);
+    float n2 = pdN(sp.xz * 5.3 - sp.y * 2.1 + 3.7);
+    float moss = uStoneRich.z * clamp(crev * 0.9 + up * smoothstep(0.4, 0.65, n1), 0.0, 1.0) * smoothstep(0.3, 0.6, n1 * 0.6 + n2 * 0.4);
+    c = mix(c, vec3(0.05, 0.068, 0.022) * (0.75 + 0.6 * n2), moss * famK);
+    float open = (1.0 - crev) * (1.0 - moss);
+    float lp = smoothstep(0.56, 0.68, pdN(sp.xz * 2.3 + sp.y * vec2(1.1, -0.7) + 7.0)) * smoothstep(0.2, 0.7, n2) * open;
+    float lo = smoothstep(0.83, 0.88, pdN(sp.xz * 7.3 - sp.y * vec2(2.3, 1.7) + 1.3)) * smoothstep(0.45, 0.7, n1) * open;
+    c = mix(c, vec3(0.26, 0.27, 0.22) * (0.8 + 0.4 * n2), lp * uStoneRich.y * 0.8 * famK);
+    c = mix(c, vec3(0.34, 0.2, 0.08) * (0.8 + 0.4 * n1), lo * uStoneRich.y * 0.6 * famK);
+    float run = (1.0 - abs(vWetN.y)) * smoothstep(0.55, 0.78, pdN(vec2((sp.x + sp.z) * 2.2, sp.y * 0.35) + 2.0));
+    famWet = uStoneRich.w * famK * clamp(max(crev * 0.8, run) * (1.0 - moss), 0.0, 1.0);
+    c *= 1.0 - 0.3 * famWet;
+    diffuseColor.rgb = c;
+  }
 }`;
 
 /** Patch a standard material (once). Chains any existing onBeforeCompile. */
@@ -450,19 +488,22 @@ export function patchBark(m: THREE.Material): void {
     prev?.call(sm, shader, renderer);
     Object.assign(shader.uniforms, barkUniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBkPos;\nvarying vec3 vBkN;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBkPos;\nvarying vec3 vBkN;\nvarying vec4 vBkG;\nattribute vec4 aGrain;')
       .replace(
         '#include <project_vertex>',
         `#include <project_vertex>
         {
           vec4 bp = vec4(transformed, 1.0);
           vec3 bn = objectNormal;
+          vec3 bg = aGrain.xyz;
           #ifdef USE_INSTANCING
             bp = instanceMatrix * bp;
             bn = mat3(instanceMatrix) * bn;
+            bg = mat3(instanceMatrix) * bg;
           #endif
           vBkPos = (modelMatrix * bp).xyz;
           vBkN = normalize(mat3(modelMatrix) * bn);
+          vBkG = vec4(mat3(modelMatrix) * bg, aGrain.w);
         }`,
       );
     shader.fragmentShader = shader.fragmentShader
@@ -471,15 +512,55 @@ export function patchBark(m: THREE.Material): void {
         `#include <common>
         varying vec3 vBkPos;
         varying vec3 vBkN;
+        varying vec4 vBkG;
         uniform sampler2D uBarkMap;
         uniform float uBarkReady;
-        // Triplanar: the scan's furrows run along its V, so each side plane keeps world up as V.
+        // Triplanar: the scan's furrows run along its V, so each side plane keeps the frame's y as V.
         vec4 bkTri(vec3 p, vec3 w, vec3 n) {
           vec3 tx = texture2D(uBarkMap, p.zy).rgb, ty = texture2D(uBarkMap, p.xz).rgb, tz = texture2D(uBarkMap, p.xy).rgb;
           vec2 ax = tx.rg * 2.0 - 1.0, ay = ty.rg * 2.0 - 1.0, az = tz.rg * 2.0 - 1.0;
           vec3 s = sign(n);
           vec3 d = w.x * vec3(0.0, ax.y, ax.x * s.x) + w.y * vec3(ay.x * s.y, 0.0, ay.y) + w.z * vec3(az.x * s.z, az.y, 0.0);
           return vec4(d, dot(w, vec3(tx.b, ty.b, tz.b)));
+        }
+        float bkH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float bkN(vec3 p) {
+          vec3 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(bkH(i), bkH(i + vec3(1, 0, 0)), f.x), mix(bkH(i + vec3(0, 1, 0)), bkH(i + vec3(1, 1, 0)), f.x), f.y),
+                     mix(mix(bkH(i + vec3(0, 0, 1)), bkH(i + vec3(1, 0, 1)), f.x), mix(bkH(i + vec3(0, 1, 1)), bkH(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+        }
+        // World round 29: the frame the furrows follow, as columns (x, the furrows' way, z): the way the
+        // root, log or limb runs (grain.ts); world up where the grain is unsure (a root's foot on the ground).
+        mat3 bkFrame(vec3 n) {
+          vec3 t = vBkG.xyz - n * dot(vBkG.xyz, n);
+          float sure = smoothstep(0.15, 0.45, vBkG.w) * step(1e-5, dot(t, t));
+          if (sure < 0.5) return mat3(1.0);
+          t = normalize(t);
+          vec3 u1 = normalize(cross(t, abs(t.y) < 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+          return mat3(u1, t, cross(u1, t));
+        }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        {
+          // World round 29 (the critic: the roots read as green tubes): bark is bark. The atlas's own green
+          // (moss baked on what was up when the piece was modelled: the side of a root laid flat) goes to
+          // a brown-grey at the texel's value, greyer in weathered patches; moss only on what faces the sky
+          // as placed, in patches with a broken edge.
+          vec3 wn = normalize(vBkN);
+          float bl = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+          float gN = bkN(vBkPos * 0.9);
+          // (Only the green goes: the bark's own browns stay, a little greyer in weathered patches.)
+          float baked = smoothstep(-0.01, 0.03, diffuseColor.g - diffuseColor.r * 0.92);
+          vec3 bc = mix(diffuseColor.rgb, bl * vec3(1.3, 0.95, 0.68), baked);
+          bc = mix(bc, bl * vec3(1.06, 1.0, 0.93), 0.35 * smoothstep(0.45, 0.8, gN));
+          float up = smoothstep(0.42, 0.82, wn.y);
+          float mN = bkN(vBkPos * 1.6 + 3.1) * 0.65 + bkN(vBkPos * 6.0) * 0.35;
+          float moss = up * smoothstep(0.42, 0.6, mN);
+          vec3 mc = mix(vec3(0.07, 0.1, 0.03), vec3(0.17, 0.22, 0.06), bkN(vBkPos * 11.0));
+          diffuseColor.rgb = mix(bc, mc, moss * 0.9);
         }`,
       )
       .replace(
@@ -489,13 +570,17 @@ export function patchBark(m: THREE.Material): void {
           float bdist = length(vViewPosition);
           float k = 1.0 - smoothstep(6.0, 16.0, bdist);
           if (k > 0.0) {
-            vec3 wn = normalize(vBkN);
+            vec3 wn0 = normalize(vBkN);
+            // (Projected in the grain's frame: the furrows run along the root.)
+            mat3 F = bkFrame(wn0);
+            vec3 wn = wn0 * F;
+            vec3 bp = vBkPos * F;
             vec3 w = pow(abs(wn), vec3(4.0));
             w /= max(w.x + w.y + w.z, 1e-4);
-            vec4 a = bkTri(vBkPos * 1.6, w, wn);
+            vec4 a = bkTri(bp * 1.6, w, wn);
             float fine = 1.0 - smoothstep(2.5, 7.0, bdist);
-            vec4 b = bkTri(vBkPos * 4.3 + 0.41, w, wn);
-            vec3 dw = a.xyz * 1.6 + b.xyz * 0.7 * fine;
+            vec4 b = bkTri(bp * 4.3 + 0.41, w, wn);
+            vec3 dw = F * (a.xyz * 1.6 + b.xyz * 0.7 * fine);
             vec3 bn2 = normal + (mat3(viewMatrix) * dw) * k;
             float bl = length(bn2);
             if (bl > 1e-4) normal = bn2 / bl;
@@ -506,7 +591,7 @@ export function patchBark(m: THREE.Material): void {
         }`,
       );
   };
-  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|bark23`;
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|bark29`;
   sm.needsUpdate = true;
 }
 
@@ -535,5 +620,96 @@ export function patchNearFade(m: THREE.Material): void {
     );
   };
   sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|near23`;
+  sm.needsUpdate = true;
+}
+
+/**
+ * World round 29 (the critic: a cliff face beside the lens read as a smeared, stretched texture). The cliff
+ * atlas is ~25 texels a metre over faces 20 m high, its scan box-projected and its streaks stretched
+ * twelvefold in the bake: at 2-5 m every texel is a smear. Near the lens the face is re-textured in world
+ * space, where every metre has the same density: the atlas keeps its broad light (the shade under each
+ * shelf, the moss on it) at half its contrast and none of its hue; the stone's colour and grain come from
+ * strata — beds of uneven thickness along the world's level, as the face was built (blender/stage.py
+ * _sub_beds), each its own tone and hue, parted by dark seams that wander a little — and from the scan's
+ * triplanar grain (the detail term, which also works the normals). By 40 m it is the atlas again.
+ * Needs patchWetStone (its world position, normal and noise) on the same material.
+ */
+const FRAG_CLIFF = /* glsl */ `
+{
+  float cd = length(vViewPosition);
+  float nk = 1.0 - smoothstep(22.0, 42.0, cd);
+  cliffNear = nk;
+  if (nk > 0.0) {
+    vec3 at = diffuseColor.rgb;
+    // (Its light from a coarser level of the atlas: the bake's streaks are a texel or two across.)
+    #ifdef USE_MAP
+    vec3 atc = diffuse * texture2D(map, vMapUv, 2.5).rgb;
+    #else
+    vec3 atc = at;
+    #endif
+    float al = max(dot(atc, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    vec3 p = vWetPos;
+    // Beds: two sets of uneven thickness (a thin one inside a thick one), their seams wandering
+    // a few centimetres with the face.
+    float warp = (pdN(p.xz * 0.11 + 3.7) - 0.5) * 0.7 + (pdN(vec2(p.x + p.z, p.y) * 0.9) - 0.5) * 0.08;
+    float y1 = (p.y + warp) * 1.15;
+    float b1 = floor(y1);
+    float f1 = fract(y1);
+    float y2 = (p.y + warp * 1.3) * 3.1 + pdH(vec2(b1, 4.1)) * 3.0;
+    float b2 = floor(y2);
+    float f2 = fract(y2);
+    float h1 = pdH(vec2(b1, 17.3)), h2 = pdH(vec2(b2, 5.9)), h3 = pdH(vec2(b1, 41.7));
+    float tone = (0.74 + 0.52 * h1) * (0.86 + 0.28 * h2);
+    // Each thick bed its own hue: buff, rust, pale cream (as the bake's palette).
+    vec3 hue = h3 < 0.45 ? vec3(1.48, 0.9, 0.62) : h3 < 0.78 ? vec3(1.62, 0.84, 0.52) : vec3(1.3, 0.98, 0.78);
+    // Seams: dark partings at the thick beds' bases, fainter at the thin ones'.
+    float seam = (1.0 - smoothstep(0.0, 0.07, f1)) * 0.6 + (1.0 - smoothstep(0.0, 0.05, f2)) * 0.3;
+    // (The underside of each thick bed in shade a little way up: the beds read as ledges, not paint.)
+    seam += (1.0 - smoothstep(0.0, 0.25, f1)) * 0.15;
+    // Along each bed the stone varies (weathered and fresh patches), never streaked.
+    float along = pdN(vec2((p.x - p.z) * 0.6, b1 * 3.3)) * 0.6 + pdN(p.xz * 2.3 + p.y * 1.7) * 0.4;
+    tone *= 0.85 + 0.3 * along;
+    // The atlas's broad light (the shade under each shelf) at a third of its contrast, about the face's
+    // middle value; its darkest streaks clamped.
+    float light = pow(clamp(al / 0.057, 0.2, 3.0), 0.33);
+    vec3 st = 0.057 * hue * tone * light * (1.0 - min(seam, 0.75));
+    // Moss on the shelves (what faces the sky, in patches), never in streaks down the face: the bake's
+    // algae streaks — its darkest, greenest texels, stretched twelvefold — were the smear.
+    float mN = pdN(p.xz * 1.3 + p.y * 0.7) * 0.6 + pdN(p.xz * 4.7 - p.y * 2.3) * 0.4;
+    float moss = smoothstep(0.5, 0.85, vWetN.y) * smoothstep(0.42, 0.62, mN);
+    st = mix(st, vec3(0.045, 0.06, 0.022) * (0.8 + 0.5 * mN) * light, moss);
+    diffuseColor.rgb = mix(at, st, nk);
+  }
+}`;
+
+/**
+ * (The bake's streaks are in its normal and occlusion maps as much as in its colour — a face in shade,
+ * lit by the sky alone, showed them all the same: near the lens the occlusion is read from a coarse level
+ * and halved, and the baked normal relief two-thirds flattened toward the surface's own; the scan's
+ * triplanar grain, added after it, carries the surface.)
+ */
+const FRAG_CLIFF_NORMAL = /* glsl */ `
+normal = normalize(mix(normal, nonPerturbedNormal, 0.65 * cliffNear));`;
+const CLIFF_AO = THREE.ShaderChunk.aomap_fragment.replace(
+  'float ambientOcclusion = ( texture2D( aoMap, vAoMapUv ).r - 1.0 ) * aoMapIntensity + 1.0;',
+  'float ambientOcclusion = ( mix( texture2D( aoMap, vAoMapUv ).r, texture2D( aoMap, vAoMapUv, 3.0 ).r, cliffNear ) - 1.0 ) * aoMapIntensity * ( 1.0 - 0.5 * cliffNear ) + 1.0;',
+);
+
+/** World round 29: the cliff faces re-textured near the lens (see FRAG_CLIFF). After patchWetStone. */
+export function patchCliff(m: THREE.Material): void {
+  const sm = m as THREE.MeshStandardMaterial;
+  if (!sm.isMeshStandardMaterial || sm.userData.cliffRetex) return;
+  sm.userData.cliffRetex = true;
+  const prev = sm.onBeforeCompile;
+  const prevKey = sm.customProgramCacheKey?.bind(sm);
+  sm.onBeforeCompile = (shader, renderer) => {
+    prev?.call(sm, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nfloat cliffNear = 0.0;')
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_CLIFF}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${FRAG_CLIFF_NORMAL}`)
+      .replace('#include <aomap_fragment>', CLIFF_AO);
+  };
+  sm.customProgramCacheKey = () => `${prevKey?.() ?? ''}|cliff29`;
   sm.needsUpdate = true;
 }
