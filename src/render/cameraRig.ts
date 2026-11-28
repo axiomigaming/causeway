@@ -29,6 +29,14 @@ const RUN_FIT = 1.04;
 const HERO_FRAC = 0.4;
 /** Camera round 7: a fallen figure (wide, lying, with what pins him) in the middle of the free side. */
 const FALLEN_FRAC = 0.5;
+/** Camera round 7: how far under the band's top (NDC) the duck's lean leaves his crown (see duckLean). */
+const DUCK_MARGIN = 0.08;
+/** Camera round 7: the stake/return line's height on a tall screen (px; hud.css .hud-sub, 20 px tall, 8-12 px under the figure). */
+const STAKE_LINE_PX = 24;
+/** Camera round 7: the ledge hold's cost for looking straight down the shaft of sun onto him (see pickPit). */
+const SHAFT_COST = 1.5;
+/** Camera round 7: the ledge hold's cost for foliage filling its whole frame (see pickPit). */
+const LEAF_COST = 2.5;
 const ease = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -187,6 +195,32 @@ export class CameraRig {
   preFrame: ((dt: number) => void) | null = null;
   /** The lens's narrowing under a beam (its vertical angle times this; set by the game in preFrame). */
   fovK = 1;
+  /**
+   * Camera round 7 (phone beam slide): how far (rad) a tall screen's view leans down under a beam as
+   * he slides (set by the game in preFrame). Leant in the game, after the aim and before the framing,
+   * the lean pitched the view down until his crown met the band's top and the framing then pitched it
+   * back up, every frame: the composed aim swung down and up again within half a second, the output
+   * spring (which treats a turn that reverses that fast as a swap, and does not lead it) lagged it by
+   * 6-8° and his head rose to NDC 0.55, over the stake line. The framing now leans as far as his crown
+   * allows (see keepInFrame), eased, so the aim never reverses.
+   */
+  duckLean = 0;
+  /**
+   * Camera round 7 (phone beam slide): 0..1, how far the small stake/return line under the multiplier
+   * is faded out while the lens ducks under a beam on a tall screen (the HUD reads it; see Hud.tsx).
+   * Kept under that line through the slide, his crown left the beam's underside a third of the frame
+   * (beam share 25-33 %, over the 20 % allowed); with the line faded, the framing's top runs up to the
+   * multiplier's foot (STAKE_LINE_PX higher) and the lean is free to put the beam over the frame.
+   */
+  stakeFade = 0;
+  /**
+   * Camera round 7 (phone beam slide): 0..1 as he nears standing up out of a slide (the game sets it
+   * from the clip). He rises a metre in a third of a second; framed after his head, the aim pitched up
+   * 10° in two frames, the output spring (rightly) would not whip after it and his head rose 0.13 over
+   * the band's top into the multiplier. The framing takes in his standing crown as it nears instead,
+   * so the aim is already up when he rises.
+   */
+  standSoon = 0;
   /** Run: his head as posed (world; set by the game while he runs), for his crown in the frame; or null. */
   headAt: THREE.Vector3 | null = null;
   /** Run: metres the chase stands back so his whole figure fits the band (eased; see keepInFrame). */
@@ -229,6 +263,52 @@ export class CameraRig {
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 2400);
+    this.qaSnap = this.qaState();
+  }
+
+  // ------------------------------------------------------------------ QA determinism
+  /**
+   * Camera round 7 (QA, framing-check --motion): the check's numbers flipped between runs. Its cases
+   * share one page, and the rig carried each case's state into the next (its clock — the phase of the
+   * shake and the operator's sway — the settled springs, the side chosen beside the card), and the
+   * hold searches ran 2.5 ms of wall time a frame, so the frame their pick landed on followed the
+   * machine's load. A check calls qaReset() at the start of a case (the rig as built, but for what the
+   * interface reports and the mode) and sets qaSteps (that many search steps a frame instead). Never
+   * used in play.
+   */
+  qaSteps = 0;
+  private qaSnap: Map<string, unknown>;
+  private static readonly QA_KEEP = new Set(['mode', 'free', 'insetTop', 'insetBottom', 'shiftTarget', 'uiCol', 'uiTopBar', 'motionScale', 'shakeEnabled', 'wallClock', 'qaSteps', 'bars', 'realDt', 'lastWall', 'camera']);
+  private qaState(): Map<string, unknown> {
+    const out = new Map<string, unknown>();
+    for (const [k, v] of Object.entries(this)) {
+      if (CameraRig.QA_KEEP.has(k) || typeof v === 'function') continue;
+      if (v === null || typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') out.set(k, v);
+      else if (v instanceof THREE.Vector3 || v instanceof THREE.Quaternion) out.set(k, v.clone());
+      else if (Array.isArray(v) && v.length === 0) out.set(k, []);
+    }
+    return out;
+  }
+  qaReset(runnerPos: THREE.Vector3, runnerYaw: number): void {
+    const self = this as unknown as Record<string, unknown>;
+    for (const [k, v] of this.qaSnap) {
+      if (v instanceof THREE.Vector3 || v instanceof THREE.Quaternion) (self[k] as THREE.Vector3).copy(v as THREE.Vector3);
+      else if (Array.isArray(v)) (self[k] as unknown[]).length = 0;
+      else self[k] = v;
+    }
+    this.snap(runnerPos, runnerYaw);
+  }
+  /** Runs a time-sliced search for its slice of this frame (2.5 ms; qaSteps steps under QA). True once it is done. */
+  private stepJob(job: Generator<void>): boolean {
+    if (this.qaSteps > 0) {
+      for (let i = 0; i < this.qaSteps; i++) if (job.next().done) return true;
+      return false;
+    }
+    const t0 = performance.now();
+    do {
+      if (job.next().done) return true;
+    } while (performance.now() - t0 < 2.5);
+    return false;
   }
 
   /**
@@ -569,7 +649,9 @@ export class CameraRig {
     // (Camera round 7: beside the column, a fallen man from nearer than a standing one — at
     // the standing distance the fallen pillar and trip were a sixth of the frame; from the close-in
     // itself the rockfall's legs reached in behind the dock.)
-    const m = lerp(mBand, ((this.mode === 'crash' ? 0.72 : 1) * needSide) / d0, Math.min(this.sideK, k * 1.5));
+    // (Camera round 7: a close-in asked nearer than the standing one — the desktop pillar's — nearer
+    // beside the card too: from 0.72 he was a fifth of the frame.)
+    const m = lerp(mBand, ((this.mode === 'crash' ? 0.72 / Math.sqrt(Math.max(1, this.closeIn)) : 1) * needSide) / d0, Math.min(this.sideK, k * 1.5));
     const out: Frame = { ...f, along: f.along * m, lat: f.lat * m, up: 1.0 + dy * m, lAlong: lerp(f.lAlong, 0.3, 0.85), lLat: lerp(f.lLat, 0, 0.85), lUp: lerp(f.lUp, 0.95, 0.85), focus: f.focus * 0.15 };
     // Camera round 6: a grand escape's lens comes down to his waist and looks up at him, a little
     // wider. (Camera round 7: at about the same size in the frame — stood further back as well, he
@@ -698,6 +780,9 @@ export class CameraRig {
         // Round 9: on a narrow (portrait) frame the shoulder offset pushed his far arm off the left
         // edge; there it comes in toward the axis (keepInFrame below enforces the margin).
         const narrow = Math.min(1, Math.max(0, (1 - this.camera.aspect) / 0.5));
+        // (Camera round 7: on a wide screen the lens also opens 6° while it passes over a piece he jumps:
+        // the piece crossing the frame's foot is that much less of it.)
+        const wide = Math.min(1, Math.max(0, (this.camera.aspect - 1) / 0.5));
         const lat = lerp(0.72, 0.24, narrow);
         // Round 13: tier 0 already a run for his life — a hand lower (the floor streams past the lens)
         // and 4° wider from the go; the top of the climb is where it was.
@@ -740,7 +825,7 @@ export class CameraRig {
               lerp(9, lerp(3, 1.4, this.escapeWide), k),
               lerp(lerp(0.6, 0.18, narrow) + drift * 0.4, lerp(0.2, -0.35, narrow * this.escapeWide), k) + 0.4 * wx * life + bend,
               lerp(1.0 + 0.08 * I + 1.4 * narrow, 1.05 + 1.4 * narrow, k) + 0.12 * wy * life + 0.5 * lift + 0.9 * this.overPiece * (1 - k),
-              lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k),
+              lerp(64 + 14 * I + 3 * hi - 8 * narrow, 55 - 8 * narrow, k) + 6 * this.overPiece * (1 - k) * wide,
             ),
           );
         // Camera round 2: between walls the lens gives way toward the middle of the way (latRoom, from
@@ -1220,6 +1305,7 @@ export class CameraRig {
     this.camera.lookAt(this.look);
     // (Camera round 5: the ceiling and the duck under a beam, before the framing, so the band sees them.)
     this.preFrame?.(dt);
+    this.stakeFade = this.mode === 'run' && this.camera.aspect < 1 ? Math.min(1, this.duckLean / 0.22) : 0;
     this.camera.fov = this.fov * this.fovK;
     // Round 18: the title too (its high pass looked down the way ahead with him just under the
     // bottom edge): the boots tilt up into the band, never a stand-back (settled shots only).
@@ -1263,7 +1349,9 @@ export class CameraRig {
     this.free = Math.min(1, Math.max(0.3, 1 - (Math.max(0, top) + Math.max(0, bottom)) / Math.max(1, heightPx)));
     this.insetTop = Math.min(0.45, Math.max(0, top / Math.max(1, heightPx)));
     this.insetBottom = Math.min(0.6, Math.max(0, bottom / Math.max(1, heightPx)));
+    this.heightPx = Math.max(1, heightPx);
   }
+  private heightPx = 844;
   /** Fraction of the screen height the interface leaves free (1 with no insets). */
   private free = 1;
   private insetTop = 0;
@@ -1373,15 +1461,7 @@ export class CameraRig {
       this.holdPhi = phi;
       this.holdKnown = known;
     }
-    if (this.holdJob) {
-      const t0 = performance.now();
-      do {
-        if (this.holdJob.next().done) {
-          this.holdJob = null;
-          break;
-        }
-      } while (performance.now() - t0 < 2.5);
-    }
+    if (this.holdJob && this.stepJob(this.holdJob)) this.holdJob = null;
     if (k < 0.001) return;
     this.gapPos.copy(this.holdPos);
     // (Beside the card, aimed so the broken edge and the far side share the frame: see pickHold.)
@@ -1399,6 +1479,8 @@ export class CameraRig {
   /** Camera round 5: tests for the held shot's lens, against the scene's solids, the set pieces and debris (set by the game). */
   holdSight: (a: THREE.Vector3, b: THREE.Vector3) => number | null = (a, b) => this.occlude(a, b);
   holdBlocked: (p: THREE.Vector3) => boolean = () => false;
+  /** Camera round 7: the first foliage (leaf cards, which the solids leave out) from `a` to `b` (set by the game). */
+  holdLeaf: (a: THREE.Vector3, b: THREE.Vector3) => number | null = () => null;
   private holdLip: object | null = null;
   private holdJob: Generator<void> | null = null;
   private holdKnown = false;
@@ -1538,7 +1620,7 @@ export class CameraRig {
    * the floor still standing behind him (on the way's centre line, at floor height), the way's
    * heading, the trough's floor height and half its width; or null.
    */
-  pitLip: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number } | null = null;
+  pitLip: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number; shaft?: THREE.Vector3 } | null = null;
   /** 0..1: how far the ledge's shot stands at its hold over the broken edge (read by the game). */
   pitK = 0;
   /** QA: how the ledge's last hold search went. */
@@ -1594,15 +1676,7 @@ export class CameraRig {
       pts.push(this.pitAim.clone());
       this.pitJob = this.pickPit(L, this.pitAim.clone(), pts, this.holdSideAngle(FALLEN_FRAC), s || 1);
     }
-    if (this.pitJob) {
-      const t0 = performance.now();
-      do {
-        if (this.pitJob.next().done) {
-          this.pitJob = null;
-          break;
-        }
-      } while (performance.now() - t0 < 2.5);
-    }
+    if (this.pitJob && this.stepJob(this.pitJob)) this.pitJob = null;
     const k = ease(T / 0.85);
     this.pitK = k;
     if (k < 0.001) return;
@@ -1622,7 +1696,7 @@ export class CameraRig {
    * the view looking off the way (beside the desktop's card, on either side of it: into the trough's
    * wall), solids crowding the near frame, and the distance from the place as composed.
    */
-  private *pickPit(L: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number }, aim: THREE.Vector3, body: THREE.Vector3[], phiMag: number, s: number): Generator<void> {
+  private *pickPit(L: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number; shaft?: THREE.Vector3 }, aim: THREE.Vector3, body: THREE.Vector3[], phiMag: number, s: number): Generator<void> {
     const f = new THREE.Vector3(L.fwd.x, 0, L.fwd.z).normalize();
     const right = new THREE.Vector3(-f.z, 0, f.x);
     const floorY = L.pos.y;
@@ -1635,7 +1709,7 @@ export class CameraRig {
     const ax = new THREE.Vector3();
     const up = new THREE.Vector3();
     const rt = new THREE.Vector3();
-    const cands: { b: number; lat: number; h: number; cost: number; axis: number; dep: number; sign: number }[] = [];
+    const cands: { b: number; lat: number; h: number; cost: number; axis: number; dep: number; sign: number; wash: number }[] = [];
     for (const sign of side ? [-1, 1] : [0])
       for (const b of [1.0, 0.6, 1.5, 0.25, -0.4, 2.0, -1.0, 2.6, -1.6, -2.3, -3.0])
         for (const lat of [0.5, -0.5, 0, 1.0, -1.0, 1.5, -1.5])
@@ -1653,8 +1727,15 @@ export class CameraRig {
             const dep = Math.atan2(-d.y, horiz);
             const axis = Math.atan2(d.dot(right), ahead) - sign * phiMag;
             // (A depression past ~50°, looking straight down a pit, reads as a plan, not a place.)
-            const cost = 0.45 * Math.abs(dist - 5) + 1.2 * Math.max(0, dep - 0.85) + 0.3 * Math.max(0, 0.5 - dep) + (side ? 0.5 : 0.25) * Math.abs(axis) + 0.12 * (Math.abs(b - 1) + Math.abs(lat - 0.5 * s) + Math.abs(h - 2.2)) + (b < 0 ? 0.25 : 0);
-            cands.push({ b, lat, h, cost, axis, dep, sign });
+            // Camera round 7 (critic, world 7's ledge on desktop: he lay washed out by the shaft of sun
+            // down through the hole): looking down along the shaft, its glow lies over him; across it,
+            // it stands up off him into the dark. (0 at 60° and more off its axis.)
+            const wash = L.shaft ? Math.max(0, (-(d.x * L.shaft.x + d.y * L.shaft.y + d.z * L.shaft.z) / dist - 0.5) * 2) : 0;
+            // (Camera round 7: beside the desktop's card a steep look down the hole read as a plan of the
+            // paving, him small on it: past ~43° it costs more there.)
+            const steep = side ? 2.2 * Math.max(0, dep - 0.75) : 1.2 * Math.max(0, dep - 0.85);
+            const cost = (side ? SHAFT_COST : 0.5 * SHAFT_COST) * wash + 0.45 * Math.abs(dist - 5) + steep + 0.3 * Math.max(0, 0.5 - dep) + (side ? 0.5 : 0.25) * Math.abs(axis) + 0.12 * (Math.abs(b - 1) + Math.abs(lat - 0.5 * s) + Math.abs(h - 2.2)) + (b < 0 ? 0.25 : 0);
+            cands.push({ b, lat, h, cost, axis, dep, sign, wash });
           }
     cands.sort((x, y) => x.cost - y.cost);
     let best = Infinity;
@@ -1719,11 +1800,24 @@ export class CameraRig {
           if (hit !== null && p.y + d.y * hit > floorY + 0.15) hits += Math.min(1, 1.3 - hit / 2.5);
         }
       cost += 3 * (hits / 8);
+      // Camera round 7 (critic, world 7's ledge on desktop: a dark plant lay across the frame's top
+      // left): foliage crossing the frame — the leaf cards the solids leave out — on a 4 x 3 grid of
+      // sight lines over the whole frame, out to 8 m, the nearer the more (a frond a metre off is a
+      // black blot; at 7 m, the place's dressing).
+      let leaf = 0;
+      for (const gx of [-0.85, -0.3, 0.3, 0.85])
+        for (const gy of [-0.7, 0, 0.7]) {
+          if (cost + LEAF_COST * (leaf / 12) >= best) break;
+          d.copy(ax).addScaledVector(rt, gx * tanH).addScaledVector(up, gy * tanV).normalize();
+          const hit = this.holdLeaf(p, q.copy(p).addScaledVector(d, 8));
+          if (hit !== null) leaf += Math.min(1, 1.25 - hit / 8);
+        }
+      cost += LEAF_COST * (leaf / 12);
       if (cost < best - 1e-6) {
         best = cost;
         this.pitPos.copy(p);
         this.holdSign = sign;
-        dbg.found = `b${b} lat${lat} h${h} s${sign} hid${hidden} cost${cost.toFixed(2)}`;
+        dbg.found = `b${b} lat${lat} h${h} s${sign} hid${hidden} cost${cost.toFixed(2)} crowd${hits.toFixed(1)} leaf${leaf.toFixed(1)} dep${dep.toFixed(2)} wash${cd.wash.toFixed(2)}`;
       }
     }
     if (best === Infinity && fallHidden < Infinity) {
@@ -1795,7 +1889,9 @@ export class CameraRig {
     // (Round 20: the celebration's leaps and raised arms move faster than the jerk-limited lens
     // turns: the cash-out keeps more headroom so the lag never takes his head or hands off the frame.)
     const head = this.mode === 'cashout' ? 0.14 : 0;
-    const hi = Math.min(THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head, 1 - 2 * s - 2 * this.bars - 0.04 - head);
+    let hi = Math.min(THREE.MathUtils.lerp(1 - 2 * s - 2 * this.insetTop - 0.05, 1 - 2 * s - 2 * this.uiTopBar - 0.06, side) - head, 1 - 2 * s - 2 * this.bars - 0.04 - head);
+    // (Camera round 7: with the stake line faded under a beam, the band's top is the multiplier's foot.)
+    if (this.mode === 'run') hi += ((2 * STAKE_LINE_PX) / this.heightPx) * this.stakeFade;
     if (hi - lo < 0.2) return;
     const tanV = Math.tan((this.fov * this.fovK * Math.PI) / 360);
     const tanH = tanV * c.aspect;
@@ -1847,7 +1943,8 @@ export class CameraRig {
       // (Camera round 5, QA phone slide: in the run, his posed head's. Stood 1.85 m over his root
       // while he slid under a beam, the crown held the look up as if he were standing, and the beam's
       // dark underside came down into the top of the frame.)
-      else if (this.mode === 'run' && this.headAt) crown = Math.max(runnerPos.y + 0.6, this.headAt.y + 0.22);
+      // (Camera round 7: and, as he is about to stand up out of a slide, his standing crown: see standSoon.)
+      else if (this.mode === 'run' && this.headAt) crown = lerp(Math.max(runnerPos.y + 0.6, this.headAt.y + 0.22), Math.max(runnerPos.y + 1.85, this.headAt.y + 0.22), this.standSoon);
       pts[1]!.copy(runnerPos).setY(crown);
       const down = this.mode === 'crash' && this.bodyPts?.length && (this.closeK > 0.5 || this.revealK > 0.3);
       const sh = down ? Math.min(runnerPos.y + 1.2, Math.max(runnerPos.y + 0.2, crown - 0.4)) : runnerPos.y + 1.2;
@@ -2029,6 +2126,15 @@ export class CameraRig {
     // the arch under the lens. The framing comes in as the lens descends, with the aim.)
     const high = this.mode === 'setup' ? this.setupHigh : 0;
     tilt *= 1 - high;
+    // Camera round 7: the duck's lean on a tall screen (see duckLean), as far as his crown stays under
+    // the band's top (less a margin for the output spring), the two blended smoothly (a soft minimum:
+    // a kink where the crown takes over reads to the output spring as a swap).
+    if (this.mode === 'run' && this.duckLean > 1e-4) {
+      const room = Math.max(0, Math.atan(hiT - DUCK_MARGIN * tanV) - (Math.atan(m.head) - tilt));
+      const kk = 0.05;
+      const lean = -kk * Math.log(Math.exp(-this.duckLean / kk) + Math.exp(-room / kk));
+      tilt -= Math.max(0, lean);
+    }
     if (Math.abs(tilt) > 1e-4) c.rotateX(tilt);
     // Horizontal: both arms inside the side margins.
     const mT = mx * tanH;

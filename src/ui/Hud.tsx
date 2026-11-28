@@ -115,6 +115,10 @@ export function Hud() {
         el.dataset.tier = String(tier);
         lastTier = tier;
       }
+      // Camera round 7: the stake/return line fades while the lens ducks under a beam on a phone (his
+      // head rises into its place as he stands from the slide); under reduced motion it steps, no fade.
+      const duck = ctl.game.rig.stakeFade;
+      el.closest<HTMLElement>('.hud')?.style.setProperty('--duck', (full ? duck : duck > 0.5 ? 1 : 0).toFixed(2));
       if (retRef.current) retRef.current.textContent = formatCredits(res ? res.round.payout : ctl.currentReturn());
       if (st.phase === 'running' && m > prev.current.m) {
         const hit = milestoneCrossed(prev.current.m, m);

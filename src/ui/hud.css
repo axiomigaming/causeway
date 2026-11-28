@@ -59,6 +59,8 @@
 .hud.lead .mult { color: var(--text-2); }
 .hud.cashing .mult { color: var(--amber-hi); }
 .hud .hud-sub { margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 24px; }
+/* (camera round 7: faded while the lens ducks under a beam on a phone: --duck, set by the HUD's tick) */
+.hud .hud-sub > span { opacity: calc(1 - var(--duck, 0)); }
 .hud .hud-sub span { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--t12); line-height: 16px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); }
 .hud .hud-sub b { font-size: var(--t16); line-height: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text); font-variant-numeric: tabular-nums; }
 .hud .hud-sub .ret b { min-width: 4.5em; text-align: left; }

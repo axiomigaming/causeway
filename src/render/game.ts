@@ -284,6 +284,7 @@ export class Game {
     this.rig.occlude = (a, b) => this.occluder(a, b);
     this.rig.holdSight = (a, b) => this.holdSight(a, b);
     this.rig.holdBlocked = (p) => this.holdBlocked(p);
+    this.rig.holdLeaf = (a, b) => this.leafSight(a, b);
   }
 
   static async create(canvas: HTMLCanvasElement, quality: QualityLevel, onProgress: (p: number, label: string) => void): Promise<Game> {
@@ -1533,6 +1534,52 @@ export class Game {
     return best;
   }
 
+  /**
+   * Camera round 7 (critic, the ledge's end frame in world 7): the first leafy prop (a palm's crown, a
+   * bush, ferns, vines: the props the solids leave out) on the way from `a` to `b`, or null. A held
+   * shot's place is chosen with a cost for foliage across its frame (see CameraRig.pickPit).
+   */
+  private leafSight(a: THREE.Vector3, b: THREE.Vector3): number | null {
+    if (!this.track) return null;
+    const o = this.occl;
+    const len = o.dir.copy(b).sub(a).length();
+    if (len < 1e-3) return null;
+    o.dir.divideScalar(len);
+    o.ray.set(a, o.dir);
+    let best: number | null = null;
+    for (const sec of this.track.sections) {
+      if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 25) continue;
+      let list = this.leafCache.get(sec);
+      if (!list) {
+        list = [];
+        for (const pl of sec.layout.props) {
+          const geo = this.kit.geo.get(pl.piece);
+          const mat = this.kit.matOf.get(pl.piece);
+          if (!geo || (mat !== 'leaf' && mat !== 'flora')) continue;
+          if (!geo.boundingBox) geo.computeBoundingBox();
+          const world = sec.root.matrix.clone().multiply(pl.m);
+          list.push({ geo, world, inv: world.clone().invert() });
+        }
+        this.leafCache.set(sec, list);
+      }
+      for (const e of list) {
+        o.local.copy(o.ray).applyMatrix4(e.inv);
+        if (!o.local.intersectBox(e.geo.boundingBox!, o.hit)) continue;
+        o.hit.applyMatrix4(e.world);
+        if (o.hit.distanceTo(a) > len) continue;
+        o.mesh.geometry = e.geo;
+        o.mesh.matrixWorld.copy(e.world);
+        o.rc.set(a, o.dir);
+        o.rc.far = len;
+        o.hits.length = 0;
+        o.mesh.raycast(o.rc, o.hits);
+        for (const h of o.hits) if (best === null || h.distance < best) best = h.distance;
+      }
+    }
+    return best;
+  }
+  private leafCache = new WeakMap<object, { geo: THREE.BufferGeometry; world: THREE.Matrix4; inv: THREE.Matrix4 }[]>();
+
   /** Would a held lens at `p` stand in or right against something solid (within ~0.5 m)? */
   private holdBlocked(p: THREE.Vector3): boolean {
     if (this.insideSolid(p)) return true;
@@ -1556,7 +1603,7 @@ export class Game {
    * way's centre line at floor height, with the way's heading, the trough's floor and half width.
    * Until the slabs go (0.2 s after the floor gives), where the cave-in will reach.
    */
-  private ledgeLip(bed: THREE.Object3D): { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number } {
+  private ledgeLip(bed: THREE.Object3D): { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number; shaft: THREE.Vector3 } {
     if (this.lipBed !== bed) {
       this.lipBed = bed;
       this.lipExact = false;
@@ -1575,7 +1622,11 @@ export class Game {
       const s = lip ?? this.lipS0 - LEDGE_BACK;
       if (!this.lipV || Math.abs(s - this.lipS) > 0.05) {
         const f = this.track.path.sample(s);
-        this.lipV = { pos: f.pos.clone(), fwd: forward(f.yaw), bedY: bed.position.y, half: LEDGE_HALF };
+        // (Camera round 7: and the shaft of sun the staging sets down through the hole onto him — its
+        // axis as the staging leans it, toward the sun along the way — for the hold's choice.)
+        const fw = forward(f.yaw);
+        const along = this.sunDir.x * fw.x + this.sunDir.z * fw.z;
+        this.lipV = { pos: f.pos.clone(), fwd: fw, bedY: bed.position.y, half: LEDGE_HALF, shaft: fw.clone().multiplyScalar(0.55 * along).setY(1).normalize() };
         this.lipS = s;
       }
     }
@@ -1585,7 +1636,7 @@ export class Game {
   private lipExact = false;
   private lipS0 = 0;
   private lipS = 0;
-  private lipV: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number } | null = null;
+  private lipV: { pos: THREE.Vector3; fwd: THREE.Vector3; bedY: number; half: number; shaft: THREE.Vector3 } | null = null;
   private tmpCrane = new THREE.Vector3();
   private cranePieces: THREE.Mesh[] = [];
   private tmpCrane2 = new THREE.Vector3();
@@ -1668,11 +1719,23 @@ export class Game {
       // sliver of it is ever in the frame), rising from ~7 m before it (over the last 4 m the lens, on
       // its springs, was still coming up as it passed over), and comes back down over the 3.5 m past
       // it (the piece's own ease-out is a metre: from that height, a drop).
+      // Camera round 7 (desktop: the log still crossed the frame's foot as a band, 27 % of its height
+      // at the peak): on a wide screen 2.3 m over the top, from further out — the height eases in over
+      // the 16 m before it, and five times that, up to the full lift, has the lens there ~5 m before the
+      // near face (over the last 2.4 m it was still rising as it reached the piece). (A piece passing
+      // under the lens crosses the frame's foot at its full size where its top meets the frame's lower
+      // edge; that is ~2·r/ρ of the view, ρ ≈ the lens's height over it / sin of that edge's depression,
+      // and the edge is held down by his boots in the band: from 2.9 m up the log peaks at ~21-23 % of a
+      // desktop frame's height, not much less from higher — see the round's notes.)
+      const wide = THREE.MathUtils.clamp((this.rig.camera.aspect - 1) / 0.5, 0, 1);
+      const over = 1.3 + 1.0 * wide;
+      const pad = 12 + 4 * wide;
+      const mul = 4 + 1 * wide;
       for (let k = 0; k <= 3; k += 0.5) {
-        const top = this.obstacles.jumpTopAt(s - k, 12);
+        const top = this.obstacles.jumpTopAt(s - k, pad);
         // (The piece's height eases in over the 12 m before it; four times that, up to its full
         // height and the margin, lifts the lens over the last 7.)
-        if (top !== null && top > 0) floor = Math.max(floor, fy + Math.min(4 * top, top + 1.3) * THREE.MathUtils.smoothstep(3.5 - k, 0, 3.5));
+        if (top !== null && top > 0) floor = Math.max(floor, fy + Math.min(mul * top, top + over) * THREE.MathUtils.smoothstep(3.5 - k, 0, 3.5));
       }
     }
     const L = this.ledgeBed;
@@ -2679,7 +2742,9 @@ export class Game {
         // (Camera round 7: the pillar's a third nearer — seen from his head end, the figure lying
         // away down the way measured a sixth of a desktop frame; the trip's drum needs the room, and a
         // phone's close-in is near enough already — nearer, his flung hand left its frame.)
-        this.rig.closeIn = trip || this.rig.camera.aspect < 1 ? 1 : 1.45;
+        // (Camera round 7: nearer again on a desktop — at 1.45 he measured 20 % of the frame against the
+        // check's 19.5 % floor; with the pier's top beside him now part of the subject, see the framing.)
+        this.rig.closeIn = trip || this.rig.camera.aspect < 1 ? 1 : 1.75;
         if (!trip) this.sounds.event?.('body_slam', palms ? 0.5 : 0.9);
       });
       if (trip) {
@@ -2949,6 +3014,9 @@ export class Game {
   private pinBlock: { mesh: THREE.Mesh; rest: THREE.Vector3; fall: number; t: number; T: number } | null = null;
   private pinBox = new THREE.Box3();
   private pinPts: THREE.Vector3[] = [];
+  private pinA = new THREE.Vector3();
+  private pinB = new THREE.Vector3();
+  private pinC = new THREE.Vector3();
   /** Crash round 6: a body going under (the chasm): metres pushed down below the clip's own drop (`at`: its speed). */
   private sink: { t: number; at: number; depth: number; hideAt: number } | null = null;
   private rollQ = new THREE.Quaternion();
@@ -3332,6 +3400,7 @@ export class Game {
     this.rig.fovK = 1 - (cam.aspect < 1 ? 0.1 : 0.04) * k;
     this.ceilDrop += (this.ceilWant - this.ceilDrop) * (1 - Math.exp(-dt * (this.ceilWant > this.ceilDrop ? 10 : 2.5)));
     const total = Math.max(this.ceilDrop, k * this.duckDepth);
+    this.rig.duckLean = 0;
     if (total < 1e-3 && k < 1e-3) return;
     const p = cam.position;
     const floor = this.track.path.sample(this.s).pos.y + 0.5;
@@ -3370,8 +3439,9 @@ export class Game {
     look.y -= drop * (0.35 + 1.0 * k);
     // (Camera round 6: and a tall screen's view, pitched up over the way in the run, leans down under
     // the beam as he slides, the beam's underside out over the top of the frame; he is low then. As
-    // he stands, past it, the framing tilts back up for his head.)
-    if (cam.aspect < 1) look.y -= 2.2 * k;
+    // he stands, past it, the framing tilts back up for his head. Camera round 7: the framing leans,
+    // as far as his crown allows: see CameraRig.duckLean.)
+    this.rig.duckLean = cam.aspect < 1 ? Math.atan((2.2 * k) / 6) : 0;
     cam.lookAt(look);
     cam.updateMatrixWorld();
   }
@@ -3902,6 +3972,14 @@ export class Game {
         // (Camera round 5: his head as posed, for his crown in the frame: see CameraRig.headAt.)
         const head = (this.headBone ??= this.runner.body.getObjectByName('head') ?? null);
         this.rig.headAt = head ? this.headPos.setFromMatrixPosition(head.matrixWorld) : null;
+        // Camera round 7 (phone beam slide): how near he is to standing up out of a slide (0..1), from
+        // the clip's own progress (read only): he gets up over its last quarter, his head a metre in a
+        // third of a second — faster than the output turns after it. The framing makes room for his
+        // standing crown before he rises (see CameraRig.standSoon).
+        const rn = this.runner as unknown as { current: string; actions: Map<string, THREE.AnimationAction> };
+        const sl = rn.current === 'slide' ? rn.actions.get('slide') : undefined;
+        const dur = sl?.getClip().duration ?? 0;
+        this.rig.standSoon = sl && dur > 0 ? THREE.MathUtils.smoothstep(sl.time / dur, 0.58, 0.76) : 0;
       } else {
         this.rig.lift = 0;
         this.rig.headAt = null;
@@ -3952,6 +4030,34 @@ export class Game {
         // rockfall's block across his shins — is part of the subject: its ends are framed with him,
         // clear of the card and the dock (the drum lay in behind the dock).
         const pin = this.stage === 'crash' ? (this.drumRoll?.mesh ?? this.pinBlock?.mesh ?? null) : null;
+        // Camera round 7 (critic, desktop pillar): the fallen pier he ran into is part of the subject
+        // too — not the whole of it (it spans the way, and framing all of it stood him back to a fifth
+        // of the frame), its top where he met it: a metre and a half of it beside his chest, so it
+        // reads beside him on his side of the card, not behind the card.
+        const pier = this.stage === 'crash' && this.crashKind === 'pillar' && this.pierTopple && (this.rig.closeIn > 0 || this.rig.revealK > 0.3) ? this.pierTopple.mesh : null;
+        if (pier && !pin) {
+          const geo = pier.geometry;
+          if (!geo.boundingBox) geo.computeBoundingBox();
+          const bb = geo.boundingBox!;
+          pier.updateMatrixWorld();
+          const a = this.pinA.set(0, bb.min.y, 0).applyMatrix4(pier.matrixWorld);
+          const b = this.pinB.set(0, bb.max.y, 0).applyMatrix4(pier.matrixWorld);
+          const ab = this.pinC.copy(b).sub(a);
+          const len = ab.length();
+          if (len > 0.5) {
+            ab.divideScalar(len);
+            const chest = this.tmpV1.setFromMatrixPosition(hips.matrixWorld);
+            const t = THREE.MathUtils.clamp(this.tmpV2.copy(chest).sub(a).dot(ab), 0.75, len - 0.75);
+            const rad = (Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2) * this.tmpV2.setFromMatrixScale(pier.matrixWorld).x;
+            const pts = this.pinPts;
+            const n = this.limbPts.length;
+            while (pts.length < n + 2) pts.push(new THREE.Vector3());
+            pts.length = n + 2;
+            this.limbPts.forEach((v, i) => pts[i]!.copy(v));
+            for (const [i, dt] of [[0, -0.75], [1, 0.75]] as const) pts[n + i]!.copy(a).addScaledVector(ab, t + dt).y += rad;
+            this.rig.bodyPts = pts;
+          }
+        }
         if (pin) {
           const b = this.pinBox.setFromObject(pin);
           if (!b.isEmpty()) {
@@ -4269,6 +4375,31 @@ export class Game {
   debugAdvance(metres: number): void {
     this.s += metres;
     this.track.update(this.s, 0.5);
+  }
+
+  /**
+   * Camera round 7 (QA): the camera as built at the start of a check's case (call right after a new
+   * world), whatever the cases before it left behind — the rig (see CameraRig.qaReset) and the game's
+   * own camera wiring (the duck, the ceiling, the guard, the crane, the subject's offset, the world's
+   * clock) — and the rig's hold searches stepped a fixed amount a frame (`steps`; 0 for play's time
+   * slices).
+   */
+  debugCameraReset(steps = 40): void {
+    this.duckT = this.duckDepth = 0;
+    this.ceilT = this.ceilWant = this.ceilDrop = 0;
+    this.guardK = this.guardV = 0;
+    this.craneK = 0;
+    this.hipRest = null;
+    this.subjOff.set(0, 0, 0);
+    this.holdStamp = -1;
+    this.holdMeshes.length = 0;
+    this.rippleSeed = 1;
+    // (And the world's clock from zero: events are timed against it, and a frame's rounding at a
+    // larger value moved one by a frame depending on how long the page had run.)
+    this.worldT = 0;
+    this.rig.qaSteps = steps;
+    const f = this.track.path.sample(this.s);
+    this.rig.qaReset(f.pos, f.yaw);
   }
 
   /** QA: the nearest mesh under each screen point ([x, y] in 0..1 from the top left), with its material. */

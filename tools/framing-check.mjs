@@ -13,6 +13,15 @@
 // shot springs are critically damped and the output is jerk-limited (CameraRig.smoothOut), so a swap
 // of shot or subject blends. `--motion 0` skips it; `--motion only` runs only it.
 //
+// Camera round 7: deterministic. Its numbers used to flip between runs (the desktop pillar passed or
+// failed at its floor): each motion case built its world from the real Math.random (with seed 0) and
+// 'unlike the world before' (Track.vary), its impact jolts and debris drew from it too, and the camera
+// carried the case before into it (the rig's clock, which phases the shake, its settled springs, the
+// side it had chosen) while its hold searches ran on wall time. Each case now draws from a sequence
+// seeded by its name, picks its world from that alone, starts from the camera as built
+// (Game.debugCameraReset) with the searches stepped a fixed amount a frame: the same numbers every
+// run, in any order (--cases runs one alone with the numbers it has in the full run).
+//
 // Exits 1 if any frame fails. Headless Chromium (SwiftShader); time is stepped (Game.debugStep), so the
 // result does not depend on the frame rate.
 import { chromium } from 'playwright-core';
@@ -50,6 +59,20 @@ const browser = await chromium.launch({
 let failed = 0;
 for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))) {
   const page = await browser.newPage({ viewport: { width: v.w, height: v.h }, deviceScaleFactor: 1, isMobile: v.mobile, hasTouch: v.mobile });
+  // Camera round 7: a seeded stand-in for Math.random (see `seeded` below).
+  await page.addInitScript(() => {
+    window.__seeded = (name) => {
+      let s = 0;
+      for (const c of name) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+      return () => {
+        s = (s + 0x6d2b79f5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    };
+  });
   await page.goto(`${URL}/?qa&q=${q}&seed=framing`, { waitUntil: 'load' });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 900000, polling: 500 });
   if (motion !== '0') failed += await cameraMotion(page, v.name);
@@ -69,6 +92,8 @@ for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))
       g.elapsed = () => null;
       g.newWorld('title');
     }
+    // (Camera round 7: from the fly-over's start, whatever ran before: its phase is the rig's clock.)
+    g.debugCameraReset?.();
     const out = [];
     for (let t = 0; t < 46; t += 2.3) {
       g.debugStep(2.3);
@@ -93,9 +118,15 @@ for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))
         Math.random = () => ((w * 0.618) % 1) * 0.98;
         // From the title (anywhere in its fly-over) to the setup, as the player sees it: one second
         // after entering, and settled. Then a fresh world after a round (newWorld('setup')).
+        // (Camera round 7: the world from this case's own seed alone, not also 'unlike the world before'
+        // — Track.vary() — which tied each case to whatever ran first.)
+        g.track.styleIndex = -1;
         g.newWorld('title');
         Date.now = now;
         Math.random = rnd;
+        // (Camera round 7: the fly-over's phase from this world's own step below, not the rig's clock
+        // as the worlds before left it.)
+        g.debugCameraReset?.();
         g.debugStep(2 + ((w * 5.3) % 40));
         g.toSetup();
         g.debugStep(1);
@@ -142,10 +173,17 @@ for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))
     const g = window.__game;
     const out = [];
     const now = Date.now;
+    const rnd = Math.random;
     for (const id of ['slide-0', 'slide-2', 'slide-9']) {
       Date.now = () => 7000 + id.length * 31 + +id.split('-')[1];
+      // (Camera round 7: the world, the shake's jolts and the debris seeded by the case.)
+      Math.random = window.__seeded(id);
+      // (Camera round 7: the world from this case's own seed alone, not also 'unlike the world before'
+      // — Track.vary() — which tied each case to whatever ran first.)
+      g.track.styleIndex = -1;
       g.newWorld('setup');
       Date.now = now;
+      g.debugCameraReset?.();
       g.debugStep(1);
       const start = g.virtualNow + 1100 - 66000;
       g.elapsed = () => g.virtualNow - start;
@@ -161,6 +199,7 @@ for (const v of VIEWS.filter((x) => !views || views.split(',').includes(x.name))
       }
       if (!sawSlide) out.push({ stage: `${id} (no win_slide)`, f: null });
     }
+    Math.random = rnd;
     return out;
   });
   for (const { stage, f, body, title: isTitle } of [...title, ...extra]) {
@@ -210,11 +249,21 @@ async function cameraMotion(page, view) {
         g.rig.shakeEnabled = shake;
         const now = Date.now;
         Date.now = () => 4242 + c.name.length * 97 + seed * 1013;
+        // Camera round 7 (QA, flaky cases): every draw of Math.random through the case — the world
+        // picked (with seed 0 it was the real Math.random: a different world every run), the impact
+        // jolts, the debris — from a sequence seeded by the case, restored after it; and the camera
+        // as built at its start (see Game.debugCameraReset: the rig's clock, which phases the shake,
+        // and its settled state no longer carry over from the case before).
         const rnd = Math.random;
-        if (seed) Math.random = () => ((seed * 0.618 + c.name.length * 0.1) % 1) * 0.98;
+        Math.random = window.__seeded(`${c.name}/${seed}`);
+        // (The round clock from the same place too: the multiplier is read off it.)
+        g.virtualNow = 1e6;
+        // (Camera round 7: the world from this case's own seed alone, not also 'unlike the world before'
+        // — Track.vary() — which tied each case to whatever ran first.)
+        g.track.styleIndex = -1;
         g.newWorld('setup');
         Date.now = now;
-        Math.random = rnd;
+        g.debugCameraReset?.();
         g.debugStep(1);
         // The round clock: m = e^(0.000063 t); cash out (or crash) 2.6 s into the run at c.mult.
         const E = Math.log(c.mult) / 0.000063;
@@ -271,7 +320,7 @@ async function cameraMotion(page, view) {
         // World round 23 releases a section's paving once it lies 50 m behind him: any of those
         // sections' path in the frame (occlusion ignored, so conservative) is bare ground on screen.
         const gone = [];
-        window.__fc = { RK, Fc, gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
+        window.__fc = { rnd, RK, Fc, gone, g, cam, P, Q, L, O, D, G, H, T, B, C, bones, cuts, colHits, onImp, pier, f: 0, revealAt: -1, revealSpeed: 0, setF: (v) => (fNow = v) };
       },
       { c, shake, seed },
     );
@@ -380,6 +429,8 @@ async function cameraMotion(page, view) {
         const dbg = { d: +cp.distanceTo(hp).toFixed(2), dy: +(cp.y - hp.y).toFixed(2), revealK: +g.rig.revealK.toFixed(2), closeK: +(g.rig.closeK ?? 0).toFixed(2), gap: +(g.rig.gap ?? 0).toFixed(2), fov: +cam.fov.toFixed(1), guard: +(g.guardK ?? 0).toFixed(2) };
         for (const k of ['safeShot', 'snap']) delete g.rig[k];
         g.debris.onImpact = onImp;
+        Math.random = S.rnd;
+        g.rig.qaSteps = 0;
         // The celebration clip's turn round to the lens (s of clip time), for the escape's facing window.
         const winClip = [...RK].reverse().find((x) => typeof x[5] === 'string' && x[5].startsWith('win'))?.[5];
         const turnT = winClip && g.clipTurn ? g.clipTurn(winClip)?.t ?? null : null;
