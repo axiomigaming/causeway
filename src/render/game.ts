@@ -16,7 +16,7 @@ import { forward } from '../world/path';
 import { CRASH_CLIPS, crashStaging, escapeStaging, intensityOf, nextBeat, progression, type CrashKind, type CrashStaging, type EscapeStaging, type Progression } from '../world/choreo';
 import { Runner, setRunnerLight, type RunnerAnim } from '../world/runner';
 import { isLand, PATH_HALF } from '../world/sections';
-import { Track, type TileSlot } from '../world/track';
+import { Track, isUnderWay, type TileSlot } from '../world/track';
 import type { Look } from '../world/look';
 import { WATER_Y, Water } from '../world/water';
 import { foliageUniforms } from '../world/foliage';
@@ -1353,7 +1353,7 @@ export class Game {
   };
 
   /** Solid near-path props of a section (walls, pillars, arches, stelae — not leaves, not far scenery). */
-  private solids(sec: { type?: string; root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[] } }, all = false) {
+  private solids(sec: { type?: string; root: THREE.Object3D; layout: { props: { piece: string; m: THREE.Matrix4 }[]; turn: number; dy: number } }, all = false) {
     const cache = all ? this.occlAll : this.occl.cache;
     let list = cache.get(sec);
     if (list) return list;
@@ -1362,18 +1362,49 @@ export class Game {
     // A corner's exit leg runs off along the section's local x: there "near the way" is not |x|
     // small (its walls and piers stood at |x| > 7.5 and the lens could sit inside them unseen).
     const corner = sec.type === 'turnL' || sec.type === 'turnR';
+    const ub = this.solidsBox;
     for (const pl of sec.layout.props) {
       const geo = this.kit.geo.get(pl.piece);
       const mat = this.kit.matOf.get(pl.piece);
       if (!geo || !mat || mat === 'leaf') continue;
       if (!all && !corner && Math.abs(p.setFromMatrixPosition(pl.m).x) > 7.5) continue;
       if (!geo.boundingBox) geo.computeBoundingBox();
+      // (Camera round 7, after world round 29: the piers under the way are the sections' under-slots,
+      // which a ledge's cave-in takes with the floor — see underSolids — not fixed props.)
+      if (isUnderWay(sec.layout, pl.piece, ub.copy(geo.boundingBox!).applyMatrix4(pl.m))) continue;
       const world = sec.root.matrix.clone().multiply(pl.m);
       list.push({ geo, world, inv: world.clone().invert() });
     }
     cache.set(sec, list);
     return list;
   }
+
+  private solidsBox = new THREE.Box3();
+  /**
+   * Camera round 7 (world round 29 hides the piers under the way in a ledge's footprint with the
+   * floor, Track.hideUnder): those still standing, as solids. Listed with the props, the hidden ones
+   * still blocked every sight line into the opened trough — in world 9 the ledge's hold found no place
+   * that saw him and stood at its default, him behind the desktop's card.
+   */
+  private underSolids(sec: { under: TileSlot[] }): { geo: THREE.BufferGeometry; world: THREE.Matrix4; inv: THREE.Matrix4 }[] {
+    const out = this.underTmp;
+    out.length = 0;
+    for (const t of sec.under) {
+      if (!t.alive) continue;
+      let e = this.underCache.get(t);
+      if (!e) {
+        const geo = this.kit.geo.get(t.piece);
+        if (!geo) continue;
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        e = { geo, world: t.world, inv: t.world.clone().invert() };
+        this.underCache.set(t, e);
+      }
+      out.push(e);
+    }
+    return out;
+  }
+  private underTmp: { geo: THREE.BufferGeometry; world: THREE.Matrix4; inv: THREE.Matrix4 }[] = [];
+  private underCache = new WeakMap<TileSlot, { geo: THREE.BufferGeometry; world: THREE.Matrix4; inv: THREE.Matrix4 }>();
 
   /**
    * Distance from `from` to the first solid prop on the segment to `to`, or null when clear. Broad
@@ -1389,7 +1420,7 @@ export class Game {
     let best: number | null = null;
     for (const sec of this.track.sections) {
       if (sec.s0 > this.s + 25 || sec.s0 + sec.len < this.s - 25) continue;
-      for (const e of this.solids(sec)) {
+      for (let k = 0; k < 2; k++) for (const e of k ? this.underSolids(sec) : this.solids(sec)) {
         o.local.copy(o.ray).applyMatrix4(e.inv);
         if (!o.local.intersectBox(e.geo.boundingBox!, o.hit)) continue;
         o.hit.applyMatrix4(e.world);
@@ -3516,7 +3547,7 @@ export class Game {
         if (o.hits.some((h) => h.point.y > p.y + 0.1)) return true;
       }
       // Every solid prop, the far scenery too: after a corner the way can pass a section's vista.
-      for (const e of this.solids(sec, true)) {
+      for (let k = 0; k < 2; k++) for (const e of k ? this.underSolids(sec) : this.solids(sec, true)) {
         this.guardP.copy(p).applyMatrix4(e.inv);
         this.guardBox.copy(e.geo.boundingBox!).expandByScalar(-0.15);
         if (!this.guardBox.containsPoint(this.guardP)) continue;
