@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Splash } from './fxSplash';
 
 /**
  * Billowing dust clouds: soft, sun-lit sprites that roll outward, swell and rise. Each sprite is a
@@ -118,6 +119,7 @@ export interface PuffOpts {
   size: [number, number];
   life: number;
   alpha: number;
+  /** Colour gain. 1.6 or more in every channel is white water, handed to the splash (Billows.water). */
   tint?: THREE.Color;
   /** Upward drift (m/s²) and drag (1/s). */
   rise?: number;
@@ -129,6 +131,8 @@ export interface PuffOpts {
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+/** A tint this bright in every channel marks white water (see Billows.water). */
+const WHITE_WATER = 1.6;
 
 export class Billows {
   readonly mesh: THREE.Mesh;
@@ -194,9 +198,24 @@ export class Billows {
 
   private static tmp = new THREE.Vector3();
 
+  /**
+   * Anim round 7: where white water goes (fxSplash). A puff tinted brighter than white in every channel
+   * (WHITE_WATER and up: the splash's crown, skirt and column) is water thrown up, not a cloud: drawn as
+   * these lumpy, self-shadowed sprites it read as separate cotton blobs on the closest phone shots.
+   */
+  water: Splash | null = null;
+
   puff(at: THREE.Vector3, o: PuffOpts): void {
-    const n = Math.max(o.count > 0 ? 1 : 0, Math.round(o.count * this.scale));
     const tint = o.tint ?? WHITE;
+    if (this.water && Math.min(tint.r, tint.g, tint.b) >= WHITE_WATER) {
+      const v = o.vel ?? Billows.tmp.set(0, 0, 0);
+      const r = Math.random;
+      const j = o.jitter * 0.5;
+      for (let k = 0; k < Math.max(1, Math.round(o.count)); k++)
+        this.water.fromPuff(at.x + (r() - 0.5) * o.spread, at.y, at.z + (r() - 0.5) * o.spread, v.x + (r() - 0.5) * 2 * j, v.y + (r() - 0.3) * j, v.z + (r() - 0.5) * 2 * j, o.size[0] * (0.85 + r() * 0.3), o.size[1] * (0.85 + r() * 0.3), o.life, o.alpha, o.rise ?? 0.25, o.drag ?? 1.6, o.floor ?? at.y);
+      return;
+    }
+    const n = Math.max(o.count > 0 ? 1 : 0, Math.round(o.count * this.scale));
     for (let k = 0; k < n; k++) {
       if (this.n >= Math.min(this.cap, this.budget)) this.kill(this.oldest());
       const i = this.n++;

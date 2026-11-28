@@ -44,7 +44,10 @@ const VERT = /* glsl */ `
     vec2 tail = a1 - dir * w;
     vec2 p = mix(head, tail, position.y) + nrm * position.x * 2.0 * w;
     vUv = vec2(position.x * 2.0, position.y);
-    vA = aD.y * smoothstep(0.0, 0.004, len + w);
+    // A drop thinner than the line it is drawn with fades by as much, rather than standing out as a full-strength
+    // hard speck (anim round 7: on the closest phone shots the splash's fine drops read as white dots).
+    float wr = aD.x * projectionMatrix[1][1] / c0.w;
+    vA = aD.y * smoothstep(0.0, 0.004, len + w) * clamp(wr / 0.004, 0.3, 1.0);
     gl_Position = vec4(p.x / uAspect * c0.w, p.y * c0.w, c0.z, c0.w);
   }`;
 

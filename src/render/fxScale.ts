@@ -103,13 +103,15 @@ export interface FxBudget {
   beams: number;
   /** Gold and jade escape glints alive at once. */
   sparks: number;
+  /** A splash's elements (white water, foam, mist) at full strength (fxSplash: a crown ~half of it). */
+  splash: number;
 }
 
 const BUDGETS: Record<QualityLevel, FxBudget> = {
-  low: { billows: 70, bodies: 22, shards: 2, rings: 4, birds: 10, beams: 2, sparks: 90 },
-  medium: { billows: 150, bodies: 40, shards: 3, rings: 8, birds: 18, beams: 4, sparks: 160 },
-  high: { billows: 230, bodies: 60, shards: 4, rings: 10, birds: 26, beams: 6, sparks: 240 },
-  ultra: { billows: 320, bodies: 80, shards: 5, rings: 12, birds: 32, beams: 6, sparks: 300 },
+  low: { billows: 70, bodies: 22, shards: 2, rings: 4, birds: 10, beams: 2, sparks: 90, splash: 100 },
+  medium: { billows: 150, bodies: 40, shards: 3, rings: 8, birds: 18, beams: 4, sparks: 160, splash: 150 },
+  high: { billows: 230, bodies: 60, shards: 4, rings: 10, birds: 26, beams: 6, sparks: 240, splash: 200 },
+  ultra: { billows: 320, bodies: 80, shards: 5, rings: 12, birds: 32, beams: 6, sparks: 300, splash: 200 },
 };
 
 /** Effect budgets per quality tier; reduced motion trims the busiest ones. */
@@ -120,6 +122,7 @@ export function fxBudget(level: QualityLevel, motion: Motion = 'full'): FxBudget
     b.birds = Math.round(b.birds * 0.5);
     b.shards = Math.max(1, b.shards - 1);
     b.sparks = Math.round(b.sparks * 0.6);
+    b.splash = Math.round(b.splash * 0.7);
   }
   return b;
 }
