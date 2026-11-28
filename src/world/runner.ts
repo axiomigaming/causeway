@@ -1105,12 +1105,14 @@ export class Runner {
     // (Not eased down while he still runs on at the pace he had: the cash-out's run-on keeps the round's speed
     // for a beat with the tier back at 0, and easing the gait down from the dash to the slowest blend that
     // fits that pace (gaitDriveFloor) put him on a sprint/dash blend whose planted foot drifted 2.5-3 cm a
-    // frame at 62x. It eases down once he slows, and at rest.)
-    const pacing = this.current === 'run' && this.drive < this.driveS && speed > 4 && speed >= this.speedPrev - 1e-3;
+    // frame at 62x. It eases down once he slows, and at rest; and only where the run's own stride cannot carry
+    // the pace: below that the floor is the plain run and the ease-down is as it was.)
+    const dMax = this.actions.has('dash') ? 4 : 2.2;
+    const floor = gaitDriveFloor(speed, dMax);
+    const pacing = this.current === 'run' && floor > 0 && this.drive < this.driveS && speed >= this.speedPrev - 1e-3;
     if (!pacing) this.driveS += (this.drive - this.driveS) * (1 - Math.exp(-dt * 1.5));
     if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
-    const dMax = this.actions.has('dash') ? 4 : 2.2;
-    const d = Math.max(Math.min(this.driveS, dMax), gaitDriveFloor(speed, dMax));
+    const d = Math.max(Math.min(this.driveS, dMax), floor);
     const mix: Record<string, number> = gaitMix(d);
     this.contact = GAITS.reduce((a, g) => a + (mix[g] ?? 0) * CONTACT[g], 0);
     const cadence = gaitCadence(speed, d);
