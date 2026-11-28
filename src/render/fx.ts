@@ -6,6 +6,7 @@ import { Beams, installRim, type RimUniforms } from './fxEscape';
 import { Flock } from './fxFlock';
 import { Glory, Letterbox, LightPool, Sparkles } from './fxReward';
 import { FX_CAPACITY, fxBudget, type FxBudget, type Motion } from './fxScale';
+import { Splash } from './fxSplash';
 
 /**
  * The cinematic effects layer: lit dust clouds, water shockwaves, floor cracks, birds, sun shafts
@@ -23,6 +24,8 @@ export class Fx {
   readonly glory = new Glory();
   readonly pool = new LightPool();
   readonly bars = new Letterbox();
+  /** Anim round 7: white water, foam and mist of a splash (fxSplash). */
+  readonly splash = new Splash(FX_CAPACITY.splash);
   budget: FxBudget = fxBudget('high');
   private rim: RimUniforms | null = null;
   private rimLevel = 0;
@@ -33,7 +36,8 @@ export class Fx {
 
   constructor() {
     this.root.name = 'fx';
-    this.root.add(this.cracks.mesh, this.rings.mesh, this.billows.mesh, this.flock.mesh, this.beams.mesh, this.sparkles.points, this.glory.mesh, this.pool.mesh, this.bars.mesh);
+    this.billows.water = this.splash;
+    this.root.add(this.cracks.mesh, this.rings.mesh, this.billows.mesh, this.flock.mesh, this.beams.mesh, this.sparkles.points, this.glory.mesh, this.pool.mesh, this.bars.mesh, this.splash.mesh);
     // Nothing here is solid: none of it may cast (or take) a shadow.
     this.root.traverse((o) => {
       o.castShadow = false;
@@ -55,6 +59,7 @@ export class Fx {
     this.flock.budget = b.birds;
     this.beams.budget = b.beams;
     this.sparkles.budget = b.sparks;
+    this.splash.budget = b.splash / FX_CAPACITY.splash;
   }
 
   /** Golden rim strength target (0 = off). */
@@ -70,6 +75,7 @@ export class Fx {
     this.bars.update(rawDt);
     this.billows.update(dt, cam, sunDir);
     this.rings.update(dt);
+    this.splash.update(dt, cam, sunDir, (cam as THREE.PerspectiveCamera).aspect ?? 1);
     this.cracks.update(dt);
     this.flock.update(dt, this.eye.setFromMatrixPosition(cam.matrixWorld));
     this.beams.update(rawDt, time);
@@ -92,6 +98,7 @@ export class Fx {
     this.glory.clear();
     this.pool.clear();
     this.bars.clear();
+    this.splash.clear();
     this.rimLevel = this.rimTarget = 0;
     this.rim?.uRimColor.value.setRGB(0, 0, 0);
   }
