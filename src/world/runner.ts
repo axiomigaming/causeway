@@ -48,7 +48,9 @@ export type Obstacle = 'jump_log' | 'leap_gap' | 'slide' | 'vault' | 'turn_cut_L
  * flight (takeoff → land, nominally 0.5 s) is stretched to the gap instead (obstacleTiming()).
  */
 export const OBSTACLES: Record<Obstacle, { from: number; to: number; duration: number; takeoff: number; land: number }> = {
-  jump_log: { from: 0, to: 0.7, duration: 27 / 30, takeoff: 5 / 30, land: 23 / 30 },
+  // (Anim round 7: its run-out 6 frames longer, the arms crossing back into the gait before the hand-back; the
+  // takeoff and landing are where they were.)
+  jump_log: { from: 0, to: 0.089, duration: 33 / 30, takeoff: 5 / 30, land: 23 / 30 },
   leap_gap: { from: 0, to: 0.9725, duration: 36 / 30, takeoff: 6 / 30, land: 21 / 30 },
   slide: { from: 0, to: 0.45, duration: 35 / 30, takeoff: 12 / 30, land: 26 / 30 },
   vault: { from: 0, to: 0.5, duration: 31 / 30, takeoff: 5 / 30, land: 23 / 30 },
@@ -199,7 +201,7 @@ const EVENTS: Record<string, [number, Foot, number][]> = {
   win_cheer: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [2.167, 'R', 0.2], [2.367, 'L', 0.2], [2.567, 'R', 0.2], [2.767, 'L', 0.2]],
   win_pump: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.767, 'R', 0.2], [1.967, 'L', 0.2], [2.167, 'R', 0.2], [2.367, 'L', 0.2]],
   win_cheer_big: [[0.133, 'R', 0.6], [0.333, 'L', 0.5], [0.567, 'R', 0.42], [0.833, 'L', 0.35], [1.0, 'R', 0.45], [1.967, 'R', 0.2], [2.167, 'L', 0.2], [2.367, 'R', 0.2], [2.567, 'L', 0.2], [3.5, 'L', 0.7], [3.51, 'R', 0.7], [4.07, 'L', 0.7], [4.08, 'R', 0.7]],
-  jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1]],
+  jump_log: [[0.167, 'L', 0.6], [0.767, 'R', 1], [1.054, 'L', 0.6]],
   leap_gap: [[0.2, 'L', 0.7], [0.7, 'L', 1], [0.96, 'R', 0.9]],
   slide: [[0.4, 'L', 0.6], [0.867, 'L', 0.6]],
   vault: [[0.167, 'L', 0.6], [0.467, 'R', 0.3], [0.767, 'L', 0.9]],
@@ -405,8 +407,16 @@ const DROPS = new Set(['fall_ledge', 'fall_chasm', 'fall_chasm_b', 'fall_drop'])
 const FOOT_FLOOR = 0.05;
 /** The toe joint's lowest height over the floor while a pin holds the ankle (m): the floor (a good stance has it at 1-2 mm). */
 const TOE_FLOOR = 0;
-/** A turn cut's outside-foot plant, clip time (s): from its touchdown (frame 7.8) to its push-off. */
+/**
+ * A turn cut's outside-foot plant, clip time (s): from its touchdown (frame 7.8) to its push-off on the run's
+ * stride. The cut's stride copies push off sooner, on the sprint's and the dash's shorter contact: see
+ * cutPlantEnd().
+ */
 const CUT_PLANT: readonly [number, number] = [7.8 / 30, 12.3 / 30];
+/** The cut's push-off (clip s) for a blended contact share: the plant spans contact / 0.0625 clip frames from frame 9. */
+export function cutPlantEnd(contact: number): number {
+  return CUT_PLANT[1] + (contact - CONTACT.run) / 0.0625 / 30;
+}
 
 /** How far into an airborne span clip time `t` is (0 outside, eased to 1 within 0.08 s of each edge). */
 export function airWeight(clip: string, t: number): number {
@@ -880,6 +890,16 @@ export class Runner {
   private start(name: RunnerAnim, fade: number, offset: number) {
     // (A new clip measures its travel from its own first frame.)
     this.travelPrev = null;
+    // A move taken from the stride starts on the stride itself (its run-in is keyed on the tier's own gait at
+    // the floor's pace, its copies sharing the gait mix): a foot planted at the hand-over stays with the clip,
+    // as it would in the run, and is pinned only from its next touchdown. (Pinned at once, the pin's ease-in
+    // and its let-go at the toe-off rocked the planted foot 24-28° a frame on the move's first frames.)
+    if (this.current === 'run' && this.obst?.name === name && name !== 'stumble_land') {
+      for (const s of ['L', 'R'] as const) {
+        this.feet[s].locked = false;
+        this.feet[s].spent = true;
+      }
+    }
     if (this.obst && this.obst.name !== name) this.obst = null;
     if (this.obstLift > 0.001) {
       this.liftCarry = this.obstLift;
@@ -1082,7 +1102,12 @@ export class Runner {
     // Gait: the run tier blends run → sprint → dash on one stride phase, and the cadence is set so the
     // planted foot keeps pace with the floor (speed / stride length of the blend). Turnover tops out
     // near an elite sprinter's (~5 steps/s), a touch higher in the desperate dash.
-    this.driveS += (this.drive - this.driveS) * (1 - Math.exp(-dt * 1.5));
+    // (Not eased down while he still runs on at the pace he had: the cash-out's run-on keeps the round's speed
+    // for a beat with the tier back at 0, and easing the gait down from the dash to the slowest blend that
+    // fits that pace (gaitDriveFloor) put him on a sprint/dash blend whose planted foot drifted 2.5-3 cm a
+    // frame at 62x. It eases down once he slows, and at rest.)
+    const pacing = this.current === 'run' && this.drive < this.driveS && speed > 4 && speed >= this.speedPrev - 1e-3;
+    if (!pacing) this.driveS += (this.drive - this.driveS) * (1 - Math.exp(-dt * 1.5));
     if (this.current === 'run' || this.current === 'start') this.peakDrive = Math.max(this.peakDrive, this.drive);
     const dMax = this.actions.has('dash') ? 4 : 2.2;
     const d = Math.max(Math.min(this.driveS, dMax), gaitDriveFloor(speed, dMax));
@@ -1855,9 +1880,10 @@ export class Runner {
       // fade-out at the hand-back dragged the leg into the swing).
       const O = this.obst && this.current === this.obst.name ? OBSTACLES[this.obst.name] : null;
       const keyedOn = this.current === 'jump_log' || this.current === 'vault';
-      // (leap_gap lands on the stride and holds its deep first stance on the pins, then runs out keyed on the gait from 26/30: near the
-      // clip's own pace only; much faster, the clip's feet cannot keep up with the floor and the pin holds.)
-      const runningOut = this.current === 'leap_gap' && t >= 26 / 30 && this.speed < 7.5;
+      // (leap_gap lands on the stride and holds its deep first stance on the pins, then runs out keyed on the gait from 26/30, at any
+      // pace: its stride copies run out on the tier's own stride. Held to the run's pace only, a pin caught the run-out's next strike
+      // while the foot was still coming down and dragged it 2-4 cm a frame at the 5x tier.)
+      const runningOut = this.current === 'leap_gap' && t >= 26 / 30;
       const flying = O !== null && O.land > O.takeoff + 0.1 && t >= O.takeoff && (keyedOn || runningOut || t < O.land - 0.02);
       const free = !active || sliding || turning || kneeling || carried || flying || down || h < -0.05 || (this.speed > 4.5 && this.current.startsWith('fall_'));
       // On a bend and through a cut's plant the stance is known (the stride's phase, the cut's plant frames),
@@ -1998,7 +2024,7 @@ export class Runner {
     }
     if (this.current === 'turn_cut_L' || this.current === 'turn_cut_R') {
       const outside = this.current === 'turn_cut_L' ? 'R' : 'L';
-      return s === outside && t >= CUT_PLANT[0] && t <= CUT_PLANT[1];
+      return s === outside && t >= CUT_PLANT[0] && t <= cutPlantEnd(this.contact);
     }
     return null;
   }
