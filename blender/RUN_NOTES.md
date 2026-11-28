@@ -120,4 +120,13 @@ bend first and the shoulders follow, while the planted foot stays fixed and the 
   frame sideways (24–43 cm in a cut).
 * turn_cut_L/R (runner_anim.py): the outside leg keeps the gait's own stance solve (no abduction or
   knee nudge), the body is moved over the planted foot so it holds still in the clip
-  (`pin_stance`), and the cut's bank leans into the turn.
+  (`pin_stance`), and the cut's bank leans into the turn. Like the other moves it has stride-tier copies
+  (`turn_cut_L_sprint` …) keyed on the sprint's and the dash's gait; the plant is held for the tier's own
+  contact (frames 9-12 on the run, 9-11 on the sprint and dash) and let go eased over 4 frames.
+
+## Moves and the stride tiers
+
+Every move's run-in (the frames before it leaves the stride) is keyed on the tier's own gait in each copy:
+blended by the gait mix, the copies are the stride the game is running on, so the foot planted at the
+hand-over stays planted and the runtime does not pin it (Runner.start). The landings hand back on the tier's
+stride too; the log jump's landing stance is solved on the floor (hand_back's `stance`).

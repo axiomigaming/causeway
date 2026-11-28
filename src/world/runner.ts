@@ -1240,10 +1240,20 @@ export class Runner {
    * How much of the obstacle director's nudge to the floor's speed this frame may carry (mean 1 over a
    * stride): in the plain run, mostly while both feet are off the floor. Carried evenly, the floor ran up to
    * 12-20% ahead of or behind the stride, and every planted foot slid by it (~3 cm/frame); in the air it is
-   * a longer or a shorter bound. A move, a fall or an escape takes it as it comes.
+   * a longer or a shorter bound. A fall or an escape takes it as it comes; a move, below.
    */
   groundNudgeGate(): number {
     const gaitW = Math.max(...GAITS.map((g) => this.weights.get(g) ?? 0));
+    // A move takes it as the run does over its run-in (keyed on the stride), whole in its flight, and not at all
+    // once it has landed: its run-out is keyed on the floor's pace, and the director's approach to the next
+    // piece, nudging the floor through it, slid the planted foot 3-4 cm a frame (a leap's run-out at 5x).
+    if (this.obst && this.current === this.obst.name) {
+      const O = OBSTACLES[this.obst.name];
+      const t = this.actions.get(this.obst.name)?.time ?? 0;
+      if (t >= O.land) return 0;
+      if (t >= O.takeoff) return 1;
+      return 0.5 + 0.5 * flightGate(this.phase, this.contact);
+    }
     if (this.current !== 'run' || gaitW < 0.99) return 1;
     // Half of it evenly, half in the flights: all of it in the air made the floor surge a third faster
     // mid-flight (8-14 cm/frame² at the hand-overs); half leaves a planted foot ≤ ~1.5 cm/frame.
